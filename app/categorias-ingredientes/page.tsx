@@ -76,40 +76,50 @@ export default function CategoriasIngredientes() {
   }
 
   return (
-    <div className="container mx-auto p-6">
+    <div className="space-y-6">
       <Header title="Categorias de Ingredientes" subtitle="Gerencie as categorias de ingredientes e produtos" />
 
-      <div className="flex items-center justify-end mb-6">
-        <Button onClick={handleNew}>
+      <div className="flex items-center justify-end">
+        <Button onClick={handleNew} className="bg-blue-600 hover:bg-blue-700 text-white">
           <Plus className="mr-2 h-4 w-4" /> Criar Categoria
         </Button>
       </div>
 
-      <Card>
+      <Card className="bg-white border-gray-200">
         <CardHeader>
-          <CardTitle>Categorias Cadastradas</CardTitle>
+          <CardTitle className="text-gray-800">Categorias Cadastradas</CardTitle>
         </CardHeader>
         <CardContent>
           <Table>
             <TableHeader>
-              <TableRow>
-                <TableHead>Cód. Sistema</TableHead>
-                <TableHead>Categoria de Ingredientes</TableHead>
-                <TableHead>Tipo</TableHead>
-                <TableHead className="text-right">Ações</TableHead>
+              <TableRow className="bg-gray-50 hover:bg-gray-50">
+                <TableHead className="text-gray-700">Cód. Sistema</TableHead>
+                <TableHead className="text-gray-700">Categoria de Ingredientes</TableHead>
+                <TableHead className="text-gray-700">Tipo</TableHead>
+                <TableHead className="text-right text-gray-700">Ações</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {categorias.map((categoria) => (
-                <TableRow key={categoria.id}>
-                  <TableCell>{categoria.id}</TableCell>
-                  <TableCell>{categoria.descricao}</TableCell>
-                  <TableCell>{categoria.tipo}</TableCell>
+                <TableRow key={categoria.id} className="hover:bg-gray-50 border-b border-gray-100">
+                  <TableCell className="font-medium text-gray-700">{categoria.id}</TableCell>
+                  <TableCell className="text-gray-700">{categoria.descricao}</TableCell>
+                  <TableCell className="text-gray-700">{categoria.tipo}</TableCell>
                   <TableCell className="text-right">
-                    <Button variant="ghost" size="icon" onClick={() => handleEdit(categoria)}>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="text-gray-500 hover:text-blue-600 hover:bg-blue-50"
+                      onClick={() => handleEdit(categoria)}
+                    >
                       <Pencil className="h-4 w-4" />
                     </Button>
-                    <Button variant="ghost" size="icon" onClick={() => handleDelete(categoria.id)}>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="text-gray-500 hover:text-red-600 hover:bg-red-50"
+                      onClick={() => handleDelete(categoria.id)}
+                    >
                       <Trash className="h-4 w-4" />
                     </Button>
                   </TableCell>
@@ -121,22 +131,25 @@ export default function CategoriasIngredientes() {
       </Card>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent>
+        <DialogContent className="bg-white">
           <DialogHeader>
-            <DialogTitle>{editando ? "Editar Categoria" : "Nova Categoria"}</DialogTitle>
+            <DialogTitle className="text-gray-800">{editando ? "Editar Categoria" : "Nova Categoria"}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-2">
-              <Label htmlFor="descricao">Descrição</Label>
+              <Label htmlFor="descricao" className="text-gray-700">
+                Descrição
+              </Label>
               <Input
                 id="descricao"
                 value={novaCategoria.descricao || ""}
                 onChange={(e) => setNovaCategoria({ ...novaCategoria, descricao: e.target.value })}
+                className="border-gray-200"
               />
             </div>
 
             <div className="space-y-2">
-              <Label>Categoria de:</Label>
+              <Label className="text-gray-700">Categoria de:</Label>
               <RadioGroup
                 value={novaCategoria.tipo}
                 onValueChange={(value) =>
@@ -146,26 +159,43 @@ export default function CategoriasIngredientes() {
               >
                 <div className="flex items-center space-x-2">
                   <RadioGroupItem value="INGREDIENTE" id="ingrediente" />
-                  <Label htmlFor="ingrediente">INGREDIENTE</Label>
+                  <Label htmlFor="ingrediente" className="text-gray-700">
+                    INGREDIENTE
+                  </Label>
                 </div>
                 <div className="flex items-center space-x-2">
                   <RadioGroupItem value="PRODUTO" id="produto" />
-                  <Label htmlFor="produto">PRODUTO</Label>
+                  <Label htmlFor="produto" className="text-gray-700">
+                    PRODUTO
+                  </Label>
                 </div>
               </RadioGroup>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="codigo">Cód. Sistema</Label>
-              <Input id="codigo" value={editando || `CAT${String(categorias.length + 1).padStart(3, "0")}`} disabled />
-              <p className="text-xs text-muted-foreground">Preenchimento automático (não editável)</p>
+              <Label htmlFor="codigo" className="text-gray-700">
+                Cód. Sistema
+              </Label>
+              <Input
+                id="codigo"
+                value={editando || `CAT${String(categorias.length + 1).padStart(3, "0")}`}
+                disabled
+                className="bg-gray-50 border-gray-200"
+              />
+              <p className="text-xs text-gray-500">Preenchimento automático (não editável)</p>
             </div>
 
             <div className="flex justify-end space-x-2 pt-4">
-              <Button variant="outline" onClick={() => setDialogOpen(false)}>
+              <Button
+                variant="outline"
+                onClick={() => setDialogOpen(false)}
+                className="border-gray-200 text-gray-700 hover:bg-gray-50"
+              >
                 Cancelar
               </Button>
-              <Button onClick={handleSave}>Salvar</Button>
+              <Button onClick={handleSave} className="bg-blue-600 hover:bg-blue-700 text-white">
+                Salvar
+              </Button>
             </div>
           </div>
         </DialogContent>
