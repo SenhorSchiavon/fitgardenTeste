@@ -9,7 +9,6 @@ const inter = Inter({ subsets: ["latin"] })
 export const metadata: Metadata = {
   title: "FitGarden - Sistema de Gestão",
   description: "Sistema de gestão para marmitas fit",
-    generator: 'v0.dev'
 }
 
 export default function RootLayout({
