@@ -1,40 +1,75 @@
-"use client"
+"use client";
 
-import { useState } from "react"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Calendar } from "@/components/ui/calendar"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Badge } from "@/components/ui/badge"
-import { ScrollArea } from "@/components/ui/scroll-area"
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Plus, CalendarIcon, FileText, MapPin, Phone, Trash, TruckIcon, User, CreditCard } from "lucide-react"
-import { Header } from "@/components/header"
+import { useState } from "react";
+import { ptBR } from "date-fns/locale";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Calendar } from "@/components/ui/calendar";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  Plus,
+  CalendarIcon,
+  FileText,
+  MapPin,
+  Phone,
+  Trash,
+  TruckIcon,
+  User,
+  CreditCard,
+} from "lucide-react";
+import { Header } from "@/components/header";
 
 type Agendamento = {
-  id: string
-  numeroPedido: string
-  cliente: string
-  tipoEntrega: "ENTREGA" | "RETIRADA"
-  faixaHorario: "13-15" | "15-17" | "17-18" | "18-20:30"
-  endereco: string
-  zona: "CENTRO" | "ZONA SUL" | "ZONA NORTE" | "ZONA LESTE" | "CAMBÉ" | "IBIPORÃ"
-  telefone: string
-  quantidade: number
-  formaPagamento: string
-  entregador: string
-  observacoes?: string
+  id: string;
+  numeroPedido: string;
+  cliente: string;
+  tipoEntrega: "ENTREGA" | "RETIRADA";
+  faixaHorario: "13-15" | "15-17" | "17-18" | "18-20:30";
+  endereco: string;
+  zona:
+    | "CENTRO"
+    | "ZONA SUL"
+    | "ZONA NORTE"
+    | "ZONA OESTE"
+    | "ZONA LESTE"
+    | "CAMBÉ"
+    | "IBIPORÃ";
+  telefone: string;
+  quantidade: number;
+  formaPagamento: string;
+  entregador: string;
+  observacoes?: string;
   itens: {
-    nome: string
-    tamanho: string
-    quantidade: number
-  }[]
-}
+    nome: string;
+    tamanho: string;
+    quantidade: number;
+  }[];
+};
 
 export default function Agendamentos() {
-  const [selectedDate, setSelectedDate] = useState<Date>(new Date())
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [agendamentos, setAgendamentos] = useState<Agendamento[]>([
     {
       id: "AGD001",
@@ -99,72 +134,60 @@ export default function Agendamentos() {
       entregador: "Carlos",
       itens: [{ nome: "Proteico Plus", tamanho: "450g", quantidade: 1 }],
     },
-  ])
+  ]);
 
-  const [agendamentoSelecionado, setAgendamentoSelecionado] = useState<Agendamento | null>(null)
-  const [detalhesDialogOpen, setDetalhesDialogOpen] = useState(false)
-  const [producaoSheetOpen, setProducaoSheetOpen] = useState(false)
-  const [rotasSheetOpen, setRotasSheetOpen] = useState(false)
+  const [agendamentoSelecionado, setAgendamentoSelecionado] =
+    useState<Agendamento | null>(null);
+  const [detalhesDialogOpen, setDetalhesDialogOpen] = useState(false);
+  const [producaoSheetOpen, setProducaoSheetOpen] = useState(false);
+  const [rotasSheetOpen, setRotasSheetOpen] = useState(false);
 
   const handleShowDetalhes = (agendamento: Agendamento) => {
-    setAgendamentoSelecionado(agendamento)
-    setDetalhesDialogOpen(true)
-  }
+    setAgendamentoSelecionado(agendamento);
+    setDetalhesDialogOpen(true);
+  };
 
   const handleDeleteAgendamento = (id: string) => {
-    setAgendamentos(agendamentos.filter((agd) => agd.id !== id))
-    setDetalhesDialogOpen(false)
-  }
-
-  const getFaixaHorarioColor = (faixa: string) => {
-    switch (faixa) {
-      case "13-15":
-        return "bg-red-500"
-      case "15-17":
-        return "bg-orange-500"
-      case "17-18":
-        return "bg-green-500"
-      case "18-20:30":
-        return "bg-blue-500"
-      default:
-        return "bg-gray-500"
-    }
-  }
+    setAgendamentos(agendamentos.filter((agd) => agd.id !== id));
+    setDetalhesDialogOpen(false);
+  };
 
   const getZonaColor = (zona: string) => {
     switch (zona) {
       case "CENTRO":
-        return "bg-purple-500"
+        return "bg-purple-500";
       case "ZONA SUL":
-        return "bg-yellow-500"
+        return "bg-yellow-500";
       case "ZONA NORTE":
-        return "bg-pink-500"
+        return "bg-pink-500";
       case "ZONA LESTE":
-        return "bg-emerald-500"
+        return "bg-emerald-500";
+      case "ZONA OESTE":
+        return "bg-cyan-500";
       case "CAMBÉ":
-        return "bg-indigo-500"
+        return "bg-indigo-500";
       case "IBIPORÃ":
-        return "bg-amber-500"
+        return "bg-amber-500";
       default:
-        return "bg-gray-500"
+        return "bg-gray-500";
     }
-  }
+  };
 
   const calcularProducaoDoDia = () => {
-    const producao: Record<string, number> = {}
+    const producao: Record<string, number> = {};
 
     agendamentos.forEach((agendamento) => {
       agendamento.itens.forEach((item) => {
-        const key = `${item.nome} (${item.tamanho})`
+        const key = `${item.nome} (${item.tamanho})`;
         if (!producao[key]) {
-          producao[key] = 0
+          producao[key] = 0;
         }
-        producao[key] += item.quantidade
-      })
-    })
+        producao[key] += item.quantidade;
+      });
+    });
 
-    return producao
-  }
+    return producao;
+  };
 
   const calcularRotasMontagem = () => {
     const rotas: Record<string, Record<string, number>> = {
@@ -172,23 +195,24 @@ export default function Agendamentos() {
       "ZONA SUL": {},
       "ZONA NORTE": {},
       "ZONA LESTE": {},
+      "ZONA OESTE": {},
       CAMBÉ: {},
       IBIPORÃ: {},
-    }
+    };
 
     agendamentos.forEach((agendamento) => {
       if (agendamento.tipoEntrega === "ENTREGA") {
         agendamento.itens.forEach((item) => {
           if (!rotas[agendamento.zona][item.nome]) {
-            rotas[agendamento.zona][item.nome] = 0
+            rotas[agendamento.zona][item.nome] = 0;
           }
-          rotas[agendamento.zona][item.nome] += item.quantidade
-        })
+          rotas[agendamento.zona][item.nome] += item.quantidade;
+        });
       }
-    })
+    });
 
-    return rotas
-  }
+    return rotas;
+  };
 
   const formatDate = (date: Date) => {
     return date.toLocaleDateString("pt-BR", {
@@ -196,12 +220,15 @@ export default function Agendamentos() {
       day: "2-digit",
       month: "long",
       year: "numeric",
-    })
-  }
+    });
+  };
 
   return (
     <div className="container mx-auto p-6">
-      <Header title="Agendamentos" subtitle="Gerencie os agendamentos de pedidos" />
+      <Header
+        title="Agendamentos"
+        subtitle="Gerencie os agendamentos de pedidos"
+      />
 
       <div className="flex items-center justify-end mb-6">
         <div className="flex space-x-2">
@@ -217,8 +244,8 @@ export default function Agendamentos() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-[300px_1fr] gap-6">
-        <Card>
+      <div className="grid grid-cols-1 md:grid-cols-[auto_1fr] gap-6">
+        <Card className="h-fit w-fit">
           <CardHeader>
             <CardTitle>Calendário</CardTitle>
           </CardHeader>
@@ -227,6 +254,7 @@ export default function Agendamentos() {
               mode="single"
               selected={selectedDate}
               onSelect={(date) => date && setSelectedDate(date)}
+              locale={ptBR}
               className="rounded-md border"
             />
           </CardContent>
@@ -248,12 +276,20 @@ export default function Agendamentos() {
                     <div className="flex items-center p-4 bg-muted/40">
                       <div className="flex-1">
                         <div className="flex items-center">
-                          <span className="font-medium">{agendamento.numeroPedido}</span>
+                          <span className="font-medium">
+                            {agendamento.numeroPedido}
+                          </span>
                           <span className="mx-2">-</span>
                           <span>{agendamento.cliente}</span>
                         </div>
                         <div className="flex items-center text-sm text-muted-foreground mt-1">
-                          <Badge variant={agendamento.tipoEntrega === "ENTREGA" ? "default" : "outline"}>
+                          <Badge
+                            variant={
+                              agendamento.tipoEntrega === "ENTREGA"
+                                ? "default"
+                                : "outline"
+                            }
+                          >
                             {agendamento.tipoEntrega}
                           </Badge>
                           <span className="mx-2">•</span>
@@ -263,17 +299,16 @@ export default function Agendamentos() {
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
-                        <Badge variant="outline">{agendamento.formaPagamento}</Badge>
+                        <Badge variant="outline">
+                          {agendamento.formaPagamento}
+                        </Badge>
                       </div>
                     </div>
-                    <div
-                      className={`h-1 ${getFaixaHorarioColor(agendamento.faixaHorario)}`}
-                      style={{ width: "70%" }}
-                    ></div>
-                    <div
-                      className={`h-1 ${getZonaColor(agendamento.zona)}`}
-                      style={{ width: "30%", marginLeft: "70%" }}
-                    ></div>
+                    <div className="flex h-1 w-full">
+                      <div
+                        className={`h-1 w-full ${getZonaColor(agendamento.zona)}`}
+                      />
+                    </div>
                   </div>
                 ))}
               </div>
@@ -286,7 +321,8 @@ export default function Agendamentos() {
         <DialogContent className="max-w-3xl">
           <DialogHeader>
             <DialogTitle>
-              Detalhes do Agendamento {agendamentoSelecionado?.numeroPedido} - {agendamentoSelecionado?.cliente}
+              Detalhes do Agendamento {agendamentoSelecionado?.numeroPedido} -{" "}
+              {agendamentoSelecionado?.cliente}
             </DialogTitle>
           </DialogHeader>
           <Tabs defaultValue="detalhes">
@@ -333,7 +369,8 @@ export default function Agendamentos() {
                 <div className="text-sm font-medium">Endereço</div>
                 <div className="flex items-center">
                   <MapPin className="h-4 w-4 mr-2 text-muted-foreground" />
-                  {agendamentoSelecionado?.endereco} ({agendamentoSelecionado?.zona})
+                  {agendamentoSelecionado?.endereco} (
+                  {agendamentoSelecionado?.zona})
                 </div>
               </div>
 
@@ -357,14 +394,19 @@ export default function Agendamentos() {
               {agendamentoSelecionado?.observacoes && (
                 <div className="space-y-1">
                   <div className="text-sm font-medium">Observações</div>
-                  <div className="p-2 bg-muted rounded-md">{agendamentoSelecionado.observacoes}</div>
+                  <div className="p-2 bg-muted rounded-md">
+                    {agendamentoSelecionado.observacoes}
+                  </div>
                 </div>
               )}
 
               <div className="flex justify-end space-x-2 pt-4">
                 <Button
                   variant="destructive"
-                  onClick={() => agendamentoSelecionado && handleDeleteAgendamento(agendamentoSelecionado.id)}
+                  onClick={() =>
+                    agendamentoSelecionado &&
+                    handleDeleteAgendamento(agendamentoSelecionado.id)
+                  }
                 >
                   <Trash className="mr-2 h-4 w-4" /> Excluir Agendamento
                 </Button>
@@ -397,7 +439,9 @@ export default function Agendamentos() {
       <Sheet open={producaoSheetOpen} onOpenChange={setProducaoSheetOpen}>
         <SheetContent className="sm:max-w-md">
           <SheetHeader>
-            <SheetTitle>Produção do Dia - {formatDate(selectedDate)}</SheetTitle>
+            <SheetTitle>
+              Produção do Dia - {formatDate(selectedDate)}
+            </SheetTitle>
           </SheetHeader>
           <div className="py-6">
             <Table>
@@ -408,12 +452,14 @@ export default function Agendamentos() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {Object.entries(calcularProducaoDoDia()).map(([item, quantidade]) => (
-                  <TableRow key={item}>
-                    <TableCell>{item}</TableCell>
-                    <TableCell className="text-right">{quantidade}</TableCell>
-                  </TableRow>
-                ))}
+                {Object.entries(calcularProducaoDoDia()).map(
+                  ([item, quantidade]) => (
+                    <TableRow key={item}>
+                      <TableCell>{item}</TableCell>
+                      <TableCell className="text-right">{quantidade}</TableCell>
+                    </TableRow>
+                  ),
+                )}
               </TableBody>
             </Table>
           </div>
@@ -423,16 +469,17 @@ export default function Agendamentos() {
       <Sheet open={rotasSheetOpen} onOpenChange={setRotasSheetOpen}>
         <SheetContent className="sm:max-w-md">
           <SheetHeader>
-            <SheetTitle>Rotas de Montagem - {formatDate(selectedDate)}</SheetTitle>
+            <SheetTitle>
+              Rotas de Montagem - {formatDate(selectedDate)}
+            </SheetTitle>
           </SheetHeader>
           <div className="py-6">
             <Tabs defaultValue="CENTRO">
-              <TabsList className="grid grid-cols-3 mb-4">
+              <TabsList className="flex flex-wrap h-auto gap-1 mb-4">
                 <TabsTrigger value="CENTRO">Centro</TabsTrigger>
                 <TabsTrigger value="ZONA SUL">Zona Sul</TabsTrigger>
+                <TabsTrigger value="ZONA OESTE">Zona Oeste</TabsTrigger>
                 <TabsTrigger value="ZONA NORTE">Zona Norte</TabsTrigger>
-              </TabsList>
-              <TabsList className="grid grid-cols-3 mb-4">
                 <TabsTrigger value="ZONA LESTE">Zona Leste</TabsTrigger>
                 <TabsTrigger value="CAMBÉ">Cambé</TabsTrigger>
                 <TabsTrigger value="IBIPORÃ">Ibiporã</TabsTrigger>
@@ -452,7 +499,9 @@ export default function Agendamentos() {
                         Object.entries(itens).map(([item, quantidade]) => (
                           <TableRow key={item}>
                             <TableCell>{item}</TableCell>
-                            <TableCell className="text-right">{quantidade}</TableCell>
+                            <TableCell className="text-right">
+                              {quantidade}
+                            </TableCell>
                           </TableRow>
                         ))
                       ) : (
@@ -471,5 +520,5 @@ export default function Agendamentos() {
         </SheetContent>
       </Sheet>
     </div>
-  )
+  );
 }
