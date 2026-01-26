@@ -29,6 +29,16 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { Header } from "@/components/header";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 import { usePreparos, Preparo, PreparoTipo, Medida } from "@/hooks/usePreparos";
 import { useIngredientes } from "@/hooks/useIngredientes";
@@ -52,6 +62,8 @@ export default function PreparosPage() {
   } = usePreparos();
 
   const { ingredientes, loading: loadingIngredientes } = useIngredientes();
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteId, setDeleteId] = useState<number | null>(null);
 
   const [novoPreparo, setNovoPreparo] = useState<{
     nome: string;
@@ -95,6 +107,21 @@ export default function PreparosPage() {
       ),
     );
   }, [preparos, busca]);
+  const openDelete = (id: number) => {
+    setDeleteId(id);
+    setDeleteOpen(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteId) return;
+
+    try {
+      await deletePreparo(deleteId);
+    } finally {
+      setDeleteOpen(false);
+      setDeleteId(null);
+    }
+  };
 
   const ingredientesFiltrados = useMemo(() => {
     const q = buscaIngrediente.trim().toLowerCase();
@@ -282,7 +309,7 @@ export default function PreparosPage() {
                       <Button
                         variant="ghost"
                         size="icon"
-                        onClick={() => handleDelete(preparo.id)}
+                        onClick={() => openDelete(preparo.id)}
                         disabled={saving}
                       >
                         <Trash className="h-4 w-4" />
@@ -577,6 +604,41 @@ export default function PreparosPage() {
           </div>
         </DialogContent>
       </Dialog>
+      <AlertDialog
+        open={deleteOpen}
+        onOpenChange={(open) => {
+          setDeleteOpen(open);
+          if (!open) setDeleteId(null);
+        }}
+      >
+        <AlertDialogContent className="bg-white">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-gray-800">
+              Excluir preparo?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-gray-600">
+              Essa ação não pode ser desfeita. O preparo será removido do
+              sistema.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              className="border-gray-200 text-gray-700 hover:bg-gray-50"
+              disabled={saving}
+            >
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDelete}
+              className="bg-red-600 hover:bg-red-700 text-white"
+              disabled={saving}
+            >
+              {saving ? "Excluindo..." : "Excluir"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

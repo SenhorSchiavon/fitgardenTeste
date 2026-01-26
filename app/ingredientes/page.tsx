@@ -32,6 +32,16 @@ import { Header } from "@/components/header";
 
 import { useIngredientes, Medida, Ingrediente } from "@/hooks/useIngredientes";
 import { useCategorias } from "@/hooks/useCategorias";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 import { toast } from "sonner";
 
@@ -62,6 +72,26 @@ export default function IngredientesPage() {
 
   const [editandoId, setEditandoId] = useState<number | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteId, setDeleteId] = useState<number | null>(null);
+  const openDelete = (id: number) => {
+    setDeleteId(id);
+    setDeleteOpen(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteId) return;
+
+    try {
+      await deleteIngrediente(deleteId);
+      toast.success("Ingrediente excluído!");
+    } catch (e) {
+      toast.error("Falha ao excluir ingrediente");
+    } finally {
+      setDeleteOpen(false);
+      setDeleteId(null);
+    }
+  };
 
   const resetForm = () => {
     setNovoIngrediente({
@@ -257,7 +287,7 @@ export default function IngredientesPage() {
                         variant="ghost"
                         size="icon"
                         className="text-gray-500 hover:text-red-600 hover:bg-red-50"
-                        onClick={() => handleDelete(ingrediente.id)}
+                        onClick={() => openDelete(ingrediente.id)}
                         disabled={saving}
                       >
                         <Trash className="h-4 w-4" />
@@ -427,6 +457,41 @@ export default function IngredientesPage() {
           </div>
         </DialogContent>
       </Dialog>
+      <AlertDialog
+        open={deleteOpen}
+        onOpenChange={(open) => {
+          setDeleteOpen(open);
+          if (!open) setDeleteId(null);
+        }}
+      >
+        <AlertDialogContent className="bg-white">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-gray-800">
+              Excluir ingrediente?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-gray-600">
+              Essa ação não pode ser desfeita. O ingrediente será removido do
+              sistema.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              className="border-gray-200 text-gray-700 hover:bg-gray-50"
+              disabled={saving}
+            >
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDelete}
+              className="bg-red-600 hover:bg-red-700 text-white"
+              disabled={saving}
+            >
+              {saving ? "Excluindo..." : "Excluir"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
