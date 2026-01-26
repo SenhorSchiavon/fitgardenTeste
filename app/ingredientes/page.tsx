@@ -72,7 +72,18 @@ export default function IngredientesPage() {
     });
     setEditandoId(null);
   };
+  const [busca, setBusca] = useState("");
 
+  const ingredientesFiltrados = useMemo(() => {
+    const q = busca.trim().toLowerCase();
+    if (!q) return ingredientes;
+
+    return ingredientes.filter((i) =>
+      [i.codigoSistema, i.nome, i.categoriaDescricao].some((v) =>
+        String(v).toLowerCase().includes(q),
+      ),
+    );
+  }, [ingredientes, busca]);
   const handleNew = () => {
     resetForm();
     setDialogOpen(true);
@@ -165,6 +176,8 @@ export default function IngredientesPage() {
       <Header
         title="Ingredientes"
         subtitle="Gerencie os ingredientes do sistema"
+        searchValue={busca}
+        onSearchChange={setBusca}
       />
 
       <div className="flex items-center justify-end">
@@ -209,7 +222,7 @@ export default function IngredientesPage() {
               </TableHeader>
 
               <TableBody>
-                {ingredientes.map((ingrediente) => (
+                {ingredientesFiltrados.map((ingrediente) => (
                   <TableRow
                     key={ingrediente.id}
                     className="hover:bg-gray-50 border-b border-gray-100"
@@ -253,7 +266,7 @@ export default function IngredientesPage() {
                   </TableRow>
                 ))}
 
-                {ingredientes.length === 0 && !isLoading && (
+                {ingredientesFiltrados.length === 0 && !isLoading && (
                   <TableRow>
                     <TableCell
                       colSpan={6}

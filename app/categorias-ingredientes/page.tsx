@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -33,7 +33,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { toast } from "sonner";
 
 type NovaCategoriaForm = {
   descricao: string;
@@ -59,6 +58,18 @@ export default function CategoriasIngredientes() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [busca, setBusca] = useState("");
+
+  const categoriasFiltradas = useMemo(() => {
+    const q = busca.trim().toLowerCase();
+    if (!q) return categorias;
+
+    return categorias.filter((c) =>
+      [c.id, c.descricao, c.tipo].some((v) =>
+        String(v).toLowerCase().includes(q),
+      ),
+    );
+  }, [categorias, busca]);
 
   const openDelete = (id: number) => {
     setDeleteId(id);
@@ -126,6 +137,8 @@ export default function CategoriasIngredientes() {
       <Header
         title="Categorias de Ingredientes"
         subtitle="Gerencie as categorias de ingredientes e produtos"
+        searchValue={busca}
+        onSearchChange={setBusca}
       />
 
       <div className="flex items-center justify-end">
@@ -161,7 +174,7 @@ export default function CategoriasIngredientes() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {categorias.map((categoria) => (
+                {categoriasFiltradas.map((categoria) => (
                   <TableRow
                     key={categoria.id}
                     className="hover:bg-gray-50 border-b border-gray-100"
@@ -197,7 +210,7 @@ export default function CategoriasIngredientes() {
                   </TableRow>
                 ))}
 
-                {categorias.length === 0 && !loading && (
+                {categoriasFiltradas.length === 0 && !loading && (
                   <TableRow>
                     <TableCell
                       colSpan={4}

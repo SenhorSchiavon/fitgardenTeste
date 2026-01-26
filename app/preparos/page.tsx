@@ -3,13 +3,31 @@
 import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { Plus, Pencil, Trash, Search } from "lucide-react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
 import { Header } from "@/components/header";
 
 import { usePreparos, Preparo, PreparoTipo, Medida } from "@/hooks/usePreparos";
@@ -64,6 +82,30 @@ export default function PreparosPage() {
   const [editandoId, setEditandoId] = useState<number | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [busca, setBusca] = useState("");
+  const [buscaIngrediente, setBuscaIngrediente] = useState("");
+
+  const preparosFiltrados = useMemo(() => {
+    const q = busca.trim().toLowerCase();
+    if (!q) return preparos;
+
+    return preparos.filter((p) =>
+      [p.codigoSistema, p.nome, p.tipo, p.medida].some((v) =>
+        String(v).toLowerCase().includes(q),
+      ),
+    );
+  }, [preparos, busca]);
+
+  const ingredientesFiltrados = useMemo(() => {
+    const q = buscaIngrediente.trim().toLowerCase();
+    if (!q) return ingredientes;
+
+    return ingredientes.filter((i) =>
+      [i.codigoSistema, i.nome, i.medida].some((v) =>
+        String(v).toLowerCase().includes(q),
+      ),
+    );
+  }, [ingredientes, buscaIngrediente]);
 
   const isLoading = loadingPreparos || loadingIngredientes;
 
@@ -74,11 +116,25 @@ export default function PreparosPage() {
   }, [editandoId, preparos]);
 
   const calcularCustoPreparo = (itens: IngredientePreparoEmEdicao[]) =>
-    itens.reduce((total, item) => total + (Number.isFinite(item.custo) ? item.custo : 0), 0);
+    itens.reduce(
+      (total, item) => total + (Number.isFinite(item.custo) ? item.custo : 0),
+      0,
+    );
 
   const resetForm = () => {
-    setNovoPreparo({ nome: "", tipo: "CARBOIDRATO", medida: "KG", ingredientes: [] });
-    setNovoIngrediente({ ingredienteId: null, ingredienteNome: "", medida: "KG", quantidade: 0, custo: 0 });
+    setNovoPreparo({
+      nome: "",
+      tipo: "CARBOIDRATO",
+      medida: "KG",
+      ingredientes: [],
+    });
+    setNovoIngrediente({
+      ingredienteId: null,
+      ingredienteNome: "",
+      medida: "KG",
+      quantidade: 0,
+      custo: 0,
+    });
     setEditandoId(null);
   };
 
@@ -112,7 +168,9 @@ export default function PreparosPage() {
   const handleRemoveIngrediente = (ingredienteId: number) => {
     setNovoPreparo((p) => ({
       ...p,
-      ingredientes: p.ingredientes.filter((i) => i.ingredienteId !== ingredienteId),
+      ingredientes: p.ingredientes.filter(
+        (i) => i.ingredienteId !== ingredienteId,
+      ),
     }));
   };
 
@@ -133,7 +191,13 @@ export default function PreparosPage() {
       ingredientes: [...p.ingredientes, item],
     }));
 
-    setNovoIngrediente({ ingredienteId: null, ingredienteNome: "", medida: "KG", quantidade: 0, custo: 0 });
+    setNovoIngrediente({
+      ingredienteId: null,
+      ingredienteNome: "",
+      medida: "KG",
+      quantidade: 0,
+      custo: 0,
+    });
     setSheetOpen(false);
   };
 
@@ -166,7 +230,12 @@ export default function PreparosPage() {
 
   return (
     <div className="container mx-auto p-6">
-      <Header title="Preparos" subtitle="Gerencie os preparos e fichas técnicas" />
+      <Header
+        title="Preparos"
+        subtitle="Gerencie os preparos e fichas técnicas"
+        searchValue={busca}
+        onSearchChange={setBusca}
+      />
 
       <div className="flex items-center justify-end mb-6">
         <Button onClick={handleNew} disabled={saving}>
@@ -180,7 +249,9 @@ export default function PreparosPage() {
         </CardHeader>
         <CardContent>
           {isLoading ? (
-            <p className="text-sm text-muted-foreground">Carregando preparos...</p>
+            <p className="text-sm text-muted-foreground">
+              Carregando preparos...
+            </p>
           ) : (
             <Table>
               <TableHeader>
@@ -193,14 +264,19 @@ export default function PreparosPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {preparos.map((preparo) => (
+                {preparosFiltrados.map((preparo) => (
                   <TableRow key={preparo.id}>
                     <TableCell>{preparo.codigoSistema}</TableCell>
                     <TableCell>{preparo.nome}</TableCell>
                     <TableCell>{preparo.tipo}</TableCell>
                     <TableCell>R$ {preparo.custoTotal.toFixed(2)}</TableCell>
                     <TableCell className="text-right">
-                      <Button variant="ghost" size="icon" onClick={() => handleEdit(preparo)} disabled={saving}>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleEdit(preparo)}
+                        disabled={saving}
+                      >
                         <Pencil className="h-4 w-4" />
                       </Button>
                       <Button
@@ -215,9 +291,12 @@ export default function PreparosPage() {
                   </TableRow>
                 ))}
 
-                {preparos.length === 0 && !isLoading && (
+                {preparosFiltrados.length === 0 && !isLoading && (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center text-sm text-muted-foreground py-4">
+                    <TableCell
+                      colSpan={5}
+                      className="text-center text-sm text-muted-foreground py-4"
+                    >
                       Nenhum preparo cadastrado.
                     </TableCell>
                   </TableRow>
@@ -237,7 +316,9 @@ export default function PreparosPage() {
       >
         <DialogContent className="max-w-3xl">
           <DialogHeader>
-            <DialogTitle>{editandoId ? "Editar Preparo" : "Novo Preparo"}</DialogTitle>
+            <DialogTitle>
+              {editandoId ? "Editar Preparo" : "Novo Preparo"}
+            </DialogTitle>
           </DialogHeader>
 
           <div className="space-y-4 py-2">
@@ -247,14 +328,18 @@ export default function PreparosPage() {
                 <Input
                   id="nome"
                   value={novoPreparo.nome}
-                  onChange={(e) => setNovoPreparo((p) => ({ ...p, nome: e.target.value }))}
+                  onChange={(e) =>
+                    setNovoPreparo((p) => ({ ...p, nome: e.target.value }))
+                  }
                 />
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="codigo">Cód. Sistema</Label>
                 <Input id="codigo" value={codigoSistemaAtual} disabled />
-                <p className="text-xs text-muted-foreground">Preenchimento automático (não editável)</p>
+                <p className="text-xs text-muted-foreground">
+                  Preenchimento automático (não editável)
+                </p>
               </div>
             </div>
 
@@ -263,7 +348,9 @@ export default function PreparosPage() {
                 <Label>Medida</Label>
                 <RadioGroup
                   value={novoPreparo.medida}
-                  onValueChange={(value) => setNovoPreparo((p) => ({ ...p, medida: value as Medida }))}
+                  onValueChange={(value) =>
+                    setNovoPreparo((p) => ({ ...p, medida: value as Medida }))
+                  }
                   className="flex space-x-4"
                 >
                   <div className="flex items-center space-x-2">
@@ -285,7 +372,12 @@ export default function PreparosPage() {
                 <Label>Tipo</Label>
                 <RadioGroup
                   value={novoPreparo.tipo}
-                  onValueChange={(value) => setNovoPreparo((p) => ({ ...p, tipo: value as PreparoTipo }))}
+                  onValueChange={(value) =>
+                    setNovoPreparo((p) => ({
+                      ...p,
+                      tipo: value as PreparoTipo,
+                    }))
+                  }
                   className="flex space-x-4"
                 >
                   <div className="flex items-center space-x-2">
@@ -323,7 +415,12 @@ export default function PreparosPage() {
                     <div className="py-4">
                       <div className="relative mb-4">
                         <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                        <Input placeholder="Buscar ingrediente..." className="pl-8" />
+                        <Input
+                          placeholder="Buscar ingrediente..."
+                          className="pl-8"
+                          value={buscaIngrediente}
+                          onChange={(e) => setBuscaIngrediente(e.target.value)}
+                        />
                       </div>
 
                       <Table>
@@ -364,19 +461,28 @@ export default function PreparosPage() {
 
                       {novoIngrediente.ingredienteId && (
                         <div className="mt-4 space-y-4 border-t pt-4">
-                          <h3 className="font-medium">Adicionar {novoIngrediente.ingredienteNome}</h3>
+                          <h3 className="font-medium">
+                            Adicionar {novoIngrediente.ingredienteNome}
+                          </h3>
 
                           <div className="space-y-2">
-                            <Label htmlFor="quantidade">Quantidade ({novoIngrediente.medida})</Label>
+                            <Label htmlFor="quantidade">
+                              Quantidade ({novoIngrediente.medida})
+                            </Label>
                             <Input
                               id="quantidade"
                               type="number"
                               step="0.01"
                               value={novoIngrediente.quantidade || ""}
                               onChange={(e) => {
-                                const qtd = Number.parseFloat(e.target.value || "0");
+                                const qtd = Number.parseFloat(
+                                  e.target.value || "0",
+                                );
                                 const preco =
-                                  ingredientes.find((i) => i.id === novoIngrediente.ingredienteId)?.precoCusto || 0;
+                                  ingredientes.find(
+                                    (i) =>
+                                      i.id === novoIngrediente.ingredienteId,
+                                  )?.precoCusto || 0;
 
                                 setNovoIngrediente((p) => ({
                                   ...p,
@@ -387,7 +493,10 @@ export default function PreparosPage() {
                             />
                           </div>
 
-                          <Button onClick={handleAddIngrediente} className="w-full">
+                          <Button
+                            onClick={handleAddIngrediente}
+                            className="w-full"
+                          >
                             Adicionar à Ficha Técnica
                           </Button>
                         </div>
@@ -419,7 +528,9 @@ export default function PreparosPage() {
                         <Button
                           variant="ghost"
                           size="icon"
-                          onClick={() => handleRemoveIngrediente(ingrediente.ingredienteId)}
+                          onClick={() =>
+                            handleRemoveIngrediente(ingrediente.ingredienteId)
+                          }
                         >
                           <Trash className="h-4 w-4" />
                         </Button>
@@ -429,7 +540,10 @@ export default function PreparosPage() {
 
                   {novoPreparo.ingredientes.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={5} className="text-center text-sm text-muted-foreground py-4">
+                      <TableCell
+                        colSpan={5}
+                        className="text-center text-sm text-muted-foreground py-4"
+                      >
                         Nenhum ingrediente adicionado.
                       </TableCell>
                     </TableRow>
@@ -440,13 +554,20 @@ export default function PreparosPage() {
               <div className="flex justify-end pt-2">
                 <div className="text-right">
                   <p className="text-sm font-medium">Custo Total:</p>
-                  <p className="text-lg font-bold">R$ {calcularCustoPreparo(novoPreparo.ingredientes).toFixed(2)}</p>
+                  <p className="text-lg font-bold">
+                    R${" "}
+                    {calcularCustoPreparo(novoPreparo.ingredientes).toFixed(2)}
+                  </p>
                 </div>
               </div>
             </div>
 
             <div className="flex justify-end space-x-2 pt-4">
-              <Button variant="outline" onClick={() => setDialogOpen(false)} disabled={saving}>
+              <Button
+                variant="outline"
+                onClick={() => setDialogOpen(false)}
+                disabled={saving}
+              >
                 Cancelar
               </Button>
               <Button onClick={handleSave} disabled={saving}>
