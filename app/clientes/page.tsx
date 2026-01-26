@@ -21,6 +21,8 @@ import {
   Tag,
   MapPin,
   X,
+  Package,
+  PlusCircle,
 } from "lucide-react";
 import {
   Dialog,
@@ -53,8 +55,14 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import { ChevronDown } from "lucide-react";
 import { Cliente, RegiaoEntrega, useClientes } from "@/hooks/useClientes";
+import { usePlanosCliente } from "@/hooks/usePlanosCliente";
 import { DialogClose } from "@radix-ui/react-dialog";
 
 const MapContainer = dynamic(
@@ -65,9 +73,6 @@ const TileLayer = dynamic(
   () => import("react-leaflet").then((m) => m.TileLayer),
   { ssr: false },
 );
-const Marker = dynamic(() => import("react-leaflet").then((m) => m.Marker), {
-  ssr: false,
-});
 
 type ClienteForm = {
   nome: string;
@@ -175,13 +180,16 @@ async function buscarCepViaCep(cep: string) {
     logradouro: data.logradouro as string,
   };
 }
+
 const CircleMarker = dynamic(
   () => import("react-leaflet").then((m) => m.CircleMarker),
   { ssr: false },
 );
 
 async function geocodeNominatim(address: string) {
-  const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&q=${encodeURIComponent(address)}`;
+  const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&q=${encodeURIComponent(
+    address,
+  )}`;
 
   const res = await fetch(url, {
     cache: "no-store",
@@ -192,12 +200,10 @@ async function geocodeNominatim(address: string) {
 
   const data = await res.json();
 
-  // 1) formato array (json/jsonv2)
   if (Array.isArray(data) && data[0]) {
     return { lat: Number(data[0].lat), lon: Number(data[0].lon) };
   }
 
-  // 2) formato geojson (FeatureCollection)
   if (data?.features?.length) {
     const f = data.features[0];
     const lon = f?.geometry?.coordinates?.[0];
@@ -207,6 +213,13 @@ async function geocodeNominatim(address: string) {
 
   throw new Error("Endereço não localizado.");
 }
+
+type PlanoCatalogo = {
+  id: number;
+  nome?: string | null;
+  unidades?: number | null;
+  tamanho?: { id: number; pesagemGramas: number } | null;
+};
 
 export default function Clientes() {
   const {
@@ -219,6 +232,16 @@ export default function Clientes() {
     updateCliente,
     deleteCliente,
   } = useClientes();
+
+  const {
+    listTamanhos, // [{id, pesagemGramas}]
+    listPlanos, // PlanoCatalogo[]
+    createPlano, // (payload: {nome?: string|null, tamanhoId: number, unidades: number}) => PlanoCatalogo
+    vincularPlano, // (clienteId: number, planoId: number) => any
+    desvincularPlano, // (clienteId: number, planoIdOrVinculoId: number) => any
+    saving: savingPlano,
+  } = usePlanosCliente();
+
   const [localizando, setLocalizando] = useState(false);
   const [erroLocalizacao, setErroLocalizacao] = useState<string | null>(null);
 
@@ -252,6 +275,28 @@ export default function Clientes() {
   const [clienteSelecionado, setClienteSelecionado] = useState<Cliente | null>(
     null,
   );
+
+  const [abaHistorico, setAbaHistorico] = useState<"historico" | "planos">(
+    "historico",
+  );
+
+  const [tamanhos, setTamanhos] = useState<
+    { id: number; pesagemGramas: number }[]
+  >([]);
+
+  const [planosCatalogo, setPlanosCatalogo] = useState<PlanoCatalogo[]>([]);
+
+  const [novoPlanoCatalogo, setNovoPlanoCatalogo] = useState<{
+    nome: string;
+    tamanhoId: string;
+    unidades: number;
+  }>({
+    nome: "",
+    tamanhoId: "",
+    unidades: 10,
+  });
+
+  const [vinculoPlanoId, setVinculoPlanoId] = useState<string>("");
 
   const [excluindoId, setExcluindoId] = useState<number | null>(null);
 
@@ -356,27 +401,11 @@ export default function Clientes() {
       cidade: data.cidade || p.cidade,
       bairro: data.bairro || p.bairro,
       logradouro: data.logradouro || p.logradouro,
-      // quando muda CEP, geralmente muda localidade — zera coords pra recalcular
       latitude: null,
       longitude: null,
     }));
   };
 
-  const handleLocalizarNoMapa = async () => {
-    setErroLocalizacao(null);
-    setLocalizando(true);
-
-    try {
-      const addrFull = montarEnderecoCompletoParaGeocode();
-      const geo = await geocodeNominatimComFallback(addrFull);
-
-      setNovoCliente((p) => ({ ...p, latitude: geo.lat, longitude: geo.lon }));
-    } catch (e: any) {
-      setErroLocalizacao(e?.message || "Não foi possível localizar no mapa.");
-    } finally {
-      setLocalizando(false);
-    }
-  };
   async function geocodeNominatimComFallback(fullAddress: string) {
     try {
       return await geocodeNominatim(fullAddress);
@@ -397,6 +426,21 @@ export default function Clientes() {
     const fallback = parts.slice(0, 2).concat(parts.slice(-3)).join(", ");
     return await geocodeNominatim(fallback);
   }
+
+  const handleLocalizarNoMapa = async () => {
+    setErroLocalizacao(null);
+    setLocalizando(true);
+
+    try {
+      const addrFull = montarEnderecoCompletoParaGeocode();
+      const geo = await geocodeNominatimComFallback(addrFull);
+      setNovoCliente((p) => ({ ...p, latitude: geo.lat, longitude: geo.lon }));
+    } catch (e: any) {
+      setErroLocalizacao(e?.message || "Não foi possível localizar no mapa.");
+    } finally {
+      setLocalizando(false);
+    }
+  };
 
   const handleSave = async () => {
     const payload = {
@@ -448,18 +492,37 @@ export default function Clientes() {
     resetForm();
   };
 
-  const handleShowHistory = (cliente: Cliente) => {
+  const handleShowHistory = async (
+    cliente: Cliente,
+    aba: "historico" | "planos" = "historico",
+  ) => {
     setClienteSelecionado(cliente);
     setHistoricoDialogOpen(true);
+    setAbaHistorico(aba);
+
+    if (aba === "planos") {
+      try {
+        const [t, planos] = await Promise.all([listTamanhos(), listPlanos()]);
+        setTamanhos(t || []);
+        setPlanosCatalogo(planos || []);
+      } catch {
+        setTamanhos([]);
+        setPlanosCatalogo([]);
+      }
+    }
   };
 
   const planosSelecionado = useMemo(() => {
     if (!clienteSelecionado) return [];
-    return (clienteSelecionado.planos || []).map((p) => ({
-      id: String(p.id),
-      nome: "Plano",
-      tamanho: p.tamanho ? `${p.tamanho.pesagemGramas}g` : "-",
-      saldoRestante: Number(p.saldoUnidades || 0),
+    return (clienteSelecionado.planos || []).map((p: any) => ({
+      id: Number(p.id),
+      nome: p.nome || p.plano?.nome || "Plano",
+      tamanho: p.tamanho?.pesagemGramas
+        ? `${p.tamanho.pesagemGramas}g`
+        : p.plano?.tamanho?.pesagemGramas
+          ? `${p.plano.tamanho.pesagemGramas}g`
+          : "-",
+      unidades: Number(p.unidades ?? p.plano?.unidades ?? 0),
     }));
   }, [clienteSelecionado]);
 
@@ -469,26 +532,24 @@ export default function Clientes() {
     typeof novoCliente.longitude === "number" &&
     !Number.isNaN(novoCliente.longitude);
 
+  const savingAll = saving || savingPlano;
+
+  const planosVinculaveis = useMemo(() => {
+    const vinculadosIds = new Set(planosSelecionado.map((p) => p.id));
+    return (planosCatalogo || []).filter((p) => !vinculadosIds.has(p.id));
+  }, [planosCatalogo, planosSelecionado]);
+
   return (
     <div className="container mx-auto p-6">
       <Header
         title="Cadastro de Clientes"
         subtitle="Gerencie os clientes e seus planos"
+        searchValue={search}
+        onSearchChange={setSearch}
       />
 
-      <div className="flex items-center justify-between mb-6 gap-3">
-        <div className="relative w-full max-w-md">
-          <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Buscar por nome, telefone ou endereço..."
-            className="pl-8"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            disabled={loading}
-          />
-        </div>
-
-        <Button onClick={handleNew} disabled={saving}>
+      <div className="flex items-center justify-end mb-6 gap-3">
+        <Button onClick={handleNew} disabled={savingAll}>
           <Plus className="mr-2 h-4 w-4" /> Novo Cliente
         </Button>
       </div>
@@ -546,17 +607,19 @@ export default function Clientes() {
                         <Button
                           variant="ghost"
                           size="icon"
-                          onClick={() => handleShowHistory(cliente)}
-                          disabled={saving}
+                          onClick={() => handleShowHistory(cliente, "planos")}
+                          disabled={savingAll}
+                          title="Planos"
                         >
-                          <History className="h-4 w-4" />
+                          <Package className="h-4 w-4" />
                         </Button>
 
                         <Button
                           variant="ghost"
                           size="icon"
                           onClick={() => handleEdit(cliente)}
-                          disabled={saving}
+                          disabled={savingAll}
+                          title="Editar"
                         >
                           <Pencil className="h-4 w-4" />
                         </Button>
@@ -571,7 +634,8 @@ export default function Clientes() {
                             <Button
                               variant="ghost"
                               size="icon"
-                              disabled={saving}
+                              disabled={savingAll}
+                              title="Excluir"
                             >
                               <Trash className="h-4 w-4" />
                             </Button>
@@ -590,11 +654,11 @@ export default function Clientes() {
                             </AlertDialogHeader>
 
                             <AlertDialogFooter>
-                              <AlertDialogCancel disabled={saving}>
+                              <AlertDialogCancel disabled={savingAll}>
                                 Cancelar
                               </AlertDialogCancel>
                               <AlertDialogAction
-                                disabled={saving}
+                                disabled={savingAll}
                                 onClick={async () => {
                                   await deleteCliente(cliente.id);
                                   setExcluindoId(null);
@@ -626,7 +690,7 @@ export default function Clientes() {
         </CardContent>
       </Card>
 
-      {/* MODAL CRIAR/EDITAR */}
+      {/* MODAL CRIAR/EDITAR CLIENTE */}
       <Dialog
         open={dialogOpen}
         onOpenChange={(open) => {
@@ -644,7 +708,7 @@ export default function Clientes() {
               </DialogHeader>
 
               <DialogClose asChild>
-                <Button variant="ghost" size="icon">
+                <Button variant="ghost" size="icon" disabled={savingAll}>
                   <X className="h-4 w-4" />
                 </Button>
               </DialogClose>
@@ -669,7 +733,7 @@ export default function Clientes() {
                       onChange={(e) =>
                         setNovoCliente((p) => ({ ...p, nome: e.target.value }))
                       }
-                      disabled={saving}
+                      disabled={savingAll}
                     />
                   </div>
 
@@ -684,7 +748,7 @@ export default function Clientes() {
                           telefone: e.target.value,
                         }))
                       }
-                      disabled={saving}
+                      disabled={savingAll}
                     />
                   </div>
                 </div>
@@ -698,7 +762,7 @@ export default function Clientes() {
                       onChange={(e) =>
                         setNovoCliente((p) => ({ ...p, cpf: e.target.value }))
                       }
-                      disabled={saving}
+                      disabled={savingAll}
                     />
                   </div>
 
@@ -714,7 +778,7 @@ export default function Clientes() {
                           dataNascimento: e.target.value,
                         }))
                       }
-                      disabled={saving}
+                      disabled={savingAll}
                     />
                   </div>
                 </div>
@@ -726,7 +790,7 @@ export default function Clientes() {
                     onValueChange={(value) =>
                       setNovoCliente((p) => ({ ...p, regiao: value as any }))
                     }
-                    disabled={saving}
+                    disabled={savingAll}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Selecione uma região" />
@@ -754,7 +818,7 @@ export default function Clientes() {
                       onChange={(e) =>
                         setNovoCliente((p) => ({ ...p, cep: e.target.value }))
                       }
-                      disabled={saving}
+                      disabled={savingAll}
                       placeholder="00000-000"
                     />
                   </div>
@@ -769,7 +833,7 @@ export default function Clientes() {
                           uf: e.target.value.toUpperCase(),
                         }))
                       }
-                      disabled={saving}
+                      disabled={savingAll}
                       placeholder="PR"
                     />
                   </div>
@@ -778,7 +842,7 @@ export default function Clientes() {
                       type="button"
                       variant="secondary"
                       onClick={handleBuscarCep}
-                      disabled={saving}
+                      disabled={savingAll}
                     >
                       Buscar CEP
                     </Button>
@@ -786,7 +850,7 @@ export default function Clientes() {
                       type="button"
                       variant="secondary"
                       onClick={handleLocalizarNoMapa}
-                      disabled={saving || localizando}
+                      disabled={savingAll || localizando}
                     >
                       <MapPin className="mr-2 h-4 w-4" />
                       {localizando ? "Localizando..." : "Localizar"}
@@ -806,7 +870,7 @@ export default function Clientes() {
                           cidade: e.target.value,
                         }))
                       }
-                      disabled={saving}
+                      disabled={savingAll}
                     />
                   </div>
                   <div className="space-y-2">
@@ -820,7 +884,7 @@ export default function Clientes() {
                           bairro: e.target.value,
                         }))
                       }
-                      disabled={saving}
+                      disabled={savingAll}
                     />
                   </div>
                 </div>
@@ -837,7 +901,7 @@ export default function Clientes() {
                           logradouro: e.target.value,
                         }))
                       }
-                      disabled={saving}
+                      disabled={savingAll}
                     />
                   </div>
                   <div className="space-y-2">
@@ -851,7 +915,7 @@ export default function Clientes() {
                           numero: e.target.value,
                         }))
                       }
-                      disabled={saving}
+                      disabled={savingAll}
                     />
                   </div>
                 </div>
@@ -867,7 +931,7 @@ export default function Clientes() {
                         complemento: e.target.value,
                       }))
                     }
-                    disabled={saving}
+                    disabled={savingAll}
                   />
                 </div>
 
@@ -884,9 +948,13 @@ export default function Clientes() {
                         enderecoAlternativo: e.target.value,
                       }))
                     }
-                    disabled={saving}
+                    disabled={savingAll}
                   />
                 </div>
+
+                {erroLocalizacao && (
+                  <div className="text-sm text-red-600">{erroLocalizacao}</div>
+                )}
 
                 <div className="rounded-md border overflow-hidden">
                   <div className="p-3 border-b text-sm text-muted-foreground">
@@ -947,7 +1015,7 @@ export default function Clientes() {
                           size="icon"
                           className="h-4 w-4 rounded-full"
                           onClick={() => handleRemoveTag(tag)}
-                          disabled={saving}
+                          disabled={savingAll}
                         >
                           <Trash className="h-3 w-3" />
                         </Button>
@@ -966,12 +1034,12 @@ export default function Clientes() {
                           handleAddTag();
                         }
                       }}
-                      disabled={saving}
+                      disabled={savingAll}
                     />
                     <Button
                       type="button"
                       onClick={handleAddTag}
-                      disabled={saving}
+                      disabled={savingAll}
                     >
                       <Tag className="mr-2 h-4 w-4" /> Adicionar
                     </Button>
@@ -980,21 +1048,23 @@ export default function Clientes() {
               </TabsContent>
             </Tabs>
           </div>
-          <div className="flex justify-end space-x-2 pt-4">
+
+          <div className="flex justify-end space-x-2 pt-4 px-6 pb-6">
             <Button
               variant="outline"
               onClick={() => setDialogOpen(false)}
-              disabled={saving}
+              disabled={savingAll}
             >
               Cancelar
             </Button>
-            <Button onClick={handleSave} disabled={saving}>
-              {saving ? "Salvando..." : "Salvar"}
+            <Button onClick={handleSave} disabled={savingAll}>
+              {savingAll ? "Salvando..." : "Salvar"}
             </Button>
           </div>
         </DialogContent>
       </Dialog>
 
+      {/* MODAL HISTÓRICO/PLANOS */}
       <Dialog open={historicoDialogOpen} onOpenChange={setHistoricoDialogOpen}>
         <DialogContent className="max-w-4xl">
           <DialogHeader>
@@ -1003,10 +1073,13 @@ export default function Clientes() {
             </DialogTitle>
           </DialogHeader>
 
-          <Tabs defaultValue="historico">
+          <Tabs
+            value={abaHistorico}
+            onValueChange={(v) => setAbaHistorico(v as "historico" | "planos")}
+          >
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="historico">Histórico de Pedidos</TabsTrigger>
-              <TabsTrigger value="planos">Planos em Aberto</TabsTrigger>
+              <TabsTrigger value="planos">Planos</TabsTrigger>
             </TabsList>
 
             <TabsContent value="historico" className="py-4">
@@ -1016,33 +1089,251 @@ export default function Clientes() {
               </div>
             </TabsContent>
 
-            <TabsContent value="planos" className="py-4">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Plano Adquirido</TableHead>
-                    <TableHead>Tamanho</TableHead>
-                    <TableHead>Saldo Restante</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {planosSelecionado.map((plano) => (
-                    <TableRow key={plano.id}>
-                      <TableCell>{plano.nome}</TableCell>
-                      <TableCell>{plano.tamanho}</TableCell>
-                      <TableCell>{plano.saldoRestante} unidades</TableCell>
-                    </TableRow>
-                  ))}
+            <TabsContent value="planos" className="py-4 space-y-4">
+              {/* VINCULAR (principal) */}
+              <div className="rounded-md border p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="text-sm font-medium">Vincular plano</div>
+                  <div className="text-xs text-muted-foreground">
+                    Selecione um plano do catálogo e vincule ao cliente
+                  </div>
+                </div>
 
-                  {planosSelecionado.length === 0 && (
-                    <TableRow>
-                      <TableCell colSpan={3} className="text-center">
-                        Nenhum plano ativo
-                      </TableCell>
-                    </TableRow>
+                <div className="grid grid-cols-3 gap-3 items-end">
+                  <div className="space-y-1 col-span-2">
+                    <Label>Plano</Label>
+                    <Select
+                      value={vinculoPlanoId}
+                      onValueChange={(v) => setVinculoPlanoId(v)}
+                      disabled={savingAll}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione um plano..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {planosVinculaveis.map((p) => {
+                          const g = p.tamanho?.pesagemGramas
+                            ? `${p.tamanho.pesagemGramas}g`
+                            : "-";
+                          const u = Number(p.unidades || 0);
+                          const nome = p.nome?.trim()
+                            ? p.nome.trim()
+                            : `Plano ${g} (${u} un.)`;
+                          return (
+                            <SelectItem key={p.id} value={String(p.id)}>
+                              {nome}
+                            </SelectItem>
+                          );
+                        })}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <Button
+                    className="w-full"
+                    onClick={async () => {
+                      if (!clienteSelecionado) return;
+                      if (!vinculoPlanoId) return;
+
+                      const vinc = await vincularPlano(
+                        clienteSelecionado.id,
+                        Number(vinculoPlanoId),
+                      );
+
+                      // Atualiza UI local com o plano do catálogo (se você quiser)
+                      const plano = planosCatalogo.find(
+                        (p) => String(p.id) === String(vinculoPlanoId),
+                      );
+                      if (plano) {
+                        setClienteSelecionado((prev: any) => {
+                          if (!prev) return prev;
+                          const planos = Array.isArray(prev.planos)
+                            ? prev.planos
+                            : [];
+                          return {
+                            ...prev,
+                            planos: [...planos, { ...vinc, plano }],
+                          };
+                        });
+                      }
+
+                      setVinculoPlanoId("");
+                    }}
+                    disabled={
+                      savingAll || !clienteSelecionado || !vinculoPlanoId
+                    }
+                  >
+                    {savingAll ? "Vinculando..." : "Vincular"}
+                  </Button>
+                </div>
+              </div>
+
+              {/* CRIAR (COLAPSADO) */}
+              <Collapsible defaultOpen={false}>
+                <div className="rounded-md border p-4">
+                  <div className="flex items-center justify-between">
+                    <div className="text-sm font-medium">Criar novo plano</div>
+
+                    <CollapsibleTrigger asChild>
+                      <Button variant="ghost" size="sm" className="gap-2">
+                        Abrir <ChevronDown className="h-4 w-4" />
+                      </Button>
+                    </CollapsibleTrigger>
+                  </div>
+
+                  <CollapsibleContent className="mt-4 space-y-3">
+                    <div className="grid grid-cols-3 gap-3 items-end">
+                      <div className="space-y-1">
+                        <Label>Nome (opcional)</Label>
+                        <Input
+                          value={novoPlanoCatalogo.nome}
+                          onChange={(e) =>
+                            setNovoPlanoCatalogo((p) => ({
+                              ...p,
+                              nome: e.target.value,
+                            }))
+                          }
+                          disabled={savingAll}
+                          placeholder="Ex: Plano 300g"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <Label>Tamanho</Label>
+                        <Select
+                          value={novoPlanoCatalogo.tamanhoId}
+                          onValueChange={(v) =>
+                            setNovoPlanoCatalogo((p) => ({
+                              ...p,
+                              tamanhoId: v,
+                            }))
+                          }
+                          disabled={savingAll}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Selecione..." />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {tamanhos.map((t) => (
+                              <SelectItem key={t.id} value={String(t.id)}>
+                                {t.pesagemGramas}g
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="space-y-1">
+                        <Label>Qtd. unidades</Label>
+                        <Input
+                          type="number"
+                          value={String(novoPlanoCatalogo.unidades)}
+                          onChange={(e) =>
+                            setNovoPlanoCatalogo((p) => ({
+                              ...p,
+                              unidades: Number(e.target.value || 0),
+                            }))
+                          }
+                          disabled={savingAll}
+                          min={0}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex justify-end">
+                      <Button
+                        onClick={async () => {
+                          if (!novoPlanoCatalogo.tamanhoId) return;
+
+                          const created = await createPlano({
+                            nome: novoPlanoCatalogo.nome?.trim()
+                              ? novoPlanoCatalogo.nome.trim()
+                              : null,
+                            tamanhoId: Number(novoPlanoCatalogo.tamanhoId),
+                            unidades: Number(novoPlanoCatalogo.unidades || 0),
+                          });
+
+                          setPlanosCatalogo((prev) => [
+                            created,
+                            ...(prev || []),
+                          ]);
+                          setNovoPlanoCatalogo({
+                            nome: "",
+                            tamanhoId: "",
+                            unidades: 10,
+                          });
+                        }}
+                        disabled={savingAll || !novoPlanoCatalogo.tamanhoId}
+                      >
+                        {savingAll ? "Criando..." : "Criar plano"}
+                      </Button>
+                    </div>
+                  </CollapsibleContent>
+                </div>
+              </Collapsible>
+
+              {/* LISTA DO CLIENTE (mais enxuta) */}
+              <div className="rounded-md border">
+                <div className="px-4 py-3 border-b flex items-center justify-between">
+                  <div className="text-sm font-medium">Planos vinculados</div>
+                  <div className="text-xs text-muted-foreground">
+                    {planosSelecionado.length} plano(s)
+                  </div>
+                </div>
+
+                <div className="p-4">
+                  {planosSelecionado.length === 0 ? (
+                    <div className="text-sm text-muted-foreground text-center py-6">
+                      Nenhum plano vinculado
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {planosSelecionado.map((plano: any) => (
+                        <div
+                          key={plano.id}
+                          className="flex items-center justify-between rounded-md border px-3 py-2"
+                        >
+                          <div className="min-w-0">
+                            <div className="text-sm font-medium truncate">
+                              {plano.nome}
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              {plano.tamanho} • {plano.unidades} un.
+                            </div>
+                          </div>
+
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            disabled={savingAll || !clienteSelecionado}
+                            onClick={async () => {
+                              if (!clienteSelecionado) return;
+                              await desvincularPlano(
+                                clienteSelecionado.id,
+                                plano.id,
+                              );
+
+                              setClienteSelecionado((prev: any) => {
+                                if (!prev) return prev;
+                                return {
+                                  ...prev,
+                                  planos: (prev.planos || []).filter(
+                                    (p: any) =>
+                                      Number(p.id) !== Number(plano.id),
+                                  ),
+                                };
+                              });
+                            }}
+                            title="Remover vínculo"
+                          >
+                            <Trash className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
                   )}
-                </TableBody>
-              </Table>
+                </div>
+              </div>
             </TabsContent>
           </Tabs>
         </DialogContent>
