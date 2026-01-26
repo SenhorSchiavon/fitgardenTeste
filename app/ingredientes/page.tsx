@@ -1,254 +1,419 @@
-"use client"
+"use client";
 
-import { useState } from "react"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Plus, Pencil, Trash, FileSpreadsheet } from "lucide-react"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Header } from "@/components/header"
+import { useMemo, useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Plus, Pencil, Trash, FileSpreadsheet } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Header } from "@/components/header";
 
-type Ingrediente = {
-  id: string
-  nome: string
-  categoria: string
-  precoCusto: number
-  medida: "UN" | "KG" | "L"
-}
+import { useIngredientes, Medida, Ingrediente } from "@/hooks/useIngredientes";
+import { useCategorias } from "@/hooks/useCategorias";
 
-type Categoria = {
-  id: string
-  descricao: string
-}
+import { toast } from "sonner";
 
-export default function Ingredientes() {
-  const [ingredientes, setIngredientes] = useState<Ingrediente[]>([
-    { id: "ING001", nome: "Peito de Frango", categoria: "Proteínas", precoCusto: 22.9, medida: "KG" },
-    { id: "ING002", nome: "Arroz Integral", categoria: "Carboidratos", precoCusto: 7.5, medida: "KG" },
-    { id: "ING003", nome: "Brócolis", categoria: "Legumes", precoCusto: 8.9, medida: "KG" },
-    { id: "ING004", nome: "Azeite", categoria: "Temperos", precoCusto: 29.9, medida: "L" },
-  ])
+type NovoIngredienteForm = {
+  nome: string;
+  categoriaId: string;
+  medida: Medida;
+  precoCusto: string;
+};
 
-  const [categorias] = useState<Categoria[]>([
-    { id: "CAT001", descricao: "Proteínas" },
-    { id: "CAT002", descricao: "Carboidratos" },
-    { id: "CAT003", descricao: "Legumes" },
-    { id: "CAT004", descricao: "Temperos" },
-  ])
+export default function IngredientesPage() {
+  const {
+    ingredientes,
+    loading: loadingIngredientes,
+    saving,
+    createIngrediente,
+    updateIngrediente,
+    deleteIngrediente,
+  } = useIngredientes();
 
-  const [novoIngrediente, setNovoIngrediente] = useState<Partial<Ingrediente>>({
+  const { categorias, loading: loadingCategorias } = useCategorias();
+  const [novoIngrediente, setNovoIngrediente] = useState<NovoIngredienteForm>({
     nome: "",
-    categoria: "",
-    precoCusto: 0,
+    categoriaId: "",
     medida: "UN",
-  })
+    precoCusto: "",
+  });
 
-  const [editando, setEditando] = useState<string | null>(null)
-  const [dialogOpen, setDialogOpen] = useState(false)
+  const [editandoId, setEditandoId] = useState<number | null>(null);
+  const [dialogOpen, setDialogOpen] = useState(false);
 
-  const handleSave = () => {
-    if (editando) {
-      setIngredientes(
-        ingredientes.map((ing) =>
-          ing.id === editando
-            ? {
-                ...ing,
-                nome: novoIngrediente.nome || "",
-                categoria: novoIngrediente.categoria || "",
-                precoCusto: novoIngrediente.precoCusto || 0,
-                medida: novoIngrediente.medida || "UN",
-              }
-            : ing,
-        ),
-      )
-      setEditando(null)
-    } else {
-      const newId = `ING${String(ingredientes.length + 1).padStart(3, "0")}`
-      setIngredientes([
-        ...ingredientes,
-        {
-          id: newId,
-          nome: novoIngrediente.nome || "",
-          categoria: novoIngrediente.categoria || "",
-          precoCusto: novoIngrediente.precoCusto || 0,
-          medida: novoIngrediente.medida || "UN",
-        },
-      ])
-    }
+  const resetForm = () => {
+    setNovoIngrediente({
+      nome: "",
+      categoriaId: "",
+      medida: "UN",
+      precoCusto: "",
+    });
+    setEditandoId(null);
+  };
 
-    setNovoIngrediente({ nome: "", categoria: "", precoCusto: 0, medida: "UN" })
-    setDialogOpen(false)
-  }
+  const handleNew = () => {
+    resetForm();
+    setDialogOpen(true);
+  };
+  const categoriaSelecionadaLabel = useMemo(() => {
+    if (novoIngrediente.categoriaId === null) return "";
+    return (
+      categorias.find((c) => c.id === Number(novoIngrediente.categoriaId))
+        ?.descricao ?? ""
+    );
+  }, [novoIngrediente.categoriaId, categorias]);
 
   const handleEdit = (ingrediente: Ingrediente) => {
     setNovoIngrediente({
       nome: ingrediente.nome,
-      categoria: ingrediente.categoria,
-      precoCusto: ingrediente.precoCusto,
+      categoriaId: String(ingrediente.categoriaId ?? ""),
       medida: ingrediente.medida,
-    })
-    setEditando(ingrediente.id)
-    setDialogOpen(true)
-  }
+      precoCusto: String(ingrediente.precoCusto),
+    });
+    setEditandoId(ingrediente.id);
+    setDialogOpen(true);
+  };
 
-  const handleDelete = (id: string) => {
-    setIngredientes(ingredientes.filter((ing) => ing.id !== id))
-  }
+  const handleSave = async () => {
+    if (!novoIngrediente.nome.trim()) {
+      toast.error("Nome é obrigatório");
+      return;
+    }
 
-  const handleNew = () => {
-    setNovoIngrediente({ nome: "", categoria: "", precoCusto: 0, medida: "UN" })
-    setEditando(null)
-    setDialogOpen(true)
-  }
+    if (!novoIngrediente.categoriaId) {
+      toast.error("Selecione uma categoria");
+      return;
+    }
+
+    // garante que o id selecionado existe nas categorias carregadas
+    const categoriaSelecionada = categorias.find(
+      (c) => String(c.id) === novoIngrediente.categoriaId,
+    );
+
+    if (!categoriaSelecionada) {
+      toast.error("Selecione uma categoria válida");
+      return;
+    }
+
+    const categoriaIdNumero = Number(categoriaSelecionada.id); // aqui é seguro se id for número no backend
+    if (!Number.isFinite(categoriaIdNumero)) {
+      toast.error("ID de categoria inválido (backend retornou string no id)");
+      return;
+    }
+
+    const preco = Number(String(novoIngrediente.precoCusto).replace(",", "."));
+
+    const payload = {
+      nome: novoIngrediente.nome.trim(),
+      categoriaId: categoriaIdNumero,
+      medida: novoIngrediente.medida,
+      precoCusto: Number.isFinite(preco) ? preco : 0,
+    };
+
+    try {
+      if (editandoId) await updateIngrediente(editandoId, payload);
+      else await createIngrediente(payload);
+
+      toast.success("Ingrediente salvo!");
+      resetForm();
+      setDialogOpen(false);
+    } catch (e) {
+      toast.error("Falha ao salvar ingrediente");
+    }
+  };
+  const handleDelete = async (id: number) => {
+    try {
+      await deleteIngrediente(id);
+      toast.success("Ingrediente excluído!");
+    } catch (e) {
+      toast.error("Falha ao excluir ingrediente");
+    }
+  };
+
+  const codigoSistemaAtual = useMemo(() => {
+    if (!editandoId) return "Automático";
+    const ing = ingredientes.find((i) => i.id === editandoId);
+    return ing?.codigoSistema ?? String(editandoId);
+  }, [editandoId, ingredientes]);
+
+  const isLoading = loadingIngredientes || loadingCategorias;
 
   return (
-    <div className="container mx-auto p-6">
-      <Header title="Ingredientes" subtitle="Gerencie os ingredientes do sistema" />
+    <div className="container mx-auto p-6 space-y-6">
+      <Header
+        title="Ingredientes"
+        subtitle="Gerencie os ingredientes do sistema"
+      />
 
-      <div className="flex items-center justify-end mb-6">
-        <div className="flex space-x-2">
-          <Button variant="outline">
+      <div className="flex items-center justify-end">
+        <div className="flex gap-2">
+          <Button variant="outline" disabled>
             <FileSpreadsheet className="mr-2 h-4 w-4" /> Importar/Exportar Excel
           </Button>
-          <Button onClick={handleNew}>
+          <Button
+            onClick={handleNew}
+            className="bg-blue-600 hover:bg-blue-700 text-white"
+          >
             <Plus className="mr-2 h-4 w-4" /> Criar Ingrediente
           </Button>
         </div>
       </div>
 
-      <Card>
+      <Card className="bg-white border-gray-200">
         <CardHeader>
-          <CardTitle>Ingredientes Cadastrados</CardTitle>
+          <CardTitle className="text-gray-800">
+            Ingredientes Cadastrados
+          </CardTitle>
         </CardHeader>
+
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Cód. Sistema</TableHead>
-                <TableHead>Nome</TableHead>
-                <TableHead>Categoria</TableHead>
-                <TableHead>Preço de Custo</TableHead>
-                <TableHead>Medida</TableHead>
-                <TableHead className="text-right">Ações</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {ingredientes.map((ingrediente) => (
-                <TableRow key={ingrediente.id}>
-                  <TableCell>{ingrediente.id}</TableCell>
-                  <TableCell>{ingrediente.nome}</TableCell>
-                  <TableCell>{ingrediente.categoria}</TableCell>
-                  <TableCell>R$ {ingrediente.precoCusto.toFixed(2)}</TableCell>
-                  <TableCell>{ingrediente.medida}</TableCell>
-                  <TableCell className="text-right">
-                    <Button variant="ghost" size="icon" onClick={() => handleEdit(ingrediente)}>
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                    <Button variant="ghost" size="icon" onClick={() => handleDelete(ingrediente.id)}>
-                      <Trash className="h-4 w-4" />
-                    </Button>
-                  </TableCell>
+          {isLoading ? (
+            <p className="text-sm text-gray-500">Carregando ingredientes...</p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-gray-50 hover:bg-gray-50">
+                  <TableHead className="text-gray-700">Cód. Sistema</TableHead>
+                  <TableHead className="text-gray-700">Nome</TableHead>
+                  <TableHead className="text-gray-700">Categoria</TableHead>
+                  <TableHead className="text-gray-700">
+                    Preço de Custo
+                  </TableHead>
+                  <TableHead className="text-gray-700">Medida</TableHead>
+                  <TableHead className="text-right text-gray-700">
+                    Ações
+                  </TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+
+              <TableBody>
+                {ingredientes.map((ingrediente) => (
+                  <TableRow
+                    key={ingrediente.id}
+                    className="hover:bg-gray-50 border-b border-gray-100"
+                  >
+                    <TableCell className="font-medium text-gray-700">
+                      {ingrediente.codigoSistema}
+                    </TableCell>
+                    <TableCell className="text-gray-700">
+                      {ingrediente.nome}
+                    </TableCell>
+                    <TableCell className="text-gray-700">
+                      {ingrediente.categoriaDescricao}
+                    </TableCell>
+                    <TableCell className="text-gray-700">
+                      R$ {ingrediente.precoCusto.toFixed(2)}
+                    </TableCell>
+                    <TableCell className="text-gray-700">
+                      {ingrediente.medida}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="text-gray-500 hover:text-blue-600 hover:bg-blue-50"
+                        onClick={() => handleEdit(ingrediente)}
+                        disabled={saving}
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="text-gray-500 hover:text-red-600 hover:bg-red-50"
+                        onClick={() => handleDelete(ingrediente.id)}
+                        disabled={saving}
+                      >
+                        <Trash className="h-4 w-4" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+
+                {ingredientes.length === 0 && !isLoading && (
+                  <TableRow>
+                    <TableCell
+                      colSpan={6}
+                      className="text-center text-sm text-gray-500 py-4"
+                    >
+                      Nenhum ingrediente cadastrado.
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          )}
         </CardContent>
       </Card>
 
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent>
+      <Dialog
+        open={dialogOpen}
+        onOpenChange={(open) => {
+          setDialogOpen(open);
+          if (!open) resetForm();
+        }}
+      >
+        <DialogContent className="bg-white">
           <DialogHeader>
-            <DialogTitle>{editando ? "Editar Ingrediente" : "Novo Ingrediente"}</DialogTitle>
+            <DialogTitle className="text-gray-800">
+              {editandoId ? "Editar Ingrediente" : "Novo Ingrediente"}
+            </DialogTitle>
           </DialogHeader>
+
           <div className="space-y-4 py-2">
             <div className="space-y-2">
-              <Label htmlFor="nome">Nome</Label>
+              <Label htmlFor="nome" className="text-gray-700">
+                Nome
+              </Label>
               <Input
                 id="nome"
-                value={novoIngrediente.nome || ""}
-                onChange={(e) => setNovoIngrediente({ ...novoIngrediente, nome: e.target.value })}
+                value={novoIngrediente.nome}
+                onChange={(e) =>
+                  setNovoIngrediente((p) => ({ ...p, nome: e.target.value }))
+                }
+                className="border-gray-200"
               />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="codigo">Cód. Sistema</Label>
+              <Label htmlFor="codigo" className="text-gray-700">
+                Cód. Sistema
+              </Label>
               <Input
                 id="codigo"
-                value={editando || `ING${String(ingredientes.length + 1).padStart(3, "0")}`}
+                value={codigoSistemaAtual}
                 disabled
+                className="bg-gray-50 border-gray-200"
               />
-              <p className="text-xs text-muted-foreground">Preenchimento automático (não editável)</p>
+              <p className="text-xs text-gray-500">
+                Preenchimento automático (não editável)
+              </p>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="categoria">Categoria</Label>
+              <Label className="text-gray-700">Categoria</Label>
+
               <Select
-                value={novoIngrediente.categoria}
-                onValueChange={(value) => setNovoIngrediente({ ...novoIngrediente, categoria: value })}
+                value={novoIngrediente.categoriaId}
+                onValueChange={(value) =>
+                  setNovoIngrediente((p) => ({ ...p, categoriaId: value }))
+                }
               >
-                <SelectTrigger>
+                <SelectTrigger className="border-gray-200">
                   <SelectValue placeholder="Selecione uma categoria" />
                 </SelectTrigger>
+
                 <SelectContent>
                   {categorias.map((cat) => (
-                    <SelectItem key={cat.id} value={cat.descricao}>
+                    <SelectItem key={cat.id} value={String(cat.id)}>
                       {cat.descricao}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+
+              {loadingCategorias && (
+                <p className="text-xs text-gray-500">
+                  Carregando categorias...
+                </p>
+              )}
             </div>
 
             <div className="space-y-2">
-              <Label>Medida</Label>
+              <Label className="text-gray-700">Medida</Label>
               <RadioGroup
                 value={novoIngrediente.medida}
                 onValueChange={(value) =>
-                  setNovoIngrediente({ ...novoIngrediente, medida: value as "UN" | "KG" | "L" })
+                  setNovoIngrediente((p) => ({
+                    ...p,
+                    medida: value as Medida,
+                  }))
                 }
                 className="flex space-x-4"
               >
                 <div className="flex items-center space-x-2">
                   <RadioGroupItem value="UN" id="un" />
-                  <Label htmlFor="un">UN</Label>
+                  <Label htmlFor="un" className="text-gray-700">
+                    UN
+                  </Label>
                 </div>
                 <div className="flex items-center space-x-2">
                   <RadioGroupItem value="KG" id="kg" />
-                  <Label htmlFor="kg">KG</Label>
+                  <Label htmlFor="kg" className="text-gray-700">
+                    KG
+                  </Label>
                 </div>
                 <div className="flex items-center space-x-2">
                   <RadioGroupItem value="L" id="l" />
-                  <Label htmlFor="l">L</Label>
+                  <Label htmlFor="l" className="text-gray-700">
+                    L
+                  </Label>
                 </div>
               </RadioGroup>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="precoCusto">Preço de Custo</Label>
+              <Label htmlFor="precoCusto" className="text-gray-700">
+                Preço de Custo
+              </Label>
               <Input
                 id="precoCusto"
                 type="number"
                 step="0.01"
-                value={novoIngrediente.precoCusto || ""}
+                inputMode="decimal"
+                value={novoIngrediente.precoCusto}
                 onChange={(e) =>
-                  setNovoIngrediente({ ...novoIngrediente, precoCusto: Number.parseFloat(e.target.value) })
+                  setNovoIngrediente((p) => ({
+                    ...p,
+                    precoCusto: e.target.value,
+                  }))
                 }
+                className="border-gray-200"
               />
             </div>
 
             <div className="flex justify-end space-x-2 pt-4">
-              <Button variant="outline" onClick={() => setDialogOpen(false)}>
+              <Button
+                onClick={() => setDialogOpen(false)}
+                className="border border-gray-200 text-gray-700 hover:bg-gray-50 bg-white"
+                disabled={saving}
+              >
                 Cancelar
               </Button>
-              <Button onClick={handleSave}>Salvar</Button>
+              <Button
+                onClick={handleSave}
+                className="bg-blue-600 hover:bg-blue-700 text-white"
+                disabled={saving}
+              >
+                {saving ? "Salvando..." : "Salvar"}
+              </Button>
             </div>
           </div>
         </DialogContent>
       </Dialog>
     </div>
-  )
+  );
 }
