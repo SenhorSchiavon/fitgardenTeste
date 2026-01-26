@@ -29,13 +29,7 @@ export function Header({ title, subtitle, searchValue, onSearchChange }: HeaderP
           />
         </div>
 
-        <Button variant="outline" size="icon" className="h-9 w-9 border-gray-200 text-gray-600 hover:text-gray-800 hover:bg-gray-50">
-          <Bell className="h-4 w-4" />
-        </Button>
-
-        <Button variant="outline" size="icon" className="h-9 w-9 border-gray-200 text-gray-600 hover:text-gray-800 hover:bg-gray-50">
-          <HelpCircle className="h-4 w-4" />
-        </Button>
+       
       </div>
     </div>
   )

@@ -1,3 +1,5 @@
+"use client"
+
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Header } from "@/components/header"
 import { ArrowDown, ArrowUp, BarChart3, Calendar, DollarSign, ShoppingCart, Users } from "lucide-react"
@@ -6,7 +8,7 @@ import { Button } from "@/components/ui/button"
 export default function Dashboard() {
   return (
     <div className="space-y-4">
-      <Header title="Dashboard" subtitle="Bem-vindo ao FitGarden" />
+      <Header title="Dashboard" subtitle="Bem-vindo ao FitGarden" onSearchChange={() => {}} searchValue=""/>
 
       <div className="grid grid-cols-12 gap-4">
         {/* Cards de métricas - primeira linha */}

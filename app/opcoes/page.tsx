@@ -1,208 +1,323 @@
-"use client"
+"use client";
 
-import { useState } from "react"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Plus, Pencil, Trash } from "lucide-react"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
-import { Alert, AlertDescription } from "@/components/ui/alert"
-import { AlertCircle } from "lucide-react"
-import { Header } from "@/components/header"
+import { useMemo, useState } from "react";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Plus, Pencil, Trash, AlertCircle } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Header } from "@/components/header";
 
-type Opcao = {
-  id: string
-  tipo: "MARMITAS FIT" | "OUTROS"
-  nome: string
-  categoria?: "FIT" | "LOW CARB" | "VEGETARIANO" | "SOPA"
-  carboidrato?: { nome: string; porcentagem: number }
-  proteina?: { nome: string; porcentagem: number }
-  legumes?: { nome: string; porcentagem: number }
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+
+import {
+  useOpcoes,
+  Opcao,
+  OpcaoTipo,
+  OpcaoCategoria,
+  ComponenteTipo,
+  OpcaoComponente,
+} from "@/hooks/useOpcoes";
+import { usePreparos, Preparo } from "@/hooks/usePreparos";
+
+type ComponenteDraft = {
+  id: string;
+  tipo: ComponenteTipo;
+  preparoId: number | null;
+  preparoNome: string;
+  porcentagem: number;
+};
+
+type NovaOpcaoForm = {
+  tipo: OpcaoTipo;
+  nome: string;
+  categoria: OpcaoCategoria | null;
+  componentes: ComponenteDraft[];
+};
+
+const formatCodigoOpcao = (id: number) => `OPC${String(id).padStart(3, "0")}`;
+
+function toComponenteDraft(c: OpcaoComponente, idx: number): ComponenteDraft {
+  return {
+    id: `${c.tipo}-${c.preparoId}-${idx}`,
+    tipo: c.tipo,
+    preparoId: c.preparoId,
+    preparoNome: c.preparoNome ?? "",
+    porcentagem: c.porcentagem,
+  };
 }
 
-type Preparo = {
-  id: string
-  nome: string
-  tipo: "CARBOIDRATO" | "PROTEÍNA" | "LEGUMES"
-}
+export default function OpcoesPage() {
+  const {
+    opcoes,
+    loading: loadingOpcoes,
+    saving,
+    createOpcao,
+    updateOpcao,
+    deleteOpcao,
+  } = useOpcoes();
 
-export default function Opcoes() {
-  const [opcoes, setOpcoes] = useState<Opcao[]>([
-    {
-      id: "OPC001",
-      tipo: "MARMITAS FIT",
-      nome: "Fit Tradicional",
-      categoria: "FIT",
-      carboidrato: { nome: "Arroz Integral", porcentagem: 30 },
-      proteina: { nome: "Frango Grelhado", porcentagem: 40 },
-      legumes: { nome: "Mix de Legumes", porcentagem: 30 },
-    },
-    {
-      id: "OPC002",
-      tipo: "MARMITAS FIT",
-      nome: "Low Carb Especial",
-      categoria: "LOW CARB",
-      carboidrato: { nome: "Batata Doce", porcentagem: 20 },
-      proteina: { nome: "Carne Moída", porcentagem: 50 },
-      legumes: { nome: "Brócolis", porcentagem: 30 },
-    },
-    {
-      id: "OPC003",
-      tipo: "OUTROS",
-      nome: "Sobremesa Fit",
-    },
-  ])
+  const { preparos, loading: loadingPreparos } = usePreparos();
 
-  const [preparos] = useState<Preparo[]>([
-    { id: "PREP001", nome: "Arroz Integral", tipo: "CARBOIDRATO" },
-    { id: "PREP002", nome: "Batata Doce", tipo: "CARBOIDRATO" },
-    { id: "PREP003", nome: "Frango Grelhado", tipo: "PROTEÍNA" },
-    { id: "PREP004", nome: "Carne Moída", tipo: "PROTEÍNA" },
-    { id: "PREP005", nome: "Mix de Legumes", tipo: "LEGUMES" },
-    { id: "PREP006", nome: "Brócolis", tipo: "LEGUMES" },
-  ])
+  const [editandoId, setEditandoId] = useState<number | null>(null);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [sheetOpen, setSheetOpen] = useState<ComponenteTipo | null>(null);
+  const [erroSoma, setErroSoma] = useState(false);
+  const [busca, setBusca] = useState("");
 
-  const [novaOpcao, setNovaOpcao] = useState<Partial<Opcao>>({
-    tipo: "MARMITAS FIT",
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<{
+    id: number;
+    nome: string;
+  } | null>(null);
+
+  const [novaOpcao, setNovaOpcao] = useState<NovaOpcaoForm>({
+    tipo: "MARMITA",
     nome: "",
     categoria: "FIT",
-  })
+    componentes: [],
+  });
 
-  const [editando, setEditando] = useState<string | null>(null)
-  const [dialogOpen, setDialogOpen] = useState(false)
-  const [sheetOpen, setSheetOpen] = useState<"carboidrato" | "proteina" | "legumes" | null>(null)
-  const [erroSoma, setErroSoma] = useState(false)
+  const resetForm = () => {
+    setNovaOpcao({
+      tipo: "MARMITA",
+      nome: "",
+      categoria: "FIT",
+      componentes: [],
+    });
+    setEditandoId(null);
+    setErroSoma(false);
+    setSheetOpen(null);
+  };
 
-  const handleSave = () => {
-    // Verificar se a soma das porcentagens é 100% para marmitas
-    if (novaOpcao.tipo === "MARMITAS FIT") {
-      const carbPct = novaOpcao.carboidrato?.porcentagem || 0
-      const protPct = novaOpcao.proteina?.porcentagem || 0
-      const legPct = novaOpcao.legumes?.porcentagem || 0
-      const soma = carbPct + protPct + legPct
+  const opcoesFiltradas = useMemo(() => {
+    const q = busca.trim().toLowerCase();
+    if (!q) return opcoes;
 
-      if (soma !== 100) {
-        setErroSoma(true)
-        return
-      }
-    }
+    return opcoes.filter((o) =>
+      [o.id, o.nome, o.tipo, o.categoria].some((v) =>
+        String(v ?? "")
+          .toLowerCase()
+          .includes(q),
+      ),
+    );
+  }, [opcoes, busca]);
 
-    if (editando) {
-      setOpcoes(
-        opcoes.map((op) =>
-          op.id === editando
-            ? {
-                ...op,
-                tipo: novaOpcao.tipo || "OUTROS",
-                nome: novaOpcao.nome || "",
-                categoria: novaOpcao.tipo === "MARMITAS FIT" ? novaOpcao.categoria : undefined,
-                carboidrato: novaOpcao.tipo === "MARMITAS FIT" ? novaOpcao.carboidrato : undefined,
-                proteina: novaOpcao.tipo === "MARMITAS FIT" ? novaOpcao.proteina : undefined,
-                legumes: novaOpcao.tipo === "MARMITAS FIT" ? novaOpcao.legumes : undefined,
-              }
-            : op,
-        ),
-      )
-      setEditando(null)
-    } else {
-      const newId = `OPC${String(opcoes.length + 1).padStart(3, "0")}`
-      setOpcoes([
-        ...opcoes,
-        {
-          id: newId,
-          tipo: novaOpcao.tipo || "OUTROS",
-          nome: novaOpcao.nome || "",
-          categoria: novaOpcao.tipo === "MARMITAS FIT" ? novaOpcao.categoria : undefined,
-          carboidrato: novaOpcao.tipo === "MARMITAS FIT" ? novaOpcao.carboidrato : undefined,
-          proteina: novaOpcao.tipo === "MARMITAS FIT" ? novaOpcao.proteina : undefined,
-          legumes: novaOpcao.tipo === "MARMITAS FIT" ? novaOpcao.legumes : undefined,
-        },
-      ])
-    }
+  const isLoading = loadingOpcoes || loadingPreparos;
 
-    setNovaOpcao({ tipo: "MARMITAS FIT", nome: "", categoria: "FIT" })
-    setDialogOpen(false)
-    setErroSoma(false)
-  }
+  const somaPct = useMemo(() => {
+    return (novaOpcao.componentes || []).reduce(
+      (acc, c) => acc + (c.porcentagem || 0),
+      0,
+    );
+  }, [novaOpcao.componentes]);
+
+  const preparosPorTipo = useMemo(() => {
+    return {
+      CARBOIDRATO: preparos.filter((p) => p.tipo === "CARBOIDRATO"),
+      PROTEINA: preparos.filter((p) => p.tipo === "PROTEINA"),
+      LEGUMES: preparos.filter((p) => p.tipo === "LEGUMES"),
+    } as const;
+  }, [preparos]);
+
+  const handleNew = () => {
+    resetForm();
+    setDialogOpen(true);
+  };
 
   const handleEdit = (opcao: Opcao) => {
     setNovaOpcao({
       tipo: opcao.tipo,
       nome: opcao.nome,
-      categoria: opcao.categoria,
-      carboidrato: opcao.carboidrato,
-      proteina: opcao.proteina,
-      legumes: opcao.legumes,
-    })
-    setEditando(opcao.id)
-    setDialogOpen(true)
-  }
+      categoria: opcao.categoria ?? "FIT",
+      componentes: (opcao.componentes || []).map(toComponenteDraft),
+    });
 
-  const handleDelete = (id: string) => {
-    setOpcoes(opcoes.filter((op) => op.id !== id))
-  }
+    setEditandoId(opcao.id);
+    setDialogOpen(true);
+    setErroSoma(false);
+  };
 
-  const handleNew = () => {
-    setNovaOpcao({ tipo: "MARMITAS FIT", nome: "", categoria: "FIT" })
-    setEditando(null)
-    setDialogOpen(true)
-    setErroSoma(false)
-  }
+  const openDeleteConfirm = (opcao: Opcao) => {
+    setDeleteTarget({ id: opcao.id, nome: opcao.nome });
+    setConfirmDeleteOpen(true);
+  };
 
-  const handleSelectPreparo = (tipo: "carboidrato" | "proteina" | "legumes", preparo: Preparo) => {
-    if (tipo === "carboidrato") {
-      setNovaOpcao({
-        ...novaOpcao,
-        carboidrato: { nome: preparo.nome, porcentagem: novaOpcao.carboidrato?.porcentagem || 0 },
-      })
-    } else if (tipo === "proteina") {
-      setNovaOpcao({
-        ...novaOpcao,
-        proteina: { nome: preparo.nome, porcentagem: novaOpcao.proteina?.porcentagem || 0 },
-      })
-    } else if (tipo === "legumes") {
-      setNovaOpcao({
-        ...novaOpcao,
-        legumes: { nome: preparo.nome, porcentagem: novaOpcao.legumes?.porcentagem || 0 },
-      })
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
+
+    try {
+      await deleteOpcao(deleteTarget.id);
+    } finally {
+      setConfirmDeleteOpen(false);
+      setDeleteTarget(null);
     }
-    setSheetOpen(null)
-  }
+  };
 
-  const handleChangePorcentagem = (tipo: "carboidrato" | "proteina" | "legumes", valor: number) => {
-    if (tipo === "carboidrato" && novaOpcao.carboidrato) {
-      setNovaOpcao({
-        ...novaOpcao,
-        carboidrato: { ...novaOpcao.carboidrato, porcentagem: valor },
-      })
-    } else if (tipo === "proteina" && novaOpcao.proteina) {
-      setNovaOpcao({
-        ...novaOpcao,
-        proteina: { ...novaOpcao.proteina, porcentagem: valor },
-      })
-    } else if (tipo === "legumes" && novaOpcao.legumes) {
-      setNovaOpcao({
-        ...novaOpcao,
-        legumes: { ...novaOpcao.legumes, porcentagem: valor },
-      })
+  const handleChangeTipo = (value: OpcaoTipo) => {
+    setNovaOpcao((p) => {
+      if (value === "OUTROS") {
+        return {
+          ...p,
+          tipo: "OUTROS",
+          categoria: null,
+          componentes: [],
+        };
+      }
+
+      return {
+        ...p,
+        tipo: "MARMITA",
+        categoria: p.categoria ?? "FIT",
+      };
+    });
+
+    setErroSoma(false);
+  };
+
+  const handleAddComponente = (tipo: ComponenteTipo, preparo: Preparo) => {
+    setNovaOpcao((p) => {
+      const jaExiste = p.componentes.some(
+        (c) => c.tipo === tipo && c.preparoId === preparo.id,
+      );
+
+      if (jaExiste) {
+        toast.info("Esse preparo já foi adicionado.", {
+          description: "Escolha outro preparo ou altere a porcentagem.",
+        });
+        return p;
+      }
+
+      return {
+        ...p,
+        componentes: [
+          ...p.componentes,
+          {
+            id: `${tipo}-${preparo.id}-${Date.now()}`,
+            tipo,
+            preparoId: preparo.id,
+            preparoNome: preparo.nome,
+            porcentagem: 0,
+          },
+        ],
+      };
+    });
+
+    setErroSoma(false);
+    setSheetOpen(null);
+  };
+
+  const handleRemoveComponente = (draftId: string) => {
+    setNovaOpcao((p) => ({
+      ...p,
+      componentes: p.componentes.filter((c) => c.id !== draftId),
+    }));
+    setErroSoma(false);
+  };
+
+  const handleChangePorcentagem = (draftId: string, valor: number) => {
+    const pct = Number.isFinite(valor) ? valor : 0;
+    setNovaOpcao((p) => ({
+      ...p,
+      componentes: p.componentes.map((c) =>
+        c.id === draftId ? { ...c, porcentagem: pct } : c,
+      ),
+    }));
+    setErroSoma(false);
+  };
+
+  const handleSave = async () => {
+    if (!novaOpcao.nome.trim()) return;
+
+    if (novaOpcao.tipo === "MARMITA") {
+      if (!novaOpcao.componentes.length) return;
+
+      if (somaPct !== 100) {
+        setErroSoma(true);
+        return;
+      }
+
+      const temInvalido = novaOpcao.componentes.some(
+        (c) => !c.preparoId || c.porcentagem < 0 || c.porcentagem > 100,
+      );
+      if (temInvalido) return;
     }
-    setErroSoma(false)
-  }
 
-  const filtrarPreparosPorTipo = (tipo: "CARBOIDRATO" | "PROTEÍNA" | "LEGUMES") => {
-    return preparos.filter((preparo) => preparo.tipo === tipo)
-  }
+    const payload =
+      novaOpcao.tipo === "MARMITA"
+        ? {
+            tipo: "MARMITA" as const,
+            nome: novaOpcao.nome.trim(),
+            categoria: novaOpcao.categoria,
+            componentes: novaOpcao.componentes.map((c) => ({
+              tipo: c.tipo,
+              preparoId: c.preparoId!,
+              porcentagem: Math.trunc(c.porcentagem || 0),
+            })),
+          }
+        : {
+            tipo: "OUTROS" as const,
+            nome: novaOpcao.nome.trim(),
+            categoria: null,
+            componentes: [],
+          };
+
+    if (editandoId) await updateOpcao(editandoId, payload);
+    else await createOpcao(payload);
+
+    setDialogOpen(false);
+    resetForm();
+  };
+
+  const codigoSistemaAtual = useMemo(() => {
+    if (!editandoId) return "Automático";
+    return formatCodigoOpcao(editandoId);
+  }, [editandoId]);
 
   return (
     <div className="container mx-auto p-6">
-      <Header title="Opções" subtitle="Gerencie as opções de marmitas e outros produtos" />
+      <Header
+        title="Opções"
+        subtitle="Gerencie as opções de marmitas e outros produtos"
+        searchValue={busca}
+        onSearchChange={setBusca}
+      />
 
       <div className="flex items-center justify-end mb-6">
-        <Button onClick={handleNew}>
+        <Button onClick={handleNew} disabled={saving}>
           <Plus className="mr-2 h-4 w-4" /> Criar Opção
         </Button>
       </div>
@@ -211,54 +326,123 @@ export default function Opcoes() {
         <CardHeader>
           <CardTitle>Opções Cadastradas</CardTitle>
         </CardHeader>
+
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Cód. Sistema</TableHead>
-                <TableHead>Tipo</TableHead>
-                <TableHead>Nome</TableHead>
-                <TableHead>Categoria</TableHead>
-                <TableHead className="text-right">Ações</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {opcoes.map((opcao) => (
-                <TableRow key={opcao.id}>
-                  <TableCell>{opcao.id}</TableCell>
-                  <TableCell>{opcao.tipo}</TableCell>
-                  <TableCell>{opcao.nome}</TableCell>
-                  <TableCell>{opcao.categoria || "-"}</TableCell>
-                  <TableCell className="text-right">
-                    <Button variant="ghost" size="icon" onClick={() => handleEdit(opcao)}>
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                    <Button variant="ghost" size="icon" onClick={() => handleDelete(opcao.id)}>
-                      <Trash className="h-4 w-4" />
-                    </Button>
-                  </TableCell>
+          {isLoading ? (
+            <p className="text-sm text-muted-foreground">
+              Carregando opções...
+            </p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Cód. Sistema</TableHead>
+                  <TableHead>Tipo</TableHead>
+                  <TableHead>Nome</TableHead>
+                  <TableHead>Categoria</TableHead>
+                  <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+
+              <TableBody>
+                {opcoesFiltradas.map((opcao) => (
+                  <TableRow key={opcao.id}>
+                    <TableCell>{formatCodigoOpcao(opcao.id)}</TableCell>
+                    <TableCell>
+                      {opcao.tipo === "MARMITA" ? "MARMITAS FIT" : "OUTROS"}
+                    </TableCell>
+                    <TableCell>{opcao.nome}</TableCell>
+                    <TableCell>
+                      {opcao.tipo === "MARMITA"
+                        ? (opcao.categoria ?? "-").replace(
+                            "LOW_CARB",
+                            "LOW CARB",
+                          )
+                        : "-"}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleEdit(opcao)}
+                        disabled={saving}
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => openDeleteConfirm(opcao)}
+                        disabled={saving}
+                      >
+                        <Trash className="h-4 w-4" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+
+                {opcoesFiltradas.length === 0 && !isLoading && (
+                  <TableRow>
+                    <TableCell
+                      colSpan={5}
+                      className="text-center text-sm text-muted-foreground py-4"
+                    >
+                      Nenhuma opção cadastrada.
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          )}
         </CardContent>
       </Card>
 
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+      {/* ALERT DIALOG EXCLUIR */}
+      <AlertDialog open={confirmDeleteOpen} onOpenChange={setConfirmDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir opção?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {deleteTarget
+                ? `Você tem certeza que deseja excluir "${deleteTarget.nome}"? Essa ação não pode ser desfeita.`
+                : "Você tem certeza que deseja excluir esta opção? Essa ação não pode ser desfeita."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={saving}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete} disabled={saving}>
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* DIALOG CRIAR/EDITAR */}
+      <Dialog
+        open={dialogOpen}
+        onOpenChange={(open) => {
+          setDialogOpen(open);
+          if (!open) resetForm();
+        }}
+      >
         <DialogContent className="max-w-3xl">
           <DialogHeader>
-            <DialogTitle>{editando ? "Editar Opção" : "Nova Opção"}</DialogTitle>
+            <DialogTitle>
+              {editandoId ? "Editar Opção" : "Nova Opção"}
+            </DialogTitle>
           </DialogHeader>
+
           <div className="space-y-4 py-2">
             <div className="space-y-2">
               <Label>Tipo</Label>
               <RadioGroup
                 value={novaOpcao.tipo}
-                onValueChange={(value) => setNovaOpcao({ ...novaOpcao, tipo: value as "MARMITAS FIT" | "OUTROS" })}
+                onValueChange={(value) => handleChangeTipo(value as OpcaoTipo)}
                 className="flex space-x-4"
               >
                 <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="MARMITAS FIT" id="marmitas" />
+                  <RadioGroupItem value="MARMITA" id="marmitas" />
                   <Label htmlFor="marmitas">MARMITAS FIT</Label>
                 </div>
                 <div className="flex items-center space-x-2">
@@ -273,26 +457,33 @@ export default function Opcoes() {
                 <Label htmlFor="nome">Nome</Label>
                 <Input
                   id="nome"
-                  value={novaOpcao.nome || ""}
-                  onChange={(e) => setNovaOpcao({ ...novaOpcao, nome: e.target.value })}
+                  value={novaOpcao.nome}
+                  onChange={(e) =>
+                    setNovaOpcao((p) => ({ ...p, nome: e.target.value }))
+                  }
                 />
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="codigo">Cód. Sistema</Label>
-                <Input id="codigo" value={editando || `OPC${String(opcoes.length + 1).padStart(3, "0")}`} disabled />
-                <p className="text-xs text-muted-foreground">Preenchimento automático (não editável)</p>
+                <Input id="codigo" value={codigoSistemaAtual} disabled />
+                <p className="text-xs text-muted-foreground">
+                  Preenchimento automático (não editável)
+                </p>
               </div>
             </div>
 
-            {novaOpcao.tipo === "MARMITAS FIT" && (
+            {novaOpcao.tipo === "MARMITA" && (
               <>
                 <div className="space-y-2 border-t pt-4">
                   <Label>Categoria</Label>
                   <RadioGroup
-                    value={novaOpcao.categoria}
+                    value={novaOpcao.categoria ?? "FIT"}
                     onValueChange={(value) =>
-                      setNovaOpcao({ ...novaOpcao, categoria: value as "FIT" | "LOW CARB" | "VEGETARIANO" | "SOPA" })
+                      setNovaOpcao((p) => ({
+                        ...p,
+                        categoria: value as OpcaoCategoria,
+                      }))
                     }
                     className="flex flex-wrap gap-4"
                   >
@@ -301,7 +492,7 @@ export default function Opcoes() {
                       <Label htmlFor="fit">FIT</Label>
                     </div>
                     <div className="flex items-center space-x-2">
-                      <RadioGroupItem value="LOW CARB" id="lowcarb" />
+                      <RadioGroupItem value="LOW_CARB" id="lowcarb" />
                       <Label htmlFor="lowcarb">LOW CARB</Label>
                     </div>
                     <div className="flex items-center space-x-2">
@@ -316,40 +507,50 @@ export default function Opcoes() {
                 </div>
 
                 <div className="space-y-4 border-t pt-4">
-                  <div className="flex items-center justify-between">
-                    <Label>Carboidrato</Label>
+                  <div className="flex flex-wrap gap-2">
                     <Sheet
-                      open={sheetOpen === "carboidrato"}
-                      onOpenChange={(open) => setSheetOpen(open ? "carboidrato" : null)}
+                      open={sheetOpen === "CARBOIDRATO"}
+                      onOpenChange={(open) =>
+                        setSheetOpen(open ? "CARBOIDRATO" : null)
+                      }
                     >
                       <SheetTrigger asChild>
-                        <Button size="sm" variant="outline">
-                          Selecionar Carboidrato
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={saving || loadingPreparos}
+                        >
+                          + Carboidrato
                         </Button>
                       </SheetTrigger>
                       <SheetContent>
                         <SheetHeader>
-                          <SheetTitle>Selecionar Carboidrato</SheetTitle>
+                          <SheetTitle>Adicionar Carboidrato</SheetTitle>
                         </SheetHeader>
                         <div className="py-4">
                           <Table>
                             <TableHeader>
                               <TableRow>
                                 <TableHead>Nome</TableHead>
-                                <TableHead>Ação</TableHead>
+                                <TableHead className="text-right">Ação</TableHead>
                               </TableRow>
                             </TableHeader>
                             <TableBody>
-                              {filtrarPreparosPorTipo("CARBOIDRATO").map((preparo) => (
+                              {preparosPorTipo.CARBOIDRATO.map((preparo) => (
                                 <TableRow key={preparo.id}>
                                   <TableCell>{preparo.nome}</TableCell>
-                                  <TableCell>
+                                  <TableCell className="text-right">
                                     <Button
                                       size="sm"
                                       variant="outline"
-                                      onClick={() => handleSelectPreparo("carboidrato", preparo)}
+                                      onClick={() =>
+                                        handleAddComponente(
+                                          "CARBOIDRATO",
+                                          preparo,
+                                        )
+                                      }
                                     >
-                                      Selecionar
+                                      Adicionar
                                     </Button>
                                   </TableCell>
                                 </TableRow>
@@ -359,161 +560,184 @@ export default function Opcoes() {
                         </div>
                       </SheetContent>
                     </Sheet>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <div className="flex-1">
-                      <Input value={novaOpcao.carboidrato?.nome || ""} disabled />
-                    </div>
-                    <div className="w-24">
-                      <div className="flex items-center">
-                        <Input
-                          type="number"
-                          min="0"
-                          max="100"
-                          value={novaOpcao.carboidrato?.porcentagem || ""}
-                          onChange={(e) => handleChangePorcentagem("carboidrato", Number(e.target.value))}
-                          disabled={!novaOpcao.carboidrato?.nome}
-                        />
-                        <span className="ml-2">%</span>
-                      </div>
-                    </div>
+
+                    <Sheet
+                      open={sheetOpen === "PROTEINA"}
+                      onOpenChange={(open) =>
+                        setSheetOpen(open ? "PROTEINA" : null)
+                      }
+                    >
+                      <SheetTrigger asChild>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={saving || loadingPreparos}
+                        >
+                          + Proteína
+                        </Button>
+                      </SheetTrigger>
+                      <SheetContent>
+                        <SheetHeader>
+                          <SheetTitle>Adicionar Proteína</SheetTitle>
+                        </SheetHeader>
+                        <div className="py-4">
+                          <Table>
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead>Nome</TableHead>
+                                <TableHead className="text-right">Ação</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {preparosPorTipo.PROTEINA.map((preparo) => (
+                                <TableRow key={preparo.id}>
+                                  <TableCell>{preparo.nome}</TableCell>
+                                  <TableCell className="text-right">
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() =>
+                                        handleAddComponente("PROTEINA", preparo)
+                                      }
+                                    >
+                                      Adicionar
+                                    </Button>
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </div>
+                      </SheetContent>
+                    </Sheet>
+
+                    <Sheet
+                      open={sheetOpen === "LEGUMES"}
+                      onOpenChange={(open) =>
+                        setSheetOpen(open ? "LEGUMES" : null)
+                      }
+                    >
+                      <SheetTrigger asChild>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={saving || loadingPreparos}
+                        >
+                          + Legumes
+                        </Button>
+                      </SheetTrigger>
+                      <SheetContent>
+                        <SheetHeader>
+                          <SheetTitle>Adicionar Legumes</SheetTitle>
+                        </SheetHeader>
+                        <div className="py-4">
+                          <Table>
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead>Nome</TableHead>
+                                <TableHead className="text-right">Ação</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {preparosPorTipo.LEGUMES.map((preparo) => (
+                                <TableRow key={preparo.id}>
+                                  <TableCell>{preparo.nome}</TableCell>
+                                  <TableCell className="text-right">
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() =>
+                                        handleAddComponente("LEGUMES", preparo)
+                                      }
+                                    >
+                                      Adicionar
+                                    </Button>
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </div>
+                      </SheetContent>
+                    </Sheet>
                   </div>
 
-                  <div className="flex items-center justify-between">
-                    <Label>Proteína</Label>
-                    <Sheet
-                      open={sheetOpen === "proteina"}
-                      onOpenChange={(open) => setSheetOpen(open ? "proteina" : null)}
-                    >
-                      <SheetTrigger asChild>
-                        <Button size="sm" variant="outline">
-                          Selecionar Proteína
-                        </Button>
-                      </SheetTrigger>
-                      <SheetContent>
-                        <SheetHeader>
-                          <SheetTitle>Selecionar Proteína</SheetTitle>
-                        </SheetHeader>
-                        <div className="py-4">
-                          <Table>
-                            <TableHeader>
-                              <TableRow>
-                                <TableHead>Nome</TableHead>
-                                <TableHead>Ação</TableHead>
-                              </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                              {filtrarPreparosPorTipo("PROTEÍNA").map((preparo) => (
-                                <TableRow key={preparo.id}>
-                                  <TableCell>{preparo.nome}</TableCell>
-                                  <TableCell>
-                                    <Button
-                                      size="sm"
-                                      variant="outline"
-                                      onClick={() => handleSelectPreparo("proteina", preparo)}
-                                    >
-                                      Selecionar
-                                    </Button>
-                                  </TableCell>
-                                </TableRow>
-                              ))}
-                            </TableBody>
-                          </Table>
-                        </div>
-                      </SheetContent>
-                    </Sheet>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <div className="flex-1">
-                      <Input value={novaOpcao.proteina?.nome || ""} disabled />
-                    </div>
-                    <div className="w-24">
-                      <div className="flex items-center">
-                        <Input
-                          type="number"
-                          min="0"
-                          max="100"
-                          value={novaOpcao.proteina?.porcentagem || ""}
-                          onChange={(e) => handleChangePorcentagem("proteina", Number(e.target.value))}
-                          disabled={!novaOpcao.proteina?.nome}
-                        />
-                        <span className="ml-2">%</span>
-                      </div>
-                    </div>
-                  </div>
+                  <div className="space-y-3">
+                    <Label>Componentes</Label>
 
-                  <div className="flex items-center justify-between">
-                    <Label>Legumes</Label>
-                    <Sheet
-                      open={sheetOpen === "legumes"}
-                      onOpenChange={(open) => setSheetOpen(open ? "legumes" : null)}
-                    >
-                      <SheetTrigger asChild>
-                        <Button size="sm" variant="outline">
-                          Selecionar Legumes
-                        </Button>
-                      </SheetTrigger>
-                      <SheetContent>
-                        <SheetHeader>
-                          <SheetTitle>Selecionar Legumes</SheetTitle>
-                        </SheetHeader>
-                        <div className="py-4">
-                          <Table>
-                            <TableHeader>
-                              <TableRow>
-                                <TableHead>Nome</TableHead>
-                                <TableHead>Ação</TableHead>
-                              </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                              {filtrarPreparosPorTipo("LEGUMES").map((preparo) => (
-                                <TableRow key={preparo.id}>
-                                  <TableCell>{preparo.nome}</TableCell>
-                                  <TableCell>
-                                    <Button
-                                      size="sm"
-                                      variant="outline"
-                                      onClick={() => handleSelectPreparo("legumes", preparo)}
-                                    >
-                                      Selecionar
-                                    </Button>
-                                  </TableCell>
-                                </TableRow>
-                              ))}
-                            </TableBody>
-                          </Table>
-                        </div>
-                      </SheetContent>
-                    </Sheet>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <div className="flex-1">
-                      <Input value={novaOpcao.legumes?.nome || ""} disabled />
-                    </div>
-                    <div className="w-24">
-                      <div className="flex items-center">
-                        <Input
-                          type="number"
-                          min="0"
-                          max="100"
-                          value={novaOpcao.legumes?.porcentagem || ""}
-                          onChange={(e) => handleChangePorcentagem("legumes", Number(e.target.value))}
-                          disabled={!novaOpcao.legumes?.nome}
-                        />
-                        <span className="ml-2">%</span>
+                    {novaOpcao.componentes.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">
+                        Adicione 1 ou mais componentes (carboidrato, proteína e/ou
+                        legumes) e defina as porcentagens.
+                      </p>
+                    ) : (
+                      <div className="space-y-2">
+                        {novaOpcao.componentes.map((c) => (
+                          <div
+                            key={c.id}
+                            className="flex items-center gap-3 rounded-md border p-3"
+                          >
+                            <div className="flex-1">
+                              <p className="text-sm font-medium">
+                                {c.preparoNome || "-"}
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                {c.tipo === "CARBOIDRATO"
+                                  ? "Carboidrato"
+                                  : c.tipo === "PROTEINA"
+                                    ? "Proteína"
+                                    : "Legumes"}
+                              </p>
+                            </div>
+
+                            <div className="w-32">
+                              <div className="flex items-center">
+                                <Input
+                                  type="number"
+                                  min="0"
+                                  max="100"
+                                  value={c.porcentagem ?? 0}
+                                  onChange={(e) =>
+                                    handleChangePorcentagem(
+                                      c.id,
+                                      Number(e.target.value),
+                                    )
+                                  }
+                                />
+                                <span className="ml-2">%</span>
+                              </div>
+                            </div>
+
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleRemoveComponente(c.id)}
+                              title="Remover componente"
+                            >
+                              <Trash className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        ))}
                       </div>
-                    </div>
+                    )}
                   </div>
 
                   {erroSoma && (
                     <Alert variant="destructive">
                       <AlertCircle className="h-4 w-4" />
                       <AlertDescription>
-                        A soma das porcentagens deve ser igual a 100%. Atualmente a soma é{" "}
-                        {(novaOpcao.carboidrato?.porcentagem || 0) +
-                          (novaOpcao.proteina?.porcentagem || 0) +
-                          (novaOpcao.legumes?.porcentagem || 0)}
-                        %.
+                        A soma das porcentagens deve ser igual a 100%.
+                        Atualmente a soma é {somaPct}%.
+                      </AlertDescription>
+                    </Alert>
+                  )}
+
+                  {!erroSoma && novaOpcao.componentes.length > 0 && somaPct !== 100 && (
+                    <Alert>
+                      <AlertCircle className="h-4 w-4" />
+                      <AlertDescription>
+                        Soma atual: {somaPct}%. Ajuste até chegar em 100% para
+                        salvar.
                       </AlertDescription>
                     </Alert>
                   )}
@@ -522,14 +746,20 @@ export default function Opcoes() {
             )}
 
             <div className="flex justify-end space-x-2 pt-4">
-              <Button variant="outline" onClick={() => setDialogOpen(false)}>
+              <Button
+                variant="outline"
+                onClick={() => setDialogOpen(false)}
+                disabled={saving}
+              >
                 Cancelar
               </Button>
-              <Button onClick={handleSave}>Salvar</Button>
+              <Button onClick={handleSave} disabled={saving}>
+                {saving ? "Salvando..." : "Salvar"}
+              </Button>
             </div>
           </div>
         </DialogContent>
       </Dialog>
     </div>
-  )
+  );
 }
