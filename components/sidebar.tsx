@@ -1,9 +1,9 @@
-"use client"
+"use client";
 
-import { useState } from "react"
-import Link from "next/link"
-import { usePathname } from "next/navigation"
-import { cn } from "@/lib/utils"
+import { useState } from "react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { cn } from "@/lib/utils";
 import {
   BarChart3,
   Calendar,
@@ -19,29 +19,29 @@ import {
   Tag,
   Users,
   Utensils,
-} from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { ScrollArea } from "@/components/ui/scroll-area"
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface SidebarProps {
-  className?: string
+  className?: string;
 }
 
 export function Sidebar({ className }: SidebarProps) {
-  const pathname = usePathname()
+  const pathname = usePathname();
   const [openMenus, setOpenMenus] = useState<Record<string, boolean>>({
     cadastros: true,
     pedidos: true,
-  })
+  });
 
   const toggleMenu = (menu: string) => {
     setOpenMenus((prev) => ({
       ...prev,
       [menu]: !prev[menu],
-    }))
-  }
+    }));
+  };
 
-  const isActive = (path: string) => pathname === path
+  const isActive = (path: string) => pathname === path;
 
   return (
     <div className={cn("flex h-screen flex-col border-r bg-white", className)}>
@@ -80,13 +80,22 @@ export function Sidebar({ className }: SidebarProps) {
                 <Package className="h-4 w-4" />
                 <span>Cadastros</span>
               </div>
-              <ChevronDown className={cn("h-4 w-4 transition-transform", openMenus.cadastros ? "rotate-180" : "")} />
+              <ChevronDown
+                className={cn(
+                  "h-4 w-4 transition-transform",
+                  openMenus.cadastros ? "rotate-180" : "",
+                )}
+              />
             </Button>
             {openMenus.cadastros && (
               <div className="ml-4 space-y-1">
                 <Link href="/categorias-ingredientes">
                   <Button
-                    variant={isActive("/categorias-ingredientes") ? "secondary" : "ghost"}
+                    variant={
+                      isActive("/categorias-ingredientes")
+                        ? "secondary"
+                        : "ghost"
+                    }
                     className={cn(
                       "w-full justify-start gap-2",
                       isActive("/categorias-ingredientes")
@@ -161,7 +170,9 @@ export function Sidebar({ className }: SidebarProps) {
                 </Link>
                 <Link href="/tamanhos-valores">
                   <Button
-                    variant={isActive("/tamanhos-valores") ? "secondary" : "ghost"}
+                    variant={
+                      isActive("/tamanhos-valores") ? "secondary" : "ghost"
+                    }
                     className={cn(
                       "w-full justify-start gap-2",
                       isActive("/tamanhos-valores")
@@ -177,7 +188,21 @@ export function Sidebar({ className }: SidebarProps) {
               </div>
             )}
           </div>
-
+          <Link href="/planos">
+            <Button
+              variant={isActive("/planos") ? "secondary" : "ghost"}
+              className={cn(
+                "w-full justify-start gap-2",
+                isActive("/planos")
+                  ? "bg-blue-50 text-blue-700 hover:bg-blue-100"
+                  : "text-gray-700 hover:bg-gray-100",
+              )}
+              size="sm"
+            >
+              <Package className="h-4 w-4" />
+              Planos
+            </Button>
+          </Link>
           <Link href="/clientes">
             <Button
               variant={isActive("/clientes") ? "secondary" : "ghost"}
@@ -205,7 +230,12 @@ export function Sidebar({ className }: SidebarProps) {
                 <ShoppingCart className="h-4 w-4" />
                 <span>Pedidos</span>
               </div>
-              <ChevronDown className={cn("h-4 w-4 transition-transform", openMenus.pedidos ? "rotate-180" : "")} />
+              <ChevronDown
+                className={cn(
+                  "h-4 w-4 transition-transform",
+                  openMenus.pedidos ? "rotate-180" : "",
+                )}
+              />
             </Button>
             {openMenus.pedidos && (
               <div className="ml-4 space-y-1">
@@ -226,7 +256,9 @@ export function Sidebar({ className }: SidebarProps) {
                 </Link>
                 <Link href="/pedidos-aberto">
                   <Button
-                    variant={isActive("/pedidos-aberto") ? "secondary" : "ghost"}
+                    variant={
+                      isActive("/pedidos-aberto") ? "secondary" : "ghost"
+                    }
                     className={cn(
                       "w-full justify-start gap-2",
                       isActive("/pedidos-aberto")
@@ -241,7 +273,9 @@ export function Sidebar({ className }: SidebarProps) {
                 </Link>
                 <Link href="/historico-pedidos">
                   <Button
-                    variant={isActive("/historico-pedidos") ? "secondary" : "ghost"}
+                    variant={
+                      isActive("/historico-pedidos") ? "secondary" : "ghost"
+                    }
                     className={cn(
                       "w-full justify-start gap-2",
                       isActive("/historico-pedidos")
@@ -256,7 +290,11 @@ export function Sidebar({ className }: SidebarProps) {
                 </Link>
                 <Link href="/pedido-sem-agendamento">
                   <Button
-                    variant={isActive("/pedido-sem-agendamento") ? "secondary" : "ghost"}
+                    variant={
+                      isActive("/pedido-sem-agendamento")
+                        ? "secondary"
+                        : "ghost"
+                    }
                     className={cn(
                       "w-full justify-start gap-2",
                       isActive("/pedido-sem-agendamento")
@@ -318,5 +356,5 @@ export function Sidebar({ className }: SidebarProps) {
         </div>
       </div>
     </div>
-  )
+  );
 }
