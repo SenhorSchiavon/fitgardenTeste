@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useToast } from "@/hooks/use-toast";
+import { apiFetch } from "./api";
 
 export type RegiaoEntrega =
   | "CENTRO"
@@ -81,7 +82,7 @@ async function http<T>(path: string, init?: RequestInit) {
   const base = getApiUrl();
   const url = `${base}${path}`;
 
-  const res = await fetch(url, {
+  const res = await apiFetch(url, {
     ...init,
     headers: {
       "Content-Type": "application/json",

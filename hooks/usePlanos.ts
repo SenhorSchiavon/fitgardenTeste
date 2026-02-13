@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
+import { apiFetch } from "./api";
 
 export type Tamanho = {
   id: number;
@@ -51,7 +52,7 @@ export function usePlanos() {
 
   const fetchTamanhos = useCallback(async () => {
     try {
-      const res = await fetch(TAMANHOS_RESOURCE, {
+      const res = await apiFetch(TAMANHOS_RESOURCE, {
         method: "GET",
         headers: { "Content-Type": "application/json" },
         cache: "no-store",
@@ -76,7 +77,7 @@ export function usePlanos() {
       const url = new URL(RESOURCE);
       if (search?.trim()) url.searchParams.set("search", search.trim());
 
-      const res = await fetch(url.toString(), {
+      const res = await apiFetch(url.toString(), {
         method: "GET",
         headers: { "Content-Type": "application/json" },
         cache: "no-store",
@@ -116,7 +117,7 @@ export function usePlanos() {
         ativo: !!input.ativo,
       };
 
-      const res = await fetch(RESOURCE, {
+      const res = await apiFetch(RESOURCE, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -158,7 +159,7 @@ export function usePlanos() {
         ativo: !!input.ativo,
       };
 
-      const res = await fetch(`${RESOURCE}/${id}`, {
+      const res = await apiFetch(`${RESOURCE}/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -193,7 +194,7 @@ export function usePlanos() {
 
       const plano = planos.find((p) => p.id === id);
 
-      const res = await fetch(`${RESOURCE}/${id}`, { method: "DELETE" });
+      const res = await apiFetch(`${RESOURCE}/${id}`, { method: "DELETE" });
       if (!res.ok) throw new Error("Falha ao excluir plano");
 
       setPlanos((prev) => prev.filter((p) => p.id !== id));

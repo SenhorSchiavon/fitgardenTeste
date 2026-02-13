@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -11,14 +11,16 @@ import { Input } from "@/components/ui/input"
 import { CreditCard, MapPin, Phone, Search, TruckIcon, User, CalendarIcon } from "lucide-react"
 import { Header } from "@/components/header"
 
+import { useAgendamentos } from "@/hooks/useAgendamentos" // <<< ajusta caminho
+
 type HistoricoPedido = {
   id: string
   numeroPedido: string
   cliente: string
   tipoEntrega: "ENTREGA" | "RETIRADA"
-  faixaHorario: "13-15" | "15-17" | "17-18" | "18-20:30"
+  faixaHorario: string
   endereco: string
-  zona: "CENTRO" | "ZONA SUL" | "ZONA NORTE" | "ZONA LESTE" | "CAMBÉ" | "IBIPORÃ"
+  zona: any
   telefone: string
   quantidade: number
   formaPagamento: string
@@ -31,83 +33,14 @@ type HistoricoPedido = {
   }[]
   data: string
   status: "ENTREGUE" | "CANCELADO"
+  agendamentoId: number
+  pedidoId: number
 }
 
 export default function HistoricoPedidos() {
-  const [historicoPedidos, setHistoricoPedidos] = useState<HistoricoPedido[]>([
-    {
-      id: "HIST001",
-      numeroPedido: "#2001",
-      cliente: "João Silva",
-      tipoEntrega: "ENTREGA",
-      faixaHorario: "13-15",
-      endereco: "Rua das Flores, 123",
-      zona: "CENTRO",
-      telefone: "(43) 99999-8888",
-      quantidade: 2,
-      formaPagamento: "Cartão de Crédito",
-      entregador: "Carlos",
-      observacoes: "Sem cebola",
-      itens: [
-        { nome: "Fit Tradicional", tamanho: "350g", quantidade: 1 },
-        { nome: "Low Carb Especial", tamanho: "450g", quantidade: 1 },
-      ],
-      data: "2023-05-10",
-      status: "ENTREGUE",
-    },
-    {
-      id: "HIST002",
-      numeroPedido: "#2002",
-      cliente: "Maria Oliveira",
-      tipoEntrega: "ENTREGA",
-      faixaHorario: "15-17",
-      endereco: "Av. Principal, 456",
-      zona: "ZONA SUL",
-      telefone: "(43) 98888-7777",
-      quantidade: 5,
-      formaPagamento: "PIX",
-      entregador: "Pedro",
-      itens: [{ nome: "Fit Tradicional", tamanho: "350g", quantidade: 5 }],
-      data: "2023-05-11",
-      status: "ENTREGUE",
-    },
-    {
-      id: "HIST003",
-      numeroPedido: "#2003",
-      cliente: "Ana Santos",
-      tipoEntrega: "RETIRADA",
-      faixaHorario: "17-18",
-      endereco: "-",
-      zona: "CENTRO",
-      telefone: "(43) 97777-6666",
-      quantidade: 3,
-      formaPagamento: "Dinheiro",
-      entregador: "-",
-      itens: [
-        { nome: "Vegetariano Mix", tamanho: "350g", quantidade: 2 },
-        { nome: "Sopa Detox", tamanho: "450g", quantidade: 1 },
-      ],
-      data: "2023-05-12",
-      status: "ENTREGUE",
-    },
-    {
-      id: "HIST004",
-      numeroPedido: "#2004",
-      cliente: "Carlos Pereira",
-      tipoEntrega: "ENTREGA",
-      faixaHorario: "18-20:30",
-      endereco: "Rua Secundária, 789",
-      zona: "ZONA NORTE",
-      telefone: "(43) 96666-5555",
-      quantidade: 1,
-      formaPagamento: "Cartão de Débito",
-      entregador: "Carlos",
-      itens: [{ nome: "Proteico Plus", tamanho: "450g", quantidade: 1 }],
-      data: "2023-05-13",
-      status: "CANCELADO",
-    },
-  ])
+  const { getHistorico, loading } = useAgendamentos()
 
+  const [historicoPedidos, setHistoricoPedidos] = useState<HistoricoPedido[]>([])
   const [pedidoSelecionado, setPedidoSelecionado] = useState<HistoricoPedido | null>(null)
   const [detalhesDialogOpen, setDetalhesDialogOpen] = useState(false)
   const [searchTerm, setSearchTerm] = useState("")
@@ -126,12 +59,39 @@ export default function HistoricoPedidos() {
     })
   }
 
-  const filteredPedidos = historicoPedidos.filter(
-    (pedido) =>
-      pedido.numeroPedido.includes(searchTerm) ||
-      pedido.cliente.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      formatDate(pedido.data).includes(searchTerm),
-  )
+  useEffect(() => {
+    let mounted = true
+
+    const load = async () => {
+      // aqui pode mandar date se quiser filtrar por dia:
+      // const today = new Date(); const date = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,"0")}-${String(today.getDate()).padStart(2,"0")}`
+      const res = await getHistorico<HistoricoPedido>({
+        // date,
+        page: 1,
+        pageSize: 200,
+      })
+      if (mounted) setHistoricoPedidos(res.rows || [])
+    }
+
+    load().catch(() => {})
+    return () => {
+      mounted = false
+    }
+  }, [getHistorico])
+
+  const filteredPedidos = useMemo(() => {
+    const t = searchTerm.trim().toLowerCase()
+    if (!t) return historicoPedidos
+
+    return historicoPedidos.filter((pedido) => {
+      const dataFmt = formatDate(pedido.data)
+      return (
+        pedido.numeroPedido.toLowerCase().includes(t) ||
+        pedido.cliente.toLowerCase().includes(t) ||
+        dataFmt.includes(searchTerm) // mantém igual teu filtro por data digitada
+      )
+    })
+  }, [historicoPedidos, searchTerm])
 
   return (
     <div className="container mx-auto p-6">
@@ -164,6 +124,7 @@ export default function HistoricoPedidos() {
                 <TableHead className="text-right">Ações</TableHead>
               </TableRow>
             </TableHeader>
+
             <TableBody>
               {filteredPedidos.map((pedido) => (
                 <TableRow key={pedido.id}>
@@ -173,7 +134,9 @@ export default function HistoricoPedidos() {
                   <TableCell>{pedido.tipoEntrega}</TableCell>
                   <TableCell>{pedido.formaPagamento}</TableCell>
                   <TableCell>
-                    <Badge variant={pedido.status === "ENTREGUE" ? "default" : "destructive"}>{pedido.status}</Badge>
+                    <Badge variant={pedido.status === "ENTREGUE" ? "default" : "destructive"}>
+                      {pedido.status}
+                    </Badge>
                   </TableCell>
                   <TableCell className="text-right">
                     <Button variant="ghost" size="sm" onClick={() => handleShowDetalhes(pedido)}>
@@ -182,10 +145,11 @@ export default function HistoricoPedidos() {
                   </TableCell>
                 </TableRow>
               ))}
+
               {filteredPedidos.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={7} className="text-center py-4">
-                    Nenhum pedido encontrado
+                    {loading ? "Carregando..." : "Nenhum pedido encontrado"}
                   </TableCell>
                 </TableRow>
               )}
@@ -201,11 +165,13 @@ export default function HistoricoPedidos() {
               Detalhes do Pedido {pedidoSelecionado?.numeroPedido} - {pedidoSelecionado?.cliente}
             </DialogTitle>
           </DialogHeader>
+
           <Tabs defaultValue="detalhes">
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="detalhes">Detalhes do Pedido</TabsTrigger>
               <TabsTrigger value="itens">Itens do Pedido</TabsTrigger>
             </TabsList>
+
             <TabsContent value="detalhes" className="space-y-4 py-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1">
@@ -245,7 +211,7 @@ export default function HistoricoPedidos() {
                 <div className="text-sm font-medium">Endereço</div>
                 <div className="flex items-center">
                   <MapPin className="h-4 w-4 mr-2 text-muted-foreground" />
-                  {pedidoSelecionado?.endereco} ({pedidoSelecionado?.zona})
+                  {pedidoSelecionado?.endereco} ({String(pedidoSelecionado?.zona || "-")})
                 </div>
               </div>
 
@@ -274,6 +240,7 @@ export default function HistoricoPedidos() {
                 </div>
               )}
             </TabsContent>
+
             <TabsContent value="itens" className="py-4">
               <Table>
                 <TableHeader>

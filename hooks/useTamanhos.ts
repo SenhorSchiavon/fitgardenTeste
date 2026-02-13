@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
+import { apiFetch } from "./api";
 
 export type Tamanho = {
   id: number;
@@ -32,7 +33,7 @@ async function http<T>(path: string, init?: RequestInit) {
   const base = getApiUrl();
   const url = `${base}${path}`;
 
-  const res = await fetch(url, {
+  const res = await apiFetch(url, {
     ...init,
     headers: {
       "Content-Type": "application/json",

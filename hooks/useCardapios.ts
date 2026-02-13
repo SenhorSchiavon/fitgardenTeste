@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
+import { apiFetch } from "./api";
 
 export type CardapioOpcao = {
   id: number;
@@ -46,7 +47,7 @@ export function useCardapios() {
       setLoading(true);
       setError(null);
 
-      const res = await fetch(RESOURCE, {
+      const res = await apiFetch(RESOURCE, {
         method: "GET",
         headers: { "Content-Type": "application/json" },
       });
@@ -76,7 +77,7 @@ export function useCardapios() {
       setSaving(true);
       setError(null);
 
-      const res = await fetch(RESOURCE, {
+      const res = await apiFetch(RESOURCE, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(input),
@@ -114,7 +115,7 @@ export function useCardapios() {
       setSaving(true);
       setError(null);
 
-      const res = await fetch(`${RESOURCE}/${id}`, {
+      const res = await apiFetch(`${RESOURCE}/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(input),
@@ -154,7 +155,7 @@ export function useCardapios() {
 
       const cardapio = cardapios.find((c) => c.id === id);
 
-      const res = await fetch(`${RESOURCE}/${id}`, { method: "DELETE" });
+      const res = await apiFetch(`${RESOURCE}/${id}`, { method: "DELETE" });
       if (!res.ok) {
         const msg = await safeReadMessage(res);
         throw new Error(msg || "Falha ao excluir cardápio");

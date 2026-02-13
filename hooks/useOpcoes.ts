@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
+import { apiFetch } from "./api";
 
 export type OpcaoTipo = "MARMITA" | "OUTROS";
 export type OpcaoCategoria = "FIT" | "LOW_CARB" | "VEGETARIANO" | "SOPA";
@@ -46,7 +47,7 @@ export function useOpcoes() {
       setLoading(true);
       setError(null);
 
-      const res = await fetch(RESOURCE, {
+      const res = await apiFetch(RESOURCE, {
         method: "GET",
         headers: { "Content-Type": "application/json" },
       });
@@ -76,7 +77,7 @@ export function useOpcoes() {
       setSaving(true);
       setError(null);
 
-      const res = await fetch(RESOURCE, {
+      const res = await apiFetch(RESOURCE, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(input),
@@ -111,7 +112,7 @@ export function useOpcoes() {
       setSaving(true);
       setError(null);
 
-      const res = await fetch(`${RESOURCE}/${id}`, {
+      const res = await apiFetch(`${RESOURCE}/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(input),
@@ -148,7 +149,7 @@ export function useOpcoes() {
 
       const opcao = opcoes.find((o) => o.id === id);
 
-      const res = await fetch(`${RESOURCE}/${id}`, { method: "DELETE" });
+      const res = await apiFetch(`${RESOURCE}/${id}`, { method: "DELETE" });
       if (!res.ok) throw new Error("Falha ao excluir opção");
 
       setOpcoes((prev) => prev.filter((o) => o.id !== id));

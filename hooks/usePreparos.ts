@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
+import { apiFetch } from "./api";
 
 export type Medida = "UN" | "KG" | "L";
 export type PreparoTipo = "CARBOIDRATO" | "PROTEINA" | "LEGUMES";
@@ -49,7 +50,7 @@ export function usePreparos() {
       setLoading(true);
       setError(null);
 
-      const res = await fetch(RESOURCE, {
+      const res = await apiFetch(RESOURCE, {
         method: "GET",
         headers: { "Content-Type": "application/json" },
       });
@@ -76,7 +77,7 @@ export function usePreparos() {
       setSaving(true);
       setError(null);
 
-      const res = await fetch(RESOURCE, {
+      const res = await apiFetch(RESOURCE, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(input),
@@ -107,7 +108,7 @@ export function usePreparos() {
       setSaving(true);
       setError(null);
 
-      const res = await fetch(`${RESOURCE}/${id}`, {
+      const res = await apiFetch(`${RESOURCE}/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(input),
@@ -140,7 +141,7 @@ export function usePreparos() {
 
       const preparo = preparos.find((p) => p.id === id);
 
-      const res = await fetch(`${RESOURCE}/${id}`, { method: "DELETE" });
+      const res = await apiFetch(`${RESOURCE}/${id}`, { method: "DELETE" });
       if (!res.ok) throw new Error("Falha ao excluir preparo");
 
       setPreparos((prev) => prev.filter((p) => p.id !== id));

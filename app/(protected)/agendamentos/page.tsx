@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ptBR } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -40,13 +40,19 @@ import {
   CreditCard,
 } from "lucide-react";
 import { Header } from "@/components/header";
+import { NovoAgendamentoDialog } from "./agendamento-cadastro";
+import { useOpcoesDoCardapio } from "@/hooks/useOpcoesDoCardapio";
+import { useClientes } from "@/hooks/useClientes";
+import { useAgendamentos } from "@/hooks/useAgendamentos";
+import { useCardapios } from "@/hooks/useCardapios";
+import { toast } from "@/components/ui/use-toast";
 
 type Agendamento = {
   id: string;
   numeroPedido: string;
   cliente: string;
   tipoEntrega: "ENTREGA" | "RETIRADA";
-  faixaHorario: "13-15" | "15-17" | "17-18" | "18-20:30";
+  faixaHorario: string;
   endereco: string;
   zona:
     | "CENTRO"
@@ -70,85 +76,128 @@ type Agendamento = {
 
 export default function Agendamentos() {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
-  const [agendamentos, setAgendamentos] = useState<Agendamento[]>([
-    {
-      id: "AGD001",
-      numeroPedido: "#3001",
-      cliente: "João Silva",
-      tipoEntrega: "ENTREGA",
-      faixaHorario: "13-15",
-      endereco: "Rua das Flores, 123",
-      zona: "CENTRO",
-      telefone: "(43) 99999-8888",
-      quantidade: 2,
-      formaPagamento: "Cartão de Crédito",
-      entregador: "Carlos",
-      observacoes: "Sem cebola",
-      itens: [
-        { nome: "Fit Tradicional", tamanho: "350g", quantidade: 1 },
-        { nome: "Low Carb Especial", tamanho: "450g", quantidade: 1 },
-      ],
-    },
-    {
-      id: "AGD002",
-      numeroPedido: "#3002",
-      cliente: "Maria Oliveira",
-      tipoEntrega: "ENTREGA",
-      faixaHorario: "15-17",
-      endereco: "Av. Principal, 456",
-      zona: "ZONA SUL",
-      telefone: "(43) 98888-7777",
-      quantidade: 5,
-      formaPagamento: "PIX",
-      entregador: "Pedro",
-      itens: [{ nome: "Fit Tradicional", tamanho: "350g", quantidade: 5 }],
-    },
-    {
-      id: "AGD003",
-      numeroPedido: "#3003",
-      cliente: "Ana Santos",
-      tipoEntrega: "RETIRADA",
-      faixaHorario: "17-18",
-      endereco: "-",
-      zona: "CENTRO",
-      telefone: "(43) 97777-6666",
-      quantidade: 3,
-      formaPagamento: "Dinheiro",
-      entregador: "-",
-      itens: [
-        { nome: "Vegetariano Mix", tamanho: "350g", quantidade: 2 },
-        { nome: "Sopa Detox", tamanho: "450g", quantidade: 1 },
-      ],
-    },
-    {
-      id: "AGD004",
-      numeroPedido: "#3004",
-      cliente: "Carlos Pereira",
-      tipoEntrega: "ENTREGA",
-      faixaHorario: "18-20:30",
-      endereco: "Rua Secundária, 789",
-      zona: "ZONA NORTE",
-      telefone: "(43) 96666-5555",
-      quantidade: 1,
-      formaPagamento: "Cartão de Débito",
-      entregador: "Carlos",
-      itens: [{ nome: "Proteico Plus", tamanho: "450g", quantidade: 1 }],
-    },
-  ]);
+  const [cadastroOpen, setCadastroOpen] = useState(false);
+  const {
+    clientes,
+    filteredClientes,
+    loading: loadingClientes,
+  } = useClientes();
+  const { cardapios, loading: loadingCardapios } = useCardapios();
+  const cardapioAtivo = cardapios.find((c) => c.ativo) ?? null;
+
+  const { opcoes, loading: loadingOpcoes } = useOpcoesDoCardapio(
+    cardapioAtivo?.id,
+  );
+  const [agendamentos, setAgendamentos] = useState<Agendamento[]>([]);
+  const {
+    createAgendamento,
+    updateAgendamento,
+    getAgendamentos,
+    deleteAgendamento,
+    integrarEntregasDoDia,
+    loading,
+    error,
+    utils,
+  } = useAgendamentos();
 
   const [agendamentoSelecionado, setAgendamentoSelecionado] =
     useState<Agendamento | null>(null);
   const [detalhesDialogOpen, setDetalhesDialogOpen] = useState(false);
   const [producaoSheetOpen, setProducaoSheetOpen] = useState(false);
   const [rotasSheetOpen, setRotasSheetOpen] = useState(false);
+  const [modoEdicao, setModoEdicao] = useState(false);
+  const [agendamentoEditandoId, setAgendamentoEditandoId] = useState<
+    number | null
+  >(null);
+  const [dadosEdicao, setDadosEdicao] = useState<any>(null);
 
   const handleShowDetalhes = (agendamento: Agendamento) => {
     setAgendamentoSelecionado(agendamento);
     setDetalhesDialogOpen(true);
   };
 
-  const handleDeleteAgendamento = (id: string) => {
-    setAgendamentos(agendamentos.filter((agd) => agd.id !== id));
+  function mapApiToUi(row: any): Agendamento {
+    const numeroPedido = `#${row.pedidoId ?? row.pedido?.id ?? row.id}`;
+
+    const zonaMap: Record<string, any> = {
+      CENTRO: "CENTRO",
+      ZONA_SUL: "ZONA SUL",
+      ZONA_NORTE: "ZONA NORTE",
+      ZONA_LESTE: "ZONA LESTE",
+      ZONA_OESTE: "ZONA OESTE",
+      CAMBE: "CAMBÉ",
+      IBIPORA: "IBIPORÃ",
+    };
+
+    const itensUi =
+      (row.pedido?.itens ?? row.itens ?? []).map((it: any) => ({
+        nome: it.opcao?.nome ?? it.nome ?? "-",
+        tamanho: it.tamanho?.pesagemGramas
+          ? `${it.tamanho.pesagemGramas}g`
+          : (it.tamanhoLabel ?? "-"),
+        quantidade: Number(it.quantidade ?? 0),
+      })) ?? [];
+
+    const quantidade = itensUi.reduce(
+      (acc: number, it: any) => acc + it.quantidade,
+      0,
+    );
+
+    return {
+      id: String(row.id),
+      numeroPedido,
+      cliente: row.pedido?.cliente?.nome ?? row.cliente?.nome ?? "-",
+      telefone: row.pedido?.cliente?.telefone ?? row.cliente?.telefone ?? "-",
+      tipoEntrega: row.pedido?.tipo ?? row.tipo ?? "ENTREGA",
+      faixaHorario: row.faixaHorario,
+      endereco: row.endereco ?? "-",
+      zona: zonaMap[row.regiao] ?? "CENTRO",
+      quantidade,
+      formaPagamento:
+        row.pedido?.pagamentos?.[0]?.forma ?? row.formaPagamento ?? "-",
+      entregador: row.entregador ?? "-",
+      observacoes: row.pedido?.observacoes ?? row.observacoes ?? undefined,
+      itens: itensUi,
+    };
+  }
+
+  useEffect(() => {
+    async function load() {
+      const date = utils.toISODateOnly(selectedDate);
+      const res = await getAgendamentos({ date, page: 1, pageSize: 200 });
+
+      setAgendamentos((res.rows || []).map(mapApiToUi));
+    }
+
+    load();
+  }, [selectedDate, getAgendamentos, utils]);
+
+  function formatEndereco(e: {
+    logradouro?: string | null;
+    numero?: string | null;
+    complemento?: string | null;
+    bairro?: string | null;
+    cidade?: string | null;
+    uf?: string | null;
+    cep?: string | null;
+  }) {
+    const linha1 = [e.logradouro, e.numero].filter(Boolean).join(", ");
+    const linha1c = [linha1, e.complemento].filter(Boolean).join(" - ");
+    const linha2 = [e.bairro, [e.cidade, e.uf].filter(Boolean).join("/")]
+      .filter(Boolean)
+      .join(" - ");
+    const linha3 = e.cep ? `CEP ${e.cep}` : "";
+
+    return [linha1c, linha2, linha3].filter(Boolean).join(" — ");
+  }
+
+  const handleDeleteAgendamento = async (id: string) => {
+    await deleteAgendamento(Number(id));
+
+    const date = utils.toISODateOnly(selectedDate);
+    const res = await getAgendamentos({ date, page: 1, pageSize: 200 });
+    setAgendamentos((res.rows || []).map(mapApiToUi));
+
     setDetalhesDialogOpen(false);
   };
 
@@ -235,10 +284,27 @@ export default function Agendamentos() {
           <Button variant="outline" onClick={() => setProducaoSheetOpen(true)}>
             <FileText className="mr-2 h-4 w-4" /> Produção do Dia
           </Button>
-          <Button variant="outline" onClick={() => setRotasSheetOpen(true)}>
-            <MapPin className="mr-2 h-4 w-4" /> Rotas de Montagem
+          <Button
+            variant="outline"
+            onClick={async () => {
+              try {
+                const dateISO = utils.toISODateOnly(selectedDate);
+
+                const r = await integrarEntregasDoDia(
+                  dateISO
+                );
+              } catch (e: any) {
+                console.error(e);
+              }
+            }}
+          >
+            Criar entregas do dia
           </Button>
-          <Button>
+
+          <Button
+            onClick={() => setCadastroOpen(true)}
+            disabled={loadingOpcoes}
+          >
             <Plus className="mr-2 h-4 w-4" /> Novo Agendamento
           </Button>
         </div>
@@ -402,6 +468,19 @@ export default function Agendamentos() {
 
               <div className="flex justify-end space-x-2 pt-4">
                 <Button
+                  variant="outline"
+                  onClick={() => {
+                    if (!agendamentoSelecionado) return;
+                    setModoEdicao(true);
+                    setAgendamentoEditandoId(Number(agendamentoSelecionado.id));
+                    setDadosEdicao(agendamentoSelecionado);
+                    setDetalhesDialogOpen(false);
+                    setCadastroOpen(true);
+                  }}
+                >
+                  Editar
+                </Button>
+                <Button
                   variant="destructive"
                   onClick={() =>
                     agendamentoSelecionado &&
@@ -519,6 +598,117 @@ export default function Agendamentos() {
           </div>
         </SheetContent>
       </Sheet>
+      <NovoAgendamentoDialog
+        open={cadastroOpen}
+        onOpenChange={(open) => {
+          setCadastroOpen(open);
+
+          // quando fechar, limpa modo edição
+          if (!open) {
+            setModoEdicao(false);
+            setAgendamentoEditandoId(null);
+            setDadosEdicao(null);
+          }
+        }}
+        clientes={clientes.map((c) => {
+          const enderecoPrincipal =
+            c.enderecos?.find((e) => e.principal) ?? c.enderecos?.[0];
+
+          const enderecoTexto =
+            enderecoPrincipal?.endereco ||
+            (enderecoPrincipal ? formatEndereco(enderecoPrincipal) : "");
+
+          return {
+            id: String(c.id),
+            nome: c.nome,
+            telefone: c.telefone,
+            regiao: c.regiao ?? undefined,
+            endereco: enderecoTexto,
+          };
+        })}
+        opcoes={opcoes.map((o) => ({
+          id: String(o.id),
+          nome: o.nome,
+          categoria: o.categoria ?? "OUTROS",
+          tamanhos: o.tamanhos.map((t) => ({
+            tamanhoId: String(t.tamanhoId),
+            tamanhoLabel: t.tamanhoLabel,
+            preco: t.preco,
+          })),
+        }))}
+        defaultDate={selectedDate} // melhor usar a data selecionada no calendário
+        mode={modoEdicao ? "edit" : "create"}
+        initialData={
+          modoEdicao && dadosEdicao
+            ? {
+                agendamentoId: Number(dadosEdicao.id),
+                clienteId: String(
+                  // hoje você só tem o nome no UI; ideal é vir clienteId do backend
+                  // se você já tiver dadosEdicao.clienteId, troca aqui
+                  clientes.find((c) => c.nome === dadosEdicao.cliente)?.id ??
+                    "",
+                ),
+                tipo: dadosEdicao.tipoEntrega,
+                data: selectedDate, // ideal: data real do agendamento (se vier do backend)
+                faixaHorario: dadosEdicao.faixaHorario,
+                endereco: dadosEdicao.endereco,
+                regiao: undefined, // ideal: mapear da zona pra RegiaoEntrega (se vc quiser)
+                observacoes: dadosEdicao.observacoes ?? null,
+                formaPagamento: dadosEdicao.formaPagamento ?? "DINHEIRO",
+                voucherCodigo: null,
+                itens: [], // <<< IMPORTANT: precisa ter opcaoId/tamanhoId pra editar itens
+              }
+            : null
+        }
+        onUpdateAgendamento={async (agendamentoId, payload) => {
+          // chama backend
+          await updateAgendamento(agendamentoId, {
+            tipo: payload.tipo,
+            data: payload.data,
+            faixaHorario: payload.faixaHorario,
+            endereco: payload.endereco,
+            regiao: payload.regiao ?? null,
+            observacoes: payload.observacoes ?? null,
+            formaPagamento: payload.formaPagamento,
+            itens: payload.itens.map((it) => ({
+              opcaoId: Number(it.opcaoId),
+              tamanhoId: Number(it.tamanhoId),
+              quantidade: Number(it.quantidade),
+            })),
+          });
+
+          // recarrega lista do dia
+          const date = utils.toISODateOnly(selectedDate);
+          const res = await getAgendamentos({ date, page: 1, pageSize: 200 });
+          setAgendamentos((res.rows || []).map(mapApiToUi));
+
+          setCadastroOpen(false);
+        }}
+        onCreateAgendamento={async (payload) => {
+          const result = await createAgendamento({
+            clienteId: Number(payload.clienteId),
+            tipo: payload.tipo,
+            data: payload.data,
+            faixaHorario: payload.faixaHorario,
+            endereco: payload.endereco,
+            regiao: payload.regiao,
+            observacoes: payload.observacoes,
+            formaPagamento: payload.formaPagamento,
+            itens: payload.itens.map((it) => ({
+              opcaoId: Number(it.opcaoId),
+              tamanhoId: Number(it.tamanhoId),
+              quantidade: Number(it.quantidade),
+            })),
+          });
+
+          const date = utils.toISODateOnly(selectedDate);
+          const res = await getAgendamentos({ date, page: 1, pageSize: 200 });
+          setAgendamentos((res.rows || []).map(mapApiToUi));
+
+          setCadastroOpen(false);
+          return result;
+        }}
+      />
     </div>
   );
 }

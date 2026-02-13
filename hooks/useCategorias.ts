@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
+import { apiFetch } from "./api";
 
 export type CategoriaTipo = "INGREDIENTE" | "PRODUTO";
 
@@ -30,7 +31,7 @@ export function useCategorias() {
       setLoading(true);
       setError(null);
 
-      const res = await fetch(RESOURCE, {
+      const res = await apiFetch(RESOURCE, {
         method: "GET",
         headers: { "Content-Type": "application/json" },
       });
@@ -62,7 +63,7 @@ export function useCategorias() {
       setSaving(true);
       setError(null);
 
-      const res = await fetch(RESOURCE, {
+      const res = await apiFetch(RESOURCE, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(input),
@@ -99,7 +100,7 @@ export function useCategorias() {
       setSaving(true);
       setError(null);
 
-      const res = await fetch(`${RESOURCE}/${id}`, {
+      const res = await apiFetch(`${RESOURCE}/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(input),
@@ -139,7 +140,7 @@ export function useCategorias() {
 
       const categoria = categorias.find((c) => c.id === id);
 
-      const res = await fetch(`${RESOURCE}/${id}`, {
+      const res = await apiFetch(`${RESOURCE}/${id}`, {
         method: "DELETE",
       });
 

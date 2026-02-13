@@ -1,5 +1,6 @@
 import { useCallback, useState } from "react";
 import { toast } from "sonner";
+import { apiFetch } from "./api";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3333";
 
@@ -36,7 +37,7 @@ export function usePlanosCliente() {
   const [saving, setSaving] = useState(false);
 
   const listTamanhos = useCallback(async () => {
-    const res = await fetch(`${API_URL}/tamanhos`, {
+    const res = await apiFetch(`${API_URL}/tamanhos`, {
       method: "GET",
       headers: { "Content-Type": "application/json" },
     });
@@ -46,7 +47,7 @@ export function usePlanosCliente() {
 
   // 1) LISTAR PLANOS (CATÁLOGO)
   const listPlanos = useCallback(async () => {
-    const res = await fetch(`${API_URL}/planos`, {
+    const res = await apiFetch(`${API_URL}/planos`, {
       method: "GET",
       headers: { "Content-Type": "application/json" },
     });
@@ -59,7 +60,7 @@ export function usePlanosCliente() {
     try {
       setSaving(true);
 
-      const res = await fetch(`${API_URL}/planos`, {
+      const res = await apiFetch(`${API_URL}/planos`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(input),
@@ -89,7 +90,7 @@ export function usePlanosCliente() {
  const vincularPlano = useCallback(async (clienteId: number, planoId: number) => {
   setSaving(true);
   try {
-    const res = await fetch(`${API_URL}/clientes/${clienteId}/planos/`, {
+    const res = await apiFetch(`${API_URL}/clientes/${clienteId}/planos/`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ planoId }),
@@ -109,7 +110,7 @@ export function usePlanosCliente() {
  const desvincularPlano = useCallback(async (clienteId: number, planoClienteId: number) => {
   setSaving(true);
   try {
-    const res = await fetch(`${API_URL}/clientes/${clienteId}/planos/${planoClienteId}`, {
+    const res = await apiFetch(`${API_URL}/clientes/${clienteId}/planos/${planoClienteId}`, {
       method: "DELETE",
     });
 
