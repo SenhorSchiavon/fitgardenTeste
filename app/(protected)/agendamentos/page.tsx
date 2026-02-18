@@ -95,6 +95,7 @@ export default function Agendamentos() {
     getAgendamentos,
     deleteAgendamento,
     integrarEntregasDoDia,
+    baixarXlsxImportEntregasDoDia,
     loading,
     error,
     utils,
@@ -289,16 +290,13 @@ export default function Agendamentos() {
             onClick={async () => {
               try {
                 const dateISO = utils.toISODateOnly(selectedDate);
-
-                const r = await integrarEntregasDoDia(
-                  dateISO
-                );
+                await baixarXlsxImportEntregasDoDia(dateISO);
               } catch (e: any) {
                 console.error(e);
               }
             }}
           >
-            Criar entregas do dia
+            Baixar planilha para importar
           </Button>
 
           <Button

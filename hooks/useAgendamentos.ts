@@ -233,6 +233,67 @@ export function useAgendamentos(options?: { baseUrl?: string }) {
     },
     [baseUrl, showError],
   );
+  const baixarXlsxImportEntregasDoDia = useCallback(
+    async (date?: string) => {
+      const dateISO = date && date.trim() ? date : toISODateOnly(new Date());
+
+      setLoading(true);
+      setError("");
+      try {
+        const qs = buildQueryString({ date: dateISO, pendentes: 1 });
+
+        const res = await apiFetch(
+          `${baseUrl}/exports/import-entregas.xlsx${qs}`,
+          { method: "GET" },
+        );
+
+        if (!res.ok) {
+          const text = await res.text();
+          let data: any = null;
+          try {
+            data = text ? JSON.parse(text) : null;
+          } catch {
+            data = { raw: text };
+          }
+          const msg =
+            data?.message ||
+            data?.error ||
+            `Erro HTTP ${res.status} (${res.statusText})`;
+          throw new Error(msg);
+        }
+
+        const blob = await res.blob();
+
+        // tenta pegar filename do header
+        const cd = res.headers.get("content-disposition") || "";
+        const match = cd.match(/filename="([^"]+)"/i);
+        const filename = (
+          match?.[1] || `import-entregas-${dateISO}.xlsx`
+        ).trim();
+
+        // baixa no navegador
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.URL.revokeObjectURL(url);
+
+        toast.success("Planilha gerada e baixada!");
+        return { success: true, filename };
+      } catch (e: any) {
+        const msg = e?.message || "Erro ao baixar planilha";
+        setError(msg);
+        showError(msg);
+        throw e;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [baseUrl, showError],
+  );
 
   const finalizarPagamento = useCallback(
     async (agendamentoId: number, payload: FinalizarPagamentoInput) => {
@@ -459,7 +520,7 @@ export function useAgendamentos(options?: { baseUrl?: string }) {
     finalizarPagamento,
     getPedidosPendentes,
     getHistorico,
-
+    baixarXlsxImportEntregasDoDia,
     getAgendamentos,
     getAgendamentoById,
     createAgendamento,
