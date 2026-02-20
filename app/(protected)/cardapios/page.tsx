@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Pencil, Trash, Check } from "lucide-react";
+import { Plus, Pencil, Trash, Check, Power } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -30,7 +30,7 @@ type NovoCardapioForm = {
   codigo: string;
   nome: string;
   ativo: boolean;
-  opcoesIds: number[]; // seleção por id
+  opcoesIds: number[];
 };
 
 export default function CardapiosPage() {
@@ -41,6 +41,7 @@ export default function CardapiosPage() {
     createCardapio,
     updateCardapio,
     deleteCardapio,
+    setCardapioAtivo,
   } = useCardapios();
 
   const { opcoes, loading: loadingOpcoes } = useOpcoes();
@@ -54,7 +55,7 @@ export default function CardapiosPage() {
   const [form, setForm] = useState<NovoCardapioForm>({
     codigo: "",
     nome: "",
-    ativo: true,
+    ativo: false,
     opcoesIds: [],
   });
 
@@ -62,7 +63,9 @@ export default function CardapiosPage() {
   const [deleteTarget, setDeleteTarget] = useState<{ id: number; nome: string } | null>(null);
 
   const isLoading = loadingCardapios || loadingOpcoes;
-
+  const handleToggleAtivo = async (cardapio: Cardapio) => {
+    await setCardapioAtivo(cardapio.id, !cardapio.ativo);
+  };
   const cardapiosFiltrados = useMemo(() => {
     const q = busca.trim().toLowerCase();
     if (!q) return cardapios;
@@ -76,7 +79,6 @@ export default function CardapiosPage() {
       if (!categorias[cat]) categorias[cat] = [];
       categorias[cat].push(o);
     }
-    // ordena por nome
     for (const k of Object.keys(categorias)) {
       categorias[k].sort((a, b) => a.nome.localeCompare(b.nome));
     }
@@ -84,7 +86,7 @@ export default function CardapiosPage() {
   }, [opcoes]);
 
   const resetForm = () => {
-    setForm({ codigo: "", nome: "", ativo: true, opcoesIds: [] });
+    setForm({ codigo: "", nome: "", ativo: false, opcoesIds: [] });
     setEditandoId(null);
   };
 
@@ -219,9 +221,20 @@ export default function CardapiosPage() {
                       )}
                     </TableCell>
                     <TableCell className="text-right">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleToggleAtivo(cardapio)}
+                        disabled={saving}
+                        title={cardapio.ativo ? "Inativar" : "Ativar"}
+                      >
+                        <Power className={`h-4 w-4 ${cardapio.ativo ? "text-green-600" : "text-gray-500"}`} />
+                      </Button>
+
                       <Button variant="ghost" size="icon" onClick={() => handleEdit(cardapio)} disabled={saving}>
                         <Pencil className="h-4 w-4" />
                       </Button>
+
                       <Button variant="ghost" size="icon" onClick={() => openDeleteDialog(cardapio)} disabled={saving}>
                         <Trash className="h-4 w-4" />
                       </Button>
@@ -279,15 +292,7 @@ export default function CardapiosPage() {
               </div>
             </div>
 
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id="ativo"
-                checked={form.ativo}
-                onCheckedChange={(checked) => setForm((p) => ({ ...p, ativo: !!checked }))}
-                disabled={saving}
-              />
-              <Label htmlFor="ativo">Ativo</Label>
-            </div>
+           
 
             <div className="space-y-2 border-t pt-4">
               <Label>Refeições (opções)</Label>

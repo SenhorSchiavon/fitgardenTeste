@@ -147,6 +147,43 @@ export function useCardapios() {
       setSaving(false);
     }
   }
+  async function setCardapioAtivo(id: number, ativo: boolean) {
+    try {
+      setSaving(true);
+      setError(null);
+
+      const res = await apiFetch(`${RESOURCE}/${id}/ativo`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ativo }),
+      });
+
+      if (!res.ok) {
+        const msg = await safeReadMessage(res);
+        throw new Error(msg || "Falha ao alterar status");
+      }
+
+      const updated: Cardapio = await res.json();
+      setCardapios((prev) => prev.map((c) => (c.id === id ? updated : c)));
+
+      toast.success("Status atualizado", {
+        description: `Cardápio "${updated.nome}" agora está ${updated.ativo ? "ativo" : "inativo"}.`,
+      });
+
+      return updated;
+    } catch (err) {
+      console.error(err);
+      setError("Não foi possível alterar o status do cardápio.");
+
+      toast.error("Erro ao alterar status", {
+        description: err instanceof Error ? err.message : "Tente novamente em instantes.",
+      });
+
+      throw err;
+    } finally {
+      setSaving(false);
+    }
+  }
 
   async function deleteCardapio(id: number) {
     try {
@@ -191,6 +228,7 @@ export function useCardapios() {
     createCardapio,
     updateCardapio,
     deleteCardapio,
+    setCardapioAtivo,
   };
 }
 

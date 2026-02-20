@@ -33,7 +33,8 @@
     "react-leaflet": "^5.0.0",
     "recharts": "^3.7.0",
     "sonner": "^2.0.7",
-    "tailwind-merge": "^2.5.4"
+    "tailwind-merge": "^2.5.4",
+    "yarn": "^1.22.22"
   },
   "devDependencies": {
     "@types/leaflet": "^1.9.21",

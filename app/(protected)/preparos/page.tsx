@@ -460,7 +460,7 @@ export default function PreparosPage() {
                         </TableHeader>
 
                         <TableBody>
-                          {ingredientes.map((ingrediente) => (
+                          {ingredientesFiltrados.map((ingrediente) => (
                             <TableRow key={ingrediente.id}>
                               <TableCell>{ingrediente.nome}</TableCell>
                               <TableCell>{ingrediente.medida}</TableCell>
