@@ -290,11 +290,22 @@ export function NovoAgendamentoDialog({
   const [horario, setHorario] = useState<HorarioIntervalo>({ inicio: "", fim: "" });
   const [voucherCodigo, setVoucherCodigo] = useState("");
   const [taxaPagaEm, setTaxaPagaEm] = useState<"DINHEIRO" | "CARTAO" | "PIX">("DINHEIRO");
+  const [clientesLocal, setClientesLocal] = useState<Cliente[]>(clientes || []);
 
+useEffect(() => {
+  const incoming = clientes || [];
+
+  setClientesLocal((prev) => {
+    const map = new Map<string, Cliente>();
+    for (const c of prev) map.set(String(c.id), c);
+    for (const c of incoming) map.set(String(c.id), c);
+    return Array.from(map.values());
+  });
+}, [clientes]);
   const [clienteId, setClienteId] = useState<string>("");
   const clienteSelecionado = useMemo(
-    () => clientes.find((c) => String(c.id) === clienteId) || null,
-    [clientes, clienteId],
+    () => clientesLocal.find((c) => String(c.id) === String(clienteId)) || null,
+    [clientesLocal, clienteId],
   );
 
   const [endereco, setEndereco] = useState<string>("");
@@ -341,9 +352,9 @@ export function NovoAgendamentoDialog({
   }
 
   function onPickCliente(id: string) {
-    setClienteId(id);
+    setClienteId(String(id));
 
-    const c = clientes.find((x) => x.id === id);
+    const c = clientesLocal.find((x) => String(x.id) === String(id));
     if (!c) return;
 
     if (c.endereco) setEndereco(c.endereco);
@@ -570,8 +581,8 @@ export function NovoAgendamentoDialog({
                             <SelectValue placeholder="Selecione um cliente" />
                           </SelectTrigger>
                           <SelectContent>
-                            {clientes.map((c) => (
-                              <SelectItem key={c.id} value={c.id}>
+                            {clientesLocal.map((c) => (
+                              <SelectItem key={String(c.id)} value={String(c.id)}>
                                 {c.nome} — {c.telefone}
                               </SelectItem>
                             ))}
@@ -1011,16 +1022,38 @@ export function NovoAgendamentoDialog({
             const created = await createCliente(payload);
 
             const createdId = String(
-              (created as any)?.id ?? (created as any)?.cliente?.id ?? ""
+              (created as any)?.id ??
+              (created as any)?.cliente?.id ??
+              (created as any)?.data?.id ??
+              ""
             );
 
-            // ✅ manda o pai recarregar a lista
-            await onClienteCreated?.();
-
-            // ✅ agora o select vai ter o item novo, então selecionar funciona de verdade
+            // ✅ 1) adiciona na lista local imediatamente (refresh instantâneo)
             if (createdId) {
+              const novo: Cliente = {
+                id: createdId,
+                nome: String(payload?.nome || (created as any)?.nome || "Novo cliente"),
+                telefone: String(payload?.telefone || (created as any)?.telefone || ""),
+                endereco: payload?.endereco,
+                regiao: payload?.regiao,
+              };
+
+              setClientesLocal((prev) => {
+                // evita duplicar se já veio no array
+                if (prev.some((c) => String(c.id) === String(createdId))) return prev;
+                return [novo, ...prev];
+              });
+
+              // ✅ 2) seleciona imediatamente
               setClienteId(createdId);
+
+              // ✅ 3) preenche endereço/região se tiver
+              if (novo.endereco) setEndereco(novo.endereco);
+              if (novo.regiao) setRegiao(novo.regiao);
             }
+
+            // ✅ pede pro pai refetch também (consistência global)
+            await onClienteCreated?.();
 
             setClienteDialogOpen(false);
           }}
