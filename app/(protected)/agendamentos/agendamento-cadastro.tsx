@@ -31,7 +31,15 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Minus, Trash, Send, CalendarIcon, MapPin, UserPlus } from "lucide-react";
+import {
+  Plus,
+  Minus,
+  Trash,
+  Send,
+  CalendarIcon,
+  MapPin,
+  UserPlus,
+} from "lucide-react";
 
 // >>> AJUSTA O PATH AQUI
 import { ClienteFormDialog } from "@/components/clientes/ClienteFormDialog";
@@ -166,7 +174,6 @@ Seu agendamento foi confirmado:
 • Tipo: ${params.tipo}
 • Data: ${formatDatePtBr(params.data)}
 • Faixa: ${params.faixaHorario}h
-• Região: ${regiao}
 • Endereço: ${params.endereco || "-"}
 
 Itens:
@@ -225,25 +232,10 @@ type OnUpdateAgendamento = (
   },
 ) => Promise<any>;
 
-function splitFaixaHorario(faixa: string): HorarioIntervalo {
-  const raw = (faixa || "").trim();
-
-  if (raw.includes("-") && raw.includes(":")) {
-    const [inicio, fim] = raw.split("-").map((s) => s.trim());
-    return { inicio: inicio || "13:00", fim: fim || "15:00" };
-  }
-
-  if (raw.includes("-")) {
-    const [a, b] = raw.split("-").map((s) => s.trim());
-    const inicio = a.length <= 2 ? `${a.padStart(2, "0")}:00` : a;
-    const fim = b.length <= 2 ? `${b.padStart(2, "0")}:00` : b;
-    return { inicio: inicio || "13:00", fim: fim || "15:00" };
-  }
-
-  return { inicio: "13:00", fim: "15:00" };
-}
-
-function mapFormaPagamentoComTaxa(fp: FormaPagamento, taxa: "DINHEIRO" | "CARTAO" | "PIX") {
+function mapFormaPagamentoComTaxa(
+  fp: FormaPagamento,
+  taxa: "DINHEIRO" | "CARTAO" | "PIX",
+) {
   if (fp !== "VOUCHER") return fp;
   if (taxa === "DINHEIRO") return "VOUCHER_TAXA_DINHEIRO";
   if (taxa === "PIX") return "VOUCHER_TAXA_PIX";
@@ -287,24 +279,31 @@ export function NovoAgendamentoDialog({
 
   const [tipo, setTipo] = useState<PedidoTipo>("ENTREGA");
   const [data, setData] = useState<Date>(defaultDate);
-  const [horario, setHorario] = useState<HorarioIntervalo>({ inicio: "", fim: "" });
+  const [horario, setHorario] = useState<HorarioIntervalo>({
+    inicio: "14:00",
+    fim: "14:30",
+  });
   const [voucherCodigo, setVoucherCodigo] = useState("");
-  const [taxaPagaEm, setTaxaPagaEm] = useState<"DINHEIRO" | "CARTAO" | "PIX">("DINHEIRO");
+  const [taxaPagaEm, setTaxaPagaEm] = useState<
+    "DINHEIRO" | "CARTAO" | "PIX"
+  >("DINHEIRO");
   const [clientesLocal, setClientesLocal] = useState<Cliente[]>(clientes || []);
 
-useEffect(() => {
-  const incoming = clientes || [];
+  useEffect(() => {
+    const incoming = clientes || [];
 
-  setClientesLocal((prev) => {
-    const map = new Map<string, Cliente>();
-    for (const c of prev) map.set(String(c.id), c);
-    for (const c of incoming) map.set(String(c.id), c);
-    return Array.from(map.values());
-  });
-}, [clientes]);
+    setClientesLocal((prev) => {
+      const map = new Map<string, Cliente>();
+      for (const c of prev) map.set(String(c.id), c);
+      for (const c of incoming) map.set(String(c.id), c);
+      return Array.from(map.values());
+    });
+  }, [clientes]);
+
   const [clienteId, setClienteId] = useState<string>("");
   const clienteSelecionado = useMemo(
-    () => clientesLocal.find((c) => String(c.id) === String(clienteId)) || null,
+    () =>
+      clientesLocal.find((c) => String(c.id) === String(clienteId)) || null,
     [clientesLocal, clienteId],
   );
 
@@ -312,15 +311,23 @@ useEffect(() => {
   const [regiao, setRegiao] = useState<RegiaoEntrega | "">("");
   const [observacoes, setObservacoes] = useState<string>("");
 
-  const [formaPagamento, setFormaPagamento] = useState<FormaPagamento>("DINHEIRO");
+  const [formaPagamento, setFormaPagamento] =
+    useState<FormaPagamento>("DINHEIRO");
 
   const [itens, setItens] = useState<ItemPedido[]>([]);
-  const [novoItem, setNovoItem] = useState<{ opcaoId: string; tamanhoId: string; quantidade: number }>(
-    { opcaoId: "", tamanhoId: "", quantidade: 1 },
-  );
+  const [novoItem, setNovoItem] = useState<{
+    opcaoId: string;
+    tamanhoId: string;
+    quantidade: number;
+  }>({ opcaoId: "", tamanhoId: "", quantidade: 1 });
 
   const [isSaving, setIsSaving] = useState(false);
   const [confirmado, setConfirmado] = useState(false);
+  const [faixaHorario, setFaixaHorario] = useState<string>("14:00-14:30");
+
+  useEffect(() => {
+    setHorario(faixaToIntervalo(faixaHorario));
+  }, [faixaHorario]);
 
   // >>> modal de cadastrar cliente
   const [clienteDialogOpen, setClienteDialogOpen] = useState(false);
@@ -337,8 +344,7 @@ useEffect(() => {
   function resetForm() {
     setTipo("ENTREGA");
     setData(defaultDate);
-    setHorario({ inicio: "13:00", fim: "15:00" });
-    setClienteId("");
+    setHorario({ inicio: "14:00", fim: "14:30" });
     setEndereco("");
     setRegiao("");
     setObservacoes("");
@@ -409,8 +415,9 @@ useEffect(() => {
     const d = initialData.data instanceof Date ? initialData.data : new Date(initialData.data);
     setData(d);
 
-    setHorario(splitFaixaHorario(initialData.faixaHorario || ""));
-
+    const faixa = (initialData.faixaHorario || "14:00-14:30").trim();
+    setFaixaHorario(faixa);
+    setHorario(splitFaixaHorario(initialData.faixaHorario || "14:00-14:30"));
     setEndereco(initialData.endereco || "");
     setRegiao((initialData.regiao as any) || "");
     setObservacoes((initialData.observacoes || "") as any);
@@ -459,7 +466,7 @@ useEffect(() => {
     if (itens.length === 0) return;
 
     setIsSaving(true);
-    const faixaHorario = `${horario.inicio}-${horario.fim}`;
+    const faixa = `${horario.inicio}-${horario.fim}`;
 
     try {
       const formaFinal = mapFormaPagamentoComTaxa(formaPagamento, taxaPagaEm);
@@ -482,7 +489,7 @@ useEffect(() => {
         await onUpdateAgendamento(initialData.agendamentoId, {
           tipo,
           data,
-          faixaHorario,
+          faixaHorario: faixa,
           endereco,
           regiao: regiao ? (regiao as RegiaoEntrega) : null,
           observacoes: (observacoes || "").trim() ? observacoes : null,
@@ -504,7 +511,7 @@ useEffect(() => {
           clienteId,
           tipo,
           data,
-          faixaHorario,
+          faixaHorario: faixa,
           endereco,
           regiao: regiao ? (regiao as RegiaoEntrega) : undefined,
           observacoes,
@@ -528,12 +535,14 @@ useEffect(() => {
 
   function enviarWhatsAppConfirmacao() {
     if (!clienteSelecionado) return;
-    const faixaHorario = `${horario.inicio}-${horario.fim}`;
+
+    const faixa = `${horario.inicio}-${horario.fim}`;
     const waPhone = normalizePhoneToWaMe(clienteSelecionado.telefone);
+
     const msg = buildWhatsappMessage({
       clienteNome: clienteSelecionado.nome,
       data,
-      faixaHorario,
+      faixaHorario: faixa,
       tipo,
       endereco: tipo === "ENTREGA" ? endereco : "-",
       regiao: regiao ? (regiao as RegiaoEntrega) : undefined,
@@ -546,6 +555,76 @@ useEffect(() => {
     window.open(url, "_blank", "noopener,noreferrer");
   }
 
+  function pad2(n: number) {
+    return String(n).padStart(2, "0");
+  }
+
+  function toMin(hhmm: string) {
+    const [h, m] = (hhmm || "00:00").split(":").map((x) => Number(x));
+    return (h || 0) * 60 + (m || 0);
+  }
+
+  function fromMin(min: number) {
+    const h = Math.floor(min / 60);
+    const m = min % 60;
+    return `${pad2(h)}:${pad2(m)}`;
+  }
+
+  function gerarHorarios30({ start = "06:00", end = "22:00" }: { start?: string; end?: string } = {}) {
+    const ini = toMin(start);
+    const fim = toMin(end);
+
+    const arr: string[] = [];
+    for (let t = ini; t <= fim; t += 30) {
+      arr.push(fromMin(t));
+    }
+    return arr;
+  }
+
+  function splitFaixaHorario(faixa: string): HorarioIntervalo {
+    const raw = (faixa || "").trim();
+
+    if (raw.includes("-") && raw.includes(":")) {
+      const [inicio, fim] = raw.split("-").map((s) => s.trim());
+      return { inicio: inicio || "14:00", fim: fim || "14:30" };
+    }
+
+    return { inicio: "14:00", fim: "14:30" };
+  }
+
+  const horarios = useMemo(() => gerarHorarios30({ start: "06:00", end: "22:00" }), []);
+
+  const horariosFimDisponiveis = useMemo(() => {
+    const ini = toMin(horario.inicio);
+    return horarios.filter((h) => toMin(h) > ini);
+  }, [horarios, horario.inicio]);
+
+  useEffect(() => {
+    const ini = toMin(horario.inicio);
+    const fim = toMin(horario.fim);
+
+    if (fim > ini) return;
+
+    const prox = horarios.find((h) => toMin(h) > ini) || horario.fim;
+    setHorario((prev) => ({ ...prev, fim: prox }));
+  }, [horario.inicio, horarios, horario.fim]);
+
+  function gerarFaixas30({ start = "06:00", end = "22:00" }: { start?: string; end?: string } = {}) {
+    const ini = toMin(start);
+    const fim = toMin(end);
+
+    const faixas: string[] = [];
+    for (let t = ini; t + 30 <= fim; t += 30) {
+      faixas.push(`${fromMin(t)}-${fromMin(t + 30)}`);
+    }
+    return faixas;
+  }
+
+  function faixaToIntervalo(faixa: string): HorarioIntervalo {
+    const [inicio, fim] = (faixa || "").split("-").map((s) => s.trim());
+    return { inicio: inicio || "14:00", fim: fim || "14:30" };
+  }
+
   return (
     <Dialog
       open={open}
@@ -556,24 +635,27 @@ useEffect(() => {
     >
       <DialogContent className="max-w-4xl">
         <DialogHeader>
-          <DialogTitle>{mode === "edit" ? "Editar Agendamento" : "Novo Agendamento"}</DialogTitle>
+          <DialogTitle>
+            {mode === "edit" ? "Editar Agendamento" : "Novo Agendamento"}
+          </DialogTitle>
         </DialogHeader>
 
         <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-6">
+          {/* COLUNA ESQUERDA */}
           <div className="space-y-4">
             <Tabs defaultValue="cliente">
-              <TabsList className="grid w-full grid-cols-3">
+              <TabsList className="grid w-full grid-cols-2">
                 <TabsTrigger value="cliente">Cliente</TabsTrigger>
-                <TabsTrigger value="agenda">Agenda</TabsTrigger>
                 <TabsTrigger value="itens">Itens</TabsTrigger>
               </TabsList>
 
+              {/* TAB: CLIENTE */}
               <TabsContent value="cliente" className="space-y-4 pt-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Cliente</Label>
 
-                    {/* >>> SELECT + BOTÃO CADASTRAR LADO A LADO */}
+                    {/* SELECT + BOTÃO CADASTRAR */}
                     <div className="flex gap-2">
                       <div className="flex-1">
                         <Select value={clienteId} onValueChange={onPickCliente}>
@@ -605,7 +687,8 @@ useEffect(() => {
 
                     {mode === "edit" && (
                       <div className="text-xs text-muted-foreground">
-                        (No editar, cliente fica travado. Se quiser trocar cliente no editar, precisa ajustar o backend.)
+                        (No editar, cliente fica travado. Se quiser trocar cliente no editar,
+                        precisa ajustar o backend.)
                       </div>
                     )}
                   </div>
@@ -632,59 +715,75 @@ useEffect(() => {
                     placeholder="Ex: sem cebola, deixar na portaria, etc."
                   />
                 </div>
-              </TabsContent>
 
-              <TabsContent value="agenda" className="space-y-4 pt-4">
-                <div className="grid grid-cols-1 md:grid-cols-[auto_1fr] gap-6">
-                  <div className="space-y-2">
-                    <Label className="flex items-center gap-2">
-                      <CalendarIcon className="h-4 w-4" />
-                      Data
-                    </Label>
-
-                    <div className="rounded-md border p-2 w-fit">
-                      <Calendar mode="single" selected={data} onSelect={(d) => d && setData(d)} locale={ptBR} />
-                    </div>
-                  </div>
-
-                  <div className="space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label>Horário inicial</Label>
-                        <Input
-                          type="time"
-                          value={horario.inicio}
-                          onChange={(e) => setHorario((h) => ({ ...h, inicio: e.target.value }))}
-                        />
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label>Horário final</Label>
-                        <Input
-                          type="time"
-                          value={horario.fim}
-                          onChange={(e) => setHorario((h) => ({ ...h, fim: e.target.value }))}
-                        />
-                      </div>
-                    </div>
-
+                <div className="border-t pt-4 space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-[auto_1fr] gap-6">
                     <div className="space-y-2">
-                      <Label>Região</Label>
-                      <Select value={regiao} onValueChange={(v) => setRegiao(v as RegiaoEntrega)}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Selecione" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="CENTRO">Centro</SelectItem>
-                          <SelectItem value="ZONA_SUL">Zona Sul</SelectItem>
-                          <SelectItem value="ZONA_OESTE">Zona Oeste</SelectItem>
-                          <SelectItem value="ZONA_NORTE">Zona Norte</SelectItem>
-                          <SelectItem value="ZONA_LESTE">Zona Leste</SelectItem>
-                          <SelectItem value="CAMBE">Cambé</SelectItem>
-                          <SelectItem value="IBIPORA">Ibiporã</SelectItem>
-                        </SelectContent>
-                      </Select>
+                      <Label className="flex items-center gap-2">
+                        <CalendarIcon className="h-4 w-4" />
+                        Data
+                      </Label>
+
+                      <div className="rounded-md border p-2 w-fit">
+                        <Calendar
+                          mode="single"
+                          selected={data}
+                          onSelect={(d) => d && setData(d)}
+                          locale={ptBR}
+                        />
+                      </div>
                     </div>
+
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label>Horário inicial</Label>
+                          <Select
+                            value={horario.inicio}
+                            onValueChange={(v) => setHorario((h) => ({ ...h, inicio: v }))}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Selecione" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {horarios.map((h) => (
+                                <SelectItem key={h} value={h}>
+                                  {h}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label>Horário final</Label>
+                          <Select
+                            value={horario.fim}
+                            onValueChange={(v) => setHorario((h) => ({ ...h, fim: v }))}
+                            disabled={!horario.inicio}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Selecione" />
+                            </SelectTrigger>
+
+                            <SelectContent>
+                              {/* só horários depois do início */}
+                              {horariosFimDisponiveis.map((h) => (
+                                <SelectItem key={h} value={h}>
+                                  {h}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+
+                          <div className="text-xs text-muted-foreground">
+                            Intervalos de 30 em 30 minutos (fim sempre depois do início).
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div></div>
 
                     <div className="space-y-2">
                       <Label className="flex items-center gap-2">
@@ -710,15 +809,14 @@ useEffect(() => {
                 </div>
               </TabsContent>
 
+              {/* TAB: ITENS */}
               <TabsContent value="itens" className="space-y-4 pt-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Opção</Label>
                     <Select
                       value={novoItem.opcaoId}
-                      onValueChange={(v) =>
-                        setNovoItem({ ...novoItem, opcaoId: v, tamanhoId: "" })
-                      }
+                      onValueChange={(v) => setNovoItem({ ...novoItem, opcaoId: v, tamanhoId: "" })}
                     >
                       <SelectTrigger>
                         <SelectValue placeholder="Selecione uma opção" />
@@ -770,6 +868,7 @@ useEffect(() => {
                     >
                       <Minus className="h-4 w-4" />
                     </Button>
+
                     <Input
                       type="number"
                       min={1}
@@ -782,6 +881,7 @@ useEffect(() => {
                         })
                       }
                     />
+
                     <Button
                       type="button"
                       variant="outline"
@@ -821,11 +921,21 @@ useEffect(() => {
                           <TableCell>{it.tamanhoLabel}</TableCell>
                           <TableCell>
                             <div className="flex items-center gap-2">
-                              <Button type="button" variant="ghost" size="icon" onClick={() => changeItemQty(it.id, -1)}>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => changeItemQty(it.id, -1)}
+                              >
                                 <Minus className="h-3 w-3" />
                               </Button>
                               <span className="min-w-[18px] text-center">{it.quantidade}</span>
-                              <Button type="button" variant="ghost" size="icon" onClick={() => changeItemQty(it.id, 1)}>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => changeItemQty(it.id, 1)}
+                              >
                                 <Plus className="h-3 w-3" />
                               </Button>
                             </div>
@@ -854,6 +964,7 @@ useEffect(() => {
             </Tabs>
           </div>
 
+          {/* COLUNA DIREITA */}
           <div className="space-y-4">
             <div className="rounded-lg border p-4 space-y-3">
               <div className="flex items-center justify-between">
@@ -865,7 +976,7 @@ useEffect(() => {
                 )}
               </div>
 
-              <div className="text-sm text-muted-foreground">
+              <div className="text-sm text-muted-foreground space-y-1">
                 <div>
                   <span className="font-medium text-foreground">Data:</span> {formatDatePtBr(data)}
                 </div>
@@ -876,106 +987,108 @@ useEffect(() => {
                   <span className="font-medium text-foreground">Tipo:</span> {tipo}
                 </div>
                 <div>
-                  <span className="font-medium text-foreground">Cliente:</span> {clienteSelecionado ? clienteSelecionado.nome : "-"}
+                  <span className="font-medium text-foreground">Cliente:</span>{" "}
+                  {clienteSelecionado ? clienteSelecionado.nome : "-"}
                 </div>
                 <div>
-                  <span className="font-medium text-foreground">Telefone:</span> {clienteSelecionado ? clienteSelecionado.telefone : "-"}
-                </div>
-                <div>
-                  <span className="font-medium text-foreground">Região:</span> {regiao ? regiaoLabel(regiao as RegiaoEntrega) : "-"}
+                  <span className="font-medium text-foreground">Telefone:</span>{" "}
+                  {clienteSelecionado ? clienteSelecionado.telefone : "-"}
                 </div>
                 <div className="line-clamp-2">
-                  <span className="font-medium text-foreground">Endereço:</span> {tipo === "ENTREGA" ? endereco || "-" : "(retirada)"}
+                  <span className="font-medium text-foreground">Endereço:</span>{" "}
+                  {tipo === "ENTREGA" ? endereco || "-" : "(retirada)"}
+                </div>
+
+                <div className="border-t pt-3 mt-2 space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span>Itens:</span>
+                    <span>{itens.reduce((acc, it) => acc + it.quantidade, 0)}</span>
+                  </div>
+                  <div className="flex justify-between font-bold text-lg">
+                    <span>Total:</span>
+                    <span>R$ {total.toFixed(2)}</span>
+                  </div>
                 </div>
               </div>
 
-              <div className="border-t pt-3 space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span>Itens:</span>
-                  <span>{itens.reduce((acc, it) => acc + it.quantidade, 0)}</span>
+              <div className="rounded-lg border p-4 space-y-3">
+                <div className="font-medium">Pagamento</div>
+
+                <div className="space-y-2">
+                  <Label>Forma</Label>
+                  <Select
+                    value={formaPagamento}
+                    onValueChange={(v) => setFormaPagamento(v as FormaPagamento)}
+                    disabled={mode === "edit"}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="DINHEIRO">Dinheiro</SelectItem>
+                      <SelectItem value="PIX">PIX</SelectItem>
+                      <SelectItem value="DEBITO">Débito</SelectItem>
+                      <SelectItem value="CREDITO">Crédito</SelectItem>
+                      <SelectItem value="LINK">Link</SelectItem>
+                      <SelectItem value="VOUCHER">Voucher</SelectItem>
+                      <SelectItem value="PLANO">Plano (saldo)</SelectItem>
+                    </SelectContent>
+                  </Select>
+
+                  {mode === "edit" && (
+                    <div className="text-xs text-muted-foreground">
+                      (No editar, pagamento está travado pra não quebrar regra de voucher/plano.)
+                    </div>
+                  )}
                 </div>
-                <div className="flex justify-between font-bold text-lg">
-                  <span>Total:</span>
-                  <span>R$ {total.toFixed(2)}</span>
-                </div>
-              </div>
-            </div>
 
-            <div className="rounded-lg border p-4 space-y-3">
-              <div className="font-medium">Pagamento</div>
+                {formaPagamento === "VOUCHER" && (
+                  <div className="space-y-3 pt-2">
+                    <div className="space-y-2">
+                      <Label>Código do voucher</Label>
+                      <Input
+                        value={voucherCodigo}
+                        onChange={(e) => setVoucherCodigo(e.target.value)}
+                        placeholder="Ex: FIT10"
+                        disabled={mode === "edit"}
+                      />
+                    </div>
 
-              <div className="space-y-2">
-                <Label>Forma</Label>
-                <Select
-                  value={formaPagamento}
-                  onValueChange={(v) => setFormaPagamento(v as FormaPagamento)}
-                  disabled={mode === "edit"}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="DINHEIRO">Dinheiro</SelectItem>
-                    <SelectItem value="PIX">PIX</SelectItem>
-                    <SelectItem value="DEBITO">Débito</SelectItem>
-                    <SelectItem value="CREDITO">Crédito</SelectItem>
-                    <SelectItem value="LINK">Link</SelectItem>
-                    <SelectItem value="VOUCHER">Voucher</SelectItem>
-                    <SelectItem value="PLANO">Plano (saldo)</SelectItem>
-                  </SelectContent>
-                </Select>
+                    <div className="space-y-2">
+                      <Label>Taxa de entrega paga em</Label>
+                      <Select
+                        value={taxaPagaEm}
+                        onValueChange={(v) => setTaxaPagaEm(v as any)}
+                        disabled={mode === "edit"}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecione" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="DINHEIRO">Dinheiro</SelectItem>
+                          <SelectItem value="PIX">PIX</SelectItem>
+                          <SelectItem value="CARTAO">Cartão</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <div className="text-xs text-muted-foreground">
+                        Isso vira VOUCHER_TAXA_* no backend.
+                      </div>
+                    </div>
+                  </div>
+                )}
 
-                {mode === "edit" && (
-                  <div className="text-xs text-muted-foreground">
-                    (No editar, pagamento está travado pra não quebrar regra de voucher/plano.)
+                {formaPagamento === "PLANO" && (
+                  <div className="text-xs text-muted-foreground pt-2">
+                    O backend debita unidades/entregas do plano do cliente. (No editar fica travado.)
+                  </div>
+                )}
+
+                {formaPagamento === "LINK" && (
+                  <div className="text-xs text-muted-foreground pt-2">
+                    (Depois você pode gerar link de pagamento e salvar no backend.)
                   </div>
                 )}
               </div>
-
-              {formaPagamento === "VOUCHER" && (
-                <div className="space-y-3 pt-2">
-                  <div className="space-y-2">
-                    <Label>Código do voucher</Label>
-                    <Input
-                      value={voucherCodigo}
-                      onChange={(e) => setVoucherCodigo(e.target.value)}
-                      placeholder="Ex: FIT10"
-                      disabled={mode === "edit"}
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label>Taxa de entrega paga em</Label>
-                    <Select
-                      value={taxaPagaEm}
-                      onValueChange={(v) => setTaxaPagaEm(v as any)}
-                      disabled={mode === "edit"}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Selecione" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="DINHEIRO">Dinheiro</SelectItem>
-                        <SelectItem value="PIX">PIX</SelectItem>
-                        <SelectItem value="CARTAO">Cartão</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <div className="text-xs text-muted-foreground">Isso vira VOUCHER_TAXA_* no backend.</div>
-                  </div>
-                </div>
-              )}
-
-              {formaPagamento === "PLANO" && (
-                <div className="text-xs text-muted-foreground pt-2">
-                  O backend debita unidades/entregas do plano do cliente. (No editar fica travado.)
-                </div>
-              )}
-
-              {formaPagamento === "LINK" && (
-                <div className="text-xs text-muted-foreground pt-2">
-                  (Depois você pode gerar link de pagamento e salvar no backend.)
-                </div>
-              )}
             </div>
           </div>
         </div>
@@ -1012,7 +1125,7 @@ useEffect(() => {
           )}
         </DialogFooter>
 
-        {/* >>> MODAL DE CADASTRAR CLIENTE */}
+        {/* MODAL DE CADASTRAR CLIENTE */}
         <ClienteFormDialog
           open={clienteDialogOpen}
           onOpenChange={setClienteDialogOpen}
@@ -1025,10 +1138,10 @@ useEffect(() => {
               (created as any)?.id ??
               (created as any)?.cliente?.id ??
               (created as any)?.data?.id ??
-              ""
+              "",
             );
 
-            // ✅ 1) adiciona na lista local imediatamente (refresh instantâneo)
+            // adiciona na lista local imediatamente
             if (createdId) {
               const novo: Cliente = {
                 id: createdId,
@@ -1039,22 +1152,17 @@ useEffect(() => {
               };
 
               setClientesLocal((prev) => {
-                // evita duplicar se já veio no array
                 if (prev.some((c) => String(c.id) === String(createdId))) return prev;
                 return [novo, ...prev];
               });
 
-              // ✅ 2) seleciona imediatamente
               setClienteId(createdId);
 
-              // ✅ 3) preenche endereço/região se tiver
               if (novo.endereco) setEndereco(novo.endereco);
               if (novo.regiao) setRegiao(novo.regiao);
             }
 
-            // ✅ pede pro pai refetch também (consistência global)
             await onClienteCreated?.();
-
             setClienteDialogOpen(false);
           }}
         />
