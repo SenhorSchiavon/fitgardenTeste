@@ -1,6 +1,5 @@
 "use client";
 
-import dynamic from "next/dynamic";
 import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,24 +11,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  Plus,
-  Pencil,
-  Trash,
-  Search,
-  History,
-  Tag,
-  MapPin,
-  X,
-  Package,
-  PlusCircle,
-} from "lucide-react";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Plus, Pencil, Trash, Package, ChevronDown } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -39,9 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
 import { Header } from "@/components/header";
-import "leaflet/dist/leaflet.css";
 import { useTableSort } from "@/hooks/useTableSort";
 import { SortableHead } from "@/components/ui/sorttable";
 import {
@@ -60,46 +41,22 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import { ChevronDown } from "lucide-react";
+
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Separator } from "@/components/ui/separator";
+
 import { Cliente, useClientes } from "@/hooks/useClientes";
 import { usePlanosCliente } from "@/hooks/usePlanosCliente";
-import { DialogClose } from "@radix-ui/react-dialog";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@radix-ui/react-tabs";
-import { Separator } from "@radix-ui/react-select";
 
-const MapContainer = dynamic(
-  () => import("react-leaflet").then((m) => m.MapContainer),
-  { ssr: false },
-);
-const TileLayer = dynamic(
-  () => import("react-leaflet").then((m) => m.TileLayer),
-  { ssr: false },
-);
+// >>> IMPORTA O MODAL REUTILIZÁVEL (ajusta o path conforme teu projeto)
+import { ClienteFormDialog } from "@/components/clientes/ClienteFormDialog";
 
-type ClienteForm = {
-  nome: string;
-  telefone: string;
-
-  // endereço principal
-  cep?: string;
-  uf?: string;
-  cidade?: string;
-  bairro?: string;
-  logradouro?: string;
-  numero?: string;
-  complemento?: string;
-
-  latitude?: number | null;
-  longitude?: number | null;
-
-  // alternativo (simples)
-  enderecoAlternativo?: string;
-
-  tags: string[];
+type PlanoCatalogo = {
+  id: number;
+  nome?: string | null;
+  unidades?: number | null;
+  tamanho?: { id: number; pesagemGramas: number } | null;
 };
-
-
-
 
 function principalEnderecoTexto(c: Cliente) {
   const e = c.enderecos?.find((x) => x.principal);
@@ -113,71 +70,6 @@ function principalEnderecoTexto(c: Cliente) {
   const fallback = e.endereco ? ` - ${e.endereco}` : "";
   return `${rua}${num}${bairro}${cidade}${uf}${cep}${fallback}`.trim();
 }
-
-function onlyDigits(v: string) {
-  return (v || "").replace(/\D/g, "");
-}
-
-async function buscarCepViaCep(cep: string) {
-  const clean = onlyDigits(cep);
-  if (clean.length !== 8) throw new Error("CEP inválido. Use 8 dígitos.");
-
-  const res = await fetch(`https://viacep.com.br/ws/${clean}/json/`, {
-    cache: "no-store",
-  });
-  if (!res.ok) throw new Error("Erro ao consultar ViaCEP.");
-  const data = await res.json();
-
-  if (data?.erro) throw new Error("CEP não encontrado.");
-
-  return {
-    cep: clean,
-    uf: data.uf as string,
-    cidade: data.localidade as string,
-    bairro: data.bairro as string,
-    logradouro: data.logradouro as string,
-  };
-}
-
-const CircleMarker = dynamic(
-  () => import("react-leaflet").then((m) => m.CircleMarker),
-  { ssr: false },
-);
-
-async function geocodeNominatim(address: string) {
-  const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&q=${encodeURIComponent(
-    address,
-  )}`;
-
-  const res = await fetch(url, {
-    cache: "no-store",
-    headers: { Accept: "application/json" },
-  });
-
-  if (!res.ok) throw new Error("Não foi possível localizar no mapa.");
-
-  const data = await res.json();
-
-  if (Array.isArray(data) && data[0]) {
-    return { lat: Number(data[0].lat), lon: Number(data[0].lon) };
-  }
-
-  if (data?.features?.length) {
-    const f = data.features[0];
-    const lon = f?.geometry?.coordinates?.[0];
-    const lat = f?.geometry?.coordinates?.[1];
-    if (typeof lat === "number" && typeof lon === "number") return { lat, lon };
-  }
-
-  throw new Error("Endereço não localizado.");
-}
-
-type PlanoCatalogo = {
-  id: number;
-  nome?: string | null;
-  unidades?: number | null;
-  tamanho?: { id: number; pesagemGramas: number } | null;
-};
 
 export default function Clientes() {
   const {
@@ -200,45 +92,19 @@ export default function Clientes() {
     saving: savingPlano,
   } = usePlanosCliente();
 
-  const [localizando, setLocalizando] = useState(false);
-  const [erroLocalizacao, setErroLocalizacao] = useState<string | null>(null);
+  const savingAll = saving || savingPlano;
 
-  const [novoCliente, setNovoCliente] = useState<ClienteForm>({
-    nome: "",
-    telefone: "",
-
-    cep: "",
-    uf: "",
-    cidade: "",
-    bairro: "",
-    logradouro: "",
-    numero: "",
-    complemento: "",
-
-    latitude: null,
-    longitude: null,
-
-    enderecoAlternativo: "",
-    tags: [],
-  });
-
-  const [novaTag, setNovaTag] = useState("");
+  // >>> estados do MODAL reutilizável (criar/editar)
+  const [clienteDialogOpen, setClienteDialogOpen] = useState(false);
   const [editandoId, setEditandoId] = useState<number | null>(null);
-  const [dialogOpen, setDialogOpen] = useState(false);
+  const [clienteInitial, setClienteInitial] = useState<any>(null);
 
+  // >>> histórico/planos (continua igual)
   const [historicoDialogOpen, setHistoricoDialogOpen] = useState(false);
-  const [clienteSelecionado, setClienteSelecionado] = useState<Cliente | null>(
-    null,
-  );
+  const [clienteSelecionado, setClienteSelecionado] = useState<Cliente | null>(null);
+  const [abaHistorico, setAbaHistorico] = useState<"historico" | "planos">("historico");
 
-  const [abaHistorico, setAbaHistorico] = useState<"historico" | "planos">(
-    "historico",
-  );
-
-  const [tamanhos, setTamanhos] = useState<
-    { id: number; pesagemGramas: number }[]
-  >([]);
-
+  const [tamanhos, setTamanhos] = useState<{ id: number; pesagemGramas: number }[]>([]);
   const [planosCatalogo, setPlanosCatalogo] = useState<PlanoCatalogo[]>([]);
 
   const [novoPlanoCatalogo, setNovoPlanoCatalogo] = useState<{
@@ -252,72 +118,19 @@ export default function Clientes() {
   });
 
   const [vinculoPlanoId, setVinculoPlanoId] = useState<string>("");
-
   const [excluindoId, setExcluindoId] = useState<number | null>(null);
 
-  const resetForm = () => {
-    setNovoCliente({
-      nome: "",
-      telefone: "",
-
-      cep: "",
-      uf: "",
-      cidade: "",
-      bairro: "",
-      logradouro: "",
-      numero: "",
-      complemento: "",
-
-      latitude: null,
-      longitude: null,
-
-      enderecoAlternativo: "",
-      tags: [],
-    });
-    setNovaTag("");
-    setEditandoId(null);
-  };
-
   const handleNew = () => {
-    resetForm();
-    setDialogOpen(true);
-  };
-  type ClienteRow = {
-    cliente: Cliente;
-    nome: string;
-    telefone: string;
-    endereco: string;
-    plano: string;
+    setEditandoId(null);
+    setClienteInitial(null);
+    setClienteDialogOpen(true);
   };
 
-  const rows: ClienteRow[] = useMemo(() => {
-    return (filteredClientes || []).map((c) => {
-      const endereco = principalEnderecoTexto(c) || "-";
-
-      const plano = c.planos?.length
-        ? `${c.planos[0].tamanho?.pesagemGramas ?? ""}g (${Number(
-          c.planos[0].saldoUnidades || 0
-        )} un.)`
-        : "Sem plano";
-
-      return {
-        cliente: c,
-        nome: c.nome || "",
-        telefone: c.telefone || "",
-        endereco,
-        plano,
-      };
-    });
-  }, [filteredClientes]);
-  const { sort, onSort, sortedRows } = useTableSort<
-    ClienteRow,
-    "nome" | "telefone" | "endereco" | "plano"
-  >(rows, { initialKey: "nome", initialDirection: "asc" });
   const handleEdit = (cliente: Cliente) => {
     const end1 = cliente.enderecos?.find((e) => e.principal);
     const end2 = cliente.enderecos?.find((e) => !e.principal);
 
-    setNovoCliente({
+    setClienteInitial({
       nome: cliente.nome,
       telefone: cliente.telefone,
 
@@ -337,131 +150,7 @@ export default function Clientes() {
     });
 
     setEditandoId(cliente.id);
-    setDialogOpen(true);
-  };
-
-  const handleAddTag = () => {
-    const tag = novaTag.trim();
-    if (!tag) return;
-    if (!novoCliente.tags.includes(tag))
-      setNovoCliente((p) => ({ ...p, tags: [...p.tags, tag] }));
-    setNovaTag("");
-  };
-
-  const handleRemoveTag = (tag: string) => {
-    setNovoCliente((p) => ({ ...p, tags: p.tags.filter((t) => t !== tag) }));
-  };
-
-  const montarEnderecoCompletoParaGeocode = () => {
-    const ruaNum = [novoCliente.logradouro, novoCliente.numero]
-      .filter(Boolean)
-      .join(", ");
-    const cidadeUf = [novoCliente.cidade, novoCliente.uf]
-      .filter(Boolean)
-      .join(" - ");
-    const parts = [
-      ruaNum,
-      novoCliente.bairro,
-      cidadeUf,
-      novoCliente.cep,
-      "Brasil",
-    ].filter(Boolean);
-    return parts.join(", ");
-  };
-
-  const handleBuscarCep = async () => {
-    const data = await buscarCepViaCep(novoCliente.cep || "");
-    setNovoCliente((p) => ({
-      ...p,
-      cep: data.cep,
-      uf: data.uf || p.uf,
-      cidade: data.cidade || p.cidade,
-      bairro: data.bairro || p.bairro,
-      logradouro: data.logradouro || p.logradouro,
-      latitude: null,
-      longitude: null,
-    }));
-  };
-
-  async function geocodeNominatimComFallback(fullAddress: string) {
-    try {
-      return await geocodeNominatim(fullAddress);
-    } catch { }
-
-    const semCep = fullAddress
-      .replace(/\b\d{5}-?\d{3}\b/g, "")
-      .replace(/\s+,/g, ",")
-      .trim();
-    try {
-      return await geocodeNominatim(semCep);
-    } catch { }
-
-    const parts = fullAddress
-      .split(",")
-      .map((x) => x.trim())
-      .filter(Boolean);
-    const fallback = parts.slice(0, 2).concat(parts.slice(-3)).join(", ");
-    return await geocodeNominatim(fallback);
-  }
-
-  const handleLocalizarNoMapa = async () => {
-    setErroLocalizacao(null);
-    setLocalizando(true);
-
-    try {
-      const addrFull = montarEnderecoCompletoParaGeocode();
-      const geo = await geocodeNominatimComFallback(addrFull);
-      setNovoCliente((p) => ({ ...p, latitude: geo.lat, longitude: geo.lon }));
-    } catch (e: any) {
-      setErroLocalizacao(e?.message || "Não foi possível localizar no mapa.");
-    } finally {
-      setLocalizando(false);
-    }
-  };
-
-  const handleSave = async () => {
-    const payload = {
-      nome: String(novoCliente.nome || "").trim(),
-      telefone: String(novoCliente.telefone || "").trim(),
-      tags: novoCliente.tags || [],
-      enderecos: [
-        {
-          principal: true,
-          cep: novoCliente.cep?.trim() ? onlyDigits(novoCliente.cep) : null,
-          uf: novoCliente.uf?.trim() || null,
-          cidade: novoCliente.cidade?.trim() || null,
-          bairro: novoCliente.bairro?.trim() || null,
-          logradouro: novoCliente.logradouro?.trim() || null,
-          numero: novoCliente.numero?.trim() || null,
-          complemento: novoCliente.complemento?.trim() || null,
-          latitude:
-            typeof novoCliente.latitude === "number"
-              ? novoCliente.latitude
-              : null,
-          longitude:
-            typeof novoCliente.longitude === "number"
-              ? novoCliente.longitude
-              : null,
-        },
-        ...(novoCliente.enderecoAlternativo?.trim()
-          ? [
-            {
-              principal: false,
-              endereco: novoCliente.enderecoAlternativo.trim(),
-            },
-          ]
-          : []),
-      ],
-    };
-
-    if (!payload.nome) return;
-    if (!payload.telefone) return;
-
-    if (editandoId) await updateCliente(editandoId, payload);
-    else await createCliente(payload);
-
-    setDialogOpen(false);
-    resetForm();
+    setClienteDialogOpen(true);
   };
 
   const handleShowHistory = async (
@@ -484,6 +173,39 @@ export default function Clientes() {
     }
   };
 
+  type ClienteRow = {
+    cliente: Cliente;
+    nome: string;
+    telefone: string;
+    endereco: string;
+    plano: string;
+  };
+
+  const rows: ClienteRow[] = useMemo(() => {
+    return (filteredClientes || []).map((c) => {
+      const endereco = principalEnderecoTexto(c) || "-";
+
+      const plano = c.planos?.length
+        ? `${c.planos[0].tamanho?.pesagemGramas ?? ""}g (${Number(
+            c.planos[0].saldoUnidades || 0,
+          )} un.)`
+        : "Sem plano";
+
+      return {
+        cliente: c,
+        nome: c.nome || "",
+        telefone: c.telefone || "",
+        endereco,
+        plano,
+      };
+    });
+  }, [filteredClientes]);
+
+  const { sort, onSort, sortedRows } = useTableSort<
+    ClienteRow,
+    "nome" | "telefone" | "endereco" | "plano"
+  >(rows, { initialKey: "nome", initialDirection: "asc" });
+
   const planosSelecionado = useMemo(() => {
     if (!clienteSelecionado) return [];
     return (clienteSelecionado.planos || []).map((p: any) => ({
@@ -497,14 +219,6 @@ export default function Clientes() {
       unidades: Number(p.unidades ?? p.plano?.unidades ?? 0),
     }));
   }, [clienteSelecionado]);
-
-  const coordsOk =
-    typeof novoCliente.latitude === "number" &&
-    !Number.isNaN(novoCliente.latitude) &&
-    typeof novoCliente.longitude === "number" &&
-    !Number.isNaN(novoCliente.longitude);
-
-  const savingAll = saving || savingPlano;
 
   const planosVinculaveis = useMemo(() => {
     const vinculadosIds = new Set(planosSelecionado.map((p) => p.id));
@@ -533,9 +247,7 @@ export default function Clientes() {
 
         <CardContent>
           {loading ? (
-            <p className="text-sm text-muted-foreground">
-              Carregando clientes...
-            </p>
+            <p className="text-sm text-muted-foreground">Carregando clientes...</p>
           ) : (
             <Table>
               <TableHeader>
@@ -584,37 +296,25 @@ export default function Clientes() {
 
                         <AlertDialog
                           open={excluindoId === cliente.id}
-                          onOpenChange={(open) =>
-                            setExcluindoId(open ? cliente.id : null)
-                          }
+                          onOpenChange={(open) => setExcluindoId(open ? cliente.id : null)}
                         >
                           <AlertDialogTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              disabled={savingAll}
-                              title="Excluir"
-                            >
+                            <Button variant="ghost" size="icon" disabled={savingAll} title="Excluir">
                               <Trash className="h-4 w-4" />
                             </Button>
                           </AlertDialogTrigger>
 
                           <AlertDialogContent>
                             <AlertDialogHeader>
-                              <AlertDialogTitle>
-                                Excluir cliente?
-                              </AlertDialogTitle>
+                              <AlertDialogTitle>Excluir cliente?</AlertDialogTitle>
                               <AlertDialogDescription>
-                                Isso remove o cliente <b>{cliente.nome}</b>. Se
-                                ele tiver pedidos, a API pode bloquear a
-                                exclusão.
+                                Isso remove o cliente <b>{cliente.nome}</b>. Se ele tiver pedidos, a API
+                                pode bloquear a exclusão.
                               </AlertDialogDescription>
                             </AlertDialogHeader>
 
                             <AlertDialogFooter>
-                              <AlertDialogCancel disabled={savingAll}>
-                                Cancelar
-                              </AlertDialogCancel>
+                              <AlertDialogCancel disabled={savingAll}>Cancelar</AlertDialogCancel>
                               <AlertDialogAction
                                 disabled={savingAll}
                                 onClick={async () => {
@@ -634,590 +334,288 @@ export default function Clientes() {
 
                 {sortedRows.length === 0 && !loading && (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center text-sm text-muted-foreground py-4">
+                    <TableCell
+                      colSpan={5}
+                      className="text-center text-sm text-muted-foreground py-4"
+                    >
                       Nenhum cliente encontrado.
                     </TableCell>
                   </TableRow>
                 )}
               </TableBody>
-             
             </Table>
           )}
-      </CardContent>
-    </Card>
+        </CardContent>
+      </Card>
 
-      {/* MODAL CRIAR/EDITAR CLIENTE */ }
-  <Dialog
-    open={dialogOpen}
-    onOpenChange={(open) => {
-      setDialogOpen(open);
-      if (!open) resetForm();
-    }}
-  >
-    <DialogContent className="max-w-4xl w-[95vw] max-h-[90vh] overflow-hidden p-0 flex flex-col">
-      <div className="sticky top-0 z-20 bg-background border-b px-6 py-4">
-        <div className="flex items-center justify-between gap-4">
-          <DialogHeader className="p-0">
-            <DialogTitle>
-              {editandoId ? "Editar Cliente" : "Novo Cliente"}
-            </DialogTitle>
+      {/* >>> MODAL CRIAR/EDITAR CLIENTE (reutilizável) */}
+      <ClienteFormDialog
+        open={clienteDialogOpen}
+        onOpenChange={(open) => {
+          setClienteDialogOpen(open);
+          if (!open) {
+            setEditandoId(null);
+            setClienteInitial(null);
+          }
+        }}
+        title={editandoId ? "Editar Cliente" : "Novo Cliente"}
+        initialValue={clienteInitial}
+        saving={savingAll}
+        onSubmit={async (payload: any) => {
+          if (editandoId) return updateCliente(editandoId, payload);
+          return createCliente(payload);
+        }}
+      />
+
+      {/* MODAL HISTÓRICO/PLANOS */}
+      <Dialog open={historicoDialogOpen} onOpenChange={setHistoricoDialogOpen}>
+        <DialogContent className="max-w-4xl">
+          <DialogHeader>
+            <DialogTitle>Histórico de Pedidos - {clienteSelecionado?.nome}</DialogTitle>
           </DialogHeader>
 
-          <DialogClose asChild>
-            <Button variant="ghost" size="icon" disabled={savingAll}>
-              <X className="h-4 w-4" />
-            </Button>
-          </DialogClose>
-        </div>
-      </div>
+          <Tabs value={abaHistorico} onValueChange={(v) => setAbaHistorico(v as any)}>
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="historico">Histórico de Pedidos</TabsTrigger>
+              <TabsTrigger value="planos">Planos</TabsTrigger>
+            </TabsList>
 
-   <div className="overflow-y-auto flex-1 px-6 py-4 space-y-8">
-  {/* DADOS */}
-  <div className="space-y-4">
-    <div className="text-sm font-medium">Dados</div>
-
-    <div className="grid grid-cols-2 gap-4">
-      <div className="space-y-2">
-        <Label htmlFor="nome">Nome</Label>
-        <Input
-          id="nome"
-          value={novoCliente.nome}
-          onChange={(e) =>
-            setNovoCliente((p) => ({ ...p, nome: e.target.value }))
-          }
-          disabled={savingAll}
-        />
-      </div>
-
-      <div className="space-y-2">
-        <Label htmlFor="telefone">Telefone</Label>
-        <Input
-          id="telefone"
-          value={novoCliente.telefone}
-          onChange={(e) =>
-            setNovoCliente((p) => ({ ...p, telefone: e.target.value }))
-          }
-          disabled={savingAll}
-        />
-      </div>
-    </div>
-  </div>
-
-  <Separator />
-
-  {/* ENDEREÇO + MAPA */}
-  <div className="space-y-4">
-    <div className="text-sm font-medium">Endereço + Mapa</div>
-
-    <div className="grid grid-cols-3 gap-4 items-end">
-      <div className="space-y-2">
-        <Label htmlFor="cep">CEP</Label>
-        <Input
-          id="cep"
-          value={novoCliente.cep || ""}
-          onChange={(e) =>
-            setNovoCliente((p) => ({ ...p, cep: e.target.value }))
-          }
-          disabled={savingAll}
-          placeholder="00000-000"
-        />
-      </div>
-
-      <div className="space-y-2">
-        <Label htmlFor="uf">UF</Label>
-        <Input
-          id="uf"
-          value={novoCliente.uf || ""}
-          onChange={(e) =>
-            setNovoCliente((p) => ({ ...p, uf: e.target.value.toUpperCase() }))
-          }
-          disabled={savingAll}
-          placeholder="PR"
-        />
-      </div>
-
-      <div className="flex gap-2">
-        <Button
-          type="button"
-          variant="secondary"
-          onClick={handleBuscarCep}
-          disabled={savingAll}
-        >
-          Buscar CEP
-        </Button>
-
-        <Button
-          type="button"
-          variant="secondary"
-          onClick={handleLocalizarNoMapa}
-          disabled={savingAll || localizando}
-        >
-          <MapPin className="mr-2 h-4 w-4" />
-          {localizando ? "Localizando..." : "Localizar"}
-        </Button>
-      </div>
-    </div>
-
-    <div className="grid grid-cols-2 gap-4">
-      <div className="space-y-2">
-        <Label htmlFor="cidade">Cidade</Label>
-        <Input
-          id="cidade"
-          value={novoCliente.cidade || ""}
-          onChange={(e) =>
-            setNovoCliente((p) => ({ ...p, cidade: e.target.value }))
-          }
-          disabled={savingAll}
-        />
-      </div>
-
-      <div className="space-y-2">
-        <Label htmlFor="bairro">Bairro</Label>
-        <Input
-          id="bairro"
-          value={novoCliente.bairro || ""}
-          onChange={(e) =>
-            setNovoCliente((p) => ({ ...p, bairro: e.target.value }))
-          }
-          disabled={savingAll}
-        />
-      </div>
-    </div>
-
-    <div className="grid grid-cols-3 gap-4">
-      <div className="space-y-2 col-span-2">
-        <Label htmlFor="logradouro">Rua</Label>
-        <Input
-          id="logradouro"
-          value={novoCliente.logradouro || ""}
-          onChange={(e) =>
-            setNovoCliente((p) => ({ ...p, logradouro: e.target.value }))
-          }
-          disabled={savingAll}
-        />
-      </div>
-
-      <div className="space-y-2">
-        <Label htmlFor="numero">Número</Label>
-        <Input
-          id="numero"
-          value={novoCliente.numero || ""}
-          onChange={(e) =>
-            setNovoCliente((p) => ({ ...p, numero: e.target.value }))
-          }
-          disabled={savingAll}
-        />
-      </div>
-    </div>
-
-    <div className="space-y-2">
-      <Label htmlFor="complemento">Complemento</Label>
-      <Input
-        id="complemento"
-        value={novoCliente.complemento || ""}
-        onChange={(e) =>
-          setNovoCliente((p) => ({ ...p, complemento: e.target.value }))
-        }
-        disabled={savingAll}
-      />
-    </div>
-
-    <div className="space-y-2">
-      <Label htmlFor="enderecoAlternativo">Endereço Alternativo</Label>
-      <Input
-        id="enderecoAlternativo"
-        value={novoCliente.enderecoAlternativo || ""}
-        onChange={(e) =>
-          setNovoCliente((p) => ({ ...p, enderecoAlternativo: e.target.value }))
-        }
-        disabled={savingAll}
-      />
-    </div>
-
-    {erroLocalizacao && (
-      <div className="text-sm text-red-600">{erroLocalizacao}</div>
-    )}
-
-    <div className="rounded-md border overflow-hidden">
-      <div className="p-3 border-b text-sm text-muted-foreground">
-        {coordsOk
-          ? `Localização aproximada: ${novoCliente.latitude?.toFixed(
-              5,
-            )}, ${novoCliente.longitude?.toFixed(5)}`
-          : "Sem localização ainda. Use “Localizar” para gerar uma posição aproximada."}
-      </div>
-
-      <div className="h-[280px]">
-        {coordsOk ? (
-          <MapContainer
-            center={[
-              novoCliente.latitude as number,
-              novoCliente.longitude as number,
-            ]}
-            zoom={15}
-            style={{ height: "100%", width: "100%" }}
-            scrollWheelZoom={false}
-          >
-            <TileLayer
-              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-            />
-            <CircleMarker
-              center={[
-                novoCliente.latitude as number,
-                novoCliente.longitude as number,
-              ]}
-              radius={6}
-              pathOptions={{}}
-            />
-          </MapContainer>
-        ) : (
-          <div className="h-full flex items-center justify-center text-sm text-muted-foreground">
-            Mapa aparecerá aqui após localizar.
-          </div>
-        )}
-      </div>
-    </div>
-  </div>
-
-  <Separator />
-
-  {/* TAGS */}
-  <div className="space-y-4">
-    <div className="text-sm font-medium">Tags</div>
-
-    <div className="space-y-2">
-      <Label>Tags</Label>
-
-      <div className="flex flex-wrap gap-2 mb-4">
-        {(novoCliente.tags || []).map((tag) => (
-          <Badge
-            key={tag}
-            variant="secondary"
-            className="flex items-center gap-1"
-          >
-            {tag}
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-4 w-4 rounded-full"
-              onClick={() => handleRemoveTag(tag)}
-              disabled={savingAll}
-            >
-              <Trash className="h-3 w-3" />
-            </Button>
-          </Badge>
-        ))}
-      </div>
-
-      <div className="flex gap-2">
-        <Input
-          placeholder="Nova tag..."
-          value={novaTag}
-          onChange={(e) => setNovaTag(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              e.preventDefault();
-              handleAddTag();
-            }
-          }}
-          disabled={savingAll}
-        />
-        <Button type="button" onClick={handleAddTag} disabled={savingAll}>
-          <Tag className="mr-2 h-4 w-4" /> Adicionar
-        </Button>
-      </div>
-    </div>
-  </div>
-</div>
-
-      <div className="flex justify-end space-x-2 pt-4 px-6 pb-6">
-        <Button
-          variant="outline"
-          onClick={() => setDialogOpen(false)}
-          disabled={savingAll}
-        >
-          Cancelar
-        </Button>
-        <Button onClick={handleSave} disabled={savingAll}>
-          {savingAll ? "Salvando..." : "Salvar"}
-        </Button>
-      </div>
-    </DialogContent>
-  </Dialog>
-
-  {/* MODAL HISTÓRICO/PLANOS */ }
-  <Dialog open={historicoDialogOpen} onOpenChange={setHistoricoDialogOpen}>
-    <DialogContent className="max-w-4xl">
-      <DialogHeader>
-        <DialogTitle>
-          Histórico de Pedidos - {clienteSelecionado?.nome}
-        </DialogTitle>
-      </DialogHeader>
-
-      <Tabs
-        value={abaHistorico}
-        onValueChange={(v) => setAbaHistorico(v as "historico" | "planos")}
-      >
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="historico">Histórico de Pedidos</TabsTrigger>
-          <TabsTrigger value="planos">Planos</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="historico" className="py-4">
-          <div className="text-sm text-muted-foreground">
-            Em breve: quando entrarmos em <b>Pedidos</b>, a gente pluga aqui
-            o endpoint e lista o histórico real.
-          </div>
-        </TabsContent>
-
-        <TabsContent value="planos" className="py-4 space-y-4">
-          <div className="rounded-md border p-4 space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="text-sm font-medium">Vincular plano</div>
-              <div className="text-xs text-muted-foreground">
-                Selecione um plano do catálogo e vincule ao cliente
+            <TabsContent value="historico" className="py-4">
+              <div className="text-sm text-muted-foreground">
+                Em breve: quando entrarmos em <b>Pedidos</b>, a gente pluga aqui o endpoint e lista o
+                histórico real.
               </div>
-            </div>
+            </TabsContent>
 
-            <div className="grid grid-cols-3 gap-3 items-end">
-              <div className="space-y-1 col-span-2">
-                <Label>Plano</Label>
-                <Select
-                  value={vinculoPlanoId}
-                  onValueChange={(v) => setVinculoPlanoId(v)}
-                  disabled={savingAll}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione um plano..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {planosVinculaveis.map((p) => {
-                      const g = p.tamanho?.pesagemGramas
-                        ? `${p.tamanho.pesagemGramas}g`
-                        : "-";
-                      const u = Number(p.unidades || 0);
-                      const nome = p.nome?.trim()
-                        ? p.nome.trim()
-                        : `Plano ${g} (${u} un.)`;
-                      return (
-                        <SelectItem key={p.id} value={String(p.id)}>
-                          {nome}
-                        </SelectItem>
-                      );
-                    })}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <Button
-                className="w-full"
-                onClick={async () => {
-                  if (!clienteSelecionado) return;
-                  if (!vinculoPlanoId) return;
-
-                  const vinc = await vincularPlano(
-                    clienteSelecionado.id,
-                    Number(vinculoPlanoId),
-                  );
-
-                  const plano = planosCatalogo.find(
-                    (p) => String(p.id) === String(vinculoPlanoId),
-                  );
-                  if (plano) {
-                    setClienteSelecionado((prev: any) => {
-                      if (!prev) return prev;
-                      const planos = Array.isArray(prev.planos)
-                        ? prev.planos
-                        : [];
-                      return {
-                        ...prev,
-                        planos: [...planos, { ...vinc, plano }],
-                      };
-                    });
-                  }
-
-                  setVinculoPlanoId("");
-                }}
-                disabled={
-                  savingAll || !clienteSelecionado || !vinculoPlanoId
-                }
-              >
-                {savingAll ? "Vinculando..." : "Vincular"}
-              </Button>
-            </div>
-          </div>
-
-          {/* CRIAR (COLAPSADO) */}
-          <Collapsible defaultOpen={false}>
-            <div className="rounded-md border p-4">
-              <div className="flex items-center justify-between">
-                <div className="text-sm font-medium">Criar novo plano</div>
-
-                <CollapsibleTrigger asChild>
-                  <Button variant="ghost" size="sm" className="gap-2">
-                    Abrir <ChevronDown className="h-4 w-4" />
-                  </Button>
-                </CollapsibleTrigger>
-              </div>
-
-              <CollapsibleContent className="mt-4 space-y-3">
-                <div className="grid grid-cols-3 gap-3 items-end">
-                  <div className="space-y-1">
-                    <Label>Nome (opcional)</Label>
-                    <Input
-                      value={novoPlanoCatalogo.nome}
-                      onChange={(e) =>
-                        setNovoPlanoCatalogo((p) => ({
-                          ...p,
-                          nome: e.target.value,
-                        }))
-                      }
-                      disabled={savingAll}
-                      placeholder="Ex: Plano 300g"
-                    />
+            <TabsContent value="planos" className="py-4 space-y-4">
+              <div className="rounded-md border p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="text-sm font-medium">Vincular plano</div>
+                  <div className="text-xs text-muted-foreground">
+                    Selecione um plano do catálogo e vincule ao cliente
                   </div>
+                </div>
 
-                  <div className="space-y-1">
-                    <Label>Tamanho</Label>
+                <div className="grid grid-cols-3 gap-3 items-end">
+                  <div className="space-y-1 col-span-2">
+                    <Label>Plano</Label>
                     <Select
-                      value={novoPlanoCatalogo.tamanhoId}
-                      onValueChange={(v) =>
-                        setNovoPlanoCatalogo((p) => ({
-                          ...p,
-                          tamanhoId: v,
-                        }))
-                      }
+                      value={vinculoPlanoId}
+                      onValueChange={(v) => setVinculoPlanoId(v)}
                       disabled={savingAll}
                     >
                       <SelectTrigger>
-                        <SelectValue placeholder="Selecione..." />
+                        <SelectValue placeholder="Selecione um plano..." />
                       </SelectTrigger>
                       <SelectContent>
-                        {tamanhos.map((t) => (
-                          <SelectItem key={t.id} value={String(t.id)}>
-                            {t.pesagemGramas}g
-                          </SelectItem>
-                        ))}
+                        {planosVinculaveis.map((p) => {
+                          const g = p.tamanho?.pesagemGramas ? `${p.tamanho.pesagemGramas}g` : "-";
+                          const u = Number(p.unidades || 0);
+                          const nome = p.nome?.trim()
+                            ? p.nome.trim()
+                            : `Plano ${g} (${u} un.)`;
+                          return (
+                            <SelectItem key={p.id} value={String(p.id)}>
+                              {nome}
+                            </SelectItem>
+                          );
+                        })}
                       </SelectContent>
                     </Select>
                   </div>
 
-                  <div className="space-y-1">
-                    <Label>Qtd. unidades</Label>
-                    <Input
-                      type="number"
-                      value={String(novoPlanoCatalogo.unidades)}
-                      onChange={(e) =>
-                        setNovoPlanoCatalogo((p) => ({
-                          ...p,
-                          unidades: Number(e.target.value || 0),
-                        }))
+                  <Button
+                    className="w-full"
+                    onClick={async () => {
+                      if (!clienteSelecionado) return;
+                      if (!vinculoPlanoId) return;
+
+                      const vinc = await vincularPlano(
+                        clienteSelecionado.id,
+                        Number(vinculoPlanoId),
+                      );
+
+                      const plano = planosCatalogo.find(
+                        (p) => String(p.id) === String(vinculoPlanoId),
+                      );
+                      if (plano) {
+                        setClienteSelecionado((prev: any) => {
+                          if (!prev) return prev;
+                          const planos = Array.isArray(prev.planos) ? prev.planos : [];
+                          return {
+                            ...prev,
+                            planos: [...planos, { ...vinc, plano }],
+                          };
+                        });
                       }
-                      disabled={savingAll}
-                      min={0}
-                    />
+
+                      setVinculoPlanoId("");
+                    }}
+                    disabled={savingAll || !clienteSelecionado || !vinculoPlanoId}
+                  >
+                    {savingAll ? "Vinculando..." : "Vincular"}
+                  </Button>
+                </div>
+              </div>
+
+              <Separator />
+
+              {/* CRIAR (COLAPSADO) */}
+              <Collapsible defaultOpen={false}>
+                <div className="rounded-md border p-4">
+                  <div className="flex items-center justify-between">
+                    <div className="text-sm font-medium">Criar novo plano</div>
+
+                    <CollapsibleTrigger asChild>
+                      <Button variant="ghost" size="sm" className="gap-2">
+                        Abrir <ChevronDown className="h-4 w-4" />
+                      </Button>
+                    </CollapsibleTrigger>
+                  </div>
+
+                  <CollapsibleContent className="mt-4 space-y-3">
+                    <div className="grid grid-cols-3 gap-3 items-end">
+                      <div className="space-y-1">
+                        <Label>Nome (opcional)</Label>
+                        <Input
+                          value={novoPlanoCatalogo.nome}
+                          onChange={(e) =>
+                            setNovoPlanoCatalogo((p) => ({ ...p, nome: e.target.value }))
+                          }
+                          disabled={savingAll}
+                          placeholder="Ex: Plano 300g"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <Label>Tamanho</Label>
+                        <Select
+                          value={novoPlanoCatalogo.tamanhoId}
+                          onValueChange={(v) =>
+                            setNovoPlanoCatalogo((p) => ({ ...p, tamanhoId: v }))
+                          }
+                          disabled={savingAll}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Selecione..." />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {tamanhos.map((t) => (
+                              <SelectItem key={t.id} value={String(t.id)}>
+                                {t.pesagemGramas}g
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="space-y-1">
+                        <Label>Qtd. unidades</Label>
+                        <Input
+                          type="number"
+                          value={String(novoPlanoCatalogo.unidades)}
+                          onChange={(e) =>
+                            setNovoPlanoCatalogo((p) => ({
+                              ...p,
+                              unidades: Number(e.target.value || 0),
+                            }))
+                          }
+                          disabled={savingAll}
+                          min={0}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex justify-end">
+                      <Button
+                        onClick={async () => {
+                          if (!novoPlanoCatalogo.tamanhoId) return;
+
+                          const created = await createPlano({
+                            nome: novoPlanoCatalogo.nome?.trim()
+                              ? novoPlanoCatalogo.nome.trim()
+                              : null,
+                            tamanhoId: Number(novoPlanoCatalogo.tamanhoId),
+                            unidades: Number(novoPlanoCatalogo.unidades || 0),
+                          });
+
+                          setPlanosCatalogo((prev) => [created, ...(prev || [])]);
+                          setNovoPlanoCatalogo({
+                            nome: "",
+                            tamanhoId: "",
+                            unidades: 10,
+                          });
+                        }}
+                        disabled={savingAll || !novoPlanoCatalogo.tamanhoId}
+                      >
+                        {savingAll ? "Criando..." : "Criar plano"}
+                      </Button>
+                    </div>
+                  </CollapsibleContent>
+                </div>
+              </Collapsible>
+
+              {/* LISTA DO CLIENTE */}
+              <div className="rounded-md border">
+                <div className="px-4 py-3 border-b flex items-center justify-between">
+                  <div className="text-sm font-medium">Planos vinculados</div>
+                  <div className="text-xs text-muted-foreground">
+                    {planosSelecionado.length} plano(s)
                   </div>
                 </div>
 
-                <div className="flex justify-end">
-                  <Button
-                    onClick={async () => {
-                      if (!novoPlanoCatalogo.tamanhoId) return;
-
-                      const created = await createPlano({
-                        nome: novoPlanoCatalogo.nome?.trim()
-                          ? novoPlanoCatalogo.nome.trim()
-                          : null,
-                        tamanhoId: Number(novoPlanoCatalogo.tamanhoId),
-                        unidades: Number(novoPlanoCatalogo.unidades || 0),
-                      });
-
-                      setPlanosCatalogo((prev) => [
-                        created,
-                        ...(prev || []),
-                      ]);
-                      setNovoPlanoCatalogo({
-                        nome: "",
-                        tamanhoId: "",
-                        unidades: 10,
-                      });
-                    }}
-                    disabled={savingAll || !novoPlanoCatalogo.tamanhoId}
-                  >
-                    {savingAll ? "Criando..." : "Criar plano"}
-                  </Button>
-                </div>
-              </CollapsibleContent>
-            </div>
-          </Collapsible>
-
-          {/* LISTA DO CLIENTE (mais enxuta) */}
-          <div className="rounded-md border">
-            <div className="px-4 py-3 border-b flex items-center justify-between">
-              <div className="text-sm font-medium">Planos vinculados</div>
-              <div className="text-xs text-muted-foreground">
-                {planosSelecionado.length} plano(s)
-              </div>
-            </div>
-
-            <div className="p-4">
-              {planosSelecionado.length === 0 ? (
-                <div className="text-sm text-muted-foreground text-center py-6">
-                  Nenhum plano vinculado
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {planosSelecionado.map((plano: any) => (
-                    <div
-                      key={plano.id}
-                      className="flex items-center justify-between rounded-md border px-3 py-2"
-                    >
-                      <div className="min-w-0">
-                        <div className="text-sm font-medium truncate">
-                          {plano.nome}
-                        </div>
-                        <div className="text-xs text-muted-foreground">
-                          {plano.tamanho} • {plano.unidades} un.
-                        </div>
-                      </div>
-
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        disabled={savingAll || !clienteSelecionado}
-                        onClick={async () => {
-                          if (!clienteSelecionado) return;
-                          await desvincularPlano(
-                            clienteSelecionado.id,
-                            plano.id,
-                          );
-
-                          setClienteSelecionado((prev: any) => {
-                            if (!prev) return prev;
-                            return {
-                              ...prev,
-                              planos: (prev.planos || []).filter(
-                                (p: any) =>
-                                  Number(p.id) !== Number(plano.id),
-                              ),
-                            };
-                          });
-                        }}
-                        title="Remover vínculo"
-                      >
-                        <Trash className="h-4 w-4" />
-                      </Button>
+                <div className="p-4">
+                  {planosSelecionado.length === 0 ? (
+                    <div className="text-sm text-muted-foreground text-center py-6">
+                      Nenhum plano vinculado
                     </div>
-                  ))}
+                  ) : (
+                    <div className="space-y-2">
+                      {planosSelecionado.map((plano: any) => (
+                        <div
+                          key={plano.id}
+                          className="flex items-center justify-between rounded-md border px-3 py-2"
+                        >
+                          <div className="min-w-0">
+                            <div className="text-sm font-medium truncate">{plano.nome}</div>
+                            <div className="text-xs text-muted-foreground">
+                              {plano.tamanho} • {plano.unidades} un.
+                            </div>
+                          </div>
+
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            disabled={savingAll || !clienteSelecionado}
+                            onClick={async () => {
+                              if (!clienteSelecionado) return;
+
+                              await desvincularPlano(clienteSelecionado.id, plano.id);
+
+                              setClienteSelecionado((prev: any) => {
+                                if (!prev) return prev;
+                                return {
+                                  ...prev,
+                                  planos: (prev.planos || []).filter(
+                                    (p: any) => Number(p.id) !== Number(plano.id),
+                                  ),
+                                };
+                              });
+                            }}
+                            title="Remover vínculo"
+                          >
+                            <Trash className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
-          </div>
-        </TabsContent>
-      </Tabs>
-    </DialogContent>
-  </Dialog>
-    </div >
+              </div>
+            </TabsContent>
+          </Tabs>
+        </DialogContent>
+      </Dialog>
+    </div>
   );
 }

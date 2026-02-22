@@ -620,7 +620,6 @@ export default function Agendamentos() {
             id: String(c.id),
             nome: c.nome,
             telefone: c.telefone,
-            regiao: c.regiao ?? undefined,
             endereco: enderecoTexto,
           };
         })}
