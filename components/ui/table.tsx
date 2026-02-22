@@ -1,4 +1,5 @@
 import * as React from "react"
+import { ArrowUpDown } from "lucide-react";
 
 import { cn } from "@/lib/utils"
 
@@ -66,19 +67,78 @@ const TableRow = React.forwardRef<
 ))
 TableRow.displayName = "TableRow"
 
-const TableHead = React.forwardRef<
-  HTMLTableCellElement,
-  React.ThHTMLAttributes<HTMLTableCellElement>
->(({ className, ...props }, ref) => (
-  <th
-    ref={ref}
-    className={cn(
-      "h-12 px-4 text-left align-middle font-medium text-muted-foreground [&:has([role=checkbox])]:pr-0",
-      className
-    )}
-    {...props}
-  />
-))
+
+type TableHeadProps = React.ThHTMLAttributes<HTMLTableCellElement> & {
+  sortable?: boolean;
+  sortKey?: string;
+  sortDirection?: "asc" | "desc" | null;
+  onSort?: (key: string) => void;
+};
+
+const TableHead = React.forwardRef<HTMLTableCellElement, TableHeadProps>(
+  (
+    {
+      className,
+      sortable,
+      sortKey,
+      sortDirection,
+      onSort,
+      onClick,
+      onKeyDown,
+      children,
+      ...props
+    },
+    ref
+  ) => {
+    const handleClick = (e: React.MouseEvent<HTMLTableCellElement>) => {
+      if (sortable && sortKey) onSort?.(sortKey);
+      onClick?.(e);
+    };
+
+    const handleKeyDown = (e: React.KeyboardEvent<HTMLTableCellElement>) => {
+      if (sortable && sortKey && (e.key === "Enter" || e.key === " ")) {
+        e.preventDefault();
+        onSort?.(sortKey);
+      }
+      onKeyDown?.(e);
+    };
+
+    return (
+      <th
+        ref={ref}
+        onClick={sortable ? handleClick : onClick}
+        onKeyDown={sortable ? handleKeyDown : onKeyDown}
+        role={sortable ? "button" : undefined}
+        tabIndex={sortable ? 0 : undefined}
+        aria-sort={
+          sortable && sortDirection
+            ? sortDirection === "asc"
+              ? "ascending"
+              : "descending"
+            : undefined
+        }
+        className={cn(
+          "h-12 px-4 text-left align-middle font-medium text-muted-foreground [&:has([role=checkbox])]:pr-0",
+          sortable && "cursor-pointer select-none hover:text-foreground",
+          className
+        )}
+        {...props}
+      >
+        <div className="flex items-center gap-2">
+          {children}
+          {sortable && (
+            <ArrowUpDown
+              className={cn(
+                "h-4 w-4",
+                sortDirection ? "opacity-100" : "opacity-40"
+              )}
+            />
+          )}
+        </div>
+      </th>
+    );
+  }
+);
 TableHead.displayName = "TableHead"
 
 const TableCell = React.forwardRef<

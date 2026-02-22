@@ -25,6 +25,8 @@ import {
 
 import { useCardapios, Cardapio } from "@/hooks/useCardapios";
 import { useOpcoes, Opcao } from "@/hooks/useOpcoes";
+import { useTableSort } from "@/hooks/useTableSort";
+import { SortableHead } from "@/components/ui/sorttable";
 
 type NovoCardapioForm = {
   codigo: string;
@@ -42,6 +44,7 @@ export default function CardapiosPage() {
     updateCardapio,
     deleteCardapio,
     setCardapioAtivo,
+    fetchCardapios,
   } = useCardapios();
 
   const { opcoes, loading: loadingOpcoes } = useOpcoes();
@@ -65,12 +68,14 @@ export default function CardapiosPage() {
   const isLoading = loadingCardapios || loadingOpcoes;
   const handleToggleAtivo = async (cardapio: Cardapio) => {
     await setCardapioAtivo(cardapio.id, !cardapio.ativo);
+    await fetchCardapios();
   };
   const cardapiosFiltrados = useMemo(() => {
     const q = busca.trim().toLowerCase();
     if (!q) return cardapios;
     return cardapios.filter((c) => [c.codigo, c.nome, c.ativo ? "ativo" : "inativo"].some((v) => String(v).toLowerCase().includes(q)));
   }, [cardapios, busca]);
+  const { sort, onSort, sortedRows } = useTableSort<Cardapio, "codigo" | "nome" | "ativo">(cardapiosFiltrados);
 
   const opcoesPorCategoria = useMemo(() => {
     const categorias: Record<string, Opcao[]> = {};
@@ -196,15 +201,16 @@ export default function CardapiosPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Código</TableHead>
-                  <TableHead>Nome</TableHead>
-                  <TableHead>Ativo</TableHead>
-                  <TableHead className="text-right">Ações</TableHead>
-                </TableRow>
+                  <SortableHead label="Código" field="codigo" sort={sort} onSort={onSort} />
+                  <SortableHead label="Nome" field="nome" sort={sort} onSort={onSort} />
+                  <SortableHead label="Ativo" field="ativo" sort={sort} onSort={onSort} />
+                  <div className="flex items-center justify-center gap-2">
+                    Ações
+                  </div>                </TableRow>
               </TableHeader>
 
               <TableBody>
-                {cardapiosFiltrados.map((cardapio) => (
+                {sortedRows.map((cardapio) => (
                   <TableRow key={cardapio.id}>
                     <TableCell>{cardapio.codigo}</TableCell>
                     <TableCell>{cardapio.nome}</TableCell>
@@ -220,7 +226,7 @@ export default function CardapiosPage() {
                         </span>
                       )}
                     </TableCell>
-                    <TableCell className="text-right">
+                    <TableCell className="text-center">
                       <Button
                         variant="ghost"
                         size="icon"
@@ -292,7 +298,7 @@ export default function CardapiosPage() {
               </div>
             </div>
 
-           
+
 
             <div className="space-y-2 border-t pt-4">
               <Label>Refeições (opções)</Label>
