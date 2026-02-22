@@ -4,14 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { apiFetch } from "./api";
 
-export type RegiaoEntrega =
-  | "CENTRO"
-  | "ZONA_SUL"
-  | "ZONA_NORTE"
-  | "ZONA_OESTE"
-  | "ZONA_LESTE"
-  | "CAMBE"
-  | "IBIPORA";
+
 
 export type EnderecoCliente = {
   id?: number;
@@ -49,9 +42,7 @@ export type Cliente = {
   id: number;
   nome: string;
   telefone: string;
-  cpf?: string | null;
   dataNascimento?: string | null;
-  regiao?: RegiaoEntrega | null;
 
   enderecos: EnderecoCliente[];
   tags: { id: number; tag: string }[];
@@ -64,10 +55,6 @@ export type Cliente = {
 export type CriarAtualizarClienteInput = {
   nome: string;
   telefone: string;
-  cpf?: string | null;
-  dataNascimento?: string | null;
-  regiao?: RegiaoEntrega | null;
-
   enderecos?: EnderecoCliente[];
   tags?: string[];
 };
