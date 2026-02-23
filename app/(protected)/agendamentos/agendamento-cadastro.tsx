@@ -40,21 +40,12 @@ import {
   MapPin,
   UserPlus,
 } from "lucide-react";
-
+import { PlanoClienteVinculo, usePlanosCliente } from "@/hooks/usePlanosCliente";
 // >>> AJUSTA O PATH AQUI
 import { ClienteFormDialog } from "@/components/clientes/ClienteFormDialog";
 
 // >>> hook pra criar cliente (seu hook já existe no projeto)
 import { useClientes } from "@/hooks/useClientes";
-
-type RegiaoEntrega =
-  | "CENTRO"
-  | "ZONA_SUL"
-  | "ZONA_NORTE"
-  | "ZONA_LESTE"
-  | "ZONA_OESTE"
-  | "CAMBE"
-  | "IBIPORA";
 
 type PedidoTipo = "ENTREGA" | "RETIRADA";
 
@@ -74,7 +65,6 @@ type Cliente = {
   id: string;
   nome: string;
   telefone: string;
-  regiao?: RegiaoEntrega;
   endereco?: string;
 };
 
@@ -120,26 +110,7 @@ function normalizePhoneToWaMe(phone: string) {
   return digits;
 }
 
-function regiaoLabel(regiao: RegiaoEntrega) {
-  switch (regiao) {
-    case "CENTRO":
-      return "Centro";
-    case "ZONA_SUL":
-      return "Zona Sul";
-    case "ZONA_NORTE":
-      return "Zona Norte";
-    case "ZONA_LESTE":
-      return "Zona Leste";
-    case "ZONA_OESTE":
-      return "Zona Oeste";
-    case "CAMBE":
-      return "Cambé";
-    case "IBIPORA":
-      return "Ibiporã";
-    default:
-      return regiao;
-  }
-}
+
 
 function buildWhatsappMessage(params: {
   clienteNome: string;
@@ -147,7 +118,6 @@ function buildWhatsappMessage(params: {
   faixaHorario: string;
   tipo: PedidoTipo;
   endereco: string;
-  regiao?: RegiaoEntrega;
   itens: ItemPedido[];
   total: number;
   observacoes?: string;
@@ -164,7 +134,6 @@ function buildWhatsappMessage(params: {
         )
         .join("\n");
 
-  const regiao = params.regiao ? regiaoLabel(params.regiao) : "-";
   const obs = (params.observacoes || "").trim();
   const blocoObs = obs ? `\n\nObservações:\n${obs}` : "";
 
@@ -189,7 +158,6 @@ type AgendamentoEditData = {
   data: Date | string;
   faixaHorario: string;
   endereco: string;
-  regiao?: RegiaoEntrega | null;
   observacoes?: string | null;
   formaPagamento?: FormaPagamento | string | null;
   voucherCodigo?: string | null;
@@ -209,7 +177,6 @@ type OnCreateAgendamento = (payload: {
   data: Date;
   faixaHorario: string;
   endereco: string;
-  regiao?: RegiaoEntrega;
   observacoes?: string;
   formaPagamento: FormaPagamento;
   voucherCodigo?: string;
@@ -224,7 +191,6 @@ type OnUpdateAgendamento = (
     data: Date;
     faixaHorario: string;
     endereco: string;
-    regiao?: RegiaoEntrega | null;
     observacoes?: string | null;
     formaPagamento: FormaPagamento;
     voucherCodigo?: string;
@@ -308,9 +274,12 @@ export function NovoAgendamentoDialog({
   );
 
   const [endereco, setEndereco] = useState<string>("");
-  const [regiao, setRegiao] = useState<RegiaoEntrega | "">("");
   const [observacoes, setObservacoes] = useState<string>("");
+  const { listPlanosDoCliente } = usePlanosCliente();
 
+  const [planosCliente, setPlanosCliente] = useState<PlanoClienteVinculo[]>([]);
+  const [loadingPlanosCliente, setLoadingPlanosCliente] = useState(false);
+  const [erroPlanosCliente, setErroPlanosCliente] = useState<string | null>(null);
   const [formaPagamento, setFormaPagamento] =
     useState<FormaPagamento>("DINHEIRO");
 
@@ -346,7 +315,6 @@ export function NovoAgendamentoDialog({
     setData(defaultDate);
     setHorario({ inicio: "14:00", fim: "14:30" });
     setEndereco("");
-    setRegiao("");
     setObservacoes("");
     setFormaPagamento("DINHEIRO");
     setVoucherCodigo("");
@@ -364,7 +332,6 @@ export function NovoAgendamentoDialog({
     if (!c) return;
 
     if (c.endereco) setEndereco(c.endereco);
-    if (c.regiao) setRegiao(c.regiao);
   }
 
   function addItem() {
@@ -403,7 +370,38 @@ export function NovoAgendamentoDialog({
       ),
     );
   }
+  useEffect(() => {
+    let alive = true;
 
+    async function run() {
+      if (!clienteId) {
+        setPlanosCliente([]);
+        setErroPlanosCliente(null);
+        return;
+      }
+
+      setLoadingPlanosCliente(true);
+      setErroPlanosCliente(null);
+
+      try {
+        const data = await listPlanosDoCliente(Number(clienteId));
+        if (!alive) return;
+        setPlanosCliente(Array.isArray(data) ? data : []);
+      } catch (e: any) {
+        if (!alive) return;
+        setPlanosCliente([]);
+        setErroPlanosCliente(e?.message || "Falha ao carregar planos");
+      } finally {
+        if (!alive) return;
+        setLoadingPlanosCliente(false);
+      }
+    }
+
+    run();
+    return () => {
+      alive = false;
+    };
+  }, [clienteId, listPlanosDoCliente]);
   useEffect(() => {
     if (!open) return;
     if (mode !== "edit") return;
@@ -419,7 +417,6 @@ export function NovoAgendamentoDialog({
     setFaixaHorario(faixa);
     setHorario(splitFaixaHorario(initialData.faixaHorario || "14:00-14:30"));
     setEndereco(initialData.endereco || "");
-    setRegiao((initialData.regiao as any) || "");
     setObservacoes((initialData.observacoes || "") as any);
 
     const fp = (initialData.formaPagamento || "DINHEIRO") as any as FormaPagamento;
@@ -491,7 +488,6 @@ export function NovoAgendamentoDialog({
           data,
           faixaHorario: faixa,
           endereco,
-          regiao: regiao ? (regiao as RegiaoEntrega) : null,
           observacoes: (observacoes || "").trim() ? observacoes : null,
           formaPagamento: formaFinal as any,
           voucherCodigo: undefined,
@@ -513,7 +509,6 @@ export function NovoAgendamentoDialog({
           data,
           faixaHorario: faixa,
           endereco,
-          regiao: regiao ? (regiao as RegiaoEntrega) : undefined,
           observacoes,
           formaPagamento: formaFinal as any,
           voucherCodigo: formaPagamento === "VOUCHER" ? voucherCodigo.trim() : undefined,
@@ -545,7 +540,6 @@ export function NovoAgendamentoDialog({
       faixaHorario: faixa,
       tipo,
       endereco: tipo === "ENTREGA" ? endereco : "-",
-      regiao: regiao ? (regiao as RegiaoEntrega) : undefined,
       itens,
       total,
       observacoes,
@@ -994,6 +988,41 @@ export function NovoAgendamentoDialog({
                   <span className="font-medium text-foreground">Telefone:</span>{" "}
                   {clienteSelecionado ? clienteSelecionado.telefone : "-"}
                 </div>
+                <div className="border-t pt-3 mt-2 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="font-medium text-foreground">Plano:</span>
+
+                    {loadingPlanosCliente ? (
+                      <Badge variant="outline">Carregando...</Badge>
+                    ) : planosCliente.length > 0 ? (
+                      <Badge className="bg-blue-600 text-white">Tem plano</Badge>
+                    ) : (
+                      <Badge variant="outline">Sem plano</Badge>
+                    )}
+                  </div>
+
+                  {!!erroPlanosCliente && (
+                    <div className="text-xs text-red-600">{erroPlanosCliente}</div>
+                  )}
+
+                  {planosCliente.length > 0 && (
+                    <div className="text-xs text-muted-foreground space-y-1">
+                      {planosCliente.map((pc) => (
+                        <div key={pc.id} className="flex justify-between gap-3">
+                          <span className="truncate">
+                            {pc.plano?.nome?.trim() || `Plano #${pc.planoId}`}{" "}
+                            {pc.plano?.tamanho?.pesagemGramas ? `(${pc.plano.tamanho.pesagemGramas}g)` : ""}
+                          </span>
+
+                          <span className="shrink-0">
+                            {pc.saldoUnidades != null ? `${pc.saldoUnidades} un.` : ""}
+                            {pc.saldoEntregas != null ? ` • ${pc.saldoEntregas} ent.` : ""}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
                 <div className="line-clamp-2">
                   <span className="font-medium text-foreground">Endereço:</span>{" "}
                   {tipo === "ENTREGA" ? endereco || "-" : "(retirada)"}
@@ -1148,7 +1177,6 @@ export function NovoAgendamentoDialog({
                 nome: String(payload?.nome || (created as any)?.nome || "Novo cliente"),
                 telefone: String(payload?.telefone || (created as any)?.telefone || ""),
                 endereco: payload?.endereco,
-                regiao: payload?.regiao,
               };
 
               setClientesLocal((prev) => {
@@ -1159,7 +1187,6 @@ export function NovoAgendamentoDialog({
               setClienteId(createdId);
 
               if (novo.endereco) setEndereco(novo.endereco);
-              if (novo.regiao) setRegiao(novo.regiao);
             }
 
             await onClienteCreated?.();

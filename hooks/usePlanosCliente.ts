@@ -19,10 +19,12 @@ export type PlanoCatalogo = {
 };
 
 export type PlanoClienteVinculo = {
-  id: number; // id do vínculo (se existir)
+  id: number;
   clienteId: number;
   planoId: number;
-  plano?: PlanoCatalogo;
+  saldoUnidades?: number | null;
+  saldoEntregas?: number | null;
+  plano?: PlanoCatalogo & { tamanho?: Tamanho };
   createdAt?: string;
 };
 
@@ -86,39 +88,51 @@ export function usePlanosCliente() {
       setSaving(false);
     }
   }, []);
-
- const vincularPlano = useCallback(async (clienteId: number, planoId: number) => {
-  setSaving(true);
-  try {
-    const res = await apiFetch(`${API_URL}/clientes/${clienteId}/planos/`, {
-      method: "POST",
+  const listPlanosDoCliente = useCallback(async (clienteId: number) => {
+    const res = await apiFetch(`${API_URL}/clientes/${clienteId}/planos`, {
+      method: "GET",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ planoId }),
     });
 
     if (!res.ok) {
       const msg = await res.text().catch(() => "");
-      throw new Error(msg || "Falha ao vincular plano");
+      throw new Error(msg || "Falha ao carregar planos do cliente");
     }
 
-    return (await res.json()) as PlanoClienteVinculo;
-  } finally {
-    setSaving(false);
-  }
-}, []);
+    return (await res.json()) as PlanoClienteVinculo[];
+  }, []);
+  const vincularPlano = useCallback(async (clienteId: number, planoId: number) => {
+    setSaving(true);
+    try {
+      const res = await apiFetch(`${API_URL}/clientes/${clienteId}/planos/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ planoId }),
+      });
 
- const desvincularPlano = useCallback(async (clienteId: number, planoClienteId: number) => {
-  setSaving(true);
-  try {
-    const res = await apiFetch(`${API_URL}/clientes/${clienteId}/planos/${planoClienteId}`, {
-      method: "DELETE",
-    });
+      if (!res.ok) {
+        const msg = await res.text().catch(() => "");
+        throw new Error(msg || "Falha ao vincular plano");
+      }
 
-    if (!res.ok) throw new Error("Falha ao remover plano");
-  } finally {
-    setSaving(false);
-  }
-}, []);
+      return (await res.json()) as PlanoClienteVinculo;
+    } finally {
+      setSaving(false);
+    }
+  }, []);
+
+  const desvincularPlano = useCallback(async (clienteId: number, planoClienteId: number) => {
+    setSaving(true);
+    try {
+      const res = await apiFetch(`${API_URL}/clientes/${clienteId}/planos/${planoClienteId}`, {
+        method: "DELETE",
+      });
+
+      if (!res.ok) throw new Error("Falha ao remover plano");
+    } finally {
+      setSaving(false);
+    }
+  }, []);
 
 
   return {
@@ -126,6 +140,7 @@ export function usePlanosCliente() {
     saving,
     listTamanhos,
     listPlanos,
+    listPlanosDoCliente,
     createPlano,
     vincularPlano,
     desvincularPlano,
