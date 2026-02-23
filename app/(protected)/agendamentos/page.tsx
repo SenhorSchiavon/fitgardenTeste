@@ -55,13 +55,13 @@ type Agendamento = {
   faixaHorario: string;
   endereco: string;
   zona:
-    | "CENTRO"
-    | "ZONA SUL"
-    | "ZONA NORTE"
-    | "ZONA OESTE"
-    | "ZONA LESTE"
-    | "CAMBÉ"
-    | "IBIPORÃ";
+  | "CENTRO"
+  | "ZONA SUL"
+  | "ZONA NORTE"
+  | "ZONA OESTE"
+  | "ZONA LESTE"
+  | "CAMBÉ"
+  | "IBIPORÃ";
   telefone: string;
   quantidade: number;
   formaPagamento: string;
@@ -621,6 +621,7 @@ export default function Agendamentos() {
             nome: c.nome,
             telefone: c.telefone,
             endereco: enderecoTexto,
+            enderecos: c.enderecos || [], // <<< adiciona isso
           };
         })}
         opcoes={opcoes.map((o) => ({
@@ -638,23 +639,22 @@ export default function Agendamentos() {
         initialData={
           modoEdicao && dadosEdicao
             ? {
-                agendamentoId: Number(dadosEdicao.id),
-                clienteId: String(
-                  // hoje você só tem o nome no UI; ideal é vir clienteId do backend
-                  // se você já tiver dadosEdicao.clienteId, troca aqui
-                  clientes.find((c) => c.nome === dadosEdicao.cliente)?.id ??
-                    "",
-                ),
-                tipo: dadosEdicao.tipoEntrega,
-                data: selectedDate, // ideal: data real do agendamento (se vier do backend)
-                faixaHorario: dadosEdicao.faixaHorario,
-                endereco: dadosEdicao.endereco,
-                regiao: undefined, // ideal: mapear da zona pra RegiaoEntrega (se vc quiser)
-                observacoes: dadosEdicao.observacoes ?? null,
-                formaPagamento: dadosEdicao.formaPagamento ?? "DINHEIRO",
-                voucherCodigo: null,
-                itens: [], // <<< IMPORTANT: precisa ter opcaoId/tamanhoId pra editar itens
-              }
+              agendamentoId: Number(dadosEdicao.id),
+              clienteId: String(
+                // hoje você só tem o nome no UI; ideal é vir clienteId do backend
+                // se você já tiver dadosEdicao.clienteId, troca aqui
+                clientes.find((c) => c.nome === dadosEdicao.cliente)?.id ??
+                "",
+              ),
+              tipo: dadosEdicao.tipoEntrega,
+              data: selectedDate, // ideal: data real do agendamento (se vier do backend)
+              faixaHorario: dadosEdicao.faixaHorario,
+              endereco: dadosEdicao.endereco,
+              observacoes: dadosEdicao.observacoes ?? null,
+              formaPagamento: dadosEdicao.formaPagamento ?? "DINHEIRO",
+              voucherCodigo: null,
+              itens: [], // <<< IMPORTANT: precisa ter opcaoId/tamanhoId pra editar itens
+            }
             : null
         }
         onUpdateAgendamento={async (agendamentoId, payload) => {
@@ -664,7 +664,6 @@ export default function Agendamentos() {
             data: payload.data,
             faixaHorario: payload.faixaHorario,
             endereco: payload.endereco,
-            regiao: payload.regiao ?? null,
             observacoes: payload.observacoes ?? null,
             formaPagamento: payload.formaPagamento,
             itens: payload.itens.map((it) => ({
@@ -688,7 +687,6 @@ export default function Agendamentos() {
             data: payload.data,
             faixaHorario: payload.faixaHorario,
             endereco: payload.endereco,
-            regiao: payload.regiao,
             observacoes: payload.observacoes,
             formaPagamento: payload.formaPagamento,
             itens: payload.itens.map((it) => ({

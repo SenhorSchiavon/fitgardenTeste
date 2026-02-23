@@ -9,9 +9,7 @@ import { apiFetch } from "./api";
 export type EnderecoCliente = {
   id?: number;
   principal: boolean;
-
   endereco?: string | null;
-
   cep?: string | null;
   uf?: string | null;
   cidade?: string | null;
@@ -37,7 +35,24 @@ export type PlanoCliente = {
   createdAt?: string;
   updatedAt?: string;
 };
+function formatEndereco(e?: any) {
+  if (!e) return "";
+  if (e.endereco?.trim()) return String(e.endereco).trim();
 
+  const parts = [
+    e.logradouro,
+    e.numero ? `nº ${e.numero}` : null,
+    e.bairro,
+    e.cidade ? `${e.cidade}${e.uf ? `/${e.uf}` : ""}` : null,
+    e.cep ? `CEP ${e.cep}` : null,
+    e.complemento,
+  ]
+    .filter(Boolean)
+    .map((x) => String(x).trim())
+    .filter(Boolean);
+
+  return parts.join(" • ");
+}
 export type Cliente = {
   id: number;
   nome: string;
@@ -83,7 +98,7 @@ async function http<T>(path: string, init?: RequestInit) {
     try {
       const data = await res.json();
       msg = data?.message || data?.error || msg;
-    } catch {}
+    } catch { }
     throw new Error(msg);
   }
 

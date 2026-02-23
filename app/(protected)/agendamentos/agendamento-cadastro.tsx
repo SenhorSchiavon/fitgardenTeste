@@ -61,11 +61,31 @@ type FormaPagamento =
   | "VOUCHER_TAXA_PIX"
   | "PLANO";
 
-type Cliente = {
+type EnderecoCliente = {
+  id?: number;
+  principal: boolean;
+  endereco?: string | null;
+  cep?: string | null;
+  uf?: string | null;
+  cidade?: string | null;
+  bairro?: string | null;
+  logradouro?: string | null;
+  numero?: string | null;
+  complemento?: string | null;
+};
+
+type ClienteSelect = {
   id: string;
   nome: string;
   telefone: string;
   endereco?: string;
+  enderecos?: EnderecoCliente[];
+};
+type Cliente = {
+  id: string;
+  nome: string;
+  telefone: string;
+  enderecos: EnderecoCliente[];
 };
 
 type Opcao = {
@@ -89,7 +109,24 @@ type HorarioIntervalo = {
   inicio: string;
   fim: string;
 };
+function formatEndereco(e?: any) {
+  if (!e) return "";
+  if (e.endereco?.trim()) return String(e.endereco).trim();
 
+  const parts = [
+    e.logradouro,
+    e.numero ? `nº ${e.numero}` : null,
+    e.bairro,
+    e.cidade ? `${e.cidade}${e.uf ? `/${e.uf}` : ""}` : null,
+    e.cep ? `CEP ${e.cep}` : null,
+    e.complemento,
+  ]
+    .filter(Boolean)
+    .map((x) => String(x).trim())
+    .filter(Boolean);
+
+  return parts.join(" • ");
+}
 function formatDatePtBr(date: Date) {
   return date.toLocaleDateString("pt-BR", {
     weekday: "long",
@@ -272,7 +309,7 @@ export function NovoAgendamentoDialog({
       clientesLocal.find((c) => String(c.id) === String(clienteId)) || null,
     [clientesLocal, clienteId],
   );
-
+  const [enderecoClienteId, setEnderecoClienteId] = useState<string>("");
   const [endereco, setEndereco] = useState<string>("");
   const [observacoes, setObservacoes] = useState<string>("");
   const { listPlanosDoCliente } = usePlanosCliente();
@@ -324,16 +361,57 @@ export function NovoAgendamentoDialog({
     setIsSaving(false);
     setConfirmado(false);
   }
+  const enderecosDoCliente = useMemo(() => {
+    const list = clienteSelecionado?.enderecos || [];
+    return Array.isArray(list) ? list : [];
+  }, [clienteSelecionado]);
 
+  const enderecoSelecionadoObj = useMemo(() => {
+    if (!enderecosDoCliente.length) return null;
+
+    if (enderecoClienteId) {
+      return (
+        enderecosDoCliente.find((e) => String(e.id) === String(enderecoClienteId)) ||
+        null
+      );
+    }
+
+    return enderecosDoCliente.find((e) => e.principal) || enderecosDoCliente[0] || null;
+  }, [enderecosDoCliente, enderecoClienteId]);
+  const [enderecoSelecionadoId, setEnderecoSelecionadoId] = useState<string>("");
+
+  function pickEnderecoById(endId: string) {
+    setEnderecoSelecionadoId(endId);
+
+    const lista = clienteSelecionado?.enderecos || [];
+    const escolhido =
+      lista.find((e) => String(e.id) === String(endId)) || null;
+
+    if (!escolhido) return;
+
+    const texto =
+      escolhido.endereco?.trim()
+        ? String(escolhido.endereco).trim()
+        : formatEndereco(escolhido);
+
+    setEndereco(texto);
+  }
   function onPickCliente(id: string) {
     setClienteId(String(id));
 
     const c = clientesLocal.find((x) => String(x.id) === String(id));
     if (!c) return;
 
-    if (c.endereco) setEndereco(c.endereco);
-  }
+    const enderecos = Array.isArray(c.enderecos) ? c.enderecos : [];
+    const principal = enderecos.find((e) => e.principal) || enderecos[0] || null;
 
+    setEnderecoClienteId(principal?.id != null ? String(principal.id) : "");
+    setEndereco(principal ? formatEndereco(principal) : "");
+  }
+  useEffect(() => {
+    if (!enderecoSelecionadoObj) return;
+    setEndereco(formatEndereco(enderecoSelecionadoObj));
+  }, [enderecoSelecionadoObj]);
   function addItem() {
     const opcao = opcoes.find((o) => o.id === novoItem.opcaoId);
     if (!opcao) return;
@@ -619,24 +697,26 @@ export function NovoAgendamentoDialog({
     return { inicio: inicio || "14:00", fim: fim || "14:30" };
   }
 
-  return (
-    <Dialog
-      open={open}
-      onOpenChange={(v) => {
-        onOpenChange(v);
-        if (!v) resetForm();
-      }}
-    >
-      <DialogContent className="max-w-4xl">
-        <DialogHeader>
-          <DialogTitle>
-            {mode === "edit" ? "Editar Agendamento" : "Novo Agendamento"}
-          </DialogTitle>
-        </DialogHeader>
+return (
+  <Dialog
+    open={open}
+    onOpenChange={(v) => {
+      onOpenChange(v);
+      if (!v) resetForm();
+    }}
+  >
+    <DialogContent className="max-w-5xl max-h-[85vh] overflow-hidden flex flex-col">
+      <DialogHeader>
+        <DialogTitle>
+          {mode === "edit" ? "Editar Agendamento" : "Novo Agendamento"}
+        </DialogTitle>
+      </DialogHeader>
 
-        <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-6">
+      {/* CONTEÚDO SCROLLÁVEL DO MODAL */}
+      <div className="flex-1 overflow-y-auto pr-2">
+        <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,2fr)_minmax(340px,1fr)] gap-6">
           {/* COLUNA ESQUERDA */}
-          <div className="space-y-4">
+          <div className="space-y-4 min-w-0">
             <Tabs defaultValue="cliente">
               <TabsList className="grid w-full grid-cols-2">
                 <TabsTrigger value="cliente">Cliente</TabsTrigger>
@@ -649,11 +729,10 @@ export function NovoAgendamentoDialog({
                   <div className="space-y-2">
                     <Label>Cliente</Label>
 
-                    {/* SELECT + BOTÃO CADASTRAR */}
                     <div className="flex gap-2">
-                      <div className="flex-1">
+                      <div className="flex-1 min-w-0">
                         <Select value={clienteId} onValueChange={onPickCliente}>
-                          <SelectTrigger>
+                          <SelectTrigger className="w-full">
                             <SelectValue placeholder="Selecione um cliente" />
                           </SelectTrigger>
                           <SelectContent>
@@ -690,7 +769,7 @@ export function NovoAgendamentoDialog({
                   <div className="space-y-2">
                     <Label>Tipo</Label>
                     <Select value={tipo} onValueChange={(v) => setTipo(v as PedidoTipo)}>
-                      <SelectTrigger>
+                      <SelectTrigger className="w-full">
                         <SelectValue placeholder="Selecione" />
                       </SelectTrigger>
                       <SelectContent>
@@ -711,8 +790,11 @@ export function NovoAgendamentoDialog({
                 </div>
 
                 <div className="border-t pt-4 space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-[auto_1fr] gap-6">
-                    <div className="space-y-2">
+                  {/* ✅ aqui é onde estava “espremendo”: 
+                      - reduzimos a coluna do calendário
+                      - e só deixamos 2 colunas (horários/endereço) a partir de XL */}
+                  <div className="grid grid-cols-1 lg:grid-cols-[260px_minmax(0,1fr)] gap-6 items-start">
+                    <div className="space-y-2 lg:shrink-0">
                       <Label className="flex items-center gap-2">
                         <CalendarIcon className="h-4 w-4" />
                         Data
@@ -728,15 +810,15 @@ export function NovoAgendamentoDialog({
                       </div>
                     </div>
 
-                    <div className="space-y-4">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="space-y-2">
+                    <div className="space-y-4 min-w-0">
+                      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                        <div className="space-y-2 min-w-0">
                           <Label>Horário inicial</Label>
                           <Select
                             value={horario.inicio}
                             onValueChange={(v) => setHorario((h) => ({ ...h, inicio: v }))}
                           >
-                            <SelectTrigger>
+                            <SelectTrigger className="w-full">
                               <SelectValue placeholder="Selecione" />
                             </SelectTrigger>
                             <SelectContent>
@@ -749,19 +831,18 @@ export function NovoAgendamentoDialog({
                           </Select>
                         </div>
 
-                        <div className="space-y-2">
+                        <div className="space-y-2 min-w-0">
                           <Label>Horário final</Label>
                           <Select
                             value={horario.fim}
                             onValueChange={(v) => setHorario((h) => ({ ...h, fim: v }))}
                             disabled={!horario.inicio}
                           >
-                            <SelectTrigger>
+                            <SelectTrigger className="w-full">
                               <SelectValue placeholder="Selecione" />
                             </SelectTrigger>
 
                             <SelectContent>
-                              {/* só horários depois do início */}
                               {horariosFimDisponiveis.map((h) => (
                                 <SelectItem key={h} value={h}>
                                   {h}
@@ -775,27 +856,66 @@ export function NovoAgendamentoDialog({
                           </div>
                         </div>
                       </div>
-                    </div>
 
-                    <div></div>
+                      {tipo === "ENTREGA" && (
+                        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                          <div className="space-y-2 min-w-0">
+                            <Label>Endereço do Cliente</Label>
 
-                    <div className="space-y-2">
-                      <Label className="flex items-center gap-2">
-                        <MapPin className="h-4 w-4" />
-                        Endereço (Entrega)
-                      </Label>
-                      <Textarea
-                        value={endereco}
-                        onChange={(e) => setEndereco(e.target.value)}
-                        placeholder="Rua, número, bairro..."
-                        disabled={tipo === "RETIRADA"}
-                        rows={3}
-                        className="min-h-[96px] resize-y"
-                      />
+                            <Select
+                              value={
+                                enderecoClienteId ||
+                                (enderecoSelecionadoObj?.id != null
+                                  ? String(enderecoSelecionadoObj.id)
+                                  : "")
+                              }
+                              onValueChange={(v) => setEnderecoClienteId(String(v))}
+                              disabled={!clienteSelecionado || enderecosDoCliente.length === 0}
+                            >
+                              <SelectTrigger className="w-full">
+                                <SelectValue
+                                  placeholder={
+                                    !clienteSelecionado
+                                      ? "Selecione um cliente"
+                                      : enderecosDoCliente.length === 0
+                                        ? "Cliente sem endereços cadastrados"
+                                        : "Selecione um endereço"
+                                  }
+                                />
+                              </SelectTrigger>
 
-                      {tipo === "RETIRADA" && (
-                        <div className="text-xs text-muted-foreground">
-                          Retirada não precisa de endereço.
+                              <SelectContent>
+                                {enderecosDoCliente.map((e, idx) => {
+                                  const val = String(e.id ?? idx);
+                                  return (
+                                    <SelectItem key={val} value={val}>
+                                      {e.principal ? "Principal — " : "Alternativo — "}
+                                      {formatEndereco(e) || "(endereço vazio)"}
+                                    </SelectItem>
+                                  );
+                                })}
+                              </SelectContent>
+                            </Select>
+
+                            <div className="text-xs text-muted-foreground">
+                              Dá pra ajustar manualmente no campo ao lado antes de confirmar.
+                            </div>
+                          </div>
+
+                          <div className="space-y-2 min-w-0">
+                            <Label className="flex items-center gap-2">
+                              <MapPin className="h-4 w-4" />
+                              Endereço (Entrega)
+                            </Label>
+
+                            <Textarea
+                              value={endereco}
+                              onChange={(e) => setEndereco(e.target.value)}
+                              placeholder="Rua, número, bairro..."
+                              rows={3}
+                              className="w-full min-h-[96px] resize-y"
+                            />
+                          </div>
                         </div>
                       )}
                     </div>
@@ -810,9 +930,11 @@ export function NovoAgendamentoDialog({
                     <Label>Opção</Label>
                     <Select
                       value={novoItem.opcaoId}
-                      onValueChange={(v) => setNovoItem({ ...novoItem, opcaoId: v, tamanhoId: "" })}
+                      onValueChange={(v) =>
+                        setNovoItem({ ...novoItem, opcaoId: v, tamanhoId: "" })
+                      }
                     >
-                      <SelectTrigger>
+                      <SelectTrigger className="w-full">
                         <SelectValue placeholder="Selecione uma opção" />
                       </SelectTrigger>
                       <SelectContent>
@@ -832,7 +954,7 @@ export function NovoAgendamentoDialog({
                       onValueChange={(v) => setNovoItem({ ...novoItem, tamanhoId: v })}
                       disabled={!novoItem.opcaoId}
                     >
-                      <SelectTrigger>
+                      <SelectTrigger className="w-full">
                         <SelectValue placeholder="Selecione um tamanho" />
                       </SelectTrigger>
                       <SelectContent>
@@ -891,14 +1013,19 @@ export function NovoAgendamentoDialog({
                     </Button>
                   </div>
 
-                  <Button type="button" onClick={addItem} disabled={!novoItem.opcaoId || !novoItem.tamanhoId}>
+                  <Button
+                    type="button"
+                    onClick={addItem}
+                    disabled={!novoItem.opcaoId || !novoItem.tamanhoId}
+                  >
                     Adicionar Item
                   </Button>
                 </div>
 
-                <div className="border rounded-md overflow-hidden">
+                {/* ✅ tabela com scroll vertical */}
+                <div className="border rounded-md overflow-hidden max-h-[45vh] overflow-y-auto">
                   <Table>
-                    <TableHeader>
+                    <TableHeader className="sticky top-0 z-10 bg-background">
                       <TableRow>
                         <TableHead>Item</TableHead>
                         <TableHead>Tamanho</TableHead>
@@ -908,6 +1035,7 @@ export function NovoAgendamentoDialog({
                         <TableHead className="w-[60px]"></TableHead>
                       </TableRow>
                     </TableHeader>
+
                     <TableBody>
                       {itens.map((it) => (
                         <TableRow key={it.id}>
@@ -923,7 +1051,9 @@ export function NovoAgendamentoDialog({
                               >
                                 <Minus className="h-3 w-3" />
                               </Button>
-                              <span className="min-w-[18px] text-center">{it.quantidade}</span>
+                              <span className="min-w-[18px] text-center">
+                                {it.quantidade}
+                              </span>
                               <Button
                                 type="button"
                                 variant="ghost"
@@ -935,9 +1065,16 @@ export function NovoAgendamentoDialog({
                             </div>
                           </TableCell>
                           <TableCell>R$ {it.precoUnit.toFixed(2)}</TableCell>
-                          <TableCell>R$ {(it.precoUnit * it.quantidade).toFixed(2)}</TableCell>
                           <TableCell>
-                            <Button type="button" variant="ghost" size="icon" onClick={() => removeItem(it.id)}>
+                            R$ {(it.precoUnit * it.quantidade).toFixed(2)}
+                          </TableCell>
+                          <TableCell>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => removeItem(it.id)}
+                            >
                               <Trash className="h-4 w-4" />
                             </Button>
                           </TableCell>
@@ -959,7 +1096,7 @@ export function NovoAgendamentoDialog({
           </div>
 
           {/* COLUNA DIREITA */}
-          <div className="space-y-4">
+          <div className="space-y-4 min-w-0">
             <div className="rounded-lg border p-4 space-y-3">
               <div className="flex items-center justify-between">
                 <div className="font-medium">Resumo</div>
@@ -972,10 +1109,12 @@ export function NovoAgendamentoDialog({
 
               <div className="text-sm text-muted-foreground space-y-1">
                 <div>
-                  <span className="font-medium text-foreground">Data:</span> {formatDatePtBr(data)}
+                  <span className="font-medium text-foreground">Data:</span>{" "}
+                  {formatDatePtBr(data)}
                 </div>
                 <div>
-                  <span className="font-medium text-foreground">Faixa:</span> {horario.inicio} - {horario.fim}
+                  <span className="font-medium text-foreground">Faixa:</span>{" "}
+                  {horario.inicio} - {horario.fim}
                 </div>
                 <div>
                   <span className="font-medium text-foreground">Tipo:</span> {tipo}
@@ -988,6 +1127,7 @@ export function NovoAgendamentoDialog({
                   <span className="font-medium text-foreground">Telefone:</span>{" "}
                   {clienteSelecionado ? clienteSelecionado.telefone : "-"}
                 </div>
+
                 <div className="border-t pt-3 mt-2 space-y-2">
                   <div className="flex items-center justify-between">
                     <span className="font-medium text-foreground">Plano:</span>
@@ -1011,7 +1151,9 @@ export function NovoAgendamentoDialog({
                         <div key={pc.id} className="flex justify-between gap-3">
                           <span className="truncate">
                             {pc.plano?.nome?.trim() || `Plano #${pc.planoId}`}{" "}
-                            {pc.plano?.tamanho?.pesagemGramas ? `(${pc.plano.tamanho.pesagemGramas}g)` : ""}
+                            {pc.plano?.tamanho?.pesagemGramas
+                              ? `(${pc.plano.tamanho.pesagemGramas}g)`
+                              : ""}
                           </span>
 
                           <span className="shrink-0">
@@ -1023,6 +1165,7 @@ export function NovoAgendamentoDialog({
                     </div>
                   )}
                 </div>
+
                 <div className="line-clamp-2">
                   <span className="font-medium text-foreground">Endereço:</span>{" "}
                   {tipo === "ENTREGA" ? endereco || "-" : "(retirada)"}
@@ -1050,7 +1193,7 @@ export function NovoAgendamentoDialog({
                     onValueChange={(v) => setFormaPagamento(v as FormaPagamento)}
                     disabled={mode === "edit"}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger className="w-full">
                       <SelectValue placeholder="Selecione" />
                     </SelectTrigger>
                     <SelectContent>
@@ -1090,7 +1233,7 @@ export function NovoAgendamentoDialog({
                         onValueChange={(v) => setTaxaPagaEm(v as any)}
                         disabled={mode === "edit"}
                       >
-                        <SelectTrigger>
+                        <SelectTrigger className="w-full">
                           <SelectValue placeholder="Selecione" />
                         </SelectTrigger>
                         <SelectContent>
@@ -1121,79 +1264,84 @@ export function NovoAgendamentoDialog({
             </div>
           </div>
         </div>
+      </div>
 
-        <DialogFooter className="gap-2">
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSaving}>
-            Fechar
+      {/* FOOTER FIXO */}
+      <DialogFooter className="gap-2">
+        <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSaving}>
+          Fechar
+        </Button>
+
+        {!confirmado ? (
+          <Button
+            onClick={confirmarAgendamento}
+            disabled={
+              isSaving ||
+              !clienteId ||
+              itens.length === 0 ||
+              (tipo === "ENTREGA" && !endereco.trim()) ||
+              (formaPagamento === "VOUCHER" && !voucherCodigo.trim()) ||
+              (mode === "edit" && !initialData?.agendamentoId)
+            }
+          >
+            {isSaving
+              ? mode === "edit"
+                ? "Salvando..."
+                : "Confirmando..."
+              : mode === "edit"
+                ? "Salvar Alterações"
+                : "Confirmar Agendamento"}
           </Button>
+        ) : (
+          <Button onClick={enviarWhatsAppConfirmacao} disabled={!clienteSelecionado}>
+            <Send className="mr-2 h-4 w-4" /> Enviar WhatsApp
+          </Button>
+        )}
+      </DialogFooter>
 
-          {!confirmado ? (
-            <Button
-              onClick={confirmarAgendamento}
-              disabled={
-                isSaving ||
-                !clienteId ||
-                itens.length === 0 ||
-                (tipo === "ENTREGA" && !endereco.trim()) ||
-                (formaPagamento === "VOUCHER" && !voucherCodigo.trim()) ||
-                (mode === "edit" && !initialData?.agendamentoId)
-              }
-            >
-              {isSaving
-                ? mode === "edit"
-                  ? "Salvando..."
-                  : "Confirmando..."
-                : mode === "edit"
-                  ? "Salvar Alterações"
-                  : "Confirmar Agendamento"}
-            </Button>
-          ) : (
-            <Button onClick={enviarWhatsAppConfirmacao} disabled={!clienteSelecionado}>
-              <Send className="mr-2 h-4 w-4" /> Enviar WhatsApp
-            </Button>
-          )}
-        </DialogFooter>
+      {/* MODAL DE CADASTRAR CLIENTE */}
+      <ClienteFormDialog
+        open={clienteDialogOpen}
+        onOpenChange={setClienteDialogOpen}
+        title="Novo Cliente"
+        saving={isSaving || savingClienteHook}
+        onSubmit={async (payload: any) => {
+          const created = await createCliente(payload);
 
-        {/* MODAL DE CADASTRAR CLIENTE */}
-        <ClienteFormDialog
-          open={clienteDialogOpen}
-          onOpenChange={setClienteDialogOpen}
-          title="Novo Cliente"
-          saving={isSaving || savingClienteHook}
-          onSubmit={async (payload: any) => {
-            const created = await createCliente(payload);
-
-            const createdId = String(
-              (created as any)?.id ??
+          const createdId = String(
+            (created as any)?.id ??
               (created as any)?.cliente?.id ??
               (created as any)?.data?.id ??
               "",
-            );
+          );
 
-            // adiciona na lista local imediatamente
-            if (createdId) {
-              const novo: Cliente = {
-                id: createdId,
-                nome: String(payload?.nome || (created as any)?.nome || "Novo cliente"),
-                telefone: String(payload?.telefone || (created as any)?.telefone || ""),
-                endereco: payload?.endereco,
-              };
+          if (createdId) {
+            const novo: Cliente = {
+              id: createdId,
+              nome: String(payload?.nome || (created as any)?.nome || "Novo cliente"),
+              telefone: String(payload?.telefone || (created as any)?.telefone || ""),
+              enderecos: Array.isArray(payload?.enderecos) ? payload.enderecos : [],
+            };
 
-              setClientesLocal((prev) => {
-                if (prev.some((c) => String(c.id) === String(createdId))) return prev;
-                return [novo, ...prev];
-              });
+            setClientesLocal((prev) => {
+              if (prev.some((c) => String(c.id) === String(createdId))) return prev;
+              return [novo, ...prev];
+            });
 
-              setClienteId(createdId);
+            setClienteId(createdId);
 
-              if (novo.endereco) setEndereco(novo.endereco);
+            const principal = novo.enderecos.find((e) => e.principal) || novo.enderecos[0] || null;
+            if (principal) {
+              setEnderecoClienteId(principal.id != null ? String(principal.id) : "");
+              setEndereco(formatEndereco(principal));
             }
+          }
 
-            await onClienteCreated?.();
-            setClienteDialogOpen(false);
-          }}
-        />
-      </DialogContent>
-    </Dialog>
-  );
+          await onClienteCreated?.();
+          setClienteDialogOpen(false);
+        }}
+      />
+    </DialogContent>
+  </Dialog>
+);
 }
