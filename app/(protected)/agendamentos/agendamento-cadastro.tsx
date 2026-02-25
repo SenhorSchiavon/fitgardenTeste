@@ -46,6 +46,7 @@ import { useClientes } from "@/hooks/useClientes";
 import { History } from "lucide-react";
 import { ClienteHistoricoDialog } from "@/components/clientes/ClienteHistoricoDialog";
 import { useAgendamentos } from "@/hooks/useAgendamentos";
+import { geocodeHere } from "@/components/helpers/geocode";
 type PedidoTipo = "ENTREGA" | "RETIRADA";
 
 type FormaPagamento =
@@ -407,7 +408,8 @@ export function NovoAgendamentoDialog({
     const opcao = opcoes.find((o) => o.id === novoItem.opcaoId);
     return opcao?.tamanhos || [];
   }, [opcoes, novoItem.opcaoId]);
-
+  const [coordsDestino, setCoordsDestino] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [enderecoUltimoGeocoded, setEnderecoUltimoGeocoded] = useState<string>("");
   const total = useMemo(() => {
     return itens.reduce((acc, it) => acc + it.precoUnit * it.quantidade, 0);
   }, [itens]);
@@ -438,49 +440,8 @@ export function NovoAgendamentoDialog({
     setConfirmado(false);
   }
   const { estimarTaxaEntrega } = useAgendamentos();
-
-  useEffect(() => {
-    let alive = true;
-
-    async function run() {
-      setErroTaxa(null);
-      setDistanciaKm(null);
-
-      if (tipo !== "ENTREGA") {
-        setTaxaEntrega(0);
-        return;
-      }
-
-      if (!clienteId) {
-        setTaxaEntrega(0);
-        return;
-      }
-
-      setLoadingTaxa(true);
-      try {
-        const r = await estimarTaxaEntrega(Number(clienteId));
-        if (!alive) return;
-
-        setTaxaEntrega(Number(r.valorTaxa || 0));
-        setDistanciaKm(
-          typeof r.distanciaKm === "number" ? Number(r.distanciaKm) : null
-        );
-      } catch (e: any) {
-        if (!alive) return;
-        setTaxaEntrega(0);
-        setErroTaxa(e?.message || "Falha ao calcular taxa");
-      } finally {
-        if (!alive) return;
-        setLoadingTaxa(false);
-      }
-    }
-
-    run();
-    return () => {
-      alive = false;
-    };
-  }, [clienteId, tipo, estimarTaxaEntrega]);
-
+  
+  
   const enderecosDoCliente = useMemo(() => {
     const list = clienteSelecionado?.enderecos || [];
     return Array.isArray(list) ? list : [];
@@ -1188,6 +1149,44 @@ export function NovoAgendamentoDialog({
                                 className="w-full min-h-[96px] resize-y"
                               />
                             </div>
+                            <Button
+                              type="button"
+                              variant="secondary"
+                              disabled={loadingTaxa || tipo !== "ENTREGA" || !endereco.trim() || !clienteId}
+                              onClick={async () => {
+                                setErroTaxa(null);
+                                setLoadingTaxa(true);
+                                try {
+                                  // se já geocodou esse mesmo texto, não chama de novo
+                                  const texto = endereco.trim();
+                                  let coords = coordsDestino;
+
+                                  if (!coords || enderecoUltimoGeocoded !== texto) {
+                                    coords = await geocodeHere(texto);
+                                    if (!coords) throw new Error("Não consegui localizar esse endereço.");
+                                    setCoordsDestino(coords);
+                                    setEnderecoUltimoGeocoded(texto);
+                                  }
+
+                                  const r = await estimarTaxaEntrega({
+                                    clienteId: Number(clienteId),
+                                    latitude: coords.latitude,
+                                    longitude: coords.longitude,
+                                  });
+
+                                  setTaxaEntrega(Number(r.valorTaxa || 0));
+                                  setDistanciaKm(typeof r.distanciaKm === "number" ? Number(r.distanciaKm) : null);
+                                } catch (e: any) {
+                                  setTaxaEntrega(0);
+                                  setDistanciaKm(null);
+                                  setErroTaxa(e?.message || "Falha ao calcular taxa");
+                                } finally {
+                                  setLoadingTaxa(false);
+                                }
+                              }}
+                            >
+                              {loadingTaxa ? "Calculando..." : "Calcular taxa"}
+                            </Button>
                           </div>
                         )}
                       </div>

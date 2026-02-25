@@ -395,11 +395,16 @@ export function useAgendamentos(options?: { baseUrl?: string }) {
     [baseUrl, showError],
   );
   const estimarTaxaEntrega = useCallback(
-    async (clienteId: number) => {
+    async (params: { clienteId: number; latitude?: number; longitude?: number }) => {
       setLoading(true);
       setError("");
       try {
-        const qs = buildQueryString({ clienteId: Number(clienteId) });
+        const qs = buildQueryString({
+          clienteId: Number(params.clienteId),
+          latitude: params.latitude != null ? Number(params.latitude) : undefined,
+          longitude: params.longitude != null ? Number(params.longitude) : undefined,
+        });
+
         return await fetchJson<EstimarTaxaResponse>(
           `${baseUrl}/estimar-taxa${qs}`,
           { method: "GET" },
