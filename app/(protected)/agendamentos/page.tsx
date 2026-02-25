@@ -47,6 +47,7 @@ import { useAgendamentos } from "@/hooks/useAgendamentos";
 import { useCardapios } from "@/hooks/useCardapios";
 import { toast } from "@/components/ui/use-toast";
 import { useRelatorioPreparosDia } from "@/hooks/useRelatorioPreparosDia";
+import { useRelatorioPedidosDia } from "@/hooks/useRelatorioPedidosDia";
 type Agendamento = {
   id: string;
   numeroPedido: string;
@@ -84,8 +85,20 @@ export default function Agendamentos() {
   } = useClientes();
   const { cardapios, loading: loadingCardapios } = useCardapios();
   const cardapioAtivo = cardapios.find((c) => c.ativo) ?? null;
-  const { downloadDocx, downloading } = useRelatorioPreparosDia();
+  const {
+    data: relatorioPreparos,
+    loading: loadingRelatorioPreparos,
+    downloading: downloadingPreparos,
+    error: errorRelatorioPreparos,
+    getRelatorio,
+    downloadDocx: downloadPreparosDocx,
+  } = useRelatorioPreparosDia();
 
+  const {
+    downloadDocx: downloadPedidosDocx,
+    downloading: downloadingPedidos,
+    error: errorPedidosDocx,
+  } = useRelatorioPedidosDia();
   const { opcoes, loading: loadingOpcoes } = useOpcoesDoCardapio(
     cardapioAtivo?.id,
   );
@@ -112,8 +125,7 @@ export default function Agendamentos() {
     number | null
   >(null);
   const [dadosEdicao, setDadosEdicao] = useState<any>(null);
-  const { data: relatorioPreparos, loading: loadingRelatorioPreparos, error: errorRelatorioPreparos, getRelatorio } =
-    useRelatorioPreparosDia();
+
 
   const [preparoSheetOpen, setPreparoSheetOpen] = useState(false);
   const handleShowDetalhes = (agendamento: Agendamento) => {
@@ -289,6 +301,21 @@ export default function Agendamentos() {
 
       <div className="flex items-center justify-end mb-6">
         <div className="flex flex-wrap justify-end gap-2">
+          <Button
+            onClick={() => {
+              const dateISO = utils.toISODateOnly(selectedDate);
+              downloadPedidosDocx({ data: dateISO });
+            }}
+            disabled={downloadingPedidos}
+          >
+            {downloadingPedidos ? "Gerando..." : "Baixar relatório de pedidos (DOCX)"}
+          </Button>
+
+          {errorPedidosDocx && (
+            <div className="text-xs text-red-600 mt-2">{errorPedidosDocx}</div>
+          )}
+
+          {error && <div className="text-xs text-red-600 mt-2">{error}</div>}
           <Button
             className="w-full sm:w-auto"
             variant="outline"
@@ -641,14 +668,12 @@ export default function Agendamentos() {
             <div className="flex justify-center mt-4">
               <Button
                 variant="outline"
-                disabled={downloading}
+                disabled={downloadingPreparos}
                 className="bg-green-800 text-white"
                 onClick={async () => {
                   const dateISO = utils.toISODateOnly(selectedDate);
-                  const ok = await downloadDocx({ data: dateISO });
-                  if (!ok) {
-                    toast({ title: "Falha ao baixar DOCX", variant: "destructive" });
-                  }
+                  const ok = await downloadPreparosDocx({ data: dateISO });
+                  if (!ok) toast({ title: "Falha ao baixar DOCX", variant: "destructive" });
                 }}
               >
                 Baixar DOCX
