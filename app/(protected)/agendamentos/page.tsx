@@ -46,7 +46,7 @@ import { useClientes } from "@/hooks/useClientes";
 import { useAgendamentos } from "@/hooks/useAgendamentos";
 import { useCardapios } from "@/hooks/useCardapios";
 import { toast } from "@/components/ui/use-toast";
-
+import { useRelatorioPreparosDia } from "@/hooks/useRelatorioPreparosDia";
 type Agendamento = {
   id: string;
   numeroPedido: string;
@@ -84,6 +84,7 @@ export default function Agendamentos() {
   } = useClientes();
   const { cardapios, loading: loadingCardapios } = useCardapios();
   const cardapioAtivo = cardapios.find((c) => c.ativo) ?? null;
+  const { downloadDocx, downloading } = useRelatorioPreparosDia();
 
   const { opcoes, loading: loadingOpcoes } = useOpcoesDoCardapio(
     cardapioAtivo?.id,
@@ -111,7 +112,10 @@ export default function Agendamentos() {
     number | null
   >(null);
   const [dadosEdicao, setDadosEdicao] = useState<any>(null);
+  const { data: relatorioPreparos, loading: loadingRelatorioPreparos, error: errorRelatorioPreparos, getRelatorio } =
+    useRelatorioPreparosDia();
 
+  const [preparoSheetOpen, setPreparoSheetOpen] = useState(false);
   const handleShowDetalhes = (agendamento: Agendamento) => {
     setAgendamentoSelecionado(agendamento);
     setDetalhesDialogOpen(true);
@@ -284,11 +288,43 @@ export default function Agendamentos() {
       />
 
       <div className="flex items-center justify-end mb-6">
-        <div className="flex space-x-2">
-          <Button variant="outline" onClick={() => setProducaoSheetOpen(true)}>
+        <div className="flex flex-wrap justify-end gap-2">
+          <Button
+            className="w-full sm:w-auto"
+            variant="outline"
+            onClick={async () => {
+              try {
+                const dateISO = utils.toISODateOnly(selectedDate);
+                const res = await getRelatorio({ data: dateISO });
+
+                if (!res) {
+                  toast({
+                    title: "Não foi possível gerar o relatório",
+                    description: errorRelatorioPreparos ?? "Tente novamente",
+                    variant: "destructive",
+                  });
+                  return;
+                }
+
+                setPreparoSheetOpen(true);
+              } catch (e: any) {
+                console.error(e);
+                toast({
+                  title: "Erro ao gerar relatório de preparo",
+                  description: e?.message ?? "Tente novamente",
+                  variant: "destructive",
+                });
+              }
+            }}
+            disabled={loadingRelatorioPreparos}
+          >
+            <FileText className="mr-2 h-4 w-4" />
+            Relatório de Preparo
+          </Button>
+          <Button className="w-full sm:w-auto" variant="outline" onClick={() => setProducaoSheetOpen(true)}>
             <FileText className="mr-2 h-4 w-4" /> Produção do Dia
           </Button>
-          <Button
+          <Button className="w-full sm:w-auto"
             variant="outline"
             onClick={async () => {
               try {
@@ -302,7 +338,7 @@ export default function Agendamentos() {
             Baixar planilha para importar
           </Button>
 
-          <Button
+          <Button className="w-full sm:w-auto"
             onClick={() => setCadastroOpen(true)}
             disabled={loadingOpcoes}
           >
@@ -537,7 +573,90 @@ export default function Agendamentos() {
           </Tabs>
         </DialogContent>
       </Dialog>
+      <Sheet open={preparoSheetOpen} onOpenChange={setPreparoSheetOpen}>
+        <SheetContent className="sm:max-w-md">
+          <SheetHeader>
+            <SheetTitle>Relatório de Preparo - {formatDate(selectedDate)}</SheetTitle>
+          </SheetHeader>
 
+          <div className="py-6">
+            {errorRelatorioPreparos ? (
+              <div className="text-sm text-destructive">{errorRelatorioPreparos}</div>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Preparo</TableHead>
+                    <TableHead className="text-right">Pronto (kg)</TableHead>
+                    <TableHead className="text-right">Cru (kg)</TableHead>
+                  </TableRow>
+                </TableHeader>
+
+                <TableBody>
+                  {(relatorioPreparos?.prontos ?? []).length > 0 ? (
+                    <>
+                      {(relatorioPreparos?.prontos ?? []).map((row) => (
+                        <TableRow key={row.preparoId}>
+                          <TableCell>{row.nome}</TableCell>
+                          <TableCell className="text-right">
+                            {Number(row.kgPronto ?? 0).toFixed(3)}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {Number(row.kgCru ?? 0).toFixed(3)}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+
+                      {/* Totais */}
+                      <TableRow>
+                        <TableCell className="font-medium">Total</TableCell>
+                        <TableCell className="text-right font-medium">
+                          {(
+                            (relatorioPreparos?.prontos ?? []).reduce(
+                              (acc, r) => acc + Number(r.kgPronto ?? 0),
+                              0,
+                            ) || 0
+                          ).toFixed(3)}
+                        </TableCell>
+                        <TableCell className="text-right font-medium">
+                          {(
+                            (relatorioPreparos?.prontos ?? []).reduce(
+                              (acc, r) => acc + Number(r.kgCru ?? 0),
+                              0,
+                            ) || 0
+                          ).toFixed(3)}
+                        </TableCell>
+                      </TableRow>
+                    </>
+                  ) : (
+                    <TableRow>
+                      <TableCell colSpan={3} className="text-center">
+                        Nenhum preparo encontrado para o dia
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            )}
+            <div className="flex justify-center mt-4">
+              <Button
+                variant="outline"
+                disabled={downloading}
+                className="bg-green-800 text-white"
+                onClick={async () => {
+                  const dateISO = utils.toISODateOnly(selectedDate);
+                  const ok = await downloadDocx({ data: dateISO });
+                  if (!ok) {
+                    toast({ title: "Falha ao baixar DOCX", variant: "destructive" });
+                  }
+                }}
+              >
+                Baixar DOCX
+              </Button>
+            </div>
+          </div>
+        </SheetContent>
+      </Sheet>
       <Sheet open={producaoSheetOpen} onOpenChange={setProducaoSheetOpen}>
         <SheetContent className="sm:max-w-md">
           <SheetHeader>
@@ -564,6 +683,7 @@ export default function Agendamentos() {
                 )}
               </TableBody>
             </Table>
+
           </div>
         </SheetContent>
       </Sheet>

@@ -1,5 +1,5 @@
 "use client";
-
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -450,41 +450,43 @@ export default function PreparosPage() {
                         />
                       </div>
 
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>Ingrediente</TableHead>
-                            <TableHead>Medida</TableHead>
-                            <TableHead>Ação</TableHead>
-                          </TableRow>
-                        </TableHeader>
-
-                        <TableBody>
-                          {ingredientesFiltrados.map((ingrediente) => (
-                            <TableRow key={ingrediente.id}>
-                              <TableCell>{ingrediente.nome}</TableCell>
-                              <TableCell>{ingrediente.medida}</TableCell>
-                              <TableCell>
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() =>
-                                    setNovoIngrediente({
-                                      ingredienteId: ingrediente.id,
-                                      ingredienteNome: ingrediente.nome,
-                                      medida: ingrediente.medida,
-                                      quantidade: 0,
-                                      custo: 0,
-                                    })
-                                  }
-                                >
-                                  Selecionar
-                                </Button>
-                              </TableCell>
+                      <ScrollArea className="h-[55vh] pr-2">
+                        <Table>
+                          <TableHeader className="sticky top-0 bg-background z-10">
+                            <TableRow>
+                              <TableHead>Ingrediente</TableHead>
+                              <TableHead>Medida</TableHead>
+                              <TableHead>Ação</TableHead>
                             </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
+                          </TableHeader>
+
+                          <TableBody>
+                            {ingredientesFiltrados.map((ingrediente) => (
+                              <TableRow key={ingrediente.id}>
+                                <TableCell>{ingrediente.nome}</TableCell>
+                                <TableCell>{ingrediente.medida}</TableCell>
+                                <TableCell>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() =>
+                                      setNovoIngrediente({
+                                        ingredienteId: ingrediente.id,
+                                        ingredienteNome: ingrediente.nome,
+                                        medida: ingrediente.medida,
+                                        quantidade: 0,
+                                        custo: 0,
+                                      })
+                                    }
+                                  >
+                                    Selecionar
+                                  </Button>
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </ScrollArea>
 
                       {novoIngrediente.ingredienteId && (
                         <div className="mt-4 space-y-4 border-t pt-4">
