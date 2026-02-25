@@ -43,6 +43,8 @@ import {
 import { PlanoClienteVinculo, usePlanosCliente } from "@/hooks/usePlanosCliente";
 import { ClienteFormDialog } from "@/components/clientes/ClienteFormDialog";
 import { useClientes } from "@/hooks/useClientes";
+import { History } from "lucide-react";
+import { ClienteHistoricoDialog } from "@/components/clientes/ClienteHistoricoDialog";
 
 type PedidoTipo = "ENTREGA" | "RETIRADA";
 
@@ -349,6 +351,7 @@ export function NovoAgendamentoDialog({
     "DINHEIRO",
   );
   const [clientesLocal, setClientesLocal] = useState<Cliente[]>(clientes || []);
+  const [historicoOpen, setHistoricoOpen] = useState(false);
 
   useEffect(() => {
     const incoming = clientes || [];
@@ -649,7 +652,7 @@ export function NovoAgendamentoDialog({
 
     const faixa = `${horario.inicio}-${horario.fim}`;
     const waPhone = normalizePhoneToWaMe(clienteSelecionado.telefone);
-    const SUN = "\u2600\uFE0F"; 
+    const SUN = "\u2600\uFE0F";
     const CHECK = "\u2705";
     const msg = `Olá, ${clienteSelecionado.nome}!
 
@@ -897,17 +900,31 @@ export function NovoAgendamentoDialog({
                           </Select>
                         </div>
 
-                        <Button
-                          type="button"
-                          variant="secondary"
-                          onClick={() => setClienteDialogOpen(true)}
-                          disabled={isSaving || savingClienteHook || mode === "edit"}
-                          title="Cadastrar cliente"
-                          className="shrink-0"
-                        >
-                          <UserPlus className="mr-2 h-4 w-4" />
-                          Cadastrar
-                        </Button>
+                        {!clienteSelecionado ? (
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            onClick={() => setClienteDialogOpen(true)}
+                            disabled={isSaving || savingClienteHook || mode === "edit"}
+                            title="Cadastrar cliente"
+                            className="shrink-0"
+                          >
+                            <UserPlus className="mr-2 h-4 w-4" />
+                            Cadastrar
+                          </Button>
+                        ) : (
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            onClick={() => setHistoricoOpen(true)}
+                            disabled={isSaving}
+                            title="Ver histórico do cliente"
+                            className="shrink-0"
+                          >
+                            <History className="mr-2 h-4 w-4" />
+                            Histórico
+                          </Button>
+                        )}
                       </div>
 
                       {mode === "edit" && (
@@ -1528,6 +1545,21 @@ export function NovoAgendamentoDialog({
             await onClienteCreated?.();
             setClienteDialogOpen(false);
           }}
+        />
+        <ClienteHistoricoDialog
+          open={historicoOpen}
+          onOpenChange={setHistoricoOpen}
+          cliente={
+            clienteSelecionado
+              ? {
+                id: clienteSelecionado.id as any,
+                nome: clienteSelecionado.nome as any,
+                telefone: clienteSelecionado.telefone as any,
+                planos: (clienteSelecionado as any).planos || [],
+              }
+              : null
+          }
+          defaultTab="historico"
         />
       </DialogContent>
     </Dialog>
