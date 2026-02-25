@@ -5,8 +5,15 @@ import { apiFetch } from "./api";
 type OpcaoDoCardapio = {
   id: string;
   nome: string;
-  categoria: string;
-  tamanhos: { tamanhoId: string; tamanhoLabel: string; preco: number }[];
+  categoria: string | null;
+  tamanhos: {
+    tamanhoId: string;
+    tamanhoLabel: string;
+    valorUnitario: number;
+    valor10: number;
+    valor20: number;
+    valor40: number;
+  }[];
 };
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3333";

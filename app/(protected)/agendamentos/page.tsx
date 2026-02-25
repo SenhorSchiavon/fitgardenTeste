@@ -600,8 +600,6 @@ export default function Agendamentos() {
         open={cadastroOpen}
         onOpenChange={(open) => {
           setCadastroOpen(open);
-
-          // quando fechar, limpa modo edição
           if (!open) {
             setModoEdicao(false);
             setAgendamentoEditandoId(null);
@@ -631,7 +629,10 @@ export default function Agendamentos() {
           tamanhos: o.tamanhos.map((t) => ({
             tamanhoId: String(t.tamanhoId),
             tamanhoLabel: t.tamanhoLabel,
-            preco: t.preco,
+            valorUnitario: Number(t.valorUnitario ?? 0),
+            valor10: Number(t.valor10 ?? 0),
+            valor20: Number(t.valor20 ?? 0),
+            valor40: Number(t.valor40 ?? 0),
           })),
         }))}
         defaultDate={selectedDate} // melhor usar a data selecionada no calendário

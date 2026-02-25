@@ -89,9 +89,15 @@ type Opcao = {
   id: string;
   nome: string;
   categoria: string;
-  tamanhos: { tamanhoId: string; tamanhoLabel: string; preco: number }[];
-};
-
+  tamanhos: {
+    tamanhoId: string;
+    tamanhoLabel: string;
+    valorUnitario: number;
+    valor10: number;
+    valor20: number;
+    valor40: number;
+  }[];
+}
 type ItemPedido = {
   id: string;
   opcaoId: string;
@@ -170,21 +176,21 @@ function buildWhatsappMessage(params: {
     params.itens.length === 0
       ? "- (sem itens)"
       : Array.from(grupos.entries())
-          .map(([dest, items]) => {
-            const linhas = items
-              .map(
-                (it) =>
-                  `- ${it.quantidade}x ${it.opcaoNome} (${it.tamanhoLabel}) — R$ ${(
-                    it.precoUnit * it.quantidade
-                  ).toFixed(2)}`,
-              )
-              .join("\n");
-            // Se só tem 1 grupo e o destinatário é o próprio cliente, não precisa “Para:”
-            const showHeader =
-              grupos.size > 1 || (dest.trim() && dest.trim() !== params.clienteNome.trim());
-            return showHeader ? `Para: ${dest}\n${linhas}` : linhas;
-          })
-          .join("\n\n");
+        .map(([dest, items]) => {
+          const linhas = items
+            .map(
+              (it) =>
+                `- ${it.quantidade}x ${it.opcaoNome} (${it.tamanhoLabel}) — R$ ${(
+                  it.precoUnit * it.quantidade
+                ).toFixed(2)}`,
+            )
+            .join("\n");
+          // Se só tem 1 grupo e o destinatário é o próprio cliente, não precisa “Para:”
+          const showHeader =
+            grupos.size > 1 || (dest.trim() && dest.trim() !== params.clienteNome.trim());
+          return showHeader ? `Para: ${dest}\n${linhas}` : linhas;
+        })
+        .join("\n\n");
 
   const obs = (params.observacoes || "").trim();
   const blocoObs = obs ? `\n\nObservações:\n${obs}` : "";
@@ -279,7 +285,32 @@ function isVoucherForma(fp: FormaPagamento) {
     fp === "VOUCHER_TAXA_PIX"
   );
 }
+function getPrecoUnitPorQuantidade(tamanho: any, quantidade: number) {
+  const qtd = Math.max(1, Number(quantidade || 1));
 
+  const list = Array.isArray(tamanho?.precosPorQtd) ? tamanho.precosPorQtd : null;
+  if (list && list.length) {
+    const ordenado = [...list].sort((a, b) => Number(a.min) - Number(b.min));
+    let escolhido = ordenado[0]?.preco ?? tamanho?.preco ?? 0;
+
+    for (const regra of ordenado) {
+      if (qtd >= Number(regra.min)) escolhido = Number(regra.preco);
+    }
+    return Number(escolhido) || 0;
+  }
+
+  const base = Number(tamanho?.preco ?? 0);
+
+  const p10 = tamanho?.precoAcima10 != null ? Number(tamanho.precoAcima10) : null;
+  const p20 = tamanho?.precoAcima20 != null ? Number(tamanho.precoAcima20) : null;
+  const p40 = tamanho?.precoAcima40 != null ? Number(tamanho.precoAcima40) : null;
+
+  if (qtd >= 40 && p40 != null) return p40;
+  if (qtd >= 20 && p20 != null) return p20;
+  if (qtd >= 10 && p10 != null) return p10;
+
+  return base;
+}
 export function NovoAgendamentoDialog({
   open,
   onOpenChange,
@@ -373,7 +404,8 @@ export function NovoAgendamentoDialog({
   const total = useMemo(() => {
     return itens.reduce((acc, it) => acc + it.precoUnit * it.quantidade, 0);
   }, [itens]);
-
+  useEffect(() => {
+  }, [novoItem.opcaoId, opcoes, tamanhosDisponiveis]);
   function resetForm() {
     setTipo("ENTREGA");
     setData(defaultDate);
@@ -413,7 +445,12 @@ export function NovoAgendamentoDialog({
   }, [enderecosDoCliente, enderecoClienteId]);
 
   const [enderecoSelecionadoId, setEnderecoSelecionadoId] = useState<string>("");
-
+  function precoPorQtd(t: { valorUnitario: number; valor10: number; valor20: number; valor40: number }, qtd: number) {
+    if (qtd >= 40) return t.valor40;
+    if (qtd >= 20) return t.valor20;
+    if (qtd >= 10) return t.valor10;
+    return t.valorUnitario;
+  }
   function pickEnderecoById(endId: string) {
     setEnderecoSelecionadoId(endId);
 
@@ -457,7 +494,9 @@ export function NovoAgendamentoDialog({
     if (!tamanho) return;
 
     const newId = `ITEM_${Date.now()}_${Math.random().toString(16).slice(2)}`;
-
+    const qtdFinal = Math.max(1, novoItem.quantidade || 1);
+    const qtd = Math.max(1, novoItem.quantidade || 1);
+    const unit = precoPorQtd(tamanho, qtd);
     const destinatarioFinal = (novoItem.destinatarioNome || "").trim();
 
     setItens((prev) => [
@@ -468,8 +507,8 @@ export function NovoAgendamentoDialog({
         opcaoNome: opcao.nome,
         tamanhoId: tamanho.tamanhoId,
         tamanhoLabel: tamanho.tamanhoLabel,
-        quantidade: Math.max(1, novoItem.quantidade || 1),
-        precoUnit: tamanho.preco,
+        quantidade: qtdFinal,
+        precoUnit: unit,
         destinatarioNome: destinatarioFinal ? destinatarioFinal : (clienteSelecionado?.nome || ""),
       },
     ]);
@@ -489,9 +528,20 @@ export function NovoAgendamentoDialog({
 
   function changeItemQty(id: string, delta: number) {
     setItens((prev) =>
-      prev.map((x) =>
-        x.id === id ? { ...x, quantidade: Math.max(1, x.quantidade + delta) } : x,
-      ),
+      prev.map((x) => {
+        if (x.id !== id) return x;
+
+        const novaQtd = Math.max(1, x.quantidade + delta);
+
+        const opcao = opcoes.find((o) => String(o.id) === String(x.opcaoId));
+        const tamanho = opcao?.tamanhos?.find((t) => String(t.tamanhoId) === String(x.tamanhoId));
+
+        const novoPrecoUnit = tamanho
+          ? precoPorQtd(tamanho, novaQtd)
+          : x.precoUnit;
+
+        return { ...x, quantidade: novaQtd, precoUnit: novoPrecoUnit };
+      }),
     );
   }
 
@@ -560,10 +610,9 @@ export function NovoAgendamentoDialog({
       const precoUnit =
         it.precoUnit != null
           ? Number(it.precoUnit)
-          : tamanho?.preco != null
-          ? Number(tamanho.preco)
-          : 0;
-
+          : tamanho
+            ? precoPorQtd(tamanho, Number(it.quantidade || 1))
+            : 0;
       const opcaoNome = (it.opcaoNome as any) || opcao?.nome || "-";
       const tamanhoLabel = (it.tamanhoLabel as any) || tamanho?.tamanhoLabel || "-";
 
@@ -918,8 +967,8 @@ export function NovoAgendamentoDialog({
                                       !clienteSelecionado
                                         ? "Selecione um cliente"
                                         : enderecosDoCliente.length === 0
-                                        ? "Cliente sem endereços cadastrados"
-                                        : "Selecione um endereço"
+                                          ? "Cliente sem endereços cadastrados"
+                                          : "Selecione um endereço"
                                     }
                                   />
                                 </SelectTrigger>
@@ -1016,8 +1065,7 @@ export function NovoAgendamentoDialog({
                         <SelectContent>
                           {tamanhosDisponiveis.map((t) => (
                             <SelectItem key={t.tamanhoId} value={t.tamanhoId}>
-                              {t.tamanhoLabel} — R$ {t.preco.toFixed(2)}
-                            </SelectItem>
+                              {t.tamanhoLabel} — R$ {Number(precoPorQtd(t, novoItem.quantidade || 1) ?? 0).toFixed(2)}                            </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
@@ -1340,8 +1388,8 @@ export function NovoAgendamentoDialog({
                   ? "Salvando..."
                   : "Confirmando..."
                 : mode === "edit"
-                ? "Salvar Alterações"
-                : "Confirmar Agendamento"}
+                  ? "Salvar Alterações"
+                  : "Confirmar Agendamento"}
             </Button>
           ) : (
             <Button onClick={enviarWhatsAppConfirmacao} disabled={!clienteSelecionado}>
@@ -1360,9 +1408,9 @@ export function NovoAgendamentoDialog({
 
             const createdId = String(
               (created as any)?.id ??
-                (created as any)?.cliente?.id ??
-                (created as any)?.data?.id ??
-                "",
+              (created as any)?.cliente?.id ??
+              (created as any)?.data?.id ??
+              "",
             );
 
             if (createdId) {
