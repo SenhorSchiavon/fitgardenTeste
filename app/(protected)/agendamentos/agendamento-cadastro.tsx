@@ -194,8 +194,9 @@ function buildWhatsappMessage(params: {
 
   const obs = (params.observacoes || "").trim();
   const blocoObs = obs ? `\n\nObservações:\n${obs}` : "";
-
-  return `Olá, ${params.clienteNome}! ☀️
+  const SUN = "\u2600\uFE0F"; // ☀️
+  const CHECK = "\u2705";
+  return `Olá, ${params.clienteNome}! ${SUN}
 
 Seu agendamento foi confirmado:
 • Tipo: ${params.tipo}
@@ -389,7 +390,7 @@ export function NovoAgendamentoDialog({
   const [isSaving, setIsSaving] = useState(false);
   const [confirmado, setConfirmado] = useState(false);
   const [faixaHorario, setFaixaHorario] = useState<string>("14:00-14:30");
-
+  const [whatsPreviewEnviada, setWhatsPreviewEnviada] = useState(false);
   useEffect(() => {
     setHorario(faixaToIntervalo(faixaHorario));
   }, [faixaHorario]);
@@ -414,6 +415,7 @@ export function NovoAgendamentoDialog({
     setObservacoes("");
     setFormaPagamento("DINHEIRO");
     setVoucherCodigo("");
+    setWhatsPreviewEnviada(false);
     setTaxaPagaEm("DINHEIRO");
     setItens([]);
     setNovoItem({
@@ -588,7 +590,7 @@ export function NovoAgendamentoDialog({
     setTipo(initialData.tipo);
     const d = initialData.data instanceof Date ? initialData.data : new Date(initialData.data);
     setData(d);
-
+    setWhatsPreviewEnviada(false);
     const faixa = (initialData.faixaHorario || "14:00-14:30").trim();
     setFaixaHorario(faixa);
     setHorario(splitFaixaHorario(initialData.faixaHorario || "14:00-14:30"));
@@ -640,7 +642,66 @@ export function NovoAgendamentoDialog({
 
     setConfirmado(false);
   }, [open, mode, initialData, opcoes]);
+  function enviarWhatsAppPrevia() {
+    if (!clienteSelecionado) return;
+    if (!endereco.trim() && tipo === "ENTREGA") return;
+    if (itens.length === 0) return;
 
+    const faixa = `${horario.inicio}-${horario.fim}`;
+    const waPhone = normalizePhoneToWaMe(clienteSelecionado.telefone);
+    const SUN = "\u2600\uFE0F"; 
+    const CHECK = "\u2705";
+    const msg = `Olá, ${clienteSelecionado.nome}!
+
+    Estou te enviando uma PRÉVIA do seu agendamento (ainda não está confirmado no sistema):
+
+    • Tipo: ${tipo}
+    • Data: ${formatDatePtBr(data)}
+    • Faixa: ${faixa}h
+    • Endereço: ${tipo === "ENTREGA" ? (endereco || "-") : "(retirada)"}
+
+  Itens:
+  ${(() => {
+        const grupos = new Map<string, ItemPedido[]>();
+        for (const it of itens) {
+          const key = (it.destinatarioNome || clienteSelecionado.nome || "").trim() || "Sem nome";
+          const arr = grupos.get(key) || [];
+          arr.push(it);
+          grupos.set(key, arr);
+        }
+
+        if (itens.length === 0) return "- (sem itens)";
+
+        return Array.from(grupos.entries())
+          .map(([dest, items]) => {
+            const linhas = items
+              .map(
+                (it) =>
+                  `- ${it.quantidade}x ${it.opcaoNome} (${it.tamanhoLabel}) — R$ ${(
+                    it.precoUnit * it.quantidade
+                  ).toFixed(2)}`,
+              )
+              .join("\n");
+
+            const showHeader =
+              grupos.size > 1 || (dest.trim() && dest.trim() !== clienteSelecionado.nome.trim());
+
+            return showHeader ? `Para: ${dest}\n${linhas}` : linhas;
+          })
+          .join("\n\n");
+      })()}
+
+    Total: R$ ${total.toFixed(2)}
+    ${(observacoes || "").trim() ? `\nObservações:\n${observacoes.trim()}` : ""}
+
+    Se estiver tudo certo, responde: "CONFIRMO"
+    Se quiser ajustar algo, me fala por aqui.`;
+
+    const url = `https://wa.me/${waPhone}?text=${encodeURIComponent(msg)}`;
+    window.open(url, "_blank", "noopener,noreferrer");
+
+    setWhatsPreviewEnviada(true);
+  }
   async function confirmarAgendamento() {
     if (!clienteSelecionado) return;
     if (!endereco.trim() && tipo === "ENTREGA") return;
@@ -1372,25 +1433,50 @@ export function NovoAgendamentoDialog({
           </Button>
 
           {!confirmado ? (
-            <Button
-              onClick={confirmarAgendamento}
-              disabled={
-                isSaving ||
-                !clienteId ||
-                itens.length === 0 ||
-                (tipo === "ENTREGA" && !endereco.trim()) ||
-                (formaPagamento === "VOUCHER" && !voucherCodigo.trim()) ||
-                (mode === "edit" && !initialData?.agendamentoId)
-              }
-            >
-              {isSaving
-                ? mode === "edit"
-                  ? "Salvando..."
-                  : "Confirmando..."
-                : mode === "edit"
-                  ? "Salvar Alterações"
-                  : "Confirmar Agendamento"}
-            </Button>
+            <div className="flex flex-col sm:flex-row gap-2 w-full sm:justify-end">
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={enviarWhatsAppPrevia}
+                disabled={
+                  isSaving ||
+                  !clienteId ||
+                  itens.length === 0 ||
+                  (tipo === "ENTREGA" && !endereco.trim()) ||
+                  (formaPagamento === "VOUCHER" && !voucherCodigo.trim())
+                }
+                title="Envia a prévia no WhatsApp antes de salvar"
+              >
+                <Send className="mr-2 h-4 w-4" />
+                Enviar WhatsApp (prévia)
+              </Button>
+
+              <Button
+                onClick={confirmarAgendamento}
+                disabled={
+                  isSaving ||
+                  !clienteId ||
+                  itens.length === 0 ||
+                  (tipo === "ENTREGA" && !endereco.trim()) ||
+                  (formaPagamento === "VOUCHER" && !voucherCodigo.trim()) ||
+                  (mode === "edit" && !initialData?.agendamentoId) ||
+                  (!whatsPreviewEnviada && mode !== "edit") // <- trava só no CREATE
+                }
+                title={
+                  !whatsPreviewEnviada && mode !== "edit"
+                    ? "Envie a prévia no WhatsApp antes de confirmar no sistema"
+                    : undefined
+                }
+              >
+                {isSaving
+                  ? mode === "edit"
+                    ? "Salvando..."
+                    : "Confirmando..."
+                  : mode === "edit"
+                    ? "Salvar Alterações"
+                    : "Confirmar Agendamento"}
+              </Button>
+            </div>
           ) : (
             <Button onClick={enviarWhatsAppConfirmacao} disabled={!clienteSelecionado}>
               <Send className="mr-2 h-4 w-4" /> Enviar WhatsApp
