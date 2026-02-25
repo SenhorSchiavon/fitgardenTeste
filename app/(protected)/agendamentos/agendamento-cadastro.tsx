@@ -45,7 +45,7 @@ import { ClienteFormDialog } from "@/components/clientes/ClienteFormDialog";
 import { useClientes } from "@/hooks/useClientes";
 import { History } from "lucide-react";
 import { ClienteHistoricoDialog } from "@/components/clientes/ClienteHistoricoDialog";
-
+import { useAgendamentos } from "@/hooks/useAgendamentos";
 type PedidoTipo = "ENTREGA" | "RETIRADA";
 
 type FormaPagamento =
@@ -352,7 +352,10 @@ export function NovoAgendamentoDialog({
   );
   const [clientesLocal, setClientesLocal] = useState<Cliente[]>(clientes || []);
   const [historicoOpen, setHistoricoOpen] = useState(false);
-
+  const [taxaEntrega, setTaxaEntrega] = useState<number>(0);
+  const [distanciaKm, setDistanciaKm] = useState<number | null>(null);
+  const [loadingTaxa, setLoadingTaxa] = useState(false);
+  const [erroTaxa, setErroTaxa] = useState<string | null>(null);
   useEffect(() => {
     const incoming = clientes || [];
     setClientesLocal((prev) => {
@@ -408,6 +411,10 @@ export function NovoAgendamentoDialog({
   const total = useMemo(() => {
     return itens.reduce((acc, it) => acc + it.precoUnit * it.quantidade, 0);
   }, [itens]);
+  const totalFinal = useMemo(() => {
+    const taxa = tipo === "ENTREGA" ? taxaEntrega : 0;
+    return total + taxa;
+  }, [total, tipo, taxaEntrega]);
   useEffect(() => {
   }, [novoItem.opcaoId, opcoes, tamanhosDisponiveis]);
   function resetForm() {
@@ -430,6 +437,49 @@ export function NovoAgendamentoDialog({
     setIsSaving(false);
     setConfirmado(false);
   }
+  const { estimarTaxaEntrega } = useAgendamentos();
+
+  useEffect(() => {
+    let alive = true;
+
+    async function run() {
+      setErroTaxa(null);
+      setDistanciaKm(null);
+
+      if (tipo !== "ENTREGA") {
+        setTaxaEntrega(0);
+        return;
+      }
+
+      if (!clienteId) {
+        setTaxaEntrega(0);
+        return;
+      }
+
+      setLoadingTaxa(true);
+      try {
+        const r = await estimarTaxaEntrega(Number(clienteId));
+        if (!alive) return;
+
+        setTaxaEntrega(Number(r.valorTaxa || 0));
+        setDistanciaKm(
+          typeof r.distanciaKm === "number" ? Number(r.distanciaKm) : null
+        );
+      } catch (e: any) {
+        if (!alive) return;
+        setTaxaEntrega(0);
+        setErroTaxa(e?.message || "Falha ao calcular taxa");
+      } finally {
+        if (!alive) return;
+        setLoadingTaxa(false);
+      }
+    }
+
+    run();
+    return () => {
+      alive = false;
+    };
+  }, [clienteId, tipo, estimarTaxaEntrega]);
 
   const enderecosDoCliente = useMemo(() => {
     const list = clienteSelecionado?.enderecos || [];
@@ -663,38 +713,12 @@ export function NovoAgendamentoDialog({
     • Faixa: ${faixa}h
     • Endereço: ${tipo === "ENTREGA" ? (endereco || "-") : "(retirada)"}
 
-  Itens:
-  ${(() => {
-        const grupos = new Map<string, ItemPedido[]>();
-        for (const it of itens) {
-          const key = (it.destinatarioNome || clienteSelecionado.nome || "").trim() || "Sem nome";
-          const arr = grupos.get(key) || [];
-          arr.push(it);
-          grupos.set(key, arr);
-        }
+  
+    Itens:
+    ${itensPorPessoaTxt}
 
-        if (itens.length === 0) return "- (sem itens)";
-
-        return Array.from(grupos.entries())
-          .map(([dest, items]) => {
-            const linhas = items
-              .map(
-                (it) =>
-                  `- ${it.quantidade}x ${it.opcaoNome} (${it.tamanhoLabel}) — R$ ${(
-                    it.precoUnit * it.quantidade
-                  ).toFixed(2)}`,
-              )
-              .join("\n");
-
-            const showHeader =
-              grupos.size > 1 || (dest.trim() && dest.trim() !== clienteSelecionado.nome.trim());
-
-            return showHeader ? `Para: ${dest}\n${linhas}` : linhas;
-          })
-          .join("\n\n");
-      })()}
-
-    Total: R$ ${total.toFixed(2)}
+    ${tipo === "ENTREGA" ? `Taxa total: R$ ${resumo.taxaTotal.toFixed(2)} (R$ ${resumo.taxaPorPessoa.toFixed(2)} por pessoa)\n` : ""}Subtotal (itens): R$ ${resumo.subtotalGeral.toFixed(2)}
+    Total: R$ ${resumo.totalGeral.toFixed(2)}
     ${(observacoes || "").trim() ? `\nObservações:\n${observacoes.trim()}` : ""}
 
     Se estiver tudo certo, responde: "CONFIRMO"
@@ -705,6 +729,87 @@ export function NovoAgendamentoDialog({
 
     setWhatsPreviewEnviada(true);
   }
+
+  function calcularResumoPorDestinatario(params: {
+    itens: ItemPedido[];
+    clienteNome: string;
+    taxaEntrega: number;
+    tipo: PedidoTipo;
+  }) {
+    const grupos = new Map<string, ItemPedido[]>();
+
+    for (const it of params.itens) {
+      const key =
+        (it.destinatarioNome || params.clienteNome || "").trim() || "Sem nome";
+      const arr = grupos.get(key) || [];
+      arr.push(it);
+      grupos.set(key, arr);
+    }
+
+    const entries = Array.from(grupos.entries());
+
+    const qtdDestinatarios = entries.length || 1;
+    const taxaTotal = params.tipo === "ENTREGA" ? Number(params.taxaEntrega || 0) : 0;
+    const taxaPorPessoa = qtdDestinatarios > 0 ? taxaTotal / qtdDestinatarios : 0;
+
+    const linhas = entries.map(([dest, items]) => {
+      const subtotal = items.reduce((acc, it) => acc + it.precoUnit * it.quantidade, 0);
+      const taxa = taxaTotal ? taxaPorPessoa : 0;
+      const total = subtotal + taxa;
+
+      return {
+        dest,
+        items,
+        subtotal,
+        taxa,
+        total,
+      };
+    });
+
+    const subtotalGeral = params.itens.reduce(
+      (acc, it) => acc + it.precoUnit * it.quantidade,
+      0,
+    );
+
+    return {
+      linhas,
+      qtdDestinatarios,
+      taxaTotal,
+      taxaPorPessoa,
+      subtotalGeral,
+      totalGeral: subtotalGeral + taxaTotal,
+    };
+  }
+  const resumo = calcularResumoPorDestinatario({
+    itens,
+    clienteNome: clienteSelecionado?.nome ?? "Cliente sem nome",
+    taxaEntrega,
+    tipo,
+  });
+
+  const itensPorPessoaTxt =
+    resumo.linhas.length === 0
+      ? "- (sem itens)"
+      : resumo.linhas
+        .map((g) => {
+          const linhas = g.items
+            .map(
+              (it) =>
+                `- ${it.quantidade}x ${it.opcaoNome} (${it.tamanhoLabel}) — R$ ${(
+                  it.precoUnit * it.quantidade
+                ).toFixed(2)}`,
+            )
+            .join("\n");
+
+          const cabecalho = `Para: ${g.dest}`;
+          const resumoValores =
+            tipo === "ENTREGA"
+              ? `Subtotal: R$ ${g.subtotal.toFixed(2)} | Taxa: R$ ${g.taxa.toFixed(2)} | Total: R$ ${g.total.toFixed(2)}`
+              : `Subtotal: R$ ${g.subtotal.toFixed(2)} | Total: R$ ${g.total.toFixed(2)}`;
+
+          return `${cabecalho}\n${linhas}\n${resumoValores}`;
+        })
+        .join("\n\n");
   async function confirmarAgendamento() {
     if (!clienteSelecionado) return;
     if (!endereco.trim() && tipo === "ENTREGA") return;
@@ -1350,13 +1455,39 @@ export function NovoAgendamentoDialog({
                   </div>
 
                   <div className="border-t pt-3 mt-2 space-y-2">
-                    <div className="flex justify-between text-sm">
-                      <span>Itens:</span>
-                      <span>{itens.reduce((acc, it) => acc + it.quantidade, 0)}</span>
-                    </div>
-                    <div className="flex justify-between font-bold text-lg">
-                      <span>Total:</span>
-                      <span>R$ {total.toFixed(2)}</span>
+
+                    <div className="border-t pt-3 mt-2 space-y-2">
+                      <div className="flex justify-between text-sm">
+                        <span>Itens:</span>
+                        <span>{itens.reduce((acc, it) => acc + it.quantidade, 0)}</span>
+                      </div>
+
+                      {tipo === "ENTREGA" && (
+                        <div className="space-y-1">
+                          <div className="flex justify-between text-sm">
+                            <span>Taxa de entrega:</span>
+                            <span>
+                              {loadingTaxa ? "Calculando..." : `R$ ${taxaEntrega.toFixed(2)}`}
+                            </span>
+                          </div>
+
+                          {distanciaKm != null && !loadingTaxa && (
+                            <div className="text-xs text-muted-foreground flex justify-between">
+                              <span>Distância estimada:</span>
+                              <span>{distanciaKm.toFixed(2)} km</span>
+                            </div>
+                          )}
+
+                          {!!erroTaxa && (
+                            <div className="text-xs text-red-600">{erroTaxa}</div>
+                          )}
+                        </div>
+                      )}
+
+                      <div className="flex justify-between font-bold text-lg">
+                        <span>Total:</span>
+                        <span>R$ {totalFinal.toFixed(2)}</span>
+                      </div>
                     </div>
                   </div>
                 </div>

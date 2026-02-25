@@ -67,13 +67,13 @@ type Agendamento = {
   formaPagamento: string;
   entregador: string;
   observacoes?: string;
-  itens: {
-    nome: string;
-    tamanho: string;
-    quantidade: number;
-  }[];
-};
 
+  valorPedido?: number;
+  valorTaxa?: number;
+  valorTotal?: number;
+
+  itens: { nome: string; tamanho: string; quantidade: number }[];
+};
 export default function Agendamentos() {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [cadastroOpen, setCadastroOpen] = useState(false);
@@ -157,6 +157,9 @@ export default function Agendamentos() {
       formaPagamento:
         row.pedido?.pagamentos?.[0]?.forma ?? row.formaPagamento ?? "-",
       entregador: row.entregador ?? "-",
+      valorPedido: Number(row.pedido?.valorPedido ?? row.valorPedido ?? 0),
+      valorTaxa: Number(row.pedido?.valorTaxa ?? row.valorTaxa ?? 0),
+      valorTotal: Number(row.pedido?.valorTotal ?? row.valorTotal ?? 0),
       observacoes: row.pedido?.observacoes ?? row.observacoes ?? undefined,
       itens: itensUi,
     };
@@ -451,6 +454,28 @@ export default function Agendamentos() {
                   <div className="flex items-center">
                     <User className="h-4 w-4 mr-2 text-muted-foreground" />
                     {agendamentoSelecionado?.entregador}
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <div className="text-sm font-medium">Subtotal (itens)</div>
+                    <div>R$ {(agendamentoSelecionado?.valorPedido ?? 0).toFixed(2)}</div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <div className="text-sm font-medium">Taxa de entrega</div>
+                    <div>
+                      {agendamentoSelecionado?.tipoEntrega === "ENTREGA"
+                        ? `R$ ${(agendamentoSelecionado?.valorTaxa ?? 0).toFixed(2)}`
+                        : "-"}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <div className="text-sm font-medium">Total</div>
+                  <div className="text-lg font-semibold">
+                    R$ {(agendamentoSelecionado?.valorTotal ?? 0).toFixed(2)}
                   </div>
                 </div>
               </div>

@@ -47,7 +47,11 @@ export type PedidosPendentesQuery = {
   page?: number;
   pageSize?: number;
 };
-
+export type EstimarTaxaResponse = {
+  success: boolean;
+  distanciaKm: number;
+  valorTaxa: number;
+};
 export type FinalizarPagamentoInput = {
   formaPagamento: Exclude<FormaPagamento, "PLANO">;
 };
@@ -390,7 +394,27 @@ export function useAgendamentos(options?: { baseUrl?: string }) {
     },
     [baseUrl, showError],
   );
-
+  const estimarTaxaEntrega = useCallback(
+    async (clienteId: number) => {
+      setLoading(true);
+      setError("");
+      try {
+        const qs = buildQueryString({ clienteId: Number(clienteId) });
+        return await fetchJson<EstimarTaxaResponse>(
+          `${baseUrl}/estimar-taxa${qs}`,
+          { method: "GET" },
+        );
+      } catch (e: any) {
+        const msg = e?.message || "Erro ao estimar taxa de entrega";
+        setError(msg);
+        showError(msg);
+        throw e;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [baseUrl, showError],
+  );
   const updateAgendamento = useCallback(
     async (id: number, payload: UpdateAgendamentoInput) => {
       setLoading(true);
@@ -526,6 +550,7 @@ export function useAgendamentos(options?: { baseUrl?: string }) {
     createAgendamento,
     updateAgendamento,
     deleteAgendamento,
+    estimarTaxaEntrega,
     integrarEntregasDoDia,
     utils,
   };
