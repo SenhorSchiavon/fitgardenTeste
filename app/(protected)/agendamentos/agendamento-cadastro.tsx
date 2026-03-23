@@ -11,7 +11,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -22,94 +22,107 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Separator } from "@/components/ui/separator";
 import {
   Plus,
-  Minus,
   Trash,
-  Send,
   CalendarIcon,
+  User,
   MapPin,
-  UserPlus,
+  Send,
+  Minus,
 } from "lucide-react";
-import { PlanoClienteVinculo, usePlanosCliente } from "@/hooks/usePlanosCliente";
-import { ClienteFormDialog } from "@/components/clientes/ClienteFormDialog";
-import { useClientes } from "@/hooks/useClientes";
-import { History } from "lucide-react";
-import { ClienteHistoricoDialog } from "@/components/clientes/ClienteHistoricoDialog";
-import { useAgendamentos } from "@/hooks/useAgendamentos";
-import { geocodeHere } from "@/components/helpers/geocode";
-type PedidoTipo = "ENTREGA" | "RETIRADA";
 
+type PedidoTipo = "ENTREGA" | "RETIRADA";
 type FormaPagamento =
   | "DINHEIRO"
-  | "CREDITO"
-  | "DEBITO"
   | "PIX"
-  | "LINK"
+  | "CARTAO"
   | "VOUCHER"
+  | "PLANO"
   | "VOUCHER_TAXA_DINHEIRO"
   | "VOUCHER_TAXA_CARTAO"
-  | "VOUCHER_TAXA_PIX"
-  | "PLANO";
+  | "VOUCHER_TAXA_PIX";
 
-type EnderecoCliente = {
-  id?: number;
-  principal: boolean;
-  endereco?: string | null;
-  cep?: string | null;
-  uf?: string | null;
-  cidade?: string | null;
-  bairro?: string | null;
-  logradouro?: string | null;
-  numero?: string | null;
-  complemento?: string | null;
-};
-
-type ClienteSelect = {
+type ClienteOption = {
   id: string;
   nome: string;
-  telefone: string;
-  endereco?: string;
-  enderecos?: EnderecoCliente[];
-};
-type Cliente = {
-  id: string;
-  nome: string;
-  telefone: string;
-  enderecos: EnderecoCliente[];
+  telefone?: string | null;
+  enderecoPrincipal?: string | null;
 };
 
-type Opcao = {
+type TamanhoOption = {
+  id: string;
+  label: string;
+  valorUnitario: number;
+  valor10?: number;
+  valor20?: number;
+  valor40?: number;
+};
+
+type OpcaoCardapio = {
   id: string;
   nome: string;
-  categoria: string;
-  tamanhos: {
-    tamanhoId: string;
-    tamanhoLabel: string;
-    valorUnitario: number;
-    valor10: number;
-    valor20: number;
-    valor40: number;
-  }[];
-}
-type ItemPedido = {
+  tipo?: "PRATO" | "CARBOIDRATO" | "PROTEINA" | "LEGUME" | "FEIJAO";
+};
+
+type NovoPedidoItem = {
   id: string;
-  opcaoId: string;
-  opcaoNome: string;
+  tipoItem: "PADRAO" | "PERSONALIZADA";
+  destinatarioNome: string;
   tamanhoId: string;
   tamanhoLabel: string;
   quantidade: number;
+
+  opcaoId?: string;
+  opcaoNome?: string;
+
+  carboId?: string;
+  carboNome?: string;
+
+  proteinaId?: string;
+  proteinaNome?: string;
+
+  legumeId?: string;
+  legumeNome?: string;
+
+  feijaoId?: string;
+  feijaoNome?: string;
+
+  zerarLegume: boolean;
+  adicionarFeijao: boolean;
+  observacaoItem: string;
+
   precoUnit: number;
-  destinatarioNome?: string;
+
+  trocaCarboId?: string;
+  trocaCarboNome?: string;
+
+  trocaProteinaId?: string;
+  trocaProteinaNome?: string;
+
+  trocaLegumeId?: string;
+  trocaLegumeNome?: string;
+
+  carboGramas?: number;
+  proteinaGramas?: number;
+  legumeGramas?: number;
+  feijaoGramas?: number;
+};
+
+type Props = {
+  open: boolean;
+  onOpenChange: (value: boolean) => void;
+  clientes: ClienteOption[];
+  tamanhos: TamanhoOption[];
+  opcoesPadrao: OpcaoCardapio[];
+  carboidratos: OpcaoCardapio[];
+  proteinas: OpcaoCardapio[];
+  legumes: OpcaoCardapio[];
+  feijoes?: OpcaoCardapio[];
+  onSubmit?: (payload: any) => Promise<void> | void;
 };
 
 type HorarioIntervalo = {
@@ -117,795 +130,123 @@ type HorarioIntervalo = {
   fim: string;
 };
 
-function formatEndereco(e?: any) {
-  if (!e) return "";
-  if (e.endereco?.trim()) return String(e.endereco).trim();
-
-  const parts = [
-    e.logradouro,
-    e.numero ? `nº ${e.numero}` : null,
-    e.bairro,
-    e.cidade ? `${e.cidade}${e.uf ? `/${e.uf}` : ""}` : null,
-    e.cep ? `CEP ${e.cep}` : null,
-    e.complemento,
-  ]
-    .filter(Boolean)
-    .map((x) => String(x).trim())
-    .filter(Boolean);
-
-  return parts.join(" • ");
+function toMin(hhmm: string) {
+  const [h, m] = hhmm.split(":").map(Number);
+  return h * 60 + m;
 }
 
-function formatDatePtBr(date: Date) {
-  return date.toLocaleDateString("pt-BR", {
-    weekday: "long",
-    day: "2-digit",
-    month: "long",
-    year: "numeric",
-  });
+function fromMin(total: number) {
+  const h = Math.floor(total / 60);
+  const m = total % 60;
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
 }
 
-function onlyDigits(value: string) {
-  return (value || "").replace(/\D/g, "");
-}
-
-function normalizePhoneToWaMe(phone: string) {
-  const digits = onlyDigits(phone);
-  if (digits.startsWith("55") && digits.length >= 12) return digits;
-  if (digits.length === 10 || digits.length === 11) return `55${digits}`;
-  return digits;
-}
-
-function buildWhatsappMessage(params: {
-  clienteNome: string;
-  data: Date;
-  faixaHorario: string;
-  tipo: PedidoTipo;
-  endereco: string;
-  itens: ItemPedido[];
-  total: number;
-  observacoes?: string;
-}) {
-  // Agrupa itens por destinatário
-  const grupos = new Map<string, ItemPedido[]>();
-  for (const it of params.itens) {
-    const key = (it.destinatarioNome || params.clienteNome || "").trim() || "Sem nome";
-    const arr = grupos.get(key) || [];
-    arr.push(it);
-    grupos.set(key, arr);
+function gerarHorarios30({ start, end }: { start: string; end: string }) {
+  const ini = toMin(start);
+  const fim = toMin(end);
+  const arr: string[] = [];
+  for (let t = ini; t <= fim; t += 30) {
+    arr.push(fromMin(t));
   }
-
-  const linhasItens =
-    params.itens.length === 0
-      ? "- (sem itens)"
-      : Array.from(grupos.entries())
-        .map(([dest, items]) => {
-          const linhas = items
-            .map(
-              (it) =>
-                `- ${it.quantidade}x ${it.opcaoNome} (${it.tamanhoLabel}) — R$ ${(
-                  it.precoUnit * it.quantidade
-                ).toFixed(2)}`,
-            )
-            .join("\n");
-          // Se só tem 1 grupo e o destinatário é o próprio cliente, não precisa “Para:”
-          const showHeader =
-            grupos.size > 1 || (dest.trim() && dest.trim() !== params.clienteNome.trim());
-          return showHeader ? `Para: ${dest}\n${linhas}` : linhas;
-        })
-        .join("\n\n");
-
-  const obs = (params.observacoes || "").trim();
-  const blocoObs = obs ? `\n\nObservações:\n${obs}` : "";
-  const SUN = "\u2600\uFE0F"; // ☀️
-  const CHECK = "\u2705";
-  return `Olá, ${params.clienteNome}! ${SUN}
-
-Seu agendamento foi confirmado:
-• Tipo: ${params.tipo}
-• Data: ${formatDatePtBr(params.data)}
-• Faixa: ${params.faixaHorario}h
-• Endereço: ${params.endereco || "-"}
-
-Itens:
-${linhasItens}
-
-Total: R$ ${params.total.toFixed(2)}${blocoObs}`;
+  return arr;
 }
 
-type AgendamentoEditData = {
-  agendamentoId: number;
-  clienteId: string;
-  tipo: PedidoTipo;
-  data: Date | string;
-  faixaHorario: string;
-  endereco: string;
-  observacoes?: string | null;
-  formaPagamento?: FormaPagamento | string | null;
-  voucherCodigo?: string | null;
-  itens: Array<{
-    opcaoId: string | number;
-    opcaoNome?: string | null;
-    tamanhoId: string | number;
-    tamanhoLabel?: string | null;
-    quantidade: number;
-    precoUnit?: number | null;
-    destinatarioNome?: string | null;
-  }>;
-};
-
-type OnCreateAgendamento = (payload: {
-  clienteId: string;
-  tipo: PedidoTipo;
-  data: Date;
-  faixaHorario: string;
-  endereco: string;
-  observacoes?: string;
-  formaPagamento: FormaPagamento;
-  voucherCodigo?: string;
-  itens: {
-    opcaoId: string;
-    tamanhoId: string;
-    quantidade: number;
-    destinatarioNome?: string;
-  }[];
-}) => Promise<{ pedidoId: number; agendamentoId: number }>;
-
-type OnUpdateAgendamento = (
-  agendamentoId: number,
-  payload: {
-    clienteId?: string;
-    tipo: PedidoTipo;
-    data: Date;
-    faixaHorario: string;
-    endereco: string;
-    observacoes?: string | null;
-    formaPagamento: FormaPagamento;
-    voucherCodigo?: string;
-    itens: {
-      opcaoId: string;
-      tamanhoId: string;
-      quantidade: number;
-      destinatarioNome?: string;
-    }[];
-  },
-) => Promise<any>;
-
-function mapFormaPagamentoComTaxa(
-  fp: FormaPagamento,
-  taxa: "DINHEIRO" | "CARTAO" | "PIX",
-) {
-  if (fp !== "VOUCHER") return fp;
-  if (taxa === "DINHEIRO") return "VOUCHER_TAXA_DINHEIRO";
-  if (taxa === "PIX") return "VOUCHER_TAXA_PIX";
-  return "VOUCHER_TAXA_CARTAO";
-}
-
-function isVoucherForma(fp: FormaPagamento) {
-  return (
-    fp === "VOUCHER" ||
-    fp === "VOUCHER_TAXA_DINHEIRO" ||
-    fp === "VOUCHER_TAXA_CARTAO" ||
-    fp === "VOUCHER_TAXA_PIX"
-  );
-}
-function getPrecoUnitPorQuantidade(tamanho: any, quantidade: number) {
+function getPrecoUnitPorQuantidade(tamanho: TamanhoOption, quantidade: number) {
   const qtd = Math.max(1, Number(quantidade || 1));
 
-  const list = Array.isArray(tamanho?.precosPorQtd) ? tamanho.precosPorQtd : null;
-  if (list && list.length) {
-    const ordenado = [...list].sort((a, b) => Number(a.min) - Number(b.min));
-    let escolhido = ordenado[0]?.preco ?? tamanho?.preco ?? 0;
+  if (qtd >= 40 && tamanho.valor40 != null) return tamanho.valor40;
+  if (qtd >= 20 && tamanho.valor20 != null) return tamanho.valor20;
+  if (qtd >= 10 && tamanho.valor10 != null) return tamanho.valor10;
 
-    for (const regra of ordenado) {
-      if (qtd >= Number(regra.min)) escolhido = Number(regra.preco);
-    }
-    return Number(escolhido) || 0;
-  }
-
-  const base = Number(tamanho?.preco ?? 0);
-
-  const p10 = tamanho?.precoAcima10 != null ? Number(tamanho.precoAcima10) : null;
-  const p20 = tamanho?.precoAcima20 != null ? Number(tamanho.precoAcima20) : null;
-  const p40 = tamanho?.precoAcima40 != null ? Number(tamanho.precoAcima40) : null;
-
-  if (qtd >= 40 && p40 != null) return p40;
-  if (qtd >= 20 && p20 != null) return p20;
-  if (qtd >= 10 && p10 != null) return p10;
-
-  return base;
+  return tamanho.valorUnitario;
 }
-export function NovoAgendamentoDialog({
+
+function currency(value: number) {
+  return Number(value || 0).toFixed(2);
+}
+
+function uid() {
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+}
+
+export function NovoAgendamentoNovoLayout({
   open,
   onOpenChange,
   clientes,
-  opcoes,
-  defaultDate,
-  onCreateAgendamento,
-  mode = "create",
-  initialData,
-  onUpdateAgendamento,
-  onClienteCreated,
-}: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  clientes: Cliente[];
-  opcoes: Opcao[];
-  defaultDate: Date;
-  onCreateAgendamento?: OnCreateAgendamento;
-
-  mode?: "create" | "edit";
-  initialData?: AgendamentoEditData | null;
-  onUpdateAgendamento?: OnUpdateAgendamento;
-  onClienteCreated?: () => Promise<void> | void;
-}) {
-  const { createCliente, saving: savingClienteHook } = useClientes();
-
+  tamanhos,
+  opcoesPadrao,
+  carboidratos,
+  proteinas,
+  legumes,
+  feijoes = [],
+  onSubmit,
+}: Props) {
+  const [clienteId, setClienteId] = useState("");
   const [tipo, setTipo] = useState<PedidoTipo>("ENTREGA");
-  const [data, setData] = useState<Date>(defaultDate);
+  const [data, setData] = useState<Date | undefined>(new Date());
   const [horario, setHorario] = useState<HorarioIntervalo>({
-    inicio: "14:00",
-    fim: "14:30",
+    inicio: "11:00",
+    fim: "11:30",
   });
-  const [voucherCodigo, setVoucherCodigo] = useState("");
-  const [taxaPagaEm, setTaxaPagaEm] = useState<"DINHEIRO" | "CARTAO" | "PIX">(
-    "DINHEIRO",
-  );
-  const [clientesLocal, setClientesLocal] = useState<Cliente[]>(clientes || []);
-  const [historicoOpen, setHistoricoOpen] = useState(false);
-  const [taxaEntrega, setTaxaEntrega] = useState<number>(0);
-  const [distanciaKm, setDistanciaKm] = useState<number | null>(null);
-  const [loadingTaxa, setLoadingTaxa] = useState(false);
-  const [erroTaxa, setErroTaxa] = useState<string | null>(null);
-  useEffect(() => {
-    const incoming = clientes || [];
-    setClientesLocal((prev) => {
-      const map = new Map<string, Cliente>();
-      for (const c of prev) map.set(String(c.id), c);
-      for (const c of incoming) map.set(String(c.id), c);
-      return Array.from(map.values());
-    });
-  }, [clientes]);
+  const [endereco, setEndereco] = useState("");
+  const [observacoesPedido, setObservacoesPedido] = useState("");
+  const [formaPagamento, setFormaPagamento] = useState<FormaPagamento>("PIX");
 
-  const [clienteId, setClienteId] = useState<string>("");
+  const [modalNovoPedidoOpen, setModalNovoPedidoOpen] = useState(false);
+  const [itens, setItens] = useState<NovoPedidoItem[]>([]);
+
+  const [formItem, setFormItem] = useState<NovoPedidoItem>({
+    id: "",
+    tipoItem: "PADRAO",
+    destinatarioNome: "",
+    tamanhoId: "",
+    tamanhoLabel: "",
+    quantidade: 1,
+
+    opcaoId: "",
+    opcaoNome: "",
+
+    carboId: "",
+    carboNome: "",
+
+    proteinaId: "",
+    proteinaNome: "",
+
+    legumeId: "",
+    legumeNome: "",
+
+    feijaoId: "",
+    feijaoNome: "",
+
+    zerarLegume: false,
+    adicionarFeijao: false,
+    observacaoItem: "",
+    trocaCarboId: "",
+    trocaCarboNome: "",
+
+    trocaProteinaId: "",
+    trocaProteinaNome: "",
+
+    trocaLegumeId: "",
+    trocaLegumeNome: "",
+
+    precoUnit: 0,
+  });
+
   const clienteSelecionado = useMemo(
-    () => clientesLocal.find((c) => String(c.id) === String(clienteId)) || null,
-    [clientesLocal, clienteId],
+    () => clientes.find((c) => c.id === clienteId) || null,
+    [clientes, clienteId]
   );
 
-  const [enderecoClienteId, setEnderecoClienteId] = useState<string>("");
-  const [endereco, setEndereco] = useState<string>("");
-  const [observacoes, setObservacoes] = useState<string>("");
-  const { listPlanosDoCliente } = usePlanosCliente();
-
-  const [planosCliente, setPlanosCliente] = useState<PlanoClienteVinculo[]>([]);
-  const [loadingPlanosCliente, setLoadingPlanosCliente] = useState(false);
-  const [erroPlanosCliente, setErroPlanosCliente] = useState<string | null>(null);
-  const [formaPagamento, setFormaPagamento] =
-    useState<FormaPagamento>("DINHEIRO");
-
-  const [itens, setItens] = useState<ItemPedido[]>([]);
-
-  // ✅ agora o novoItem tem destinatarioNome
-  const [novoItem, setNovoItem] = useState<{
-    opcaoId: string;
-    tamanhoId: string;
-    quantidade: number;
-    destinatarioNome: string;
-  }>({ opcaoId: "", tamanhoId: "", quantidade: 1, destinatarioNome: "" });
-
-  const [isSaving, setIsSaving] = useState(false);
-  const [confirmado, setConfirmado] = useState(false);
-  const [faixaHorario, setFaixaHorario] = useState<string>("14:00-14:30");
-  const [whatsPreviewEnviada, setWhatsPreviewEnviada] = useState(false);
-  useEffect(() => {
-    setHorario(faixaToIntervalo(faixaHorario));
-  }, [faixaHorario]);
-
-  const [clienteDialogOpen, setClienteDialogOpen] = useState(false);
-
-  const tamanhosDisponiveis = useMemo(() => {
-    const opcao = opcoes.find((o) => o.id === novoItem.opcaoId);
-    return opcao?.tamanhos || [];
-  }, [opcoes, novoItem.opcaoId]);
-  const [coordsDestino, setCoordsDestino] = useState<{ latitude: number; longitude: number } | null>(null);
-  const [enderecoUltimoGeocoded, setEnderecoUltimoGeocoded] = useState<string>("");
-  const total = useMemo(() => {
-    return itens.reduce((acc, it) => acc + it.precoUnit * it.quantidade, 0);
-  }, [itens]);
-  const totalFinal = useMemo(() => {
-    const taxa = tipo === "ENTREGA" ? taxaEntrega : 0;
-    return total + taxa;
-  }, [total, tipo, taxaEntrega]);
-  useEffect(() => {
-  }, [novoItem.opcaoId, opcoes, tamanhosDisponiveis]);
-  function resetForm() {
-    setTipo("ENTREGA");
-    setData(defaultDate);
-    setHorario({ inicio: "14:00", fim: "14:30" });
-    setEndereco("");
-    setObservacoes("");
-    setFormaPagamento("DINHEIRO");
-    setVoucherCodigo("");
-    setWhatsPreviewEnviada(false);
-    setTaxaPagaEm("DINHEIRO");
-    setItens([]);
-    setNovoItem({
-      opcaoId: "",
-      tamanhoId: "",
-      quantidade: 1,
-      destinatarioNome: clienteSelecionado?.nome || "",
-    });
-    setIsSaving(false);
-    setConfirmado(false);
-  }
-  const { estimarTaxaEntrega } = useAgendamentos();
-  
-  
-  const enderecosDoCliente = useMemo(() => {
-    const list = clienteSelecionado?.enderecos || [];
-    return Array.isArray(list) ? list : [];
-  }, [clienteSelecionado]);
-
-  const enderecoSelecionadoObj = useMemo(() => {
-    if (!enderecosDoCliente.length) return null;
-
-    if (enderecoClienteId) {
-      return (
-        enderecosDoCliente.find((e) => String(e.id) === String(enderecoClienteId)) ||
-        null
-      );
-    }
-
-    return enderecosDoCliente.find((e) => e.principal) || enderecosDoCliente[0] || null;
-  }, [enderecosDoCliente, enderecoClienteId]);
-
-  const [enderecoSelecionadoId, setEnderecoSelecionadoId] = useState<string>("");
-  function precoPorQtd(t: { valorUnitario: number; valor10: number; valor20: number; valor40: number }, qtd: number) {
-    if (qtd >= 40) return t.valor40;
-    if (qtd >= 20) return t.valor20;
-    if (qtd >= 10) return t.valor10;
-    return t.valorUnitario;
-  }
-  function pickEnderecoById(endId: string) {
-    setEnderecoSelecionadoId(endId);
-
-    const lista = clienteSelecionado?.enderecos || [];
-    const escolhido = lista.find((e) => String(e.id) === String(endId)) || null;
-    if (!escolhido) return;
-
-    const texto = escolhido.endereco?.trim()
-      ? String(escolhido.endereco).trim()
-      : formatEndereco(escolhido);
-
-    setEndereco(texto);
-  }
-
-  function onPickCliente(id: string) {
-    setClienteId(String(id));
-
-    const c = clientesLocal.find((x) => String(x.id) === String(id));
-    if (!c) return;
-
-    const enderecos = Array.isArray(c.enderecos) ? c.enderecos : [];
-    const principal = enderecos.find((e) => e.principal) || enderecos[0] || null;
-
-    // ✅ default do destinatário = nome do cliente
-    setNovoItem((prev) => ({ ...prev, destinatarioNome: c.nome }));
-
-    setEnderecoClienteId(principal?.id != null ? String(principal.id) : "");
-    setEndereco(principal ? formatEndereco(principal) : "");
-  }
-
-  useEffect(() => {
-    if (!enderecoSelecionadoObj) return;
-    setEndereco(formatEndereco(enderecoSelecionadoObj));
-  }, [enderecoSelecionadoObj]);
-
-  function addItem() {
-    const opcao = opcoes.find((o) => o.id === novoItem.opcaoId);
-    if (!opcao) return;
-
-    const tamanho = opcao.tamanhos.find((t) => t.tamanhoId === novoItem.tamanhoId);
-    if (!tamanho) return;
-
-    const newId = `ITEM_${Date.now()}_${Math.random().toString(16).slice(2)}`;
-    const qtdFinal = Math.max(1, novoItem.quantidade || 1);
-    const qtd = Math.max(1, novoItem.quantidade || 1);
-    const unit = precoPorQtd(tamanho, qtd);
-    const destinatarioFinal = (novoItem.destinatarioNome || "").trim();
-
-    setItens((prev) => [
-      ...prev,
-      {
-        id: newId,
-        opcaoId: opcao.id,
-        opcaoNome: opcao.nome,
-        tamanhoId: tamanho.tamanhoId,
-        tamanhoLabel: tamanho.tamanhoLabel,
-        quantidade: qtdFinal,
-        precoUnit: unit,
-        destinatarioNome: destinatarioFinal ? destinatarioFinal : (clienteSelecionado?.nome || ""),
-      },
-    ]);
-
-    // mantém o destinatário preenchido (pra facilitar adicionar vários pro mesmo nome)
-    setNovoItem((prev) => ({
-      ...prev,
-      opcaoId: "",
-      tamanhoId: "",
-      quantidade: 1,
-    }));
-  }
-
-  function removeItem(id: string) {
-    setItens((prev) => prev.filter((x) => x.id !== id));
-  }
-
-  function changeItemQty(id: string, delta: number) {
-    setItens((prev) =>
-      prev.map((x) => {
-        if (x.id !== id) return x;
-
-        const novaQtd = Math.max(1, x.quantidade + delta);
-
-        const opcao = opcoes.find((o) => String(o.id) === String(x.opcaoId));
-        const tamanho = opcao?.tamanhos?.find((t) => String(t.tamanhoId) === String(x.tamanhoId));
-
-        const novoPrecoUnit = tamanho
-          ? precoPorQtd(tamanho, novaQtd)
-          : x.precoUnit;
-
-        return { ...x, quantidade: novaQtd, precoUnit: novoPrecoUnit };
-      }),
-    );
-  }
-
-  useEffect(() => {
-    let alive = true;
-
-    async function run() {
-      if (!clienteId) {
-        setPlanosCliente([]);
-        setErroPlanosCliente(null);
-        return;
-      }
-
-      setLoadingPlanosCliente(true);
-      setErroPlanosCliente(null);
-
-      try {
-        const data = await listPlanosDoCliente(Number(clienteId));
-        if (!alive) return;
-        setPlanosCliente(Array.isArray(data) ? data : []);
-      } catch (e: any) {
-        if (!alive) return;
-        setPlanosCliente([]);
-        setErroPlanosCliente(e?.message || "Falha ao carregar planos");
-      } finally {
-        if (!alive) return;
-        setLoadingPlanosCliente(false);
-      }
-    }
-
-    run();
-    return () => {
-      alive = false;
-    };
-  }, [clienteId, listPlanosDoCliente]);
-
-  useEffect(() => {
-    if (!open) return;
-    if (mode !== "edit") return;
-    if (!initialData) return;
-
-    setClienteId(String(initialData.clienteId));
-
-    setTipo(initialData.tipo);
-    const d = initialData.data instanceof Date ? initialData.data : new Date(initialData.data);
-    setData(d);
-    setWhatsPreviewEnviada(false);
-    const faixa = (initialData.faixaHorario || "14:00-14:30").trim();
-    setFaixaHorario(faixa);
-    setHorario(splitFaixaHorario(initialData.faixaHorario || "14:00-14:30"));
-    setEndereco(initialData.endereco || "");
-    setObservacoes((initialData.observacoes || "") as any);
-
-    const fp = (initialData.formaPagamento || "DINHEIRO") as any as FormaPagamento;
-    setFormaPagamento(fp);
-
-    setVoucherCodigo((initialData.voucherCodigo || "") as any);
-
-    const itensPrefill: ItemPedido[] = (initialData.itens || []).map((it) => {
-      const opcaoId = String(it.opcaoId);
-      const tamanhoId = String(it.tamanhoId);
-
-      const opcao = opcoes.find((o) => String(o.id) === opcaoId) || null;
-      const tamanho = opcao?.tamanhos.find((t) => String(t.tamanhoId) === tamanhoId) || null;
-
-      const precoUnit =
-        it.precoUnit != null
-          ? Number(it.precoUnit)
-          : tamanho
-            ? precoPorQtd(tamanho, Number(it.quantidade || 1))
-            : 0;
-      const opcaoNome = (it.opcaoNome as any) || opcao?.nome || "-";
-      const tamanhoLabel = (it.tamanhoLabel as any) || tamanho?.tamanhoLabel || "-";
-
-      return {
-        id: `ITEM_EDIT_${Date.now()}_${Math.random().toString(16).slice(2)}`,
-        opcaoId,
-        opcaoNome,
-        tamanhoId,
-        tamanhoLabel,
-        quantidade: Math.max(1, Number(it.quantidade || 1)),
-        precoUnit,
-        destinatarioNome: (it.destinatarioNome as any) || "",
-      };
-    });
-
-    setItens(itensPrefill);
-
-    // default destinatário do próximo item
-    setNovoItem((prev) => ({
-      ...prev,
-      destinatarioNome: itensPrefill[0]?.destinatarioNome?.trim()
-        ? String(itensPrefill[0].destinatarioNome)
-        : "",
-    }));
-
-    setConfirmado(false);
-  }, [open, mode, initialData, opcoes]);
-  function enviarWhatsAppPrevia() {
-    if (!clienteSelecionado) return;
-    if (!endereco.trim() && tipo === "ENTREGA") return;
-    if (itens.length === 0) return;
-
-    const faixa = `${horario.inicio}-${horario.fim}`;
-    const waPhone = normalizePhoneToWaMe(clienteSelecionado.telefone);
-    const SUN = "\u2600\uFE0F";
-    const CHECK = "\u2705";
-    const msg = `Olá, ${clienteSelecionado.nome}!
-
-    Estou te enviando uma PRÉVIA do seu agendamento (ainda não está confirmado no sistema):
-
-    • Tipo: ${tipo}
-    • Data: ${formatDatePtBr(data)}
-    • Faixa: ${faixa}h
-    • Endereço: ${tipo === "ENTREGA" ? (endereco || "-") : "(retirada)"}
-
-  
-    Itens:
-    ${itensPorPessoaTxt}
-
-    ${tipo === "ENTREGA" ? `Taxa total: R$ ${resumo.taxaTotal.toFixed(2)} (R$ ${resumo.taxaPorPessoa.toFixed(2)} por pessoa)\n` : ""}Subtotal (itens): R$ ${resumo.subtotalGeral.toFixed(2)}
-    Total: R$ ${resumo.totalGeral.toFixed(2)}
-    ${(observacoes || "").trim() ? `\nObservações:\n${observacoes.trim()}` : ""}
-
-    Se estiver tudo certo, responde: "CONFIRMO"
-    Se quiser ajustar algo, me fala por aqui.`;
-
-    const url = `https://wa.me/${waPhone}?text=${encodeURIComponent(msg)}`;
-    window.open(url, "_blank", "noopener,noreferrer");
-
-    setWhatsPreviewEnviada(true);
-  }
-
-  function calcularResumoPorDestinatario(params: {
-    itens: ItemPedido[];
-    clienteNome: string;
-    taxaEntrega: number;
-    tipo: PedidoTipo;
-  }) {
-    const grupos = new Map<string, ItemPedido[]>();
-
-    for (const it of params.itens) {
-      const key =
-        (it.destinatarioNome || params.clienteNome || "").trim() || "Sem nome";
-      const arr = grupos.get(key) || [];
-      arr.push(it);
-      grupos.set(key, arr);
-    }
-
-    const entries = Array.from(grupos.entries());
-
-    const qtdDestinatarios = entries.length || 1;
-    const taxaTotal = params.tipo === "ENTREGA" ? Number(params.taxaEntrega || 0) : 0;
-    const taxaPorPessoa = qtdDestinatarios > 0 ? taxaTotal / qtdDestinatarios : 0;
-
-    const linhas = entries.map(([dest, items]) => {
-      const subtotal = items.reduce((acc, it) => acc + it.precoUnit * it.quantidade, 0);
-      const taxa = taxaTotal ? taxaPorPessoa : 0;
-      const total = subtotal + taxa;
-
-      return {
-        dest,
-        items,
-        subtotal,
-        taxa,
-        total,
-      };
-    });
-
-    const subtotalGeral = params.itens.reduce(
-      (acc, it) => acc + it.precoUnit * it.quantidade,
-      0,
-    );
-
-    return {
-      linhas,
-      qtdDestinatarios,
-      taxaTotal,
-      taxaPorPessoa,
-      subtotalGeral,
-      totalGeral: subtotalGeral + taxaTotal,
-    };
-  }
-  const resumo = calcularResumoPorDestinatario({
-    itens,
-    clienteNome: clienteSelecionado?.nome ?? "Cliente sem nome",
-    taxaEntrega,
-    tipo,
-  });
-
-  const itensPorPessoaTxt =
-    resumo.linhas.length === 0
-      ? "- (sem itens)"
-      : resumo.linhas
-        .map((g) => {
-          const linhas = g.items
-            .map(
-              (it) =>
-                `- ${it.quantidade}x ${it.opcaoNome} (${it.tamanhoLabel}) — R$ ${(
-                  it.precoUnit * it.quantidade
-                ).toFixed(2)}`,
-            )
-            .join("\n");
-
-          const cabecalho = `Para: ${g.dest}`;
-          const resumoValores =
-            tipo === "ENTREGA"
-              ? `Subtotal: R$ ${g.subtotal.toFixed(2)} | Taxa: R$ ${g.taxa.toFixed(2)} | Total: R$ ${g.total.toFixed(2)}`
-              : `Subtotal: R$ ${g.subtotal.toFixed(2)} | Total: R$ ${g.total.toFixed(2)}`;
-
-          return `${cabecalho}\n${linhas}\n${resumoValores}`;
-        })
-        .join("\n\n");
-  async function confirmarAgendamento() {
-    if (!clienteSelecionado) return;
-    if (!endereco.trim() && tipo === "ENTREGA") return;
-    if (itens.length === 0) return;
-
-    setIsSaving(true);
-    const faixa = `${horario.inicio}-${horario.fim}`;
-
-    try {
-      const formaFinal = mapFormaPagamentoComTaxa(formaPagamento, taxaPagaEm);
-
-      if (mode === "edit") {
-        if (!initialData?.agendamentoId) return;
-        if (!onUpdateAgendamento) return;
-
-        if (
-          formaFinal === "VOUCHER_TAXA_PIX" ||
-          formaFinal === "VOUCHER_TAXA_CARTAO" ||
-          formaFinal === "PLANO" ||
-          isVoucherForma(formaFinal)
-        ) {
-          throw new Error(
-            "Por enquanto não dá pra mudar o pagamento para Voucher/Plano na edição. Crie um novo agendamento ou ajuste o backend.",
-          );
-        }
-
-        await onUpdateAgendamento(initialData.agendamentoId, {
-          tipo,
-          data,
-          faixaHorario: faixa,
-          endereco,
-          observacoes: (observacoes || "").trim() ? observacoes : null,
-          formaPagamento: formaFinal as any,
-          voucherCodigo: undefined,
-          itens: itens.map((it) => ({
-            opcaoId: String(it.opcaoId),
-            tamanhoId: String(it.tamanhoId),
-            quantidade: Number(it.quantidade),
-            destinatarioNome: (it.destinatarioNome || "").trim() || undefined,
-          })),
-        });
-
-        setConfirmado(true);
-        return;
-      }
-
-      if (onCreateAgendamento) {
-        await onCreateAgendamento({
-          clienteId,
-          tipo,
-          data,
-          faixaHorario: faixa,
-          endereco,
-          observacoes,
-          formaPagamento: formaFinal as any,
-          voucherCodigo: formaPagamento === "VOUCHER" ? voucherCodigo.trim() : undefined,
-          itens: itens.map((it) => ({
-            opcaoId: it.opcaoId,
-            tamanhoId: it.tamanhoId,
-            quantidade: it.quantidade,
-            destinatarioNome: (it.destinatarioNome || "").trim() || undefined,
-          })),
-        });
-      } else {
-        await new Promise((r) => setTimeout(r, 400));
-      }
-
-      setConfirmado(true);
-    } finally {
-      setIsSaving(false);
-    }
-  }
-
-  function enviarWhatsAppConfirmacao() {
-    if (!clienteSelecionado) return;
-
-    const faixa = `${horario.inicio}-${horario.fim}`;
-    const waPhone = normalizePhoneToWaMe(clienteSelecionado.telefone);
-
-    const msg = buildWhatsappMessage({
-      clienteNome: clienteSelecionado.nome,
-      data,
-      faixaHorario: faixa,
-      tipo,
-      endereco: tipo === "ENTREGA" ? endereco : "-",
-      itens,
-      total,
-      observacoes,
-    });
-
-    const url = `https://wa.me/${waPhone}?text=${encodeURIComponent(msg)}`;
-    window.open(url, "_blank", "noopener,noreferrer");
-  }
-
-  function pad2(n: number) {
-    return String(n).padStart(2, "0");
-  }
-
-  function toMin(hhmm: string) {
-    const [h, m] = (hhmm || "00:00").split(":").map((x) => Number(x));
-    return (h || 0) * 60 + (m || 0);
-  }
-
-  function fromMin(min: number) {
-    const h = Math.floor(min / 60);
-    const m = min % 60;
-    return `${pad2(h)}:${pad2(m)}`;
-  }
-
-  function gerarHorarios30(
-    { start = "06:00", end = "22:00" }: { start?: string; end?: string } = {},
-  ) {
-    const ini = toMin(start);
-    const fim = toMin(end);
-
-    const arr: string[] = [];
-    for (let t = ini; t <= fim; t += 30) arr.push(fromMin(t));
-    return arr;
-  }
-
-  function splitFaixaHorario(faixa: string): HorarioIntervalo {
-    const raw = (faixa || "").trim();
-    if (raw.includes("-") && raw.includes(":")) {
-      const [inicio, fim] = raw.split("-").map((s) => s.trim());
-      return { inicio: inicio || "14:00", fim: fim || "14:30" };
-    }
-    return { inicio: "14:00", fim: "14:30" };
-  }
-
-  const horarios = useMemo(() => gerarHorarios30({ start: "06:00", end: "22:00" }), []);
+  const horarios = useMemo(
+    () => gerarHorarios30({ start: "06:00", end: "22:00" }),
+    []
+  );
 
   const horariosFimDisponiveis = useMemo(() => {
     const ini = toMin(horario.inicio);
     return horarios.filter((h) => toMin(h) > ini);
-  }, [horarios, horario.inicio]);
+  }, [horario.inicio, horarios]);
 
   useEffect(() => {
     const ini = toMin(horario.inicio);
@@ -913,321 +254,438 @@ export function NovoAgendamentoDialog({
 
     if (fim > ini) return;
 
-    const prox = horarios.find((h) => toMin(h) > ini) || horario.fim;
+    const prox = horarios.find((h) => toMin(h) > ini) || "11:30";
     setHorario((prev) => ({ ...prev, fim: prox }));
-  }, [horario.inicio, horarios, horario.fim]);
+  }, [horario.inicio, horario.fim, horarios]);
 
-  function faixaToIntervalo(faixa: string): HorarioIntervalo {
-    const [inicio, fim] = (faixa || "").split("-").map((s) => s.trim());
-    return { inicio: inicio || "14:00", fim: fim || "14:30" };
+  useEffect(() => {
+    if (!clienteSelecionado) return;
+    if (tipo === "ENTREGA" && !endereco.trim()) {
+      setEndereco(clienteSelecionado.enderecoPrincipal || "");
+    }
+  }, [clienteSelecionado, tipo, endereco]);
+
+  const totalMarmitas = useMemo(
+    () => itens.reduce((acc, item) => acc + Number(item.quantidade || 0), 0),
+    [itens]
+  );
+
+  const itensComPrecoAtualizado = useMemo(() => {
+    return itens.map((item) => {
+      const tamanho = tamanhos.find((t) => t.id === item.tamanhoId);
+      if (!tamanho) return item;
+
+      const precoFaixa = getPrecoUnitPorQuantidade(tamanho, totalMarmitas || 1);
+
+      return {
+        ...item,
+        precoUnit:
+          item.tipoItem === "PERSONALIZADA"
+            ? item.precoUnit
+            : Number(precoFaixa || 0),
+      };
+    });
+  }, [itens, tamanhos, totalMarmitas]);
+
+  const subtotalPedido = useMemo(() => {
+    return itensComPrecoAtualizado.reduce((acc, item) => {
+      return acc + Number(item.precoUnit || 0) * Number(item.quantidade || 0);
+    }, 0);
+  }, [itensComPrecoAtualizado]);
+
+  function resetForm() {
+    setClienteId("");
+    setTipo("ENTREGA");
+    setData(new Date());
+    setHorario({ inicio: "11:00", fim: "11:30" });
+    setEndereco("");
+    setObservacoesPedido("");
+    setFormaPagamento("PIX");
+    setItens([]);
+    resetFormItem();
+  }
+
+  function resetFormItem() {
+    setFormItem({
+      id: "",
+      tipoItem: "PADRAO",
+      destinatarioNome: "",
+      tamanhoId: "",
+      tamanhoLabel: "",
+      quantidade: 1,
+      opcaoId: "",
+      opcaoNome: "",
+      carboId: "",
+      carboNome: "",
+      proteinaId: "",
+      proteinaNome: "",
+      legumeId: "",
+      legumeNome: "",
+      feijaoId: "",
+      feijaoNome: "",
+      zerarLegume: false,
+      adicionarFeijao: false,
+      observacaoItem: "",
+      precoUnit: 0,
+      trocaCarboId: "",
+      trocaCarboNome: "",
+
+      trocaProteinaId: "",
+      trocaProteinaNome: "",
+
+      trocaLegumeId: "",
+      trocaLegumeNome: "",
+    });
+  }
+
+  const totalGramasPersonalizada = useMemo(() => {
+    if (formItem.tipoItem !== "PERSONALIZADA") return 0;
+
+    return (
+      Number(formItem.carboGramas || 0) +
+      Number(formItem.proteinaGramas || 0) +
+      Number(formItem.legumeGramas || 0) +
+      Number(formItem.feijaoGramas || 0)
+    );
+  }, [
+    formItem.tipoItem,
+    formItem.carboGramas,
+    formItem.proteinaGramas,
+    formItem.legumeGramas,
+    formItem.feijaoGramas,
+  ]);
+
+  function abrirNovoPedido() {
+    resetFormItem();
+    setModalNovoPedidoOpen(true);
+  }
+
+  function getResumoEscolhas(item: NovoPedidoItem) {
+    if (item.tipoItem === "PERSONALIZADA") {
+      const partes = [
+        item.carboNome ? `Carbo: ${item.carboNome} (${item.carboGramas || 0}g)` : null,
+        item.proteinaNome ? `Proteína: ${item.proteinaNome} (${item.proteinaGramas || 0}g)` : null,
+        !item.zerarLegume && item.legumeNome
+          ? `Legume: ${item.legumeNome} (${item.legumeGramas || 0}g)`
+          : null,
+        item.adicionarFeijao && item.feijaoNome
+          ? `Feijão: ${item.feijaoNome} (${item.feijaoGramas || 0}g)`
+          : null,
+      ].filter(Boolean);
+
+      return partes.join(" • ");
+    }
+
+    const extras = [
+      item.opcaoNome || "Marmita padrão",
+      item.trocaCarboNome ? `Troca carbo: ${item.trocaCarboNome}` : null,
+      item.trocaProteinaNome ? `Troca proteína: ${item.trocaProteinaNome}` : null,
+      !item.zerarLegume && item.trocaLegumeNome
+        ? `Troca legume: ${item.trocaLegumeNome}`
+        : null,
+      item.zerarLegume ? "Sem legume" : null,
+      item.adicionarFeijao ? "Com feijão" : null,
+    ].filter(Boolean);
+
+    return extras.join(" • ");
+  }
+
+  function addPedidoNaLista() {
+    const tamanho = tamanhos.find((t) => t.id === formItem.tamanhoId);
+
+    if (formItem.tipoItem === "PADRAO") {
+      if (!tamanho) return;
+      if (!formItem.opcaoId) return;
+
+      const precoUnit = Number(
+        getPrecoUnitPorQuantidade(tamanho, totalMarmitas + formItem.quantidade)
+      );
+
+      const novo: NovoPedidoItem = {
+        ...formItem,
+        id: uid(),
+        tamanhoLabel: tamanho.label,
+        precoUnit,
+      };
+
+      setItens((prev) => [...prev, novo]);
+      setModalNovoPedidoOpen(false);
+      resetFormItem();
+      return;
+    }
+
+    if (!formItem.proteinaId) return;
+    if (totalGramasPersonalizada <= 0) return;
+
+    const novo: NovoPedidoItem = {
+      ...formItem,
+      id: uid(),
+      tamanhoId: "",
+      tamanhoLabel: `${totalGramasPersonalizada}g`,
+      precoUnit: Number(formItem.precoUnit || 0),
+    };
+
+    setItens((prev) => [...prev, novo]);
+    setModalNovoPedidoOpen(false);
+    resetFormItem();
+
+  }
+
+  function removeItem(id: string) {
+    setItens((prev) => prev.filter((item) => item.id !== id));
+  }
+
+  function changeItemQty(id: string, delta: number) {
+    setItens((prev) =>
+      prev.map((item) => {
+        if (item.id !== id) return item;
+        return {
+          ...item,
+          quantidade: Math.max(1, Number(item.quantidade || 1) + delta),
+        };
+      })
+    );
+  }
+
+  async function handleSubmit() {
+    if (!clienteId) return;
+    if (!data) return;
+    if (tipo === "ENTREGA" && !endereco.trim()) return;
+    if (itens.length === 0) return;
+
+    const payload = {
+      clienteId,
+      tipo,
+      data,
+      faixaHorario: `${horario.inicio}-${horario.fim}`,
+      endereco: tipo === "RETIRADA" ? "RETIRADA" : endereco,
+      observacoes: observacoesPedido,
+      formaPagamento,
+      itens: itensComPrecoAtualizado,
+    };
+
+    await onSubmit?.(payload);
+    onOpenChange(false);
+    resetForm();
   }
 
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(v) => {
-        onOpenChange(v);
-        if (!v) resetForm();
-      }}
-    >
-      <DialogContent className="max-w-5xl max-h-[85vh] overflow-hidden flex flex-col">
-        <DialogHeader>
-          <DialogTitle>{mode === "edit" ? "Editar Agendamento" : "Novo Agendamento"}</DialogTitle>
-        </DialogHeader>
+    <>
+      <Dialog
+        open={open}
+        onOpenChange={(v) => {
+          onOpenChange(v);
+          if (!v) resetForm();
+        }}
+      >
+        <DialogContent className="max-w-7xl max-h-[92vh] overflow-hidden flex flex-col">
+          <DialogHeader>
+            <DialogTitle>Novo Agendamento</DialogTitle>
+          </DialogHeader>
 
-        <div className="flex-1 overflow-y-auto pr-2">
-          <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,2fr)_minmax(340px,1fr)] gap-6">
-            <div className="space-y-4 min-w-0">
-              <Tabs defaultValue="cliente">
-                <TabsList className="grid w-full grid-cols-2">
-                  <TabsTrigger value="cliente">Cliente</TabsTrigger>
-                  <TabsTrigger value="itens">Itens</TabsTrigger>
-                </TabsList>
-
-                {/* TAB: CLIENTE */}
-                <TabsContent value="cliente" className="space-y-4 pt-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label>Cliente</Label>
-
-                      <div className="flex gap-2">
-                        <div className="flex-1 min-w-0">
-                          <Select value={clienteId} onValueChange={onPickCliente}>
-                            <SelectTrigger className="w-full">
-                              <SelectValue placeholder="Selecione um cliente" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {clientesLocal.map((c) => (
-                                <SelectItem key={String(c.id)} value={String(c.id)}>
-                                  {c.nome} — {c.telefone}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-
-                        {!clienteSelecionado ? (
-                          <Button
-                            type="button"
-                            variant="secondary"
-                            onClick={() => setClienteDialogOpen(true)}
-                            disabled={isSaving || savingClienteHook || mode === "edit"}
-                            title="Cadastrar cliente"
-                            className="shrink-0"
-                          >
-                            <UserPlus className="mr-2 h-4 w-4" />
-                            Cadastrar
-                          </Button>
-                        ) : (
-                          <Button
-                            type="button"
-                            variant="secondary"
-                            onClick={() => setHistoricoOpen(true)}
-                            disabled={isSaving}
-                            title="Ver histórico do cliente"
-                            className="shrink-0"
-                          >
-                            <History className="mr-2 h-4 w-4" />
-                            Histórico
-                          </Button>
-                        )}
-                      </div>
-
-                      {mode === "edit" && (
-                        <div className="text-xs text-muted-foreground">
-                          (No editar, cliente fica travado. Se quiser trocar cliente no editar,
-                          precisa ajustar o backend.)
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label>Tipo</Label>
-                      <Select value={tipo} onValueChange={(v) => setTipo(v as PedidoTipo)}>
-                        <SelectTrigger className="w-full">
-                          <SelectValue placeholder="Selecione" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="ENTREGA">Entrega</SelectItem>
-                          <SelectItem value="RETIRADA">Retirada</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-
+          <div className="flex-1 overflow-y-auto pr-1">
+            <div className="grid grid-cols-1 xl:grid-cols-[320px_minmax(0,1fr)_320px] gap-4">
+              {/* CLIENTE */}
+              <Card className="h-fit">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <User className="h-4 w-4" />
+                    Cliente
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
                   <div className="space-y-2">
-                    <Label>Observações</Label>
-                    <Textarea
-                      value={observacoes}
-                      onChange={(e) => setObservacoes(e.target.value)}
-                      placeholder="Ex: sem cebola, deixar na portaria, etc."
-                    />
+                    <Label>Cliente</Label>
+                    <Select value={clienteId} onValueChange={setClienteId}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione o cliente" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {clientes.map((cliente) => (
+                          <SelectItem key={cliente.id} value={cliente.id}>
+                            {cliente.nome}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
 
-                  {/* resto igual... */}
-                  <div className="border-t pt-4 space-y-4">
-                    <div className="grid grid-cols-1 lg:grid-cols-[260px_minmax(0,1fr)] gap-6 items-start">
-                      <div className="space-y-2 lg:shrink-0">
-                        <Label className="flex items-center gap-2">
-                          <CalendarIcon className="h-4 w-4" />
-                          Data
-                        </Label>
+                  <div className="rounded-lg border p-3 space-y-2 text-sm">
+                    <div>
+                      <span className="font-medium">Nome:</span>{" "}
+                      {clienteSelecionado?.nome || "-"}
+                    </div>
+                    <div>
+                      <span className="font-medium">Telefone:</span>{" "}
+                      {clienteSelecionado?.telefone || "-"}
+                    </div>
+                    <div>
+                      <span className="font-medium">Endereço padrão:</span>{" "}
+                      {clienteSelecionado?.enderecoPrincipal || "-"}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
 
-                        <div className="rounded-md border p-2 w-fit">
-                          <Calendar
-                            mode="single"
-                            selected={data}
-                            onSelect={(d) => d && setData(d)}
-                            locale={ptBR}
-                          />
-                        </div>
-                      </div>
+              {/* LISTA CENTRAL */}
+              <Card className="min-w-0">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 gap-4">
+                  <div>
+                    <CardTitle className="text-base">Pedidos da lista</CardTitle>
+                    <p className="text-sm text-muted-foreground">
+                      Cada linha representa um subpedido/marmita adicionada.
+                    </p>
+                  </div>
 
-                      <div className="space-y-4 min-w-0">
-                        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-                          <div className="space-y-2 min-w-0">
-                            <Label>Horário inicial</Label>
-                            <Select
-                              value={horario.inicio}
-                              onValueChange={(v) => setHorario((h) => ({ ...h, inicio: v }))}
-                            >
-                              <SelectTrigger className="w-full">
-                                <SelectValue placeholder="Selecione" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {horarios.map((h) => (
-                                  <SelectItem key={h} value={h}>
-                                    {h}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
+                  <Button onClick={abrirNovoPedido}>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Novo pedido
+                  </Button>
+                </CardHeader>
 
-                          <div className="space-y-2 min-w-0">
-                            <Label>Horário final</Label>
-                            <Select
-                              value={horario.fim}
-                              onValueChange={(v) => setHorario((h) => ({ ...h, fim: v }))}
-                              disabled={!horario.inicio}
-                            >
-                              <SelectTrigger className="w-full">
-                                <SelectValue placeholder="Selecione" />
-                              </SelectTrigger>
+                <CardContent className="space-y-4">
+                  {itensComPrecoAtualizado.length === 0 ? (
+                    <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
+                      Nenhum pedido adicionado ainda.
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {itensComPrecoAtualizado.map((item) => {
+                        const subtotal = Number(item.precoUnit || 0) * Number(item.quantidade || 0);
 
-                              <SelectContent>
-                                {horariosFimDisponiveis.map((h) => (
-                                  <SelectItem key={h} value={h}>
-                                    {h}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
+                        return (
+                          <div
+                            key={item.id}
+                            className="rounded-xl border p-4 space-y-3"
+                          >
+                            <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                              <div className="space-y-1 min-w-0">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className="font-medium">
+                                    {(item.destinatarioNome || "").trim() ||
+                                      clienteSelecionado?.nome ||
+                                      "Cliente"}
+                                  </span>
+                                  <Badge variant="secondary">
+                                    {item.tipoItem === "PERSONALIZADA"
+                                      ? "Personalizada"
+                                      : "Padrão"}
+                                  </Badge>
+                                  <Badge variant="outline">{item.tamanhoLabel}</Badge>
+                                </div>
 
-                            <div className="text-xs text-muted-foreground">
-                              Intervalos de 30 em 30 minutos (fim sempre depois do início).
-                            </div>
-                          </div>
-                        </div>
+                                <div className="text-sm text-muted-foreground break-words">
+                                  {getResumoEscolhas(item)}
+                                </div>
 
-                        {tipo === "ENTREGA" && (
-                          <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-                            <div className="space-y-2 min-w-0">
-                              <Label>Endereço do Cliente</Label>
+                                {item.observacaoItem?.trim() ? (
+                                  <div className="text-sm">
+                                    <span className="font-medium">Obs:</span>{" "}
+                                    {item.observacaoItem}
+                                  </div>
+                                ) : null}
+                              </div>
 
-                              <Select
-                                value={
-                                  enderecoClienteId ||
-                                  (enderecoSelecionadoObj?.id != null
-                                    ? String(enderecoSelecionadoObj.id)
-                                    : "")
-                                }
-                                onValueChange={(v) => setEnderecoClienteId(String(v))}
-                                disabled={!clienteSelecionado || enderecosDoCliente.length === 0}
-                              >
-                                <SelectTrigger className="w-full">
-                                  <SelectValue
-                                    placeholder={
-                                      !clienteSelecionado
-                                        ? "Selecione um cliente"
-                                        : enderecosDoCliente.length === 0
-                                          ? "Cliente sem endereços cadastrados"
-                                          : "Selecione um endereço"
-                                    }
-                                  />
-                                </SelectTrigger>
+                              <div className="flex flex-col items-start md:items-end gap-2">
+                                <div className="text-right">
+                                  <div className="text-sm text-muted-foreground">
+                                    Unit. R$ {currency(item.precoUnit)}
+                                  </div>
+                                  <div className="font-semibold">
+                                    Subtotal R$ {currency(subtotal)}
+                                  </div>
+                                </div>
 
-                                <SelectContent>
-                                  {enderecosDoCliente.map((e, idx) => {
-                                    const val = String(e.id ?? idx);
-                                    return (
-                                      <SelectItem key={val} value={val}>
-                                        {e.principal ? "Principal — " : "Alternativo — "}
-                                        {formatEndereco(e) || "(endereço vazio)"}
-                                      </SelectItem>
-                                    );
-                                  })}
-                                </SelectContent>
-                              </Select>
+                                <div className="flex items-center gap-2">
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="icon"
+                                    onClick={() => changeItemQty(item.id, -1)}
+                                  >
+                                    <Minus className="h-4 w-4" />
+                                  </Button>
 
-                              <div className="text-xs text-muted-foreground">
-                                Dá pra ajustar manualmente no campo ao lado antes de confirmar.
+                                  <div className="min-w-[32px] text-center font-medium">
+                                    {item.quantidade}
+                                  </div>
+
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="icon"
+                                    onClick={() => changeItemQty(item.id, 1)}
+                                  >
+                                    <Plus className="h-4 w-4" />
+                                  </Button>
+
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => removeItem(item.id)}
+                                  >
+                                    <Trash className="h-4 w-4" />
+                                  </Button>
+                                </div>
                               </div>
                             </div>
-
-                            <div className="space-y-2 min-w-0">
-                              <Label className="flex items-center gap-2">
-                                <MapPin className="h-4 w-4" />
-                                Endereço (Entrega)
-                              </Label>
-
-                              <Textarea
-                                value={endereco}
-                                onChange={(e) => setEndereco(e.target.value)}
-                                placeholder="Rua, número, bairro..."
-                                rows={3}
-                                className="w-full min-h-[96px] resize-y"
-                              />
-                            </div>
-                            <Button
-                              type="button"
-                              variant="secondary"
-                              disabled={loadingTaxa || tipo !== "ENTREGA" || !endereco.trim() || !clienteId}
-                              onClick={async () => {
-                                setErroTaxa(null);
-                                setLoadingTaxa(true);
-                                try {
-                                  // se já geocodou esse mesmo texto, não chama de novo
-                                  const texto = endereco.trim();
-                                  let coords = coordsDestino;
-
-                                  if (!coords || enderecoUltimoGeocoded !== texto) {
-                                    coords = await geocodeHere(texto);
-                                    if (!coords) throw new Error("Não consegui localizar esse endereço.");
-                                    setCoordsDestino(coords);
-                                    setEnderecoUltimoGeocoded(texto);
-                                  }
-
-                                  const r = await estimarTaxaEntrega({
-                                    clienteId: Number(clienteId),
-                                    latitude: coords.latitude,
-                                    longitude: coords.longitude,
-                                  });
-
-                                  setTaxaEntrega(Number(r.valorTaxa || 0));
-                                  setDistanciaKm(typeof r.distanciaKm === "number" ? Number(r.distanciaKm) : null);
-                                } catch (e: any) {
-                                  setTaxaEntrega(0);
-                                  setDistanciaKm(null);
-                                  setErroTaxa(e?.message || "Falha ao calcular taxa");
-                                } finally {
-                                  setLoadingTaxa(false);
-                                }
-                              }}
-                            >
-                              {loadingTaxa ? "Calculando..." : "Calcular taxa"}
-                            </Button>
                           </div>
-                        )}
-                      </div>
+                        );
+                      })}
                     </div>
-                  </div>
-                </TabsContent>
+                  )}
+                </CardContent>
+              </Card>
 
-                {/* TAB: ITENS */}
-                <TabsContent value="itens" className="space-y-4 pt-4">
-                  {/* ✅ campo destinatário */}
+              {/* DADOS DO AGENDAMENTO */}
+              <Card className="h-fit">
+                <CardHeader>
+                  <CardTitle className="text-base">Agendamento</CardTitle>
+                </CardHeader>
+
+                <CardContent className="space-y-4">
                   <div className="space-y-2">
-                    <Label>Para (destinatário)</Label>
-                    <Input
-                      value={novoItem.destinatarioNome}
-                      onChange={(e) =>
-                        setNovoItem((prev) => ({ ...prev, destinatarioNome: e.target.value }))
-                      }
-                      placeholder={clienteSelecionado?.nome ? `Ex: ${clienteSelecionado.nome}` : "Ex: João"}
-                    />
-                    <div className="text-xs text-muted-foreground">
-                      Quem vai receber esse item. Por padrão fica o nome do cliente, mas dá pra trocar
-                      (ex: “João”, “Maria”, “Pessoal do Financeiro”).
+                    <Label>Tipo</Label>
+                    <Select value={tipo} onValueChange={(v: PedidoTipo) => setTipo(v)}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="ENTREGA">Entrega</SelectItem>
+                        <SelectItem value="RETIRADA">Retirada</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Data</Label>
+                    <div className="rounded-md border p-2">
+                      <Calendar
+                        mode="single"
+                        selected={data}
+                        onSelect={setData}
+                        locale={ptBR}
+                      />
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-2">
-                      <Label>Opção</Label>
+                      <Label>Início</Label>
                       <Select
-                        value={novoItem.opcaoId}
+                        value={horario.inicio}
                         onValueChange={(v) =>
-                          setNovoItem((prev) => ({ ...prev, opcaoId: v, tamanhoId: "" }))
+                          setHorario((prev) => ({ ...prev, inicio: v }))
                         }
                       >
-                        <SelectTrigger className="w-full">
-                          <SelectValue placeholder="Selecione uma opção" />
+                        <SelectTrigger>
+                          <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          {opcoes.map((o) => (
-                            <SelectItem key={o.id} value={o.id}>
-                              {o.nome}
+                          {horarios.map((h) => (
+                            <SelectItem key={h} value={h}>
+                              {h}
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -1235,463 +693,674 @@ export function NovoAgendamentoDialog({
                     </div>
 
                     <div className="space-y-2">
-                      <Label>Tamanho</Label>
+                      <Label>Fim</Label>
                       <Select
-                        value={novoItem.tamanhoId}
-                        onValueChange={(v) => setNovoItem((prev) => ({ ...prev, tamanhoId: v }))}
-                        disabled={!novoItem.opcaoId}
+                        value={horario.fim}
+                        onValueChange={(v) =>
+                          setHorario((prev) => ({ ...prev, fim: v }))
+                        }
                       >
-                        <SelectTrigger className="w-full">
-                          <SelectValue placeholder="Selecione um tamanho" />
+                        <SelectTrigger>
+                          <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          {tamanhosDisponiveis.map((t) => (
-                            <SelectItem key={t.tamanhoId} value={t.tamanhoId}>
-                              {t.tamanhoLabel} — R$ {Number(precoPorQtd(t, novoItem.quantidade || 1) ?? 0).toFixed(2)}                            </SelectItem>
+                          {horariosFimDisponiveis.map((h) => (
+                            <SelectItem key={h} value={h}>
+                              {h}
+                            </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
                     </div>
                   </div>
 
-                  <div className="flex flex-col md:flex-row md:items-center gap-3">
-                    <div className="flex items-center gap-2">
-                      <Label className="whitespace-nowrap">Quantidade</Label>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="icon"
-                        onClick={() =>
-                          setNovoItem((prev) => ({
-                            ...prev,
-                            quantidade: Math.max(1, (prev.quantidade || 1) - 1),
-                          }))
-                        }
-                      >
-                        <Minus className="h-4 w-4" />
-                      </Button>
-
-                      <Input
-                        type="number"
-                        min={1}
-                        className="w-20 text-center"
-                        value={novoItem.quantidade || 1}
-                        onChange={(e) =>
-                          setNovoItem((prev) => ({
-                            ...prev,
-                            quantidade: Number.parseInt(e.target.value || "1", 10) || 1,
-                          }))
-                        }
+                  {tipo === "ENTREGA" ? (
+                    <div className="space-y-2">
+                      <Label>Endereço</Label>
+                      <Textarea
+                        value={endereco}
+                        onChange={(e) => setEndereco(e.target.value)}
+                        placeholder="Digite o endereço da entrega"
                       />
-
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="icon"
-                        onClick={() =>
-                          setNovoItem((prev) => ({ ...prev, quantidade: (prev.quantidade || 1) + 1 }))
-                        }
-                      >
-                        <Plus className="h-4 w-4" />
-                      </Button>
                     </div>
-
-                    <Button
-                      type="button"
-                      onClick={addItem}
-                      disabled={!novoItem.opcaoId || !novoItem.tamanhoId}
-                    >
-                      Adicionar Item
-                    </Button>
-                  </div>
-
-                  <div className="border rounded-md overflow-hidden max-h-[45vh] overflow-y-auto">
-                    <Table>
-                      <TableHeader className="sticky top-0 z-10 bg-background">
-                        <TableRow>
-                          <TableHead>Para</TableHead>
-                          <TableHead>Item</TableHead>
-                          <TableHead>Tamanho</TableHead>
-                          <TableHead>Qtd</TableHead>
-                          <TableHead>Unit.</TableHead>
-                          <TableHead>Subtotal</TableHead>
-                          <TableHead className="w-[60px]"></TableHead>
-                        </TableRow>
-                      </TableHeader>
-
-                      <TableBody>
-                        {itens.map((it) => (
-                          <TableRow key={it.id}>
-                            <TableCell className="max-w-[180px] truncate">
-                              {(it.destinatarioNome || "").trim() || clienteSelecionado?.nome || "-"}
-                            </TableCell>
-                            <TableCell>{it.opcaoNome}</TableCell>
-                            <TableCell>{it.tamanhoLabel}</TableCell>
-                            <TableCell>
-                              <div className="flex items-center gap-2">
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="icon"
-                                  onClick={() => changeItemQty(it.id, -1)}
-                                >
-                                  <Minus className="h-3 w-3" />
-                                </Button>
-                                <span className="min-w-[18px] text-center">{it.quantidade}</span>
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="icon"
-                                  onClick={() => changeItemQty(it.id, 1)}
-                                >
-                                  <Plus className="h-3 w-3" />
-                                </Button>
-                              </div>
-                            </TableCell>
-                            <TableCell>R$ {it.precoUnit.toFixed(2)}</TableCell>
-                            <TableCell>R$ {(it.precoUnit * it.quantidade).toFixed(2)}</TableCell>
-                            <TableCell>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => removeItem(it.id)}
-                              >
-                                <Trash className="h-4 w-4" />
-                              </Button>
-                            </TableCell>
-                          </TableRow>
-                        ))}
-
-                        {itens.length === 0 && (
-                          <TableRow>
-                            <TableCell colSpan={7} className="text-center py-6">
-                              Nenhum item adicionado
-                            </TableCell>
-                          </TableRow>
-                        )}
-                      </TableBody>
-                    </Table>
-                  </div>
-                </TabsContent>
-              </Tabs>
-            </div>
-
-            {/* COLUNA DIREITA (igual, sem mexer) */}
-            <div className="space-y-4 min-w-0">
-              <div className="rounded-lg border p-4 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="font-medium">Resumo</div>
-                  {confirmado ? (
-                    <Badge className="bg-emerald-600 text-white">Confirmado</Badge>
                   ) : (
-                    <Badge variant="outline">Rascunho</Badge>
+                    <div className="rounded-lg border p-3 text-sm text-muted-foreground">
+                      Pedido marcado como retirada.
+                    </div>
                   )}
-                </div>
-
-                <div className="text-sm text-muted-foreground space-y-1">
-                  <div>
-                    <span className="font-medium text-foreground">Data:</span>{" "}
-                    {formatDatePtBr(data)}
-                  </div>
-                  <div>
-                    <span className="font-medium text-foreground">Faixa:</span>{" "}
-                    {horario.inicio} - {horario.fim}
-                  </div>
-                  <div>
-                    <span className="font-medium text-foreground">Tipo:</span> {tipo}
-                  </div>
-                  <div>
-                    <span className="font-medium text-foreground">Cliente:</span>{" "}
-                    {clienteSelecionado ? clienteSelecionado.nome : "-"}
-                  </div>
-                  <div>
-                    <span className="font-medium text-foreground">Telefone:</span>{" "}
-                    {clienteSelecionado ? clienteSelecionado.telefone : "-"}
-                  </div>
-
-                  <div className="border-t pt-3 mt-2 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="font-medium text-foreground">Plano:</span>
-
-                      {loadingPlanosCliente ? (
-                        <Badge variant="outline">Carregando...</Badge>
-                      ) : planosCliente.length > 0 ? (
-                        <Badge className="bg-blue-600 text-white">Tem plano</Badge>
-                      ) : (
-                        <Badge variant="outline">Sem plano</Badge>
-                      )}
-                    </div>
-
-                    {!!erroPlanosCliente && (
-                      <div className="text-xs text-red-600">{erroPlanosCliente}</div>
-                    )}
-
-                    {planosCliente.length > 0 && (
-                      <div className="text-xs text-muted-foreground space-y-1">
-                        {planosCliente.map((pc) => (
-                          <div key={pc.id} className="flex justify-between gap-3">
-                            <span className="truncate">
-                              {pc.plano?.nome?.trim() || `Plano #${pc.planoId}`}{" "}
-                              {pc.plano?.tamanho?.pesagemGramas
-                                ? `(${pc.plano.tamanho.pesagemGramas}g)`
-                                : ""}
-                            </span>
-
-                            <span className="shrink-0">
-                              {pc.saldoUnidades != null ? `${pc.saldoUnidades} un.` : ""}
-                              {pc.saldoEntregas != null ? ` • ${pc.saldoEntregas} ent.` : ""}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="line-clamp-2">
-                    <span className="font-medium text-foreground">Endereço:</span>{" "}
-                    {tipo === "ENTREGA" ? endereco || "-" : "(retirada)"}
-                  </div>
-
-                  <div className="border-t pt-3 mt-2 space-y-2">
-
-                    <div className="border-t pt-3 mt-2 space-y-2">
-                      <div className="flex justify-between text-sm">
-                        <span>Itens:</span>
-                        <span>{itens.reduce((acc, it) => acc + it.quantidade, 0)}</span>
-                      </div>
-
-                      {tipo === "ENTREGA" && (
-                        <div className="space-y-1">
-                          <div className="flex justify-between text-sm">
-                            <span>Taxa de entrega:</span>
-                            <span>
-                              {loadingTaxa ? "Calculando..." : `R$ ${taxaEntrega.toFixed(2)}`}
-                            </span>
-                          </div>
-
-                          {distanciaKm != null && !loadingTaxa && (
-                            <div className="text-xs text-muted-foreground flex justify-between">
-                              <span>Distância estimada:</span>
-                              <span>{distanciaKm.toFixed(2)} km</span>
-                            </div>
-                          )}
-
-                          {!!erroTaxa && (
-                            <div className="text-xs text-red-600">{erroTaxa}</div>
-                          )}
-                        </div>
-                      )}
-
-                      <div className="flex justify-between font-bold text-lg">
-                        <span>Total:</span>
-                        <span>R$ {totalFinal.toFixed(2)}</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="rounded-lg border p-4 space-y-3">
-                  <div className="font-medium">Pagamento</div>
 
                   <div className="space-y-2">
-                    <Label>Forma</Label>
+                    <Label>Forma de pagamento</Label>
                     <Select
                       value={formaPagamento}
-                      onValueChange={(v) => setFormaPagamento(v as FormaPagamento)}
-                      disabled={mode === "edit"}
+                      onValueChange={(v: FormaPagamento) => setFormaPagamento(v)}
                     >
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Selecione" />
+                      <SelectTrigger>
+                        <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="DINHEIRO">Dinheiro</SelectItem>
                         <SelectItem value="PIX">PIX</SelectItem>
-                        <SelectItem value="DEBITO">Débito</SelectItem>
-                        <SelectItem value="CREDITO">Crédito</SelectItem>
-                        <SelectItem value="LINK">Link</SelectItem>
+                        <SelectItem value="DINHEIRO">Dinheiro</SelectItem>
+                        <SelectItem value="CARTAO">Cartão</SelectItem>
                         <SelectItem value="VOUCHER">Voucher</SelectItem>
-                        <SelectItem value="PLANO">Plano (saldo)</SelectItem>
+                        <SelectItem value="PLANO">Plano</SelectItem>
                       </SelectContent>
                     </Select>
-
-                    {mode === "edit" && (
-                      <div className="text-xs text-muted-foreground">
-                        (No editar, pagamento está travado pra não quebrar regra de voucher/plano.)
-                      </div>
-                    )}
                   </div>
 
-                  {formaPagamento === "VOUCHER" && (
-                    <div className="space-y-3 pt-2">
-                      <div className="space-y-2">
-                        <Label>Código do voucher</Label>
-                        <Input
-                          value={voucherCodigo}
-                          onChange={(e) => setVoucherCodigo(e.target.value)}
-                          placeholder="Ex: FIT10"
-                          disabled={mode === "edit"}
-                        />
-                      </div>
+                  <div className="space-y-2">
+                    <Label>Observações gerais</Label>
+                    <Textarea
+                      value={observacoesPedido}
+                      onChange={(e) => setObservacoesPedido(e.target.value)}
+                      placeholder="Observações gerais do pedido"
+                    />
+                  </div>
 
-                      <div className="space-y-2">
-                        <Label>Taxa de entrega paga em</Label>
-                        <Select
-                          value={taxaPagaEm}
-                          onValueChange={(v) => setTaxaPagaEm(v as any)}
-                          disabled={mode === "edit"}
-                        >
-                          <SelectTrigger className="w-full">
-                            <SelectValue placeholder="Selecione" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="DINHEIRO">Dinheiro</SelectItem>
-                            <SelectItem value="PIX">PIX</SelectItem>
-                            <SelectItem value="CARTAO">Cartão</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <div className="text-xs text-muted-foreground">
-                          Isso vira VOUCHER_TAXA_* no backend.
-                        </div>
-                      </div>
-                    </div>
-                  )}
+                  <Separator />
 
-                  {formaPagamento === "PLANO" && (
-                    <div className="text-xs text-muted-foreground pt-2">
-                      O backend debita unidades/entregas do plano do cliente. (No editar fica travado.)
+                  <div className="space-y-2 text-sm">
+                    <div className="flex items-center justify-between">
+                      <span>Total de marmitas</span>
+                      <span className="font-medium">{totalMarmitas}</span>
                     </div>
-                  )}
 
-                  {formaPagamento === "LINK" && (
-                    <div className="text-xs text-muted-foreground pt-2">
-                      (Depois você pode gerar link de pagamento e salvar no backend.)
+                    <div className="flex items-center justify-between text-base">
+                      <span className="font-semibold">Total</span>
+                      <span className="font-bold">R$ {currency(subtotalPedido)}</span>
                     </div>
-                  )}
+                  </div>
+
+                  <Button className="w-full" onClick={handleSubmit}>
+                    <Send className="h-4 w-4 mr-2" />
+                    Salvar agendamento
+                  </Button>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* MODAL SECUNDÁRIA */}
+      {/* MODAL SECUNDÁRIA */}
+      <Dialog open={modalNovoPedidoOpen} onOpenChange={setModalNovoPedidoOpen}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Novo pedido</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-5">
+            <div className="rounded-lg border p-3 bg-muted/30">
+              <div className="text-sm">
+                <span className="font-medium">Cliente:</span>{" "}
+                {clienteSelecionado?.nome || "Selecione um cliente antes"}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Subpedido / Para quem é</Label>
+                <Input
+                  value={formItem.destinatarioNome}
+                  onChange={(e) =>
+                    setFormItem((prev) => ({
+                      ...prev,
+                      destinatarioNome: e.target.value,
+                    }))
+                  }
+                  placeholder="Ex.: João / Maria / Criança"
+                />
+              </div>
+
+              {formItem.tipoItem === "PADRAO" ? (
+                <div className="space-y-2">
+                  <Label>Tamanho</Label>
+                  <Select
+                    value={formItem.tamanhoId}
+                    onValueChange={(v) => {
+                      const tamanho = tamanhos.find((t) => t.id === v);
+                      setFormItem((prev) => ({
+                        ...prev,
+                        tamanhoId: v,
+                        tamanhoLabel: tamanho?.label || "",
+                      }));
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione o tamanho" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {tamanhos.map((t) => (
+                        <SelectItem key={t.id} value={t.id}>
+                          {t.label} — R$ {currency(t.valorUnitario)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              ) : (
+                <div></div>
+              )}
+            </div>
+
+            <div className="flex items-center gap-3 rounded-lg border p-3">
+              <Checkbox
+                checked={formItem.tipoItem === "PERSONALIZADA"}
+                onCheckedChange={(checked) =>
+                  setFormItem((prev) => ({
+                    ...prev,
+                    tipoItem: checked ? "PERSONALIZADA" : "PADRAO",
+                    opcaoId: "",
+                    opcaoNome: "",
+                    tamanhoId: checked ? "" : prev.tamanhoId,
+                    tamanhoLabel: checked ? "" : prev.tamanhoLabel,
+                  }))
+                }
+              />
+              <div>
+                <div className="font-medium">Marmita personalizada</div>
+                <div className="text-sm text-muted-foreground">
+                  Para personalizada, montar uma por vez e informar a gramagem de cada componente.
                 </div>
               </div>
             </div>
-          </div>
-        </div>
 
-        <DialogFooter className="gap-2">
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSaving}>
-            Fechar
-          </Button>
+            {formItem.tipoItem === "PADRAO" ? (
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label>Opção do cardápio</Label>
+                  <Select
+                    value={formItem.opcaoId}
+                    onValueChange={(v) => {
+                      const opcao = opcoesPadrao.find((o) => o.id === v);
+                      setFormItem((prev) => ({
+                        ...prev,
+                        opcaoId: v,
+                        opcaoNome: opcao?.nome || "",
+                      }));
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione a marmita" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {opcoesPadrao.map((opcao) => (
+                        <SelectItem key={opcao.id} value={opcao.id}>
+                          {opcao.nome}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
 
-          {!confirmado ? (
-            <div className="flex flex-col sm:flex-row gap-2 w-full sm:justify-end">
-              <Button
-                type="button"
-                variant="secondary"
-                onClick={enviarWhatsAppPrevia}
-                disabled={
-                  isSaving ||
-                  !clienteId ||
-                  itens.length === 0 ||
-                  (tipo === "ENTREGA" && !endereco.trim()) ||
-                  (formaPagamento === "VOUCHER" && !voucherCodigo.trim())
-                }
-                title="Envia a prévia no WhatsApp antes de salvar"
-              >
-                <Send className="mr-2 h-4 w-4" />
-                Enviar WhatsApp (prévia)
-              </Button>
+                <div className="rounded-lg border p-4 space-y-4">
+                  <div>
+                    <Label className="text-sm font-medium">Trocas da marmita</Label>
+                    <p className="text-xs text-muted-foreground">
+                      Use apenas quando o cliente quiser substituir algum componente.
+                    </p>
+                  </div>
 
-              <Button
-                onClick={confirmarAgendamento}
-                disabled={
-                  isSaving ||
-                  !clienteId ||
-                  itens.length === 0 ||
-                  (tipo === "ENTREGA" && !endereco.trim()) ||
-                  (formaPagamento === "VOUCHER" && !voucherCodigo.trim()) ||
-                  (mode === "edit" && !initialData?.agendamentoId) ||
-                  (!whatsPreviewEnviada && mode !== "edit") // <- trava só no CREATE
-                }
-                title={
-                  !whatsPreviewEnviada && mode !== "edit"
-                    ? "Envie a prévia no WhatsApp antes de confirmar no sistema"
-                    : undefined
-                }
-              >
-                {isSaving
-                  ? mode === "edit"
-                    ? "Salvando..."
-                    : "Confirmando..."
-                  : mode === "edit"
-                    ? "Salvar Alterações"
-                    : "Confirmar Agendamento"}
-              </Button>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="space-y-2">
+                      <Label>Trocar carboidrato</Label>
+                      <Select
+                        value={formItem.trocaCarboId || ""}
+                        onValueChange={(v) => {
+                          const item = carboidratos.find((o) => o.id === v);
+                          setFormItem((prev) => ({
+                            ...prev,
+                            trocaCarboId: v,
+                            trocaCarboNome: item?.nome || "",
+                          }));
+                        }}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Sem troca" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {carboidratos.map((item) => (
+                            <SelectItem key={item.id} value={item.id}>
+                              {item.nome}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+
+                      {formItem.trocaCarboId ? (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          className="h-auto px-0 text-xs"
+                          onClick={() =>
+                            setFormItem((prev) => ({
+                              ...prev,
+                              trocaCarboId: "",
+                              trocaCarboNome: "",
+                            }))
+                          }
+                        >
+                          Limpar troca
+                        </Button>
+                      ) : null}
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Trocar proteína</Label>
+                      <Select
+                        value={formItem.trocaProteinaId || ""}
+                        onValueChange={(v) => {
+                          const item = proteinas.find((o) => o.id === v);
+                          setFormItem((prev) => ({
+                            ...prev,
+                            trocaProteinaId: v,
+                            trocaProteinaNome: item?.nome || "",
+                          }));
+                        }}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Sem troca" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {proteinas.map((item) => (
+                            <SelectItem key={item.id} value={item.id}>
+                              {item.nome}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+
+                      {formItem.trocaProteinaId ? (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          className="h-auto px-0 text-xs"
+                          onClick={() =>
+                            setFormItem((prev) => ({
+                              ...prev,
+                              trocaProteinaId: "",
+                              trocaProteinaNome: "",
+                            }))
+                          }
+                        >
+                          Limpar troca
+                        </Button>
+                      ) : null}
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Trocar legume</Label>
+                      <Select
+                        value={formItem.trocaLegumeId || ""}
+                        onValueChange={(v) => {
+                          const item = legumes.find((o) => o.id === v);
+                          setFormItem((prev) => ({
+                            ...prev,
+                            trocaLegumeId: v,
+                            trocaLegumeNome: item?.nome || "",
+                            zerarLegume: false,
+                          }));
+                        }}
+                        disabled={formItem.zerarLegume}
+                      >
+                        <SelectTrigger>
+                          <SelectValue
+                            placeholder={
+                              formItem.zerarLegume ? "Legume zerado" : "Sem troca"
+                            }
+                          />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {legumes.map((item) => (
+                            <SelectItem key={item.id} value={item.id}>
+                              {item.nome}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+
+                      {formItem.trocaLegumeId ? (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          className="h-auto px-0 text-xs"
+                          onClick={() =>
+                            setFormItem((prev) => ({
+                              ...prev,
+                              trocaLegumeId: "",
+                              trocaLegumeNome: "",
+                            }))
+                          }
+                        >
+                          Limpar troca
+                        </Button>
+                      ) : null}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="flex items-center gap-3 rounded-lg border p-3">
+                    <Checkbox
+                      checked={formItem.zerarLegume}
+                      onCheckedChange={(checked) =>
+                        setFormItem((prev) => ({
+                          ...prev,
+                          zerarLegume: !!checked,
+                          trocaLegumeId: checked ? "" : prev.trocaLegumeId,
+                          trocaLegumeNome: checked ? "" : prev.trocaLegumeNome,
+                        }))
+                      }
+                    />
+                    <Label className="m-0">Zerar legume</Label>
+                  </div>
+
+                  <div className="flex items-center gap-3 rounded-lg border p-3">
+                    <Checkbox
+                      checked={formItem.adicionarFeijao}
+                      onCheckedChange={(checked) =>
+                        setFormItem((prev) => ({
+                          ...prev,
+                          adicionarFeijao: !!checked,
+                        }))
+                      }
+                    />
+                    <Label className="m-0">Adicionar feijão</Label>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-[minmax(0,1fr)_120px] gap-3">
+                    <div className="space-y-2">
+                      <Label>Carboidrato</Label>
+                      <Select
+                        value={formItem.carboId}
+                        onValueChange={(v) => {
+                          const item = carboidratos.find((o) => o.id === v);
+                          setFormItem((prev) => ({
+                            ...prev,
+                            carboId: v,
+                            carboNome: item?.nome || "",
+                          }));
+                        }}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecione" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {carboidratos.map((item) => (
+                            <SelectItem key={item.id} value={item.id}>
+                              {item.nome}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Gramas</Label>
+                      <Input
+                        type="number"
+                        min={0}
+                        step="1"
+                        value={formItem.carboGramas || 0}
+                        onChange={(e) =>
+                          setFormItem((prev) => ({
+                            ...prev,
+                            carboGramas: Number(e.target.value || 0),
+                          }))
+                        }
+                        placeholder="0"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-[minmax(0,1fr)_120px] gap-3">
+                    <div className="space-y-2">
+                      <Label>Proteína</Label>
+                      <Select
+                        value={formItem.proteinaId}
+                        onValueChange={(v) => {
+                          const item = proteinas.find((o) => o.id === v);
+                          setFormItem((prev) => ({
+                            ...prev,
+                            proteinaId: v,
+                            proteinaNome: item?.nome || "",
+                          }));
+                        }}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecione" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {proteinas.map((item) => (
+                            <SelectItem key={item.id} value={item.id}>
+                              {item.nome}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Gramas</Label>
+                      <Input
+                        type="number"
+                        min={0}
+                        step="1"
+                        value={formItem.proteinaGramas || 0}
+                        onChange={(e) =>
+                          setFormItem((prev) => ({
+                            ...prev,
+                            proteinaGramas: Number(e.target.value || 0),
+                          }))
+                        }
+                        placeholder="130"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-[minmax(0,1fr)_120px] gap-3">
+                    <div className="space-y-2">
+                      <Label>Legume</Label>
+                      <Select
+                        value={formItem.legumeId}
+                        onValueChange={(v) => {
+                          const item = legumes.find((o) => o.id === v);
+                          setFormItem((prev) => ({
+                            ...prev,
+                            legumeId: v,
+                            legumeNome: item?.nome || "",
+                          }));
+                        }}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecione" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {legumes.map((item) => (
+                            <SelectItem key={item.id} value={item.id}>
+                              {item.nome}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Gramas</Label>
+                      <Input
+                        type="number"
+                        min={0}
+                        step="1"
+                        value={formItem.legumeGramas || 0}
+                        onChange={(e) =>
+                          setFormItem((prev) => ({
+                            ...prev,
+                            legumeGramas: Number(e.target.value || 0),
+                          }))
+                        }
+                        placeholder="0"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-[minmax(0,1fr)_120px] gap-3">
+                    <div className="space-y-2">
+                      <Label>Feijão (opcional)</Label>
+                      <Select
+                        value={formItem.feijaoId}
+                        onValueChange={(v) => {
+                          const item = feijoes.find((o) => o.id === v);
+                          setFormItem((prev) => ({
+                            ...prev,
+                            feijaoId: v,
+                            feijaoNome: item?.nome || "",
+                            adicionarFeijao: !!v,
+                          }));
+                        }}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecione" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {feijoes.map((item) => (
+                            <SelectItem key={item.id} value={item.id}>
+                              {item.nome}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Gramas</Label>
+                      <Input
+                        type="number"
+                        min={0}
+                        step="1"
+                        value={formItem.feijaoGramas || 0}
+                        onChange={(e) =>
+                          setFormItem((prev) => ({
+                            ...prev,
+                            feijaoGramas: Number(e.target.value || 0),
+                            adicionarFeijao: Number(e.target.value || 0) > 0 || !!prev.feijaoId,
+                          }))
+                        }
+                        placeholder="0"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="rounded-lg border p-3 text-sm">
+                  <span className="font-medium">Peso total da personalizada:</span>{" "}
+                  {totalGramasPersonalizada}g
+                </div>
+
+                <div className="rounded-lg border p-3 space-y-2">
+                  <Label>Preço da personalizada</Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    value={formItem.precoUnit || 0}
+                    onChange={(e) =>
+                      setFormItem((prev) => ({
+                        ...prev,
+                        precoUnit: Number(e.target.value || 0),
+                      }))
+                    }
+                    placeholder="Temporário até plugar regra real"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Aqui depois a gente troca pelo cálculo real da personalizada.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 md:grid-cols-[180px_1fr] gap-4">
+              <div className="space-y-2">
+                <Label>Quantidade</Label>
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    onClick={() =>
+                      setFormItem((prev) => ({
+                        ...prev,
+                        quantidade: Math.max(1, Number(prev.quantidade || 1) - 1),
+                      }))
+                    }
+                  >
+                    <Minus className="h-4 w-4" />
+                  </Button>
+
+                  <Input
+                    type="number"
+                    min={1}
+                    className="text-center"
+                    value={formItem.quantidade}
+                    onChange={(e) =>
+                      setFormItem((prev) => ({
+                        ...prev,
+                        quantidade: Math.max(1, Number(e.target.value || 1)),
+                      }))
+                    }
+                  />
+
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    onClick={() =>
+                      setFormItem((prev) => ({
+                        ...prev,
+                        quantidade: Number(prev.quantidade || 1) + 1,
+                      }))
+                    }
+                  >
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Observação para a cozinha</Label>
+                <Textarea
+                  value={formItem.observacaoItem}
+                  onChange={(e) =>
+                    setFormItem((prev) => ({
+                      ...prev,
+                      observacaoItem: e.target.value,
+                    }))
+                  }
+                  placeholder="Ex.: sem cebola, carne mais passada, separar talher..."
+                />
+              </div>
             </div>
-          ) : (
-            <Button onClick={enviarWhatsAppConfirmacao} disabled={!clienteSelecionado}>
-              <Send className="mr-2 h-4 w-4" /> Enviar WhatsApp
+          </div>
+
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setModalNovoPedidoOpen(false)}
+            >
+              Cancelar
             </Button>
-          )}
-        </DialogFooter>
 
-        <ClienteFormDialog
-          open={clienteDialogOpen}
-          onOpenChange={setClienteDialogOpen}
-          title="Novo Cliente"
-          saving={isSaving || savingClienteHook}
-          onSubmit={async (payload: any) => {
-            const created = await createCliente(payload);
-
-            const createdId = String(
-              (created as any)?.id ??
-              (created as any)?.cliente?.id ??
-              (created as any)?.data?.id ??
-              "",
-            );
-
-            if (createdId) {
-              const novo: Cliente = {
-                id: createdId,
-                nome: String(payload?.nome || (created as any)?.nome || "Novo cliente"),
-                telefone: String(payload?.telefone || (created as any)?.telefone || ""),
-                enderecos: Array.isArray(payload?.enderecos) ? payload.enderecos : [],
-              };
-
-              setClientesLocal((prev) => {
-                if (prev.some((c) => String(c.id) === String(createdId))) return prev;
-                return [novo, ...prev];
-              });
-
-              setClienteId(createdId);
-
-              // ✅ default destinatário = nome do cliente novo
-              setNovoItem((prev) => ({ ...prev, destinatarioNome: novo.nome }));
-
-              const principal =
-                novo.enderecos.find((e) => e.principal) || novo.enderecos[0] || null;
-              if (principal) {
-                setEnderecoClienteId(principal.id != null ? String(principal.id) : "");
-                setEndereco(formatEndereco(principal));
-              }
-            }
-
-            await onClienteCreated?.();
-            setClienteDialogOpen(false);
-          }}
-        />
-        <ClienteHistoricoDialog
-          open={historicoOpen}
-          onOpenChange={setHistoricoOpen}
-          cliente={
-            clienteSelecionado
-              ? {
-                id: clienteSelecionado.id as any,
-                nome: clienteSelecionado.nome as any,
-                telefone: clienteSelecionado.telefone as any,
-                planos: (clienteSelecionado as any).planos || [],
-              }
-              : null
-          }
-          defaultTab="historico"
-        />
-      </DialogContent>
-    </Dialog>
+            <Button type="button" onClick={addPedidoNaLista}>
+              Adicionar pedido
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

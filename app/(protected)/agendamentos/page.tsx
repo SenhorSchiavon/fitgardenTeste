@@ -40,7 +40,7 @@ import {
   CreditCard,
 } from "lucide-react";
 import { Header } from "@/components/header";
-import { NovoAgendamentoDialog } from "./agendamento-cadastro";
+import { NovoAgendamentoNovoLayout } from "./agendamento-cadastro";
 import { useOpcoesDoCardapio } from "@/hooks/useOpcoesDoCardapio";
 import { useClientes } from "@/hooks/useClientes";
 import { useAgendamentos } from "@/hooks/useAgendamentos";
@@ -48,6 +48,7 @@ import { useCardapios } from "@/hooks/useCardapios";
 import { toast } from "@/components/ui/use-toast";
 import { useRelatorioPreparosDia } from "@/hooks/useRelatorioPreparosDia";
 import { useRelatorioPedidosDia } from "@/hooks/useRelatorioPedidosDia";
+import { usePreparosSelecionaveis } from "@/hooks/usePreparosSelecionaveis";
 type Agendamento = {
   id: string;
   numeroPedido: string;
@@ -126,7 +127,7 @@ export default function Agendamentos() {
   >(null);
   const [dadosEdicao, setDadosEdicao] = useState<any>(null);
 
-
+  const { preparos, loading: loadingPreparos } = usePreparosSelecionaveis();
   const [preparoSheetOpen, setPreparoSheetOpen] = useState(false);
   const handleShowDetalhes = (agendamento: Agendamento) => {
     setAgendamentoSelecionado(agendamento);
@@ -292,6 +293,91 @@ export default function Agendamentos() {
     });
   };
 
+
+  const tamanhos = (opcoes ?? []).reduce((acc: any[], opcao: any) => {
+    (opcao.tamanhos ?? []).forEach((t: any) => {
+      const jaExiste = acc.some(
+        (item) => String(item.id) === String(t.tamanhoId),
+      );
+
+      if (!jaExiste) {
+        acc.push({
+          id: String(t.tamanhoId),
+          nome: t.tamanhoLabel,
+          valorUnitario: Number(t.valorUnitario ?? 0),
+          valor10: Number(t.valor10 ?? 0),
+          valor20: Number(t.valor20 ?? 0),
+          valor40: Number(t.valor40 ?? 0),
+        });
+      }
+    });
+
+    return acc;
+  }, []);
+
+  const normalizarCategoria = (categoria?: string | null) => {
+    return (categoria ?? "")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .trim()
+      .toUpperCase();
+  };
+  const opcoesPadrao = (opcoes ?? []).map((o: any) => ({
+    id: String(o.id),
+    nome: o.nome,
+  }));
+  const carboidratos = preparos
+    .filter((p) => p.tipo === "CARBOIDRATO")
+    .map((p) => ({
+      id: String(p.id),
+      nome: p.nome,
+      tipo: "CARBOIDRATO" as const,
+    }));
+
+  const proteinas = preparos
+    .filter((p) => p.tipo === "PROTEINA")
+    .map((p) => ({
+      id: String(p.id),
+      nome: p.nome,
+      tipo: "PROTEINA" as const,
+    }));
+
+  const legumes = preparos
+    .filter((p) => p.tipo === "LEGUMES")
+    .map((p) => ({
+      id: String(p.id),
+      nome: p.nome,
+      tipo: "LEGUME" as const,
+    }));
+  const feijoes = (opcoes ?? [])
+    .filter((o: any) => {
+      const categoria = (o.categoria ?? "").toUpperCase();
+      return categoria === "FEIJAO" || categoria === "FEIJÃO";
+    })
+    .map((o: any) => ({
+      id: String(o.id),
+      nome: o.nome,
+      tipo: "FEIJAO" as const,
+    }));
+  console.log("=== DEBUG CARDAPIO ATIVO ===");
+  console.log("cardapioAtivo:", cardapioAtivo);
+  console.log("opcoes brutas:", opcoes);
+
+  console.log(
+    "categorias brutas:",
+    (opcoes ?? []).map((o: any) => ({
+      id: o.id,
+      nome: o.nome,
+      categoriaOriginal: o.categoria,
+      categoriaNormalizada: normalizarCategoria(o.categoria),
+    }))
+  );
+
+  console.log("tamanhos:", tamanhos);
+  console.log("opcoesPadrao:", opcoesPadrao);
+  console.log("carboidratos:", carboidratos);
+  console.log("proteinas:", proteinas);
+  console.log("legumes:", legumes);
   return (
     <div className="container mx-auto p-6">
       <Header
@@ -766,10 +852,11 @@ export default function Agendamentos() {
           </div>
         </SheetContent>
       </Sheet>
-      <NovoAgendamentoDialog
+      <NovoAgendamentoNovoLayout
         open={cadastroOpen}
         onOpenChange={(open) => {
           setCadastroOpen(open);
+
           if (!open) {
             setModoEdicao(false);
             setAgendamentoEditandoId(null);
@@ -788,91 +875,83 @@ export default function Agendamentos() {
             id: String(c.id),
             nome: c.nome,
             telefone: c.telefone,
-            endereco: enderecoTexto,
-            enderecos: c.enderecos || [], // <<< adiciona isso
+            enderecoPrincipal: enderecoTexto,
           };
         })}
-        opcoes={opcoes.map((o) => ({
-          id: String(o.id),
-          nome: o.nome,
-          categoria: o.categoria ?? "OUTROS",
-          tamanhos: o.tamanhos.map((t) => ({
-            tamanhoId: String(t.tamanhoId),
-            tamanhoLabel: t.tamanhoLabel,
-            valorUnitario: Number(t.valorUnitario ?? 0),
-            valor10: Number(t.valor10 ?? 0),
-            valor20: Number(t.valor20 ?? 0),
-            valor40: Number(t.valor40 ?? 0),
-          })),
+        tamanhos={tamanhos.map((t) => ({
+          id: String(t.id),
+          label: t.nome,
+          valorUnitario: Number(t.valorUnitario ?? 0),
+          valor10: Number(t.valor10 ?? 0),
+          valor20: Number(t.valor20 ?? 0),
+          valor40: Number(t.valor40 ?? 0),
         }))}
-        defaultDate={selectedDate} // melhor usar a data selecionada no calendário
-        mode={modoEdicao ? "edit" : "create"}
-        initialData={
-          modoEdicao && dadosEdicao
-            ? {
-              agendamentoId: Number(dadosEdicao.id),
-              clienteId: String(
-                // hoje você só tem o nome no UI; ideal é vir clienteId do backend
-                // se você já tiver dadosEdicao.clienteId, troca aqui
-                clientes.find((c) => c.nome === dadosEdicao.cliente)?.id ??
-                "",
-              ),
-              tipo: dadosEdicao.tipoEntrega,
-              data: selectedDate, // ideal: data real do agendamento (se vier do backend)
-              faixaHorario: dadosEdicao.faixaHorario,
-              endereco: dadosEdicao.endereco,
-              observacoes: dadosEdicao.observacoes ?? null,
-              formaPagamento: dadosEdicao.formaPagamento ?? "DINHEIRO",
-              voucherCodigo: null,
-              itens: [], // <<< IMPORTANT: precisa ter opcaoId/tamanhoId pra editar itens
-            }
-            : null
-        }
-        onUpdateAgendamento={async (agendamentoId, payload) => {
-          // chama backend
-          await updateAgendamento(agendamentoId, {
-            tipo: payload.tipo,
-            data: payload.data,
-            faixaHorario: payload.faixaHorario,
-            endereco: payload.endereco,
-            observacoes: payload.observacoes ?? null,
-            formaPagamento: payload.formaPagamento,
-            itens: payload.itens.map((it) => ({
-              opcaoId: Number(it.opcaoId),
-              tamanhoId: Number(it.tamanhoId),
-              quantidade: Number(it.quantidade),
-            })),
-          });
+        opcoesPadrao={opcoesPadrao}
+        carboidratos={carboidratos}
+        proteinas={proteinas}
+        legumes={legumes}
+        feijoes={feijoes}
+        onSubmit={async (payload) => {
+          if (modoEdicao && agendamentoEditandoId) {
+            await updateAgendamento(agendamentoEditandoId, {
+              tipo: payload.tipo,
+              data: payload.data,
+              faixaHorario: payload.faixaHorario,
+              endereco: payload.endereco,
+              observacoes: payload.observacoes ?? null,
+              formaPagamento: payload.formaPagamento,
+              itens: payload.itens.map((it: any) => ({
+                tipoItem: it.tipoItem,
+                destinatarioNome: it.destinatarioNome,
+                tamanhoId: Number(it.tamanhoId),
+                quantidade: Number(it.quantidade),
 
-          // recarrega lista do dia
+                opcaoId: it.opcaoId ? Number(it.opcaoId) : null,
+                carboId: it.carboId ? Number(it.carboId) : null,
+                proteinaId: it.proteinaId ? Number(it.proteinaId) : null,
+                legumeId: it.legumeId ? Number(it.legumeId) : null,
+                feijaoId: it.feijaoId ? Number(it.feijaoId) : null,
+
+                zerarLegume: !!it.zerarLegume,
+                adicionarFeijao: !!it.adicionarFeijao,
+                observacaoItem: it.observacaoItem ?? "",
+                precoUnit: Number(it.precoUnit ?? 0),
+              })),
+            });
+          } else {
+            await createAgendamento({
+              clienteId: Number(payload.clienteId),
+              tipo: payload.tipo,
+              data: payload.data,
+              faixaHorario: payload.faixaHorario,
+              endereco: payload.endereco,
+              observacoes: payload.observacoes ?? null,
+              formaPagamento: payload.formaPagamento,
+              itens: payload.itens.map((it: any) => ({
+                tipoItem: it.tipoItem,
+                destinatarioNome: it.destinatarioNome,
+                tamanhoId: Number(it.tamanhoId),
+                quantidade: Number(it.quantidade),
+
+                opcaoId: it.opcaoId ? Number(it.opcaoId) : null,
+                carboId: it.carboId ? Number(it.carboId) : null,
+                proteinaId: it.proteinaId ? Number(it.proteinaId) : null,
+                legumeId: it.legumeId ? Number(it.legumeId) : null,
+                feijaoId: it.feijaoId ? Number(it.feijaoId) : null,
+
+                zerarLegume: !!it.zerarLegume,
+                adicionarFeijao: !!it.adicionarFeijao,
+                observacaoItem: it.observacaoItem ?? "",
+                precoUnit: Number(it.precoUnit ?? 0),
+              })),
+            });
+          }
+
           const date = utils.toISODateOnly(selectedDate);
           const res = await getAgendamentos({ date, page: 1, pageSize: 200 });
           setAgendamentos((res.rows || []).map(mapApiToUi));
 
           setCadastroOpen(false);
-        }}
-        onCreateAgendamento={async (payload) => {
-          const result = await createAgendamento({
-            clienteId: Number(payload.clienteId),
-            tipo: payload.tipo,
-            data: payload.data,
-            faixaHorario: payload.faixaHorario,
-            endereco: payload.endereco,
-            observacoes: payload.observacoes,
-            formaPagamento: payload.formaPagamento,
-            itens: payload.itens.map((it) => ({
-              opcaoId: Number(it.opcaoId),
-              tamanhoId: Number(it.tamanhoId),
-              quantidade: Number(it.quantidade),
-            })),
-          });
-
-          const date = utils.toISODateOnly(selectedDate);
-          const res = await getAgendamentos({ date, page: 1, pageSize: 200 });
-          setAgendamentos((res.rows || []).map(mapApiToUi));
-
-          setCadastroOpen(false);
-          return result;
         }}
       />
     </div>

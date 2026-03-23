@@ -68,9 +68,28 @@ export type FormaPagamento =
   | "PLANO";
 
 export type AgendamentoItemInput = {
-  opcaoId: number;
+  tipoItem: "PADRAO" | "PERSONALIZADA";
   tamanhoId: number;
   quantidade: number;
+
+  destinatarioNome?: string;
+  observacaoItem?: string;
+
+  opcaoId?: number | null;
+
+  carboId?: number | null;
+  proteinaId?: number | null;
+  legumeId?: number | null;
+  feijaoId?: number | null;
+
+  trocaCarboId?: number | null;
+  trocaProteinaId?: number | null;
+  trocaLegumeId?: number | null;
+
+  zerarLegume?: boolean;
+  adicionarFeijao?: boolean;
+
+  precoUnit?: number | null;
 };
 
 export type CreateAgendamentoInput = {
@@ -373,9 +392,28 @@ export function useAgendamentos(options?: { baseUrl?: string }) {
           formaPagamento: payload.formaPagamento,
           voucherCodigo: payload.voucherCodigo?.trim() || undefined,
           itens: (payload.itens || []).map((it) => ({
-            opcaoId: Number(it.opcaoId),
+            tipoItem: it.tipoItem === "PERSONALIZADA" ? "PERSONALIZADA" : "PADRAO",
             tamanhoId: Number(it.tamanhoId),
             quantidade: Number(it.quantidade),
+
+            destinatarioNome: it.destinatarioNome?.trim() || undefined,
+            observacaoItem: it.observacaoItem?.trim() || undefined,
+
+            opcaoId: it.opcaoId != null ? Number(it.opcaoId) : null,
+
+            carboId: it.carboId != null ? Number(it.carboId) : null,
+            proteinaId: it.proteinaId != null ? Number(it.proteinaId) : null,
+            legumeId: it.legumeId != null ? Number(it.legumeId) : null,
+            feijaoId: it.feijaoId != null ? Number(it.feijaoId) : null,
+
+            trocaCarboId: it.trocaCarboId != null ? Number(it.trocaCarboId) : null,
+            trocaProteinaId: it.trocaProteinaId != null ? Number(it.trocaProteinaId) : null,
+            trocaLegumeId: it.trocaLegumeId != null ? Number(it.trocaLegumeId) : null,
+
+            zerarLegume: !!it.zerarLegume,
+            adicionarFeijao: !!it.adicionarFeijao,
+
+            precoUnit: it.precoUnit != null ? Number(it.precoUnit) : null,
           })),
         };
 
@@ -430,9 +468,28 @@ export function useAgendamentos(options?: { baseUrl?: string }) {
 
         if (Array.isArray(body.itens)) {
           body.itens = body.itens.map((it: any) => ({
-            opcaoId: Number(it.opcaoId),
+            tipoItem: it.tipoItem === "PERSONALIZADA" ? "PERSONALIZADA" : "PADRAO",
             tamanhoId: Number(it.tamanhoId),
             quantidade: Number(it.quantidade),
+
+            destinatarioNome: it.destinatarioNome?.trim() || undefined,
+            observacaoItem: it.observacaoItem?.trim() || undefined,
+
+            opcaoId: it.opcaoId != null && it.opcaoId !== "" ? Number(it.opcaoId) : null,
+
+            carboId: it.carboId != null && it.carboId !== "" ? Number(it.carboId) : null,
+            proteinaId: it.proteinaId != null && it.proteinaId !== "" ? Number(it.proteinaId) : null,
+            legumeId: it.legumeId != null && it.legumeId !== "" ? Number(it.legumeId) : null,
+            feijaoId: it.feijaoId != null && it.feijaoId !== "" ? Number(it.feijaoId) : null,
+
+            trocaCarboId: it.trocaCarboId != null && it.trocaCarboId !== "" ? Number(it.trocaCarboId) : null,
+            trocaProteinaId: it.trocaProteinaId != null && it.trocaProteinaId !== "" ? Number(it.trocaProteinaId) : null,
+            trocaLegumeId: it.trocaLegumeId != null && it.trocaLegumeId !== "" ? Number(it.trocaLegumeId) : null,
+
+            zerarLegume: !!it.zerarLegume,
+            adicionarFeijao: !!it.adicionarFeijao,
+
+            precoUnit: it.precoUnit != null && it.precoUnit !== "" ? Number(it.precoUnit) : null,
           }));
         }
 
