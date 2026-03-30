@@ -7,7 +7,8 @@ export type CardapioOpcao = {
   opcaoId: number;
   opcaoNome?: string;
   opcaoTipo?: "MARMITA" | "OUTROS";
-  opcaoCategoria?: "FIT" | "LOW_CARB" | "VEGETARIANO" | "SOPA" | null;
+  opcaoCategoriaId?: number | null;
+  opcaoCategoria?: string | null;
   ordem: number;
   ativo: boolean;
 };

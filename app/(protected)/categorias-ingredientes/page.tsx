@@ -281,6 +281,12 @@ export default function CategoriasIngredientes() {
                     PRODUTO
                   </Label>
                 </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="OPCAO" id="opcao" />
+                  <Label htmlFor="opcao" className="text-gray-700">
+                    OPÇÃO
+                  </Label>
+                </div>
               </RadioGroup>
             </div>
 

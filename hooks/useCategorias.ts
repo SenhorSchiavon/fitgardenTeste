@@ -2,13 +2,13 @@ import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { apiFetch } from "./api";
 
-export type CategoriaTipo = "INGREDIENTE" | "PRODUTO";
+export type CategoriaTipo = "INGREDIENTE" | "PRODUTO" | "OPCAO";
 
 export type Categoria = {
   id: number;
   codigoSistema: string;
   descricao: string;
-  tipo: "INGREDIENTE" | "PRODUTO";
+  tipo: "INGREDIENTE" | "PRODUTO" | "OPCAO";
 };
 
 

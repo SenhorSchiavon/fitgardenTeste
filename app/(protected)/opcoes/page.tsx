@@ -47,11 +47,11 @@ import {
   useOpcoes,
   Opcao,
   OpcaoTipo,
-  OpcaoCategoria,
   ComponenteTipo,
   OpcaoComponente,
 } from "@/hooks/useOpcoes";
 import { usePreparos, Preparo } from "@/hooks/usePreparos";
+import { useCategorias } from "@/hooks/useCategorias";
 import { useTableSort } from "@/hooks/useTableSort";
 import { SortableHead } from "@/components/ui/sorttable";
 
@@ -66,7 +66,7 @@ type ComponenteDraft = {
 type NovaOpcaoForm = {
   tipo: OpcaoTipo;
   nome: string;
-  categoria: OpcaoCategoria | null;
+  categoriaId: number | null;
   componentes: ComponenteDraft[];
 };
 
@@ -93,6 +93,13 @@ export default function OpcoesPage() {
   } = useOpcoes();
 
   const { preparos, loading: loadingPreparos } = usePreparos();
+  const { categorias: todasCategorias, loading: loadingCategorias } = useCategorias();
+
+  // Filtra apenas categorias do tipo OPCAO
+  const categoriasOpcao = useMemo(
+    () => todasCategorias.filter((c) => c.tipo === "OPCAO"),
+    [todasCategorias],
+  );
 
   const [editandoId, setEditandoId] = useState<number | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -109,7 +116,7 @@ export default function OpcoesPage() {
   const [novaOpcao, setNovaOpcao] = useState<NovaOpcaoForm>({
     tipo: "MARMITA",
     nome: "",
-    categoria: "FIT",
+    categoriaId: null,
     componentes: [],
   });
 
@@ -117,7 +124,7 @@ export default function OpcoesPage() {
     setNovaOpcao({
       tipo: "MARMITA",
       nome: "",
-      categoria: "FIT",
+      categoriaId: null,
       componentes: [],
     });
     setEditandoId(null);
@@ -130,7 +137,7 @@ export default function OpcoesPage() {
     if (!q) return opcoes;
 
     return opcoes.filter((o) =>
-      [o.id, o.nome, o.tipo, o.categoria].some((v) =>
+      [o.id, o.nome, o.tipo, o.categoriaDescricao].some((v) =>
         String(v ?? "")
           .toLowerCase()
           .includes(q),
@@ -140,7 +147,7 @@ export default function OpcoesPage() {
 
   const { sort, onSort, sortedRows } = useTableSort(opcoesFiltradas);
 
-  const isLoading = loadingOpcoes || loadingPreparos;
+  const isLoading = loadingOpcoes || loadingPreparos || loadingCategorias;
 
   const somaPct = useMemo(() => {
     return (novaOpcao.componentes || []).reduce(
@@ -166,7 +173,7 @@ export default function OpcoesPage() {
     setNovaOpcao({
       tipo: opcao.tipo,
       nome: opcao.nome,
-      categoria: opcao.categoria ?? "FIT",
+      categoriaId: opcao.categoriaId ?? null,
       componentes: (opcao.componentes || []).map(toComponenteDraft),
     });
 
@@ -197,7 +204,7 @@ export default function OpcoesPage() {
         return {
           ...p,
           tipo: "OUTROS",
-          categoria: null,
+          categoriaId: null,
           componentes: [],
         };
       }
@@ -205,7 +212,7 @@ export default function OpcoesPage() {
       return {
         ...p,
         tipo: "MARMITA",
-        categoria: p.categoria ?? "FIT",
+        categoriaId: p.categoriaId,
       };
     });
 
@@ -285,7 +292,7 @@ export default function OpcoesPage() {
         ? {
             tipo: "MARMITA" as const,
             nome: novaOpcao.nome.trim(),
-            categoria: novaOpcao.categoria,
+            categoriaId: novaOpcao.categoriaId,
             componentes: novaOpcao.componentes.map((c) => ({
               tipo: c.tipo,
               preparoId: c.preparoId!,
@@ -295,7 +302,7 @@ export default function OpcoesPage() {
         : {
             tipo: "OUTROS" as const,
             nome: novaOpcao.nome.trim(),
-            categoria: null,
+            categoriaId: null,
             componentes: [],
           };
 
@@ -358,10 +365,7 @@ export default function OpcoesPage() {
                     <TableCell>{opcao.nome}</TableCell>
                     <TableCell>
                       {opcao.tipo === "MARMITA"
-                        ? (opcao.categoria ?? "-").replace(
-                            "LOW_CARB",
-                            "LOW CARB",
-                          )
+                        ? (opcao.categoriaDescricao ?? "-")
                         : "-"}
                     </TableCell>
                     <TableCell className="text-right">
@@ -481,33 +485,33 @@ export default function OpcoesPage() {
               <>
                 <div className="space-y-2 border-t pt-4">
                   <Label>Categoria</Label>
-                  <RadioGroup
-                    value={novaOpcao.categoria ?? "FIT"}
-                    onValueChange={(value) =>
-                      setNovaOpcao((p) => ({
-                        ...p,
-                        categoria: value as OpcaoCategoria,
-                      }))
-                    }
-                    className="flex flex-wrap gap-4"
-                  >
-                    <div className="flex items-center space-x-2">
-                      <RadioGroupItem value="FIT" id="fit" />
-                      <Label htmlFor="fit">FIT</Label>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <RadioGroupItem value="LOW_CARB" id="lowcarb" />
-                      <Label htmlFor="lowcarb">LOW CARB</Label>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <RadioGroupItem value="VEGETARIANO" id="vegetariano" />
-                      <Label htmlFor="vegetariano">VEGETARIANO</Label>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <RadioGroupItem value="SOPA" id="sopa" />
-                      <Label htmlFor="sopa">SOPA</Label>
-                    </div>
-                  </RadioGroup>
+                  {loadingCategorias ? (
+                    <p className="text-sm text-muted-foreground">
+                      Carregando categorias...
+                    </p>
+                  ) : categoriasOpcao.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">
+                      Nenhuma categoria cadastrada. Cadastre categorias do tipo OPÇÃO na tela de Categorias.
+                    </p>
+                  ) : (
+                    <RadioGroup
+                      value={novaOpcao.categoriaId != null ? String(novaOpcao.categoriaId) : ""}
+                      onValueChange={(value) =>
+                        setNovaOpcao((p) => ({
+                          ...p,
+                          categoriaId: Number(value),
+                        }))
+                      }
+                      className="flex flex-wrap gap-4"
+                    >
+                      {categoriasOpcao.map((cat) => (
+                        <div key={cat.id} className="flex items-center space-x-2">
+                          <RadioGroupItem value={String(cat.id)} id={`cat-${cat.id}`} />
+                          <Label htmlFor={`cat-${cat.id}`}>{cat.descricao}</Label>
+                        </div>
+                      ))}
+                    </RadioGroup>
+                  )}
                 </div>
 
                 <div className="space-y-4 border-t pt-4">

@@ -80,7 +80,7 @@ export default function CardapiosPage() {
   const opcoesPorCategoria = useMemo(() => {
     const categorias: Record<string, Opcao[]> = {};
     for (const o of opcoes) {
-      const cat = o.tipo === "MARMITA" ? (o.categoria ?? "SEM_CATEGORIA") : "OUTROS";
+      const cat = o.tipo === "MARMITA" ? (o.categoriaDescricao ?? "SEM CATEGORIA") : "OUTROS";
       if (!categorias[cat]) categorias[cat] = [];
       categorias[cat].push(o);
     }
@@ -308,7 +308,7 @@ export default function CardapiosPage() {
                   {Object.entries(opcoesPorCategoria).map(([categoria, opcoesCategoria]) => (
                     <div key={categoria} className="mb-4">
                       <h3 className="mb-2 font-medium">
-                        {categoria === "LOW_CARB" ? "LOW CARB" : categoria}
+                        {categoria}
                       </h3>
 
                       <div className="space-y-2">
@@ -365,8 +365,8 @@ export default function CardapiosPage() {
                 {selectedResumo.map((op) => (
                   <li key={op.id} className="text-sm">
                     {op.nome}
-                    {op.tipo === "MARMITA" && op.categoria ? (
-                      <span className="text-muted-foreground"> — {op.categoria === "LOW_CARB" ? "LOW CARB" : op.categoria}</span>
+                    {op.tipo === "MARMITA" && op.categoriaDescricao ? (
+                      <span className="text-muted-foreground"> — {op.categoriaDescricao}</span>
                     ) : null}
                   </li>
                 ))}

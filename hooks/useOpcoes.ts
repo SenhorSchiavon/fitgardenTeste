@@ -3,7 +3,6 @@ import { toast } from "sonner";
 import { apiFetch } from "./api";
 
 export type OpcaoTipo = "MARMITA" | "OUTROS";
-export type OpcaoCategoria = "FIT" | "LOW_CARB" | "VEGETARIANO" | "SOPA";
 export type ComponenteTipo = "CARBOIDRATO" | "PROTEINA" | "LEGUMES";
 
 export type OpcaoComponente = {
@@ -17,7 +16,8 @@ export type Opcao = {
   id: number;
   tipo: OpcaoTipo;
   nome: string;
-  categoria: OpcaoCategoria | null;
+  categoriaId: number | null;
+  categoriaDescricao: string | null;
 
   componentes: OpcaoComponente[]; // pra OUTROS pode vir []
 };
@@ -25,7 +25,7 @@ export type Opcao = {
 type NovaOpcaoInput = {
   tipo: OpcaoTipo;
   nome: string;
-  categoria?: OpcaoCategoria | null;
+  categoriaId?: number | null;
   componentes?: Array<{
     tipo: ComponenteTipo;
     preparoId: number;
