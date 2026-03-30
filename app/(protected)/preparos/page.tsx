@@ -480,7 +480,7 @@ export default function PreparosPage() {
                       tipo: value as PreparoTipo,
                     }))
                   }
-                  className="flex space-x-4"
+                  className="flex flex-wrap gap-4"
                 >
                   <div className="flex items-center space-x-2">
                     <RadioGroupItem value="CARBOIDRATO" id="carboidrato" />
