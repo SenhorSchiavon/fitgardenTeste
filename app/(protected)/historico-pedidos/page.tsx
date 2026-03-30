@@ -12,6 +12,8 @@ import { CreditCard, MapPin, Phone, Search, TruckIcon, User, CalendarIcon } from
 import { Header } from "@/components/header"
 
 import { useAgendamentos } from "@/hooks/useAgendamentos" // <<< ajusta caminho
+import { useTableSort } from "@/hooks/useTableSort"
+import { SortableHead } from "@/components/ui/sorttable"
 
 type HistoricoPedido = {
   id: string
@@ -103,6 +105,8 @@ export default function HistoricoPedidos() {
     })
   }, [historicoPedidos, searchTerm])
 
+  const { sort, onSort, sortedRows } = useTableSort(filteredPedidos)
+
   return (
     <div className="container mx-auto p-6">
       <Header title="Histórico de Pedidos" subtitle="Consulte o histórico de pedidos realizados" />
@@ -125,18 +129,18 @@ export default function HistoricoPedidos() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Pedido</TableHead>
-                <TableHead>Data</TableHead>
-                <TableHead>Cliente</TableHead>
-                <TableHead>Entrega/Retirada</TableHead>
-                <TableHead>Pagamento</TableHead>
-                <TableHead>Status</TableHead>
+                <SortableHead label="Pedido" field="numeroPedido" sort={sort} onSort={onSort} />
+                <SortableHead label="Data" field="data" sort={sort} onSort={onSort} />
+                <SortableHead label="Cliente" field="cliente" sort={sort} onSort={onSort} />
+                <SortableHead label="Entrega/Retirada" field="tipoEntrega" sort={sort} onSort={onSort} />
+                <SortableHead label="Pagamento" field="formaPagamento" sort={sort} onSort={onSort} />
+                <SortableHead label="Status" field="status" sort={sort} onSort={onSort} />
                 <TableHead className="text-right">Ações</TableHead>
               </TableRow>
             </TableHeader>
 
             <TableBody>
-              {filteredPedidos.map((pedido) => (
+              {sortedRows.map((pedido) => (
                 <TableRow key={pedido.id}>
                   <TableCell>{pedido.numeroPedido}</TableCell>
                   <TableCell>{formatDate(pedido.data)}</TableCell>

@@ -9,6 +9,8 @@ import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { useRegrasPersonalizadas, RegraPrecoTipo, RegraPrecoPersonalizada } from "@/hooks/useRegrasPersonalizadas";
+import { useTableSort } from "@/hooks/useTableSort";
+import { SortableHead } from "@/components/ui/sorttable";
 
 export default function RegrasPersonalizadaPage() {
   const { regras, loading, saving, criarRegra, atualizarRegra, deletarRegra } = useRegrasPersonalizadas();
@@ -22,6 +24,9 @@ export default function RegrasPersonalizadaPage() {
 
   const regrasProteina = regras.filter((r) => r.tipo === "PROTEINA").sort((a, b) => a.limite - b.limite);
   const regrasTotal = regras.filter((r) => r.tipo === "PESO_TOTAL").sort((a, b) => a.limite - b.limite);
+
+  const { sort: sortP, onSort: onSortP, sortedRows: rowsP } = useTableSort(regrasProteina, { initialKey: "limite", initialDirection: "asc" });
+  const { sort: sortT, onSort: onSortT, sortedRows: rowsT } = useTableSort(regrasTotal, { initialKey: "limite", initialDirection: "asc" });
 
   function handleOpenModal(tipo: RegraPrecoTipo, item?: RegraPrecoPersonalizada) {
     if (item) {
@@ -91,8 +96,8 @@ export default function RegrasPersonalizadaPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Até (Gramas)</TableHead>
-                  <TableHead>Valor</TableHead>
+                  <SortableHead label="Até (Gramas)" field="limite" sort={sortP} onSort={onSortP} />
+                  <SortableHead label="Valor" field="preco" sort={sortP} onSort={onSortP} />
                   <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
               </TableHeader>
@@ -102,7 +107,7 @@ export default function RegrasPersonalizadaPage() {
                     <TableCell colSpan={3} className="text-center text-muted-foreground">Nenhuma regra cadastrada.</TableCell>
                   </TableRow>
                 )}
-                {regrasProteina.map((r) => (
+                {rowsP.map((r) => (
                   <TableRow key={r.id}>
                     <TableCell>Até {r.limite}g</TableCell>
                     <TableCell>R$ {Number(r.preco).toFixed(2)}</TableCell>
@@ -135,8 +140,8 @@ export default function RegrasPersonalizadaPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Até (Gramas)</TableHead>
-                  <TableHead>Valor</TableHead>
+                  <SortableHead label="Até (Gramas)" field="limite" sort={sortT} onSort={onSortT} />
+                  <SortableHead label="Valor" field="preco" sort={sortT} onSort={onSortT} />
                   <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
               </TableHeader>
@@ -146,7 +151,7 @@ export default function RegrasPersonalizadaPage() {
                     <TableCell colSpan={3} className="text-center text-muted-foreground">Nenhuma regra cadastrada.</TableCell>
                   </TableRow>
                 )}
-                {regrasTotal.map((r) => (
+                {rowsT.map((r) => (
                   <TableRow key={r.id}>
                     <TableCell>Até {r.limite}g</TableCell>
                     <TableCell>R$ {Number(r.preco).toFixed(2)}</TableCell>

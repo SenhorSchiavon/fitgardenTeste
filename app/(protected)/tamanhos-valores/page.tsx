@@ -30,6 +30,8 @@ import {
 } from "@/components/ui/alert-dialog";
 
 import { useTamanhos, Tamanho } from "@/hooks/useTamanhos";
+import { useTableSort } from "@/hooks/useTableSort";
+import { SortableHead } from "@/components/ui/sorttable";
 
 type TamanhoValorForm = {
   pesagem: number;
@@ -130,6 +132,8 @@ export default function TamanhosValores() {
     );
   }, [tamanhos, busca]);
 
+  const { sort, onSort, sortedRows } = useTableSort(tamanhosFiltradosOrdenados, { initialKey: "pesagemGramas", initialDirection: "asc" });
+
   return (
     <div className="container mx-auto p-6">
       <Header
@@ -157,17 +161,17 @@ export default function TamanhosValores() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Pesagem (g)</TableHead>
-                  <TableHead>Unitário</TableHead>
-                  <TableHead>Acima de 10 un.</TableHead>
-                  <TableHead>Acima de 20 un.</TableHead>
-                  <TableHead>Acima de 40 un.</TableHead>
+                  <SortableHead label="Pesagem (g)" field="pesagemGramas" sort={sort} onSort={onSort} />
+                  <SortableHead label="Unitário" field="valorUnitario" sort={sort} onSort={onSort} />
+                  <SortableHead label="Acima de 10 un." field="valor10" sort={sort} onSort={onSort} />
+                  <SortableHead label="Acima de 20 un." field="valor20" sort={sort} onSort={onSort} />
+                  <SortableHead label="Acima de 40 un." field="valor40" sort={sort} onSort={onSort} />
                   <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
               </TableHeader>
 
               <TableBody>
-                {tamanhosFiltradosOrdenados.map((t) => (
+                {sortedRows.map((t) => (
                   <TableRow key={t.id}>
                     <TableCell>{t.pesagemGramas}g</TableCell>
                     <TableCell>{formatCurrency(t.valorUnitario)}</TableCell>

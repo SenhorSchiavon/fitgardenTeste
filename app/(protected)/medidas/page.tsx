@@ -23,6 +23,8 @@ import { Label } from "@/components/ui/label";
 import { Header } from "@/components/header";
 
 import { useMedidas, Medida } from "@/hooks/useMedidas";
+import { useTableSort } from "@/hooks/useTableSort";
+import { SortableHead } from "@/components/ui/sorttable";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -64,6 +66,8 @@ export default function MedidasPage() {
       )
     );
   }, [medidas, busca]);
+
+  const { sort, onSort, sortedRows } = useTableSort(medidasFiltradas);
 
   const resetForm = () => {
     setNovoNome("");
@@ -155,8 +159,8 @@ export default function MedidasPage() {
             <Table>
               <TableHeader>
                 <TableRow className="bg-gray-50 hover:bg-gray-50">
-                  <TableHead className="text-gray-700 w-24">Cód.</TableHead>
-                  <TableHead className="text-gray-700">Nome</TableHead>
+                  <SortableHead label="Cód." field="id" sort={sort} onSort={onSort} />
+                  <SortableHead label="Nome" field="nome" sort={sort} onSort={onSort} />
                   <TableHead className="text-right text-gray-700 w-28">
                     Ações
                   </TableHead>
@@ -164,7 +168,7 @@ export default function MedidasPage() {
               </TableHeader>
 
               <TableBody>
-                {medidasFiltradas.map((medida) => (
+                {sortedRows.map((medida) => (
                   <TableRow
                     key={medida.id}
                     className="hover:bg-gray-50 border-b border-gray-100"

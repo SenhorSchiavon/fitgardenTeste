@@ -52,6 +52,8 @@ import {
 import { usePreparos, Preparo, PreparoTipo, Medida } from "@/hooks/usePreparos";
 import { useIngredientes } from "@/hooks/useIngredientes";
 import { useMedidas } from "@/hooks/useMedidas";
+import { useTableSort } from "@/hooks/useTableSort";
+import { SortableHead } from "@/components/ui/sorttable";
 
 type IngredientePreparoEmEdicao = {
   ingredienteId: number;
@@ -122,6 +124,9 @@ export default function PreparosPage() {
       ),
     );
   }, [preparos, busca]);
+
+  const { sort, onSort, sortedRows } = useTableSort(preparosFiltrados);
+
   const openDelete = (id: number) => {
     setDeleteId(id);
     setDeleteOpen(true);
@@ -329,15 +334,15 @@ export default function PreparosPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Cód. Sistema</TableHead>
-                  <TableHead>Nome</TableHead>
-                  <TableHead>Tipo</TableHead>
-                  <TableHead>Preço de Custo</TableHead>
+                  <SortableHead label="Cód. Sistema" field="codigoSistema" sort={sort} onSort={onSort} />
+                  <SortableHead label="Nome" field="nome" sort={sort} onSort={onSort} />
+                  <SortableHead label="Tipo" field="tipo" sort={sort} onSort={onSort} />
+                  <SortableHead label="Preço de Custo" field="custoTotal" sort={sort} onSort={onSort} />
                   <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {preparosFiltrados.map((preparo) => (
+                {sortedRows.map((preparo) => (
                   <TableRow key={preparo.id}>
                     <TableCell>{preparo.codigoSistema}</TableCell>
                     <TableCell>{preparo.nome}</TableCell>

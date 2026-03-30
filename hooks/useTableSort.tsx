@@ -15,6 +15,9 @@ type Options<T> = {
 };
 
 function defaultAccessor<T>(row: T, key: string) {
+  if (key.includes(".")) {
+    return key.split(".").reduce((acc, part) => (acc as any)?.[part], row);
+  }
   return (row as any)?.[key];
 }
 

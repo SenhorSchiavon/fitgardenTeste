@@ -44,6 +44,8 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
+import { useTableSort } from "@/hooks/useTableSort";
+import { SortableHead } from "@/components/ui/sorttable";
 import { toast } from "sonner";
 
 type NovoIngredienteForm = {
@@ -117,6 +119,8 @@ export default function IngredientesPage() {
       ),
     );
   }, [ingredientes, busca]);
+
+  const { sort, onSort, sortedRows } = useTableSort(ingredientesFiltrados);
   const handleNew = () => {
     resetForm();
     setDialogOpen(true);
@@ -246,21 +250,17 @@ export default function IngredientesPage() {
             <Table>
               <TableHeader>
                 <TableRow className="bg-gray-50 hover:bg-gray-50">
-                  <TableHead className="text-gray-700">Cód. Sistema</TableHead>
-                  <TableHead className="text-gray-700">Nome</TableHead>
-                  <TableHead className="text-gray-700">Categoria</TableHead>
-                  <TableHead className="text-gray-700">
-                    Preço de Custo
-                  </TableHead>
-                  <TableHead className="text-gray-700">Medida</TableHead>
-                  <TableHead className="text-right text-gray-700">
-                    Ações
-                  </TableHead>
+                  <SortableHead label="Cód. Sistema" field="codigoSistema" sort={sort} onSort={onSort} />
+                  <SortableHead label="Nome" field="nome" sort={sort} onSort={onSort} />
+                  <SortableHead label="Categoria" field="categoriaDescricao" sort={sort} onSort={onSort} />
+                  <SortableHead label="Preço de Custo" field="precoCusto" sort={sort} onSort={onSort} />
+                  <SortableHead label="Medida" field="medida.nome" sort={sort} onSort={onSort} />
+                  <TableHead className="text-right text-gray-700">Ações</TableHead>
                 </TableRow>
               </TableHeader>
 
               <TableBody>
-                {ingredientesFiltrados.map((ingrediente) => (
+                {sortedRows.map((ingrediente) => (
                   <TableRow
                     key={ingrediente.id}
                     className="hover:bg-gray-50 border-b border-gray-100"

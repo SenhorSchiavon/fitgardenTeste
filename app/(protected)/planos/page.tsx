@@ -41,6 +41,8 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Plano, NovoPlanoInput, usePlanos } from "@/hooks/usePlanos";
+import { useTableSort } from "@/hooks/useTableSort";
+import { SortableHead } from "@/components/ui/sorttable";
 
 type PlanoForm = {
   nome: string;
@@ -100,6 +102,8 @@ export default function PlanosPage() {
         .some((v) => String(v ?? "").toLowerCase().includes(q)),
     );
   }, [planos, busca]);
+
+  const { sort, onSort, sortedRows } = useTableSort(planosFiltrados);
 
   const handleNew = () => {
     resetForm();
@@ -176,21 +180,19 @@ export default function PlanosPage() {
             <Table>
               <TableHeader>
                 <TableRow className="bg-gray-50 hover:bg-gray-50">
-                  <TableHead className="text-gray-700">ID</TableHead>
-                  <TableHead className="text-gray-700">Nome</TableHead>
-                  <TableHead className="text-gray-700">Tamanho</TableHead>
-                  <TableHead className="text-gray-700">Unidades</TableHead>
-                  <TableHead className="text-gray-700">Entregas</TableHead>
-                  <TableHead className="text-gray-700">Valor</TableHead>
-                  <TableHead className="text-gray-700">Ativo</TableHead>
-                  <TableHead className="text-right text-gray-700">
-                    Ações
-                  </TableHead>
+                  <SortableHead label="ID" field="id" sort={sort} onSort={onSort} />
+                  <SortableHead label="Nome" field="nome" sort={sort} onSort={onSort} />
+                  <SortableHead label="Tamanho" field="tamanho.pesagemGramas" sort={sort} onSort={onSort} />
+                  <SortableHead label="Unidades" field="unidades" sort={sort} onSort={onSort} />
+                  <SortableHead label="Entregas" field="entregasInclusas" sort={sort} onSort={onSort} />
+                  <SortableHead label="Valor" field="valor" sort={sort} onSort={onSort} />
+                  <SortableHead label="Ativo" field="ativo" sort={sort} onSort={onSort} />
+                  <TableHead className="text-right text-gray-700">Ações</TableHead>
                 </TableRow>
               </TableHeader>
 
               <TableBody>
-                {planosFiltrados.map((plano) => (
+                {sortedRows.map((plano) => (
                   <TableRow
                     key={plano.id}
                     className="hover:bg-gray-50 border-b border-gray-100"

@@ -52,6 +52,8 @@ import {
   OpcaoComponente,
 } from "@/hooks/useOpcoes";
 import { usePreparos, Preparo } from "@/hooks/usePreparos";
+import { useTableSort } from "@/hooks/useTableSort";
+import { SortableHead } from "@/components/ui/sorttable";
 
 type ComponenteDraft = {
   id: string;
@@ -135,6 +137,8 @@ export default function OpcoesPage() {
       ),
     );
   }, [opcoes, busca]);
+
+  const { sort, onSort, sortedRows } = useTableSort(opcoesFiltradas);
 
   const isLoading = loadingOpcoes || loadingPreparos;
 
@@ -336,16 +340,16 @@ export default function OpcoesPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Cód. Sistema</TableHead>
-                  <TableHead>Tipo</TableHead>
-                  <TableHead>Nome</TableHead>
-                  <TableHead>Categoria</TableHead>
+                  <SortableHead label="Cód. Sistema" field="id" sort={sort} onSort={onSort} />
+                  <SortableHead label="Tipo" field="tipo" sort={sort} onSort={onSort} />
+                  <SortableHead label="Nome" field="nome" sort={sort} onSort={onSort} />
+                  <SortableHead label="Categoria" field="categoria" sort={sort} onSort={onSort} />
                   <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
               </TableHeader>
 
               <TableBody>
-                {opcoesFiltradas.map((opcao) => (
+                {sortedRows.map((opcao) => (
                   <TableRow key={opcao.id}>
                     <TableCell>{formatCodigoOpcao(opcao.id)}</TableCell>
                     <TableCell>

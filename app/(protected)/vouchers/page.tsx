@@ -10,6 +10,8 @@ import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Plus, Search } from "lucide-react"
 import { Header } from "@/components/header"
+import { useTableSort } from "@/hooks/useTableSort"
+import { SortableHead } from "@/components/ui/sorttable"
 
 type Voucher = {
   id: string
@@ -79,6 +81,8 @@ export default function Vouchers() {
     (voucher) => voucher.numero.includes(searchTerm) || formatDate(voucher.data).includes(searchTerm),
   )
 
+  const { sort, onSort, sortedRows } = useTableSort(filteredVouchers)
+
   return (
     <div className="container mx-auto p-6">
       <Header title="Vouchers" subtitle="Gerencie os vouchers do sistema" />
@@ -106,14 +110,14 @@ export default function Vouchers() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Número</TableHead>
-                <TableHead>Data</TableHead>
-                <TableHead>Baixado</TableHead>
+                <SortableHead label="Número" field="numero" sort={sort} onSort={onSort} />
+                <SortableHead label="Data" field="data" sort={sort} onSort={onSort} />
+                <SortableHead label="Baixado" field="baixado" sort={sort} onSort={onSort} />
                 <TableHead className="text-right">Ações</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredVouchers.map((voucher) => (
+              {sortedRows.map((voucher) => (
                 <TableRow key={voucher.id}>
                   <TableCell>{voucher.numero}</TableCell>
                   <TableCell>{formatDate(voucher.data)}</TableCell>

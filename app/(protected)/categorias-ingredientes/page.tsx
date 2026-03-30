@@ -23,6 +23,8 @@ import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Header } from "@/components/header";
 import { useCategorias, CategoriaTipo } from "@/hooks/useCategorias";
+import { useTableSort } from "@/hooks/useTableSort";
+import { SortableHead } from "@/components/ui/sorttable";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -70,6 +72,8 @@ export default function CategoriasIngredientes() {
       ),
     );
   }, [categorias, busca]);
+
+  const { sort, onSort, sortedRows } = useTableSort(categoriasFiltradas);
 
   const openDelete = (id: number) => {
     setDeleteId(id);
@@ -163,18 +167,14 @@ export default function CategoriasIngredientes() {
             <Table>
               <TableHeader>
                 <TableRow className="bg-gray-50 hover:bg-gray-50">
-                  <TableHead className="text-gray-700">Cód. Sistema</TableHead>
-                  <TableHead className="text-gray-700">
-                    Categoria de Ingredientes
-                  </TableHead>
-                  <TableHead className="text-gray-700">Tipo</TableHead>
-                  <TableHead className="text-right text-gray-700">
-                    Ações
-                  </TableHead>
+                  <SortableHead label="Cód. Sistema" field="id" sort={sort} onSort={onSort} />
+                  <SortableHead label="Categoria de Ingredientes" field="descricao" sort={sort} onSort={onSort} />
+                  <SortableHead label="Tipo" field="tipo" sort={sort} onSort={onSort} />
+                  <TableHead className="text-right text-gray-700">Ações</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {categoriasFiltradas.map((categoria) => (
+                {sortedRows.map((categoria) => (
                   <TableRow
                     key={categoria.id}
                     className="hover:bg-gray-50 border-b border-gray-100"
