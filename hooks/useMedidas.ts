@@ -65,10 +65,58 @@ export function useMedidas() {
     }
   };
 
+  const updateMedida = async (id: number, nome: string) => {
+    try {
+      const res = await apiFetch(`${RESOURCE}/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ nome }),
+      });
+
+      if (!res.ok) throw new Error("Falha ao atualizar medida");
+
+      const updated = await res.json();
+      setMedidas((prev) => prev.map((m) => (m.id === id ? updated : m)));
+      
+      toast.success("Sucesso", {
+        description: "Medida atualizada com sucesso!",
+      });
+      return updated as Medida;
+    } catch (err: any) {
+      toast.error("Erro ao atualizar medida", {
+        description: err.message,
+      });
+      throw err;
+    }
+  };
+
+  const deleteMedida = async (id: number) => {
+    try {
+      const res = await apiFetch(`${RESOURCE}/${id}`, {
+        method: "DELETE",
+      });
+
+      if (!res.ok) throw new Error("Falha ao excluir medida");
+
+      setMedidas((prev) => prev.filter((m) => m.id !== id));
+      
+      toast.success("Sucesso", {
+        description: "Medida excluída com sucesso!",
+      });
+    } catch (err: any) {
+      toast.error("Erro ao excluir medida", {
+        description: err.message,
+      });
+      throw err;
+    }
+  };
+
   return {
     medidas,
     isLoading,
     criarMedida,
+    updateMedida,
+    deleteMedida,
     carregarMedidas,
   };
 }

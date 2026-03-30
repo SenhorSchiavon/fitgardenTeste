@@ -123,6 +123,21 @@ export function Sidebar({ className }: SidebarProps) {
                     Ingredientes
                   </Button>
                 </Link>
+                <Link href="/medidas">
+                  <Button
+                    variant={isActive("/medidas") ? "secondary" : "ghost"}
+                    className={cn(
+                      "w-full justify-start gap-2",
+                      isActive("/medidas")
+                        ? "bg-blue-50 text-blue-700 hover:bg-blue-100"
+                        : "text-gray-600 hover:bg-gray-100",
+                    )}
+                    size="sm"
+                  >
+                    <Settings className="h-4 w-4" />
+                    Medidas
+                  </Button>
+                </Link>
                 <Link href="/preparos">
                   <Button
                     variant={isActive("/preparos") ? "secondary" : "ghost"}
