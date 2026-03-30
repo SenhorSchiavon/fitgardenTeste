@@ -17,17 +17,19 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogTrigger,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger,
-} from "@/components/ui/sheet";
+// import {
+//   Sheet,
+//   SheetContent,
+//   SheetHeader,
+//   SheetTitle,
+//   SheetTrigger,
+// } from "@/components/ui/sheet";
 import { Header } from "@/components/header";
 import {
   AlertDialog,
@@ -40,8 +42,16 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { usePreparos, Preparo, PreparoTipo, Medida } from "@/hooks/usePreparos";
 import { useIngredientes } from "@/hooks/useIngredientes";
+import { useMedidas } from "@/hooks/useMedidas";
 
 type IngredientePreparoEmEdicao = {
   ingredienteId: number;
@@ -49,6 +59,7 @@ type IngredientePreparoEmEdicao = {
   quantidade: number;
   medida: Medida;
   custo: number;
+  usarCruComoReferencia: boolean;
 };
 
 export default function PreparosPage() {
@@ -62,33 +73,37 @@ export default function PreparosPage() {
   } = usePreparos();
 
   const { ingredientes, loading: loadingIngredientes } = useIngredientes();
+  const { medidas, isLoading: loadingMedidas, criarMedida } = useMedidas();
+  const [novaMedidaNome, setNovaMedidaNome] = useState("");
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<number | null>(null);
 
   const [novoPreparo, setNovoPreparo] = useState<{
     nome: string;
     tipo: PreparoTipo;
-    medida: Medida;
+    medidaId: string;
     ingredientes: IngredientePreparoEmEdicao[];
   }>({
     nome: "",
     tipo: "CARBOIDRATO",
-    medida: "KG",
+    medidaId: "",
     ingredientes: [],
   });
 
   const [novoIngrediente, setNovoIngrediente] = useState<{
     ingredienteId: number | null;
     ingredienteNome: string;
-    medida: Medida;
+    medida: Medida | null;
     quantidade: number;
     custo: number;
+    usarCruComoReferencia: boolean;
   }>({
     ingredienteId: null,
     ingredienteNome: "",
-    medida: "KG",
+    medida: null,
     quantidade: 0,
     custo: 0,
+    usarCruComoReferencia: false,
   });
 
   const [editandoId, setEditandoId] = useState<number | null>(null);
@@ -152,15 +167,16 @@ export default function PreparosPage() {
     setNovoPreparo({
       nome: "",
       tipo: "CARBOIDRATO",
-      medida: "KG",
+      medidaId: "",
       ingredientes: [],
     });
     setNovoIngrediente({
       ingredienteId: null,
       ingredienteNome: "",
-      medida: "KG",
+      medida: null,
       quantidade: 0,
       custo: 0,
+      usarCruComoReferencia: false,
     });
     setEditandoId(null);
   };
@@ -174,13 +190,14 @@ export default function PreparosPage() {
     setNovoPreparo({
       nome: preparo.nome,
       tipo: preparo.tipo,
-      medida: preparo.medida,
+      medidaId: String(preparo.medida?.id ?? ""),
       ingredientes: preparo.fichaTecnica.map((ft) => ({
         ingredienteId: ft.ingredienteId,
         ingredienteNome: ft.ingredienteNome,
         quantidade: ft.quantidade,
         medida: ft.medida,
         custo: ft.custo,
+        usarCruComoReferencia: ft.usarCruComoReferencia,
       })),
     });
 
@@ -202,7 +219,7 @@ export default function PreparosPage() {
   };
 
   const handleAddIngrediente = () => {
-    if (!novoIngrediente.ingredienteId) return;
+    if (!novoIngrediente.ingredienteId || !novoIngrediente.medida) return;
     if (!novoIngrediente.quantidade || novoIngrediente.quantidade <= 0) return;
 
     const item: IngredientePreparoEmEdicao = {
@@ -211,21 +228,49 @@ export default function PreparosPage() {
       quantidade: novoIngrediente.quantidade,
       medida: novoIngrediente.medida,
       custo: novoIngrediente.custo,
+      usarCruComoReferencia: novoIngrediente.usarCruComoReferencia,
     };
 
-    setNovoPreparo((p) => ({
-      ...p,
-      ingredientes: [...p.ingredientes, item],
-    }));
+    setNovoPreparo((p) => {
+      const exists = p.ingredientes.some((i) => i.ingredienteId === item.ingredienteId);
+      if (exists) {
+        return {
+          ...p,
+          ingredientes: p.ingredientes.map((i) =>
+            i.ingredienteId === item.ingredienteId ? item : i
+          ),
+        };
+      }
+      return {
+        ...p,
+        ingredientes: [...p.ingredientes, item],
+      };
+    });
 
     setNovoIngrediente({
       ingredienteId: null,
       ingredienteNome: "",
-      medida: "KG",
+      medida: null,
       quantidade: 0,
       custo: 0,
+      usarCruComoReferencia: false,
     });
     setSheetOpen(false);
+  };
+
+  const handleEditIngrediente = (ingId: number) => {
+    const item = novoPreparo.ingredientes.find((i) => i.ingredienteId === ingId);
+    if (!item) return;
+
+    setNovoIngrediente({
+      ingredienteId: item.ingredienteId,
+      ingredienteNome: item.ingredienteNome,
+      medida: item.medida,
+      quantidade: item.quantidade,
+      custo: item.custo,
+      usarCruComoReferencia: item.usarCruComoReferencia,
+    });
+    setSheetOpen(true);
   };
 
   const handleSave = async () => {
@@ -234,10 +279,11 @@ export default function PreparosPage() {
     const payload = {
       nome: novoPreparo.nome.trim(),
       tipo: novoPreparo.tipo, // PROTEINA sem acento
-      medida: novoPreparo.medida,
+      medidaId: Number(novoPreparo.medidaId),
       fichaTecnica: novoPreparo.ingredientes.map((i) => ({
         ingredienteId: i.ingredienteId,
         quantidade: i.quantidade,
+        usarCruComoReferencia: i.usarCruComoReferencia,
       })),
     };
 
@@ -373,26 +419,50 @@ export default function PreparosPage() {
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Medida</Label>
-                <RadioGroup
-                  value={novoPreparo.medida}
+              <div className="flex gap-2">
+                <Select
+                  value={novoPreparo.medidaId}
                   onValueChange={(value) =>
-                    setNovoPreparo((p) => ({ ...p, medida: value as Medida }))
+                    setNovoPreparo((p) => ({ ...p, medidaId: value }))
                   }
-                  className="flex space-x-4"
                 >
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="UN" id="un" />
-                    <Label htmlFor="un">UN</Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="KG" id="kg" />
-                    <Label htmlFor="kg">KG</Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="L" id="l" />
-                    <Label htmlFor="l">L</Label>
-                  </div>
-                </RadioGroup>
+                  <SelectTrigger className="border-gray-200">
+                    <SelectValue placeholder="Selecione uma medida" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {medidas.map((m) => (
+                      <SelectItem key={m.id} value={String(m.id)}>
+                        {m.nome}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                <div className="flex items-center gap-1 border rounded bg-gray-50 px-2 min-w-44">
+                  <Input
+                    placeholder="Nova..."
+                    className="w-20 h-8 border-none bg-transparent shadow-none"
+                    value={novaMedidaNome}
+                    onChange={(e) => setNovaMedidaNome(e.target.value)}
+                  />
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    title="Adicionar Medida"
+                    className="h-8 w-8 text-blue-600 hover:bg-blue-100"
+                    onClick={async () => {
+                      if (!novaMedidaNome.trim()) return;
+                      try {
+                        const m = await criarMedida(novaMedidaNome.trim());
+                        setNovoPreparo((p) => ({ ...p, medidaId: String(m.id) }));
+                        setNovaMedidaNome("");
+                      } catch (e) {}
+                    }}
+                  >
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
               </div>
 
               <div className="space-y-2">
@@ -419,6 +489,10 @@ export default function PreparosPage() {
                     <RadioGroupItem value="LEGUMES" id="legumes" />
                     <Label htmlFor="legumes">LEGUMES</Label>
                   </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="FEIJAO" id="feijao" />
+                    <Label htmlFor="feijao">FEIJÃO</Label>
+                  </div>
                 </RadioGroup>
               </div>
             </div>
@@ -427,17 +501,17 @@ export default function PreparosPage() {
               <div className="flex items-center justify-between">
                 <Label>Ficha Técnica</Label>
 
-                <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
-                  <SheetTrigger asChild>
+                <Dialog open={sheetOpen} onOpenChange={setSheetOpen}>
+                  <DialogTrigger asChild>
                     <Button size="sm" disabled={saving || loadingIngredientes}>
                       <Plus className="mr-2 h-4 w-4" /> Adicionar Ingrediente
                     </Button>
-                  </SheetTrigger>
+                  </DialogTrigger>
 
-                  <SheetContent>
-                    <SheetHeader>
-                      <SheetTitle>Selecionar Ingrediente</SheetTitle>
-                    </SheetHeader>
+                  <DialogContent className="max-w-2xl overflow-y-auto max-h-[90vh]">
+                    <DialogHeader>
+                      <DialogTitle>Selecionar Ingrediente</DialogTitle>
+                    </DialogHeader>
 
                     <div className="py-4">
                       <div className="relative mb-4">
@@ -450,7 +524,7 @@ export default function PreparosPage() {
                         />
                       </div>
 
-                      <ScrollArea className="h-[55vh] pr-2">
+                      <ScrollArea className="h-[40vh] pr-2">
                         <Table>
                           <TableHeader className="sticky top-0 bg-background z-10">
                             <TableRow>
@@ -464,7 +538,7 @@ export default function PreparosPage() {
                             {ingredientesFiltrados.map((ingrediente) => (
                               <TableRow key={ingrediente.id}>
                                 <TableCell>{ingrediente.nome}</TableCell>
-                                <TableCell>{ingrediente.medida}</TableCell>
+                                <TableCell>{ingrediente.medida?.nome}</TableCell>
                                 <TableCell>
                                   <Button
                                     size="sm"
@@ -476,6 +550,7 @@ export default function PreparosPage() {
                                         medida: ingrediente.medida,
                                         quantidade: 0,
                                         custo: 0,
+                                        usarCruComoReferencia: false,
                                       })
                                     }
                                   >
@@ -491,12 +566,15 @@ export default function PreparosPage() {
                       {novoIngrediente.ingredienteId && (
                         <div className="mt-4 space-y-4 border-t pt-4">
                           <h3 className="font-medium">
-                            Adicionar {novoIngrediente.ingredienteNome}
+                            {novoPreparo.ingredientes.some((i) => i.ingredienteId === novoIngrediente.ingredienteId)
+                              ? "Editar "
+                              : "Adicionar "}
+                            {novoIngrediente.ingredienteNome}
                           </h3>
 
                           <div className="space-y-2">
                             <Label htmlFor="quantidade">
-                              Quantidade ({novoIngrediente.medida})
+                              Quantidade ({novoIngrediente.medida?.nome})
                             </Label>
                             <Input
                               id="quantidade"
@@ -522,17 +600,32 @@ export default function PreparosPage() {
                             />
                           </div>
 
+                          <div className="flex items-center space-x-2 pt-2 pb-2">
+                             <Checkbox
+                               id="usarCruIngrediente"
+                               checked={novoIngrediente.usarCruComoReferencia}
+                               onCheckedChange={(checked) =>
+                                 setNovoIngrediente((p) => ({ ...p, usarCruComoReferencia: !!checked }))
+                               }
+                             />
+                             <Label htmlFor="usarCruIngrediente" className="text-sm font-medium leading-none">
+                               Usar peso cru como referência
+                             </Label>
+                          </div>
+
                           <Button
                             onClick={handleAddIngrediente}
                             className="w-full"
                           >
-                            Adicionar à Ficha Técnica
+                            {novoPreparo.ingredientes.some((i) => i.ingredienteId === novoIngrediente.ingredienteId)
+                              ? "Salvar Alterações do Ingrediente"
+                              : "Adicionar à Ficha Técnica"}
                           </Button>
                         </div>
                       )}
                     </div>
-                  </SheetContent>
-                </Sheet>
+                  </DialogContent>
+                </Dialog>
               </div>
 
               <Table>
@@ -541,6 +634,7 @@ export default function PreparosPage() {
                     <TableHead>Nome do Ingrediente</TableHead>
                     <TableHead>Qtde.</TableHead>
                     <TableHead>Medida</TableHead>
+                    <TableHead>Ref. Cru?</TableHead>
                     <TableHead>Custo</TableHead>
                     <TableHead className="text-right">Ações</TableHead>
                   </TableRow>
@@ -551,9 +645,17 @@ export default function PreparosPage() {
                     <TableRow key={ingrediente.ingredienteId}>
                       <TableCell>{ingrediente.ingredienteNome}</TableCell>
                       <TableCell>{ingrediente.quantidade}</TableCell>
-                      <TableCell>{ingrediente.medida}</TableCell>
+                      <TableCell>{ingrediente.medida?.nome}</TableCell>
+                      <TableCell>{ingrediente.usarCruComoReferencia ? "Sim" : "Não"}</TableCell>
                       <TableCell>R$ {ingrediente.custo.toFixed(2)}</TableCell>
                       <TableCell className="text-right">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleEditIngrediente(ingrediente.ingredienteId)}
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
                         <Button
                           variant="ghost"
                           size="icon"

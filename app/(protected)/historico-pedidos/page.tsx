@@ -45,6 +45,16 @@ export default function HistoricoPedidos() {
   const [detalhesDialogOpen, setDetalhesDialogOpen] = useState(false)
   const [searchTerm, setSearchTerm] = useState("")
 
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const sp = new URLSearchParams(window.location.search)
+      const querySearch = sp.get("search")
+      if (querySearch) {
+        setSearchTerm(querySearch)
+      }
+    }
+  }, [])
+
   const handleShowDetalhes = (pedido: HistoricoPedido) => {
     setPedidoSelecionado(pedido)
     setDetalhesDialogOpen(true)

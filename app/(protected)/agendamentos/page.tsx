@@ -876,6 +876,7 @@ export default function Agendamentos() {
             nome: c.nome,
             telefone: c.telefone,
             enderecoPrincipal: enderecoTexto,
+            planos: c.planos,
           };
         })}
         tamanhos={tamanhos.map((t) => ({

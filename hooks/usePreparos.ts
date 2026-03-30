@@ -2,8 +2,12 @@ import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { apiFetch } from "./api";
 
-export type Medida = "UN" | "KG" | "L";
-export type PreparoTipo = "CARBOIDRATO" | "PROTEINA" | "LEGUMES";
+export type Medida = {
+  id: number;
+  nome: string;
+};
+
+export type PreparoTipo = "CARBOIDRATO" | "PROTEINA" | "LEGUMES" | "FEIJAO";
 
 export type PreparoFichaItem = {
   id: number;
@@ -12,6 +16,7 @@ export type PreparoFichaItem = {
   quantidade: number;
   medida: Medida;
   custo: number;
+  usarCruComoReferencia: boolean;
 };
 
 export type Preparo = {
@@ -27,12 +32,13 @@ export type Preparo = {
 type FichaTecnicaInput = {
   ingredienteId: number;
   quantidade: number;
+  usarCruComoReferencia: boolean;
 };
 
 type NovoPreparoInput = {
   nome: string;
   tipo: PreparoTipo;
-  medida: Medida;
+  medidaId: number;
   fichaTecnica: FichaTecnicaInput[];
 };
 

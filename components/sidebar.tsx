@@ -185,6 +185,23 @@ export function Sidebar({ className }: SidebarProps) {
                     Tamanhos e Valores
                   </Button>
                 </Link>
+                <Link href="/regras-personalizada">
+                  <Button
+                    variant={
+                      isActive("/regras-personalizada") ? "secondary" : "ghost"
+                    }
+                    className={cn(
+                      "w-full justify-start gap-2",
+                      isActive("/regras-personalizada")
+                        ? "bg-blue-50 text-blue-700 hover:bg-blue-100"
+                        : "text-gray-600 hover:bg-gray-100",
+                    )}
+                    size="sm"
+                  >
+                    <Settings className="h-4 w-4" />
+                    Regra Personalizada
+                  </Button>
+                </Link>
               </div>
             )}
           </div>

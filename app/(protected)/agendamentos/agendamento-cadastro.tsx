@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { ptBR } from "date-fns/locale";
+import Link from "next/link";
 import { Calendar } from "@/components/ui/calendar";
 import { Button } from "@/components/ui/button";
 import {
@@ -35,6 +36,8 @@ import {
   Minus,
 } from "lucide-react";
 
+import { useRegrasPersonalizadas } from "@/hooks/useRegrasPersonalizadas";
+
 type PedidoTipo = "ENTREGA" | "RETIRADA";
 type FormaPagamento =
   | "DINHEIRO"
@@ -51,6 +54,7 @@ type ClienteOption = {
   nome: string;
   telefone?: string | null;
   enderecoPrincipal?: string | null;
+  planos?: any[];
 };
 
 type TamanhoOption = {
@@ -110,6 +114,7 @@ type NovoPedidoItem = {
   proteinaGramas?: number;
   legumeGramas?: number;
   feijaoGramas?: number;
+  groupId?: string;
 };
 
 type Props = {
@@ -181,6 +186,7 @@ export function NovoAgendamentoNovoLayout({
   feijoes = [],
   onSubmit,
 }: Props) {
+  const { regras } = useRegrasPersonalizadas();
   const [clienteId, setClienteId] = useState("");
   const [tipo, setTipo] = useState<PedidoTipo>("ENTREGA");
   const [data, setData] = useState<Date | undefined>(new Date());
@@ -192,7 +198,9 @@ export function NovoAgendamentoNovoLayout({
   const [observacoesPedido, setObservacoesPedido] = useState("");
   const [formaPagamento, setFormaPagamento] = useState<FormaPagamento>("PIX");
 
+  const [currentGroupId, setCurrentGroupId] = useState("");
   const [modalNovoPedidoOpen, setModalNovoPedidoOpen] = useState(false);
+  const [modalTrocasOpen, setModalTrocasOpen] = useState(false);
   const [itens, setItens] = useState<NovoPedidoItem[]>([]);
 
   const [formItem, setFormItem] = useState<NovoPedidoItem>({
@@ -338,6 +346,38 @@ export function NovoAgendamentoNovoLayout({
     });
   }
 
+  function resetFormItemPartial() {
+    setFormItem((prev) => ({
+      ...prev,
+      id: "",
+      quantidade: 1,
+      opcaoId: "",
+      opcaoNome: "",
+      carboId: "",
+      carboNome: "",
+      proteinaId: "",
+      proteinaNome: "",
+      legumeId: "",
+      legumeNome: "",
+      feijaoId: "",
+      feijaoNome: "",
+      zerarLegume: false,
+      adicionarFeijao: false,
+      observacaoItem: "",
+      precoUnit: 0,
+      trocaCarboId: "",
+      trocaCarboNome: "",
+      trocaProteinaId: "",
+      trocaProteinaNome: "",
+      trocaLegumeId: "",
+      trocaLegumeNome: "",
+      carboGramas: 0,
+      proteinaGramas: 0,
+      legumeGramas: 0,
+      feijaoGramas: 0,
+    }));
+  }
+
   const totalGramasPersonalizada = useMemo(() => {
     if (formItem.tipoItem !== "PERSONALIZADA") return 0;
 
@@ -355,7 +395,41 @@ export function NovoAgendamentoNovoLayout({
     formItem.feijaoGramas,
   ]);
 
+  useEffect(() => {
+    if (formItem.tipoItem !== "PERSONALIZADA") return;
+
+    const proteina = Number(formItem.proteinaGramas || 0);
+    const total = totalGramasPersonalizada;
+
+    const regrasProteina = regras.filter((r) => r.tipo === "PROTEINA").sort((a, b) => a.limite - b.limite);
+    const regrasTotal = regras.filter((r) => r.tipo === "PESO_TOTAL").sort((a, b) => a.limite - b.limite);
+
+    let precoProteina = regrasProteina.length > 0 ? regrasProteina[regrasProteina.length - 1].preco : 0;
+    for (const r of regrasProteina) {
+      if (proteina <= r.limite) {
+        precoProteina = r.preco;
+        break;
+      }
+    }
+
+    let precoTotal = regrasTotal.length > 0 ? regrasTotal[regrasTotal.length - 1].preco : 0;
+    for (const r of regrasTotal) {
+      if (total <= r.limite) {
+        precoTotal = r.preco;
+        break;
+      }
+    }
+
+    const finalPrice = Math.max(precoProteina, precoTotal);
+
+    setFormItem((prev) => {
+      if (prev.precoUnit === finalPrice) return prev;
+      return { ...prev, precoUnit: finalPrice };
+    });
+  }, [formItem.tipoItem, formItem.proteinaGramas, totalGramasPersonalizada, regras]);
+
   function abrirNovoPedido() {
+    setCurrentGroupId(uid());
     resetFormItem();
     setModalNovoPedidoOpen(true);
   }
@@ -376,12 +450,13 @@ export function NovoAgendamentoNovoLayout({
       return partes.join(" • ");
     }
 
+    const formatTroca = (nome: string) => `${nome} (+ R$ 2,00 Troca)`;
     const extras = [
       item.opcaoNome || "Marmita padrão",
-      item.trocaCarboNome ? `Troca carbo: ${item.trocaCarboNome}` : null,
-      item.trocaProteinaNome ? `Troca proteína: ${item.trocaProteinaNome}` : null,
+      item.trocaCarboNome ? `Troca carbo: ${formatTroca(item.trocaCarboNome)}` : null,
+      item.trocaProteinaNome ? `Troca proteína: ${formatTroca(item.trocaProteinaNome)}` : null,
       !item.zerarLegume && item.trocaLegumeNome
-        ? `Troca legume: ${item.trocaLegumeNome}`
+        ? `Troca legume: ${formatTroca(item.trocaLegumeNome)}`
         : null,
       item.zerarLegume ? "Sem legume" : null,
       item.adicionarFeijao ? "Com feijão" : null,
@@ -390,27 +465,39 @@ export function NovoAgendamentoNovoLayout({
     return extras.join(" • ");
   }
 
-  function addPedidoNaLista() {
+  function addPedidoNaLista(fechar = true) {
     const tamanho = tamanhos.find((t) => t.id === formItem.tamanhoId);
 
     if (formItem.tipoItem === "PADRAO") {
       if (!tamanho) return;
       if (!formItem.opcaoId) return;
 
-      const precoUnit = Number(
+      let precoUnit = Number(
         getPrecoUnitPorQuantidade(tamanho, totalMarmitas + formItem.quantidade)
       );
+
+      let qtdTrocas = 0;
+      if (formItem.trocaCarboId) qtdTrocas++;
+      if (formItem.trocaProteinaId) qtdTrocas++;
+      if (formItem.trocaLegumeId && !formItem.zerarLegume) qtdTrocas++;
+
+      precoUnit += qtdTrocas * 2;
 
       const novo: NovoPedidoItem = {
         ...formItem,
         id: uid(),
+        groupId: currentGroupId,
         tamanhoLabel: tamanho.label,
         precoUnit,
       };
 
       setItens((prev) => [...prev, novo]);
-      setModalNovoPedidoOpen(false);
-      resetFormItem();
+      if (fechar) {
+        setModalNovoPedidoOpen(false);
+        resetFormItem();
+      } else {
+        resetFormItemPartial();
+      }
       return;
     }
 
@@ -420,15 +507,19 @@ export function NovoAgendamentoNovoLayout({
     const novo: NovoPedidoItem = {
       ...formItem,
       id: uid(),
+      groupId: currentGroupId,
       tamanhoId: "",
       tamanhoLabel: `${totalGramasPersonalizada}g`,
       precoUnit: Number(formItem.precoUnit || 0),
     };
 
     setItens((prev) => [...prev, novo]);
-    setModalNovoPedidoOpen(false);
-    resetFormItem();
-
+    if (fechar) {
+      setModalNovoPedidoOpen(false);
+      resetFormItem();
+    } else {
+      resetFormItemPartial();
+    }
   }
 
   function removeItem(id: string) {
@@ -523,6 +614,36 @@ export function NovoAgendamentoNovoLayout({
                       <span className="font-medium">Endereço padrão:</span>{" "}
                       {clienteSelecionado?.enderecoPrincipal || "-"}
                     </div>
+                    
+                    {clienteSelecionado && (
+                      <div className="pt-2 border-t mt-2 flex flex-col gap-3">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <span className="font-medium">Plano Ativo:</span>{" "}
+                            {clienteSelecionado.planos && clienteSelecionado.planos.length > 0 ? (
+                              <Badge className="bg-green-500 hover:bg-green-600">Sim</Badge>
+                            ) : (
+                              <Badge variant="outline">Não</Badge>
+                            )}
+                          </div>
+                          <Link href={`/historico-pedidos?search=${encodeURIComponent(clienteSelecionado.nome)}`} target="_blank">
+                            <Button size="sm" variant="outline">
+                              Ver Histórico
+                            </Button>
+                          </Link>
+                        </div>
+
+                        {clienteSelecionado.planos && clienteSelecionado.planos.length > 0 && (
+                          <div className="flex flex-col gap-1 mt-1">
+                            {clienteSelecionado.planos.map((plano: any) => (
+                              <div key={plano.id} className="text-sm font-medium text-muted-foreground">
+                                {plano.saldoUnidades} marmitas{plano.tamanho?.pesagemGramas ? ` - ${plano.tamanho.pesagemGramas}g` : ""}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -549,86 +670,110 @@ export function NovoAgendamentoNovoLayout({
                       Nenhum pedido adicionado ainda.
                     </div>
                   ) : (
-                    <div className="space-y-3">
-                      {itensComPrecoAtualizado.map((item) => {
-                        const subtotal = Number(item.precoUnit || 0) * Number(item.quantidade || 0);
-
+                    <div className="space-y-4">
+                      {Object.values(
+                        itensComPrecoAtualizado.reduce((acc, item) => {
+                          const key = item.groupId || item.id;
+                          if (!acc[key]) acc[key] = [];
+                          acc[key].push(item);
+                          return acc;
+                        }, {} as Record<string, typeof itensComPrecoAtualizado>)
+                      ).map((grupo, gIdx) => {
+                        const totalMarmitasG = grupo.reduce((sum, i) => sum + Number(i.quantidade || 0), 0);
+                        const subtotalG = grupo.reduce((sum, i) => sum + Number(i.precoUnit || 0) * Number(i.quantidade || 0), 0);
                         return (
-                          <div
-                            key={item.id}
-                            className="rounded-xl border p-4 space-y-3"
-                          >
-                            <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                              <div className="space-y-1 min-w-0">
-                                <div className="flex items-center gap-2 flex-wrap">
-                                  <span className="font-medium">
-                                    {(item.destinatarioNome || "").trim() ||
-                                      clienteSelecionado?.nome ||
-                                      "Cliente"}
-                                  </span>
-                                  <Badge variant="secondary">
-                                    {item.tipoItem === "PERSONALIZADA"
-                                      ? "Personalizada"
-                                      : "Padrão"}
-                                  </Badge>
-                                  <Badge variant="outline">{item.tamanhoLabel}</Badge>
-                                </div>
-
-                                <div className="text-sm text-muted-foreground break-words">
-                                  {getResumoEscolhas(item)}
-                                </div>
-
-                                {item.observacaoItem?.trim() ? (
-                                  <div className="text-sm">
-                                    <span className="font-medium">Obs:</span>{" "}
-                                    {item.observacaoItem}
-                                  </div>
-                                ) : null}
+                          <div key={grupo[0].groupId || grupo[0].id} className="rounded-xl border bg-muted/20 p-4 space-y-3">
+                            <div className="flex justify-between items-center border-b border-border/50 pb-3 mb-3">
+                              <span className="font-semibold text-sm">Pedido #{gIdx + 1}</span>
+                              <div className="text-right text-sm">
+                                <span className="text-muted-foreground mr-3">{totalMarmitasG} unid.</span>
+                                <span className="font-semibold">Subtotal: R$ {currency(subtotalG)}</span>
                               </div>
+                            </div>
+                            <div className="space-y-4">
+                              {grupo.map((item, iIdx) => {
+                                const subtotal = Number(item.precoUnit || 0) * Number(item.quantidade || 0);
 
-                              <div className="flex flex-col items-start md:items-end gap-2">
-                                <div className="text-right">
-                                  <div className="text-sm text-muted-foreground">
-                                    Unit. R$ {currency(item.precoUnit)}
-                                  </div>
-                                  <div className="font-semibold">
-                                    Subtotal R$ {currency(subtotal)}
-                                  </div>
-                                </div>
-
-                                <div className="flex items-center gap-2">
-                                  <Button
-                                    type="button"
-                                    variant="outline"
-                                    size="icon"
-                                    onClick={() => changeItemQty(item.id, -1)}
+                                return (
+                                  <div
+                                    key={item.id}
+                                    className={`${iIdx > 0 ? "pt-4 border-t border-dashed border-border/50" : ""} space-y-3`}
                                   >
-                                    <Minus className="h-4 w-4" />
-                                  </Button>
+                                    <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                                      <div className="space-y-1 min-w-0">
+                                        <div className="flex items-center gap-2 flex-wrap">
+                                          <span className="font-medium">
+                                            {(item.destinatarioNome || "").trim() ||
+                                              clienteSelecionado?.nome ||
+                                              "Cliente"}
+                                          </span>
+                                          <Badge variant="secondary">
+                                            {item.tipoItem === "PERSONALIZADA"
+                                              ? "Personalizada"
+                                              : "Padrão"}
+                                          </Badge>
+                                          <Badge variant="outline">{item.tamanhoLabel}</Badge>
+                                        </div>
 
-                                  <div className="min-w-[32px] text-center font-medium">
-                                    {item.quantidade}
+                                        <div className="text-sm text-muted-foreground break-words">
+                                          {getResumoEscolhas(item)}
+                                        </div>
+
+                                        {item.observacaoItem?.trim() ? (
+                                          <div className="text-sm">
+                                            <span className="font-medium">Obs:</span>{" "}
+                                            {item.observacaoItem}
+                                          </div>
+                                        ) : null}
+                                      </div>
+
+                                      <div className="flex flex-col items-start md:items-end gap-2">
+                                        <div className="text-right">
+                                          <div className="text-sm text-muted-foreground">
+                                            Unit. R$ {currency(item.precoUnit)}
+                                          </div>
+                                          <div className="font-semibold">
+                                            Subtotal R$ {currency(subtotal)}
+                                          </div>
+                                        </div>
+
+                                        <div className="flex items-center gap-2">
+                                          <Button
+                                            type="button"
+                                            variant="outline"
+                                            size="icon"
+                                            onClick={() => changeItemQty(item.id, -1)}
+                                          >
+                                            <Minus className="h-4 w-4" />
+                                          </Button>
+
+                                          <div className="min-w-[32px] text-center font-medium">
+                                            {item.quantidade}
+                                          </div>
+
+                                          <Button
+                                            type="button"
+                                            variant="outline"
+                                            size="icon"
+                                            onClick={() => changeItemQty(item.id, 1)}
+                                          >
+                                            <Plus className="h-4 w-4" />
+                                          </Button>
+
+                                          <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="icon"
+                                            onClick={() => removeItem(item.id)}
+                                          >
+                                            <Trash className="h-4 w-4" />
+                                          </Button>
+                                        </div>
+                                      </div>
+                                    </div>
                                   </div>
-
-                                  <Button
-                                    type="button"
-                                    variant="outline"
-                                    size="icon"
-                                    onClick={() => changeItemQty(item.id, 1)}
-                                  >
-                                    <Plus className="h-4 w-4" />
-                                  </Button>
-
-                                  <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="icon"
-                                    onClick={() => removeItem(item.id)}
-                                  >
-                                    <Trash className="h-4 w-4" />
-                                  </Button>
-                                </div>
-                              </div>
+                                );
+                              })}
                             </div>
                           </div>
                         );
@@ -790,80 +935,97 @@ export function NovoAgendamentoNovoLayout({
             <DialogTitle>Novo pedido</DialogTitle>
           </DialogHeader>
 
-          <div className="space-y-5">
-            <div className="rounded-lg border p-3 bg-muted/30">
-              <div className="text-sm">
-                <span className="font-medium">Cliente:</span>{" "}
-                {clienteSelecionado?.nome || "Selecione um cliente antes"}
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Subpedido / Para quem é</Label>
-                <Input
-                  value={formItem.destinatarioNome}
-                  onChange={(e) =>
-                    setFormItem((prev) => ({
-                      ...prev,
-                      destinatarioNome: e.target.value,
-                    }))
-                  }
-                  placeholder="Ex.: João / Maria / Criança"
-                />
+          <div className="space-y-6">
+            <div className="p-5 rounded-2xl bg-secondary/20 border border-secondary/30 relative overflow-hidden space-y-4">
+              <div>
+                <Label className="text-[10px] uppercase text-muted-foreground font-bold tracking-wider mb-1 block">Para quem é este item?</Label>
+                <div className="font-medium text-lg">{clienteSelecionado?.nome || "Selecione um cliente antes"}</div>
               </div>
 
-              {formItem.tipoItem === "PADRAO" ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 relative z-10">
                 <div className="space-y-2">
-                  <Label>Tamanho</Label>
-                  <Select
-                    value={formItem.tamanhoId}
-                    onValueChange={(v) => {
-                      const tamanho = tamanhos.find((t) => t.id === v);
+                  <Label>Nome na Etiqueta / Subpedido</Label>
+                  <Input
+                    value={formItem.destinatarioNome}
+                    onChange={(e) =>
                       setFormItem((prev) => ({
                         ...prev,
-                        tamanhoId: v,
-                        tamanhoLabel: tamanho?.label || "",
-                      }));
-                    }}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione o tamanho" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {tamanhos.map((t) => (
-                        <SelectItem key={t.id} value={t.id}>
-                          {t.label} — R$ {currency(t.valorUnitario)}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                        destinatarioNome: e.target.value,
+                      }))
+                    }
+                    placeholder="Ex.: João / Maria / Criança"
+                    className="bg-background border-muted-foreground/20 h-11"
+                  />
                 </div>
-              ) : (
-                <div></div>
-              )}
+
+                {formItem.tipoItem === "PADRAO" && (
+                  <div className="space-y-2">
+                    <Label>Tamanho Padrão</Label>
+                    <Select
+                      value={formItem.tamanhoId}
+                      onValueChange={(v) => {
+                        const tamanho = tamanhos.find((t) => t.id === v);
+                        setFormItem((prev) => ({
+                          ...prev,
+                          tamanhoId: v,
+                          tamanhoLabel: tamanho?.label || "",
+                        }));
+                      }}
+                    >
+                      <SelectTrigger className="bg-background border-muted-foreground/20 h-11">
+                        <SelectValue placeholder="Selecione o tamanho" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {tamanhos.map((t) => (
+                          <SelectItem key={t.id} value={t.id}>
+                            {t.label} — R$ {currency(t.valorUnitario)}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+              </div>
             </div>
 
-            <div className="flex items-center gap-3 rounded-lg border p-3">
-              <Checkbox
-                checked={formItem.tipoItem === "PERSONALIZADA"}
-                onCheckedChange={(checked) =>
+            <div className="flex bg-muted/60 p-1.5 rounded-xl w-full max-w-sm mx-auto mb-2 mt-4">
+              <button
+                type="button"
+                className={`flex-1 py-1.5 text-sm font-medium rounded-lg transition-all ${
+                  formItem.tipoItem === "PADRAO"
+                    ? "bg-background shadow text-foreground"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+                onClick={() =>
                   setFormItem((prev) => ({
                     ...prev,
-                    tipoItem: checked ? "PERSONALIZADA" : "PADRAO",
-                    opcaoId: "",
-                    opcaoNome: "",
-                    tamanhoId: checked ? "" : prev.tamanhoId,
-                    tamanhoLabel: checked ? "" : prev.tamanhoLabel,
+                    tipoItem: "PADRAO",
                   }))
                 }
-              />
-              <div>
-                <div className="font-medium">Marmita personalizada</div>
-                <div className="text-sm text-muted-foreground">
-                  Para personalizada, montar uma por vez e informar a gramagem de cada componente.
-                </div>
-              </div>
+              >
+                Marmita Padrão
+              </button>
+
+              <button
+                type="button"
+                className={`flex-1 py-1.5 text-sm font-medium rounded-lg transition-all ${
+                  formItem.tipoItem === "PERSONALIZADA"
+                    ? "bg-background shadow text-foreground"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+                onClick={() =>
+                  setFormItem((prev) => ({
+                    ...prev,
+                    tipoItem: "PERSONALIZADA",
+                    opcaoId: "",
+                    opcaoNome: "",
+                    tamanhoId: "",
+                    tamanhoLabel: "",
+                  }))
+                }
+              >
+                Personalizada
+              </button>
             </div>
 
             {formItem.tipoItem === "PADRAO" ? (
@@ -894,180 +1056,22 @@ export function NovoAgendamentoNovoLayout({
                   </Select>
                 </div>
 
-                <div className="rounded-lg border p-4 space-y-4">
-                  <div>
-                    <Label className="text-sm font-medium">Trocas da marmita</Label>
-                    <p className="text-xs text-muted-foreground">
-                      Use apenas quando o cliente quiser substituir algum componente.
-                    </p>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div className="space-y-2">
-                      <Label>Trocar carboidrato</Label>
-                      <Select
-                        value={formItem.trocaCarboId || ""}
-                        onValueChange={(v) => {
-                          const item = carboidratos.find((o) => o.id === v);
-                          setFormItem((prev) => ({
-                            ...prev,
-                            trocaCarboId: v,
-                            trocaCarboNome: item?.nome || "",
-                          }));
-                        }}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Sem troca" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {carboidratos.map((item) => (
-                            <SelectItem key={item.id} value={item.id}>
-                              {item.nome}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-
-                      {formItem.trocaCarboId ? (
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          className="h-auto px-0 text-xs"
-                          onClick={() =>
-                            setFormItem((prev) => ({
-                              ...prev,
-                              trocaCarboId: "",
-                              trocaCarboNome: "",
-                            }))
-                          }
-                        >
-                          Limpar troca
-                        </Button>
-                      ) : null}
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label>Trocar proteína</Label>
-                      <Select
-                        value={formItem.trocaProteinaId || ""}
-                        onValueChange={(v) => {
-                          const item = proteinas.find((o) => o.id === v);
-                          setFormItem((prev) => ({
-                            ...prev,
-                            trocaProteinaId: v,
-                            trocaProteinaNome: item?.nome || "",
-                          }));
-                        }}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Sem troca" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {proteinas.map((item) => (
-                            <SelectItem key={item.id} value={item.id}>
-                              {item.nome}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-
-                      {formItem.trocaProteinaId ? (
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          className="h-auto px-0 text-xs"
-                          onClick={() =>
-                            setFormItem((prev) => ({
-                              ...prev,
-                              trocaProteinaId: "",
-                              trocaProteinaNome: "",
-                            }))
-                          }
-                        >
-                          Limpar troca
-                        </Button>
-                      ) : null}
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label>Trocar legume</Label>
-                      <Select
-                        value={formItem.trocaLegumeId || ""}
-                        onValueChange={(v) => {
-                          const item = legumes.find((o) => o.id === v);
-                          setFormItem((prev) => ({
-                            ...prev,
-                            trocaLegumeId: v,
-                            trocaLegumeNome: item?.nome || "",
-                            zerarLegume: false,
-                          }));
-                        }}
-                        disabled={formItem.zerarLegume}
-                      >
-                        <SelectTrigger>
-                          <SelectValue
-                            placeholder={
-                              formItem.zerarLegume ? "Legume zerado" : "Sem troca"
-                            }
-                          />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {legumes.map((item) => (
-                            <SelectItem key={item.id} value={item.id}>
-                              {item.nome}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-
-                      {formItem.trocaLegumeId ? (
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          className="h-auto px-0 text-xs"
-                          onClick={() =>
-                            setFormItem((prev) => ({
-                              ...prev,
-                              trocaLegumeId: "",
-                              trocaLegumeNome: "",
-                            }))
-                          }
-                        >
-                          Limpar troca
-                        </Button>
-                      ) : null}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="flex items-center gap-3 rounded-lg border p-3">
-                    <Checkbox
-                      checked={formItem.zerarLegume}
-                      onCheckedChange={(checked) =>
-                        setFormItem((prev) => ({
-                          ...prev,
-                          zerarLegume: !!checked,
-                          trocaLegumeId: checked ? "" : prev.trocaLegumeId,
-                          trocaLegumeNome: checked ? "" : prev.trocaLegumeNome,
-                        }))
-                      }
-                    />
-                    <Label className="m-0">Zerar legume</Label>
-                  </div>
-
-                  <div className="flex items-center gap-3 rounded-lg border p-3">
-                    <Checkbox
-                      checked={formItem.adicionarFeijao}
-                      onCheckedChange={(checked) =>
-                        setFormItem((prev) => ({
-                          ...prev,
-                          adicionarFeijao: !!checked,
-                        }))
-                      }
-                    />
-                    <Label className="m-0">Adicionar feijão</Label>
-                  </div>
+                <div className="pt-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="w-full border-dashed text-muted-foreground font-normal bg-muted/30"
+                    onClick={() => setModalTrocasOpen(true)}
+                  >
+                    🔄 Fazer trocas na marmita (Opcional)
+                  </Button>
+                  
+                  {(formItem.trocaCarboId || formItem.trocaProteinaId || formItem.trocaLegumeId || formItem.zerarLegume || formItem.adicionarFeijao) ? (
+                     <div className="mt-3 text-xs text-muted-foreground bg-muted/40 p-3 rounded-md border border-border/50">
+                       <span className="font-semibold text-foreground">Trocas ativas:</span> {getResumoEscolhas(formItem)}
+                     </div>
+                  ) : null}
                 </div>
               </div>
             ) : (
@@ -1355,8 +1359,201 @@ export function NovoAgendamentoNovoLayout({
               Cancelar
             </Button>
 
-            <Button type="button" onClick={addPedidoNaLista}>
-              Adicionar pedido
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => addPedidoNaLista(false)}
+            >
+              Adicionar e continuar
+            </Button>
+
+            <Button type="button" onClick={() => addPedidoNaLista(true)}>
+              Adicionar e fechar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal de Trocas da Marmita Opcional */}
+      <Dialog open={modalTrocasOpen} onOpenChange={setModalTrocasOpen}>
+        <DialogContent className="max-w-3xl overflow-y-auto max-h-[90vh]">
+          <DialogHeader>
+            <DialogTitle>Trocas da Marmita</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-6 pt-2">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <Label>Trocar carboidrato</Label>
+                <Select
+                  value={formItem.trocaCarboId || ""}
+                  onValueChange={(v) => {
+                    const item = carboidratos.find((o) => o.id === v);
+                    setFormItem((prev) => ({
+                      ...prev,
+                      trocaCarboId: v,
+                      trocaCarboNome: item?.nome || "",
+                    }));
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Sem troca" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {carboidratos.map((item) => (
+                      <SelectItem key={item.id} value={item.id}>
+                        {item.nome}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                {formItem.trocaCarboId ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    className="h-auto px-0 text-xs"
+                    onClick={() =>
+                      setFormItem((prev) => ({
+                        ...prev,
+                        trocaCarboId: "",
+                        trocaCarboNome: "",
+                      }))
+                    }
+                  >
+                    Limpar troca
+                  </Button>
+                ) : null}
+              </div>
+
+              <div className="space-y-2">
+                <Label>Trocar proteína</Label>
+                <Select
+                  value={formItem.trocaProteinaId || ""}
+                  onValueChange={(v) => {
+                    const item = proteinas.find((o) => o.id === v);
+                    setFormItem((prev) => ({
+                      ...prev,
+                      trocaProteinaId: v,
+                      trocaProteinaNome: item?.nome || "",
+                    }));
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Sem troca" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {proteinas.map((item) => (
+                      <SelectItem key={item.id} value={item.id}>
+                        {item.nome}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                {formItem.trocaProteinaId ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    className="h-auto px-0 text-xs"
+                    onClick={() =>
+                      setFormItem((prev) => ({
+                        ...prev,
+                        trocaProteinaId: "",
+                        trocaProteinaNome: "",
+                      }))
+                    }
+                  >
+                    Limpar troca
+                  </Button>
+                ) : null}
+              </div>
+
+              <div className="space-y-2">
+                <Label>Trocar legume</Label>
+                <Select
+                  value={formItem.trocaLegumeId || ""}
+                  onValueChange={(v) => {
+                    const item = legumes.find((o) => o.id === v);
+                    setFormItem((prev) => ({
+                      ...prev,
+                      trocaLegumeId: v,
+                      trocaLegumeNome: item?.nome || "",
+                      zerarLegume: false,
+                    }));
+                  }}
+                  disabled={formItem.zerarLegume}
+                >
+                  <SelectTrigger>
+                    <SelectValue
+                      placeholder={
+                        formItem.zerarLegume ? "Legume zerado" : "Sem troca"
+                      }
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {legumes.map((item) => (
+                      <SelectItem key={item.id} value={item.id}>
+                        {item.nome}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                {formItem.trocaLegumeId ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    className="h-auto px-0 text-xs"
+                    onClick={() =>
+                      setFormItem((prev) => ({
+                        ...prev,
+                        trocaLegumeId: "",
+                        trocaLegumeNome: "",
+                        zerarLegume: false,
+                      }))
+                    }
+                  >
+                    Limpar troca
+                  </Button>
+                ) : null}
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
+            <div className="flex items-center gap-3 rounded-lg border p-3">
+              <Checkbox
+                checked={formItem.zerarLegume}
+                onCheckedChange={(checked) =>
+                  setFormItem((prev) => ({
+                    ...prev,
+                    zerarLegume: !!checked,
+                    trocaLegumeId: checked ? "" : prev.trocaLegumeId,
+                    trocaLegumeNome: checked ? "" : prev.trocaLegumeNome,
+                  }))
+                }
+              />
+              <Label className="m-0">Zerar legume</Label>
+            </div>
+
+            <div className="flex items-center gap-3 rounded-lg border p-3">
+              <Checkbox
+                checked={formItem.adicionarFeijao}
+                onCheckedChange={(checked) =>
+                  setFormItem((prev) => ({
+                    ...prev,
+                    adicionarFeijao: !!checked,
+                  }))
+                }
+              />
+              <Label className="m-0">Adicionar feijão</Label>
+            </div>
+          </div>
+
+          <DialogFooter className="mt-6">
+            <Button type="button" onClick={() => setModalTrocasOpen(false)}>
+              Confirmar Trocas
             </Button>
           </DialogFooter>
         </DialogContent>

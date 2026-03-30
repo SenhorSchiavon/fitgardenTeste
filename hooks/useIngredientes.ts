@@ -2,7 +2,10 @@ import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { apiFetch } from "./api";
 
-export type Medida = "UN" | "KG" | "L";
+export type Medida = {
+  id: number;
+  nome: string;
+};
 
 export type Ingrediente = {
   id: number;
@@ -17,7 +20,7 @@ export type Ingrediente = {
 type NovoIngredienteInput = {
   nome: string;
   categoriaId: number;
-  medida: Medida;
+  medidaId: number;
   precoCusto: number;
 };
 

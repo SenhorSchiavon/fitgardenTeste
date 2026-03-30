@@ -32,6 +32,7 @@ import { Header } from "@/components/header";
 
 import { useIngredientes, Medida, Ingrediente } from "@/hooks/useIngredientes";
 import { useCategorias } from "@/hooks/useCategorias";
+import { useMedidas } from "@/hooks/useMedidas";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -48,7 +49,7 @@ import { toast } from "sonner";
 type NovoIngredienteForm = {
   nome: string;
   categoriaId: string;
-  medida: Medida;
+  medidaId: string;
   precoCusto: string;
 };
 
@@ -63,10 +64,12 @@ export default function IngredientesPage() {
   } = useIngredientes();
 
   const { categorias, loading: loadingCategorias } = useCategorias();
+  const { medidas, isLoading: loadingMedidas, criarMedida } = useMedidas();
+  const [novaMedidaNome, setNovaMedidaNome] = useState("");
   const [novoIngrediente, setNovoIngrediente] = useState<NovoIngredienteForm>({
     nome: "",
     categoriaId: "",
-    medida: "UN",
+    medidaId: "",
     precoCusto: "",
   });
 
@@ -97,7 +100,7 @@ export default function IngredientesPage() {
     setNovoIngrediente({
       nome: "",
       categoriaId: "",
-      medida: "UN",
+      medidaId: "",
       precoCusto: "",
     });
     setEditandoId(null);
@@ -130,7 +133,7 @@ export default function IngredientesPage() {
     setNovoIngrediente({
       nome: ingrediente.nome,
       categoriaId: String(ingrediente.categoriaId ?? ""),
-      medida: ingrediente.medida,
+      medidaId: String(ingrediente.medida?.id ?? ""),
       precoCusto: String(ingrediente.precoCusto),
     });
     setEditandoId(ingrediente.id);
@@ -166,10 +169,15 @@ export default function IngredientesPage() {
 
     const preco = Number(String(novoIngrediente.precoCusto).replace(",", "."));
 
+    if (!novoIngrediente.medidaId) {
+      toast.error("Selecione uma medida");
+      return;
+    }
+
     const payload = {
       nome: novoIngrediente.nome.trim(),
       categoriaId: categoriaIdNumero,
-      medida: novoIngrediente.medida,
+      medidaId: Number(novoIngrediente.medidaId),
       precoCusto: Number.isFinite(preco) ? preco : 0,
     };
 
@@ -199,7 +207,7 @@ export default function IngredientesPage() {
     return ing?.codigoSistema ?? String(editandoId);
   }, [editandoId, ingredientes]);
 
-  const isLoading = loadingIngredientes || loadingCategorias;
+  const isLoading = loadingIngredientes || loadingCategorias || loadingMedidas;
 
   return (
     <div className="container mx-auto p-6 space-y-6">
@@ -270,7 +278,7 @@ export default function IngredientesPage() {
                       R$ {ingrediente.precoCusto.toFixed(2)}
                     </TableCell>
                     <TableCell className="text-gray-700">
-                      {ingrediente.medida}
+                      {ingrediente.medida?.nome}
                     </TableCell>
                     <TableCell className="text-right">
                       <Button
@@ -387,35 +395,50 @@ export default function IngredientesPage() {
 
             <div className="space-y-2">
               <Label className="text-gray-700">Medida</Label>
-              <RadioGroup
-                value={novoIngrediente.medida}
-                onValueChange={(value) =>
-                  setNovoIngrediente((p) => ({
-                    ...p,
-                    medida: value as Medida,
-                  }))
-                }
-                className="flex space-x-4"
-              >
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="UN" id="un" />
-                  <Label htmlFor="un" className="text-gray-700">
-                    UN
-                  </Label>
+              <div className="flex gap-2">
+                <Select
+                  value={novoIngrediente.medidaId}
+                  onValueChange={(value) =>
+                    setNovoIngrediente((p) => ({ ...p, medidaId: value }))
+                  }
+                >
+                  <SelectTrigger className="border-gray-200">
+                    <SelectValue placeholder="Selecione uma medida" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {medidas.map((m) => (
+                      <SelectItem key={m.id} value={String(m.id)}>
+                        {m.nome}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                <div className="flex items-center gap-1 border rounded bg-gray-50 px-2 min-w-44">
+                  <Input
+                    placeholder="Nova..."
+                    className="w-20 h-8 border-none bg-transparent shadow-none"
+                    value={novaMedidaNome}
+                    onChange={(e) => setNovaMedidaNome(e.target.value)}
+                  />
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    title="Adicionar Medida"
+                    className="h-8 w-8 text-blue-600 hover:bg-blue-100"
+                    onClick={async () => {
+                      if (!novaMedidaNome.trim()) return;
+                      try {
+                        const m = await criarMedida(novaMedidaNome.trim());
+                        setNovoIngrediente((p) => ({ ...p, medidaId: String(m.id) }));
+                        setNovaMedidaNome("");
+                      } catch (e) {}
+                    }}
+                  >
+                    <Plus className="h-4 w-4" />
+                  </Button>
                 </div>
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="KG" id="kg" />
-                  <Label htmlFor="kg" className="text-gray-700">
-                    KG
-                  </Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="L" id="l" />
-                  <Label htmlFor="l" className="text-gray-700">
-                    L
-                  </Label>
-                </div>
-              </RadioGroup>
+              </div>
             </div>
 
             <div className="space-y-2">
