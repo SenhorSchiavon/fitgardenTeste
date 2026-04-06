@@ -37,6 +37,7 @@ import {
 } from "lucide-react";
 
 import { useRegrasPersonalizadas } from "@/hooks/useRegrasPersonalizadas";
+import { useToast } from "@/hooks/use-toast";
 
 type PedidoTipo = "ENTREGA" | "RETIRADA";
 type FormaPagamento =
@@ -187,6 +188,7 @@ export function NovoAgendamentoNovoLayout({
   onSubmit,
 }: Props) {
   const { regras } = useRegrasPersonalizadas();
+  const { toast } = useToast();
   const [clienteId, setClienteId] = useState("");
   const [tipo, setTipo] = useState<PedidoTipo>("ENTREGA");
   const [data, setData] = useState<Date | undefined>(new Date());
@@ -202,6 +204,7 @@ export function NovoAgendamentoNovoLayout({
   const [modalNovoPedidoOpen, setModalNovoPedidoOpen] = useState(false);
   const [modalTrocasOpen, setModalTrocasOpen] = useState(false);
   const [itens, setItens] = useState<NovoPedidoItem[]>([]);
+  const [usarPlano, setUsarPlano] = useState(false);
 
   const [formItem, setFormItem] = useState<NovoPedidoItem>({
     id: "",
@@ -310,6 +313,7 @@ export function NovoAgendamentoNovoLayout({
     setObservacoesPedido("");
     setFormaPagamento("PIX");
     setItens([]);
+    setUsarPlano(false);
     resetFormItem();
   }
 
@@ -544,20 +548,50 @@ export function NovoAgendamentoNovoLayout({
     if (tipo === "ENTREGA" && !endereco.trim()) return;
     if (itens.length === 0) return;
 
-    const payload = {
+    // Se usarPlano, verificamos consistência de tamanhos e saldo
+    if (usarPlano) {
+      const primeiroTamanhoId = itens[0].tamanhoId;
+      const tamanhosDiferentes = itens.some(it => it.tamanhoId !== primeiroTamanhoId);
+      
+      if (tamanhosDiferentes) {
+        toast({
+          title: "Erro no Plano",
+          description: "Um agendamento por plano deve ter todos os itens do mesmo tamanho.",
+          variant: "destructive"
+        });
+        return;
+      }
+      
+      const plano = clienteSelecionado?.planos?.find((p: any) => 
+        Number(p.tamanhoId) === Number(primeiroTamanhoId) && 
+        (p.saldoUnidades ?? 0) >= totalMarmitas
+      );
+
+      if (!plano) {
+        toast({
+          title: "Saldo insuficiente no plano",
+          description: "O cliente não possui saldo suficiente para este tamanho/quantidade.",
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+
+    const payload: any = {
       clienteId,
       tipo,
-      data,
+      data: data instanceof Date ? data.toISOString() : data,
       faixaHorario: `${horario.inicio}-${horario.fim}`,
       endereco: tipo === "RETIRADA" ? "RETIRADA" : endereco,
       observacoes: observacoesPedido,
-      formaPagamento,
+      formaPagamento: usarPlano ? "PLANO" : formaPagamento,
       itens: itensComPrecoAtualizado,
     };
 
     await onSubmit?.(payload);
     onOpenChange(false);
     resetForm();
+    setUsarPlano(false);
   }
 
   return (
@@ -632,6 +666,15 @@ export function NovoAgendamentoNovoLayout({
                             </Button>
                           </Link>
                         </div>
+<div className="flex items-center space-2 mt-2">
+  <Checkbox
+    id="usarPlano"
+    checked={usarPlano}
+    onCheckedChange={(checked) => setUsarPlano(!!checked)}
+    disabled={!(clienteSelecionado?.planos && clienteSelecionado.planos.length > 0)}
+  />
+  <Label htmlFor="usarPlano" className="text-sm font-medium leading-none">Usar plano</Label>
+</div>
 
                         {clienteSelecionado.planos && clienteSelecionado.planos.length > 0 && (
                           <div className="flex flex-col gap-1 mt-1">
