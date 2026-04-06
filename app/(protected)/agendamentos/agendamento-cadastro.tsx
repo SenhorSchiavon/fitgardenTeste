@@ -353,11 +353,43 @@ export function NovoAgendamentoNovoLayout({
   }, [itens, tamanhos, totalMarmitas]);
 
   const itensComPrecoFinal = useMemo(() => {
+    // Para cada item com plano, desconta só as unidades dentro do saldo
+    // O excedente paga o preço normal
+    const saldoRestante: Record<string, number> = {};
+    if (clienteSelecionado?.planos) {
+      for (const p of clienteSelecionado.planos) {
+        const tId = String(p.plano?.tamanhoId ?? p.tamanhoId ?? "");
+        saldoRestante[tId] = (saldoRestante[tId] || 0) + (p.saldoUnidades || 0);
+      }
+    }
+
+    const saldoUsado: Record<string, number> = {};
+
     return itensComPrecoBruto.map((item) => {
-      if (item.usarPlano) return { ...item, precoUnit: 0 };
-      return item;
+      if (!item.usarPlano) return item;
+
+      const tId = String(item.tamanhoId);
+      const saldoDisponivel = (saldoRestante[tId] || 0) - (saldoUsado[tId] || 0);
+      const qtd = Number(item.quantidade || 1);
+      const abatido = Math.min(qtd, Math.max(0, saldoDisponivel));
+      const excedente = qtd - abatido;
+
+      saldoUsado[tId] = (saldoUsado[tId] || 0) + abatido;
+
+      if (abatido === qtd) {
+        // Tudo coberto pelo plano
+        return { ...item, precoUnit: 0 };
+      } else if (abatido === 0) {
+        // Nada coberto — cobra tudo no preço normal
+        return item;
+      } else {
+        // Parte coberta, parte excedente — preço médio ponderado
+        const precoNormal = Number(item.precoUnit || 0);
+        const precoMedio = (excedente * precoNormal) / qtd;
+        return { ...item, precoUnit: precoMedio };
+      }
     });
-  }, [itensComPrecoBruto]);
+  }, [itensComPrecoBruto, clienteSelecionado]);
 
   const subtotalPedido = useMemo(
     () => itensComPrecoFinal.reduce((acc, item) => acc + Number(item.precoUnit || 0) * Number(item.quantidade || 0), 0),
@@ -557,6 +589,10 @@ export function NovoAgendamentoNovoLayout({
       };
 
       setItens((prev) => [...prev, novo]);
+      toast({
+        title: "Item adicionado ao pedido",
+        description: `${novo.quantidade}x ${novo.tamanhoLabel} — ${novo.opcaoNome || "Marmita padrão"}${novo.usarPlano ? " (Plano)" : ""}`,
+      });
       if (fechar) {
         setModalNovoPedidoOpen(false);
         resetFormItem();
@@ -580,6 +616,10 @@ export function NovoAgendamentoNovoLayout({
     };
 
     setItens((prev) => [...prev, novo]);
+    toast({
+      title: "Item personalizado adicionado",
+      description: `${novo.quantidade}x ${novo.tamanhoLabel} — Personalizada`,
+    });
     if (fechar) {
       setModalNovoPedidoOpen(false);
       resetFormItem();
@@ -1056,6 +1096,37 @@ export function NovoAgendamentoNovoLayout({
           <DialogHeader>
             <DialogTitle>Novo pedido</DialogTitle>
           </DialogHeader>
+
+          {/* Resumo do pedido atual */}
+          {itens.length > 0 && (
+            <div className="rounded-xl border border-blue-100 bg-blue-50/50 px-4 py-3">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-blue-700 mb-2">
+                Itens já no pedido ({itens.length})
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {itens.map((it) => (
+                  <div
+                    key={it.id}
+                    className="flex items-center gap-1.5 bg-white border border-blue-100 rounded-lg px-2.5 py-1.5 text-xs shadow-sm"
+                  >
+                    <span className="font-semibold text-slate-700">
+                      {it.quantidade}x
+                    </span>
+                    <span className="text-slate-600">{it.tamanhoLabel}</span>
+                    {it.destinatarioNome && (
+                      <span className="text-muted-foreground">— {it.destinatarioNome}</span>
+                    )}
+                    {it.usarPlano && (
+                      <span className="bg-green-100 text-green-700 px-1 rounded font-medium">Plano</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+              <div className="mt-2 text-[10px] text-blue-600 font-medium">
+                Subtotal atual: R$ {currency(subtotalPedido)}
+              </div>
+            </div>
+          )}
 
           <div className="space-y-6">
             <div className="p-5 rounded-2xl bg-secondary/20 border border-secondary/30 relative overflow-hidden space-y-4">
