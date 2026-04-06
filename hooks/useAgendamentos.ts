@@ -37,6 +37,7 @@ export type PedidoPendenteRow = {
   entregador?: string | null;
   observacoes?: string | null;
   valorTotal: number;
+  valorTotalFinal?: number;
   itens: { nome: string; tamanho: string; quantidade: number }[];
   data: string;
 };
@@ -90,6 +91,7 @@ export type AgendamentoItemInput = {
   adicionarFeijao?: boolean;
 
   precoUnit?: number | null;
+  usarPlano?: boolean;
 };
 
 export type CreateAgendamentoInput = {
@@ -414,6 +416,7 @@ export function useAgendamentos(options?: { baseUrl?: string }) {
             adicionarFeijao: !!it.adicionarFeijao,
 
             precoUnit: it.precoUnit != null ? Number(it.precoUnit) : null,
+            usarPlano: !!it.usarPlano,
           })),
         };
 
@@ -490,6 +493,7 @@ export function useAgendamentos(options?: { baseUrl?: string }) {
             adicionarFeijao: !!it.adicionarFeijao,
 
             precoUnit: it.precoUnit != null && it.precoUnit !== "" ? Number(it.precoUnit) : null,
+            usarPlano: !!it.usarPlano,
           }));
         }
 

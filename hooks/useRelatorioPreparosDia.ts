@@ -10,9 +10,16 @@ export type RelatorioPreparoRow = {
   kgCru: number;
 };
 
+export type RelatorioCruRow = {
+  ingredienteId: string;
+  nome: string;
+  kgCru: number;
+};
+
 export type RelatorioPreparosDiaResponse = {
   data: string;
   prontos: RelatorioPreparoRow[];
+  crus: RelatorioCruRow[];
 };
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3333";

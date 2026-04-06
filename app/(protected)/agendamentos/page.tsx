@@ -73,8 +73,24 @@ type Agendamento = {
   valorPedido?: number;
   valorTaxa?: number;
   valorTotal?: number;
+  valorDescontos?: number;
+  valorTotalFinal?: number;
 
-  itens: { nome: string; tamanho: string; quantidade: number }[];
+  itens: {
+    id?: string;
+    nome: string;
+    tamanho: string;
+    quantidade: number;
+    usarPlano: boolean;
+    destinatarioNome?: string;
+    observacaoItem?: string;
+    carbo?: string;
+    proteina?: string;
+    legume?: string;
+    feijao?: string;
+    trocas?: string;
+  }[];
+  _raw?: any;
 };
 export default function Agendamentos() {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
@@ -148,18 +164,62 @@ export default function Agendamentos() {
     };
 
     const itensUi =
-      (row.pedido?.itens ?? row.itens ?? []).map((it: any) => ({
-        nome: it.opcao?.nome ?? it.nome ?? "-",
-        tamanho: it.tamanho?.pesagemGramas
-          ? `${it.tamanho.pesagemGramas}g`
-          : (it.tamanhoLabel ?? "-"),
-        quantidade: Number(it.quantidade ?? 0),
-      })) ?? [];
+      (row.pedido?.itens ?? row.itens ?? []).map((it: any) => {
+        const trocas = [
+          it.trocaCarbo?.nome ? `Troca Carbo: ${it.trocaCarbo.nome}` : null,
+          it.trocaProteina?.nome ? `Troca Prot.: ${it.trocaProteina.nome}` : null,
+          it.trocaLegume?.nome ? `Troca Leg.: ${it.trocaLegume.nome}` : null,
+          it.zerarLegume ? "Sem Legumes" : null,
+          it.adicionarFeijao ? "Com Feijão" : null,
+        ].filter(Boolean).join(", ");
+
+        return {
+          id: String(it.id),
+          nome: it.opcao?.nome ?? it.nome ?? "-",
+          tamanho: it.tamanho?.pesagemGramas
+            ? `${it.tamanho.pesagemGramas}g`
+            : (it.tamanhoLabel ?? "-"),
+          quantidade: Number(it.quantidade ?? 0),
+          usarPlano: it.usarPlano,
+          destinatarioNome: it.destinatarioNome || "",
+          observacaoItem: it.observacaoItem || "",
+          carbo: it.carbo?.nome || it.carboNome || "",
+          proteina: it.proteina?.nome || it.proteinaNome || "",
+          legume: it.legume?.nome || it.legumeNome || "",
+          feijao: it.feijao?.nome || it.feijaoNome || "",
+          trocas: [
+            it.trocaCarbo?.nome || it.trocaCarboNome,
+            it.trocaProteina?.nome || it.trocaProteinaNome,
+            it.trocaLegume?.nome || it.trocaLegumeNome
+          ].filter(Boolean).join(" • "),
+        };
+      }) ?? [];
 
     const quantidade = itensUi.reduce(
       (acc: number, it: any) => acc + it.quantidade,
       0,
     );
+
+    const valorPedido = Number(row.pedido?.valorPedido ?? row.valorPedido ?? 0);
+    const valorTotalOriginal = Number(row.pedido?.valorTotal ?? row.valorTotal ?? 0);
+
+    // 1. Calcula desconto baseado nos itens marcados como plano
+    const itens = row.pedido?.itens ?? row.itens ?? [];
+    const valorDescontoItens = itens
+      .filter((it: any) => it.usarPlano)
+      .reduce((acc: number, it: any) => acc + Number(it.valor || 0), 0);
+
+    // 2. Calcula desconto baseado em pagamentos registrados (backup/consistência)
+    const pagamentos = row.pedido?.pagamentos ?? row.pagamentos ?? [];
+    const valorDescontoPagamentos = pagamentos
+      .filter((p: any) => p.forma === "PLANO" && p.status === "CONFIRMADO")
+      .reduce((acc: number, p: any) => acc + Number(p.valor || 0), 0);
+
+    // Usamos o maior valor de desconto encontrado para garantir que o plano seja aplicado
+    const valorDescontos = Math.max(valorDescontoItens, valorDescontoPagamentos);
+
+    const valorTaxa = Number(row.pedido?.valorTaxa ?? row.valorTaxa ?? 0);
+    const valorTotalFinal = Math.max(0, valorTotalOriginal - valorDescontos);
 
     return {
       id: String(row.id),
@@ -174,11 +234,14 @@ export default function Agendamentos() {
       formaPagamento:
         row.pedido?.pagamentos?.[0]?.forma ?? row.formaPagamento ?? "-",
       entregador: row.entregador ?? "-",
-      valorPedido: Number(row.pedido?.valorPedido ?? row.valorPedido ?? 0),
-      valorTaxa: Number(row.pedido?.valorTaxa ?? row.valorTaxa ?? 0),
-      valorTotal: Number(row.pedido?.valorTotal ?? row.valorTotal ?? 0),
+      valorPedido,
+      valorTaxa,
+      valorTotal: valorTotalOriginal,
+      valorDescontos,
+      valorTotalFinal,
       observacoes: row.pedido?.observacoes ?? row.observacoes ?? undefined,
       itens: itensUi,
+      _raw: row,
     };
   }
 
@@ -534,156 +597,204 @@ export default function Agendamentos() {
       </div>
 
       <Dialog open={detalhesDialogOpen} onOpenChange={setDetalhesDialogOpen}>
-        <DialogContent className="max-w-3xl">
-          <DialogHeader>
-            <DialogTitle>
-              Detalhes do Agendamento {agendamentoSelecionado?.numeroPedido} -{" "}
-              {agendamentoSelecionado?.cliente}
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col p-0 gap-0 border-none shadow-2xl rounded-2xl">
+          <DialogHeader className="p-6 pb-2 bg-slate-950 text-white rounded-t-2xl">
+            <DialogTitle className="text-2xl font-bold flex items-center justify-between">
+              <div className="flex flex-col">
+                <span className="text-sm font-light opacity-80 mb-1">Pedido {agendamentoSelecionado?.numeroPedido}</span>
+                <span className="truncate">{agendamentoSelecionado?.cliente}</span>
+              </div>
+              <Badge className="bg-white/20 text-white border-white/40 hover:bg-white/30 text-xs px-3 py-1">
+                {agendamentoSelecionado?.tipoEntrega}
+              </Badge>
             </DialogTitle>
           </DialogHeader>
-          <Tabs defaultValue="detalhes">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="detalhes">Detalhes do Pedido</TabsTrigger>
-              <TabsTrigger value="itens">Itens do Pedido</TabsTrigger>
-            </TabsList>
-            <TabsContent value="detalhes" className="space-y-4 py-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <div className="text-sm font-medium">Cliente</div>
-                  <div className="flex items-center">
-                    <User className="h-4 w-4 mr-2 text-muted-foreground" />
-                    {agendamentoSelecionado?.cliente}
-                  </div>
-                </div>
-                <div className="space-y-1">
-                  <div className="text-sm font-medium">Telefone</div>
-                  <div className="flex items-center">
-                    <Phone className="h-4 w-4 mr-2 text-muted-foreground" />
-                    {agendamentoSelecionado?.telefone}
-                  </div>
-                </div>
-              </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <div className="text-sm font-medium">Tipo de Entrega</div>
-                  <div className="flex items-center">
-                    <TruckIcon className="h-4 w-4 mr-2 text-muted-foreground" />
-                    {agendamentoSelecionado?.tipoEntrega}
-                  </div>
-                </div>
-                <div className="space-y-1">
-                  <div className="text-sm font-medium">Faixa de Horário</div>
-                  <div className="flex items-center">
-                    <CalendarIcon className="h-4 w-4 mr-2 text-muted-foreground" />
-                    {agendamentoSelecionado?.faixaHorario}h
-                  </div>
-                </div>
-              </div>
-
-              <div className="space-y-1">
-                <div className="text-sm font-medium">Endereço</div>
-                <div className="flex items-center">
-                  <MapPin className="h-4 w-4 mr-2 text-muted-foreground" />
-                  {agendamentoSelecionado?.endereco} (
-                  {agendamentoSelecionado?.zona})
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <div className="text-sm font-medium">Forma de Pagamento</div>
-                  <div className="flex items-center">
-                    <CreditCard className="h-4 w-4 mr-2 text-muted-foreground" />
-                    {agendamentoSelecionado?.formaPagamento}
-                  </div>
-                </div>
-                <div className="space-y-1">
-                  <div className="text-sm font-medium">Entregador</div>
-                  <div className="flex items-center">
-                    <User className="h-4 w-4 mr-2 text-muted-foreground" />
-                    {agendamentoSelecionado?.entregador}
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1">
-                    <div className="text-sm font-medium">Subtotal (itens)</div>
-                    <div>R$ {(agendamentoSelecionado?.valorPedido ?? 0).toFixed(2)}</div>
-                  </div>
-
-                  <div className="space-y-1">
-                    <div className="text-sm font-medium">Taxa de entrega</div>
-                    <div>
-                      {agendamentoSelecionado?.tipoEntrega === "ENTREGA"
-                        ? `R$ ${(agendamentoSelecionado?.valorTaxa ?? 0).toFixed(2)}`
-                        : "-"}
+          <div className="flex-1 overflow-y-auto p-6 bg-slate-50/50">
+            <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
+              
+              {/* Lado Esquerdo: Info Geral */}
+              <div className="md:col-span-5 space-y-6">
+                <section className="bg-white p-4 rounded-xl shadow-sm border border-slate-100">
+                  <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3 flex items-center">
+                    <User className="h-3 w-3 mr-1" /> Logística & Contato
+                  </h3>
+                  <div className="space-y-4">
+                    <div className="flex items-start">
+                      <div className="bg-emerald-100 p-2 rounded-lg mr-3">
+                        <Phone className="h-4 w-4 text-emerald-700" />
+                      </div>
+                      <div>
+                        <p className="text-xs text-slate-500">Telefone</p>
+                        <p className="text-sm font-medium">{agendamentoSelecionado?.telefone || "Não informado"}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-start">
+                      <div className="bg-blue-100 p-2 rounded-lg mr-3">
+                        <CalendarIcon className="h-4 w-4 text-blue-700" />
+                      </div>
+                      <div>
+                        <p className="text-xs text-slate-500">Horário Previsto</p>
+                        <p className="text-sm font-medium text-blue-800">{agendamentoSelecionado?.faixaHorario}h</p>
+                      </div>
+                    </div>
+                    <div className="flex items-start">
+                      <div className="bg-rose-100 p-2 rounded-lg mr-3">
+                        <MapPin className="h-4 w-4 text-rose-700" />
+                      </div>
+                      <div>
+                        <p className="text-xs text-slate-500">Endereço de Entrega</p>
+                        <p className="text-sm font-medium leading-tight">{agendamentoSelecionado?.endereco}</p>
+                        <Badge variant="secondary" className="mt-2 text-[10px] uppercase bg-slate-100 text-slate-600">
+                          Zona: {agendamentoSelecionado?.zona}
+                        </Badge>
+                      </div>
                     </div>
                   </div>
-                </div>
+                </section>
 
-                <div className="space-y-1">
-                  <div className="text-sm font-medium">Total</div>
-                  <div className="text-lg font-semibold">
-                    R$ {(agendamentoSelecionado?.valorTotal ?? 0).toFixed(2)}
+                <section className="bg-white p-4 rounded-xl shadow-sm border border-slate-100">
+                  <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3 flex items-center">
+                    <CreditCard className="h-3 w-3 mr-1" /> Pagamento
+                  </h3>
+                  <div className="space-y-3">
+                    <div className="flex justify-between items-center py-1">
+                      <span className="text-sm text-slate-600">Forma</span>
+                      <Badge variant="outline" className="font-semibold text-slate-700">
+                        {agendamentoSelecionado?.formaPagamento}
+                      </Badge>
+                    </div>
+                    <div className="flex justify-between items-center py-1">
+                      <span className="text-sm text-slate-600">Subtotal</span>
+                      <span className="text-sm font-medium">R$ {(agendamentoSelecionado?.valorPedido ?? 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                    </div>
+                    <div className="flex justify-between items-center py-1 border-b border-dashed border-slate-100 pb-3">
+                      <span className="text-sm text-slate-600">Entrega</span>
+                      <span className="text-sm font-medium">
+                         {agendamentoSelecionado?.tipoEntrega === "ENTREGA" 
+                          ? `R$ ${(agendamentoSelecionado?.valorTaxa ?? 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
+                          : "Grátis"}
+                      </span>
+                    </div>
+                    {agendamentoSelecionado?.valorDescontos && agendamentoSelecionado.valorDescontos > 0 ? (
+                      <div className="flex justify-between items-center py-1 border-b border-dashed border-slate-100 pb-3">
+                        <span className="text-sm text-emerald-600 font-medium">Desconto Plano</span>
+                        <span className="text-sm font-bold text-emerald-600">- R$ {agendamentoSelecionado.valorDescontos.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                      </div>
+                    ) : null}
+                    <div className="flex justify-between items-center pt-2">
+                      <span className="text-base font-bold text-slate-800">Total a Pagar</span>
+                      <span className="text-xl font-black text-emerald-700">
+                        R$ {(agendamentoSelecionado?.valorTotalFinal ?? agendamentoSelecionado?.valorTotal ?? 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                      </span>
+                    </div>
                   </div>
-                </div>
+                </section>
+
+                {agendamentoSelecionado?.observacoes && (
+                  <div className="p-4 bg-amber-50 rounded-xl border border-amber-100">
+                    <p className="text-xs font-bold text-amber-800 uppercase mb-1">Observações do Pedido</p>
+                    <p className="text-sm text-amber-900 leading-relaxed italic">"{agendamentoSelecionado.observacoes}"</p>
+                  </div>
+                )}
               </div>
 
-              {agendamentoSelecionado?.observacoes && (
-                <div className="space-y-1">
-                  <div className="text-sm font-medium">Observações</div>
-                  <div className="p-2 bg-muted rounded-md">
-                    {agendamentoSelecionado.observacoes}
-                  </div>
-                </div>
-              )}
+              {/* Lado Direito: Itens */}
+              <div className="md:col-span-7 flex flex-col gap-4">
+                <h3 className="text-sm font-bold text-slate-700 flex items-center sticky top-0 bg-slate-50/50 py-2">
+                  Marmitas do Pedido 
+                  <span className="ml-2 bg-slate-200 text-slate-600 text-[10px] px-2 py-0.5 rounded-full">{agendamentoSelecionado?.itens.length}</span>
+                </h3>
+                <div className="space-y-3">
+                  {agendamentoSelecionado?.itens.map((item, idx) => (
+                    <div key={idx} className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 hover:border-emerald-200 transition-all group overflow-hidden relative">
+                      {item.usarPlano && (
+                        <div className="absolute top-0 right-0">
+                          <div className="bg-emerald-600 text-white text-[10px] font-black px-3 py-1 rounded-bl-lg uppercase tracking-tighter">
+                            PLANO
+                          </div>
+                        </div>
+                      )}
+                      
+                      <div className="flex justify-between items-start mb-2">
+                        <div className="flex items-center">
+                          <div className="h-8 w-8 rounded-lg bg-slate-100 flex items-center justify-center text-slate-600 font-bold mr-3">
+                            {item.quantidade}x
+                          </div>
+                          <div>
+                            <h4 className="font-bold text-slate-800 leading-tight">{item.nome}</h4>
+                            <p className="text-[10px] text-slate-500 font-medium bg-slate-100 px-2 py-0.5 rounded w-fit mt-1 uppercase tracking-tight">
+                              Tamanho: {item.tamanho}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
 
-              <div className="flex justify-end space-x-2 pt-4">
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    if (!agendamentoSelecionado) return;
-                    setModoEdicao(true);
-                    setAgendamentoEditandoId(Number(agendamentoSelecionado.id));
-                    setDadosEdicao(agendamentoSelecionado);
-                    setDetalhesDialogOpen(false);
-                    setCadastroOpen(true);
-                  }}
-                >
-                  Editar
-                </Button>
-                <Button
-                  variant="destructive"
-                  onClick={() =>
-                    agendamentoSelecionado &&
-                    handleDeleteAgendamento(agendamentoSelecionado.id)
-                  }
-                >
-                  <Trash className="mr-2 h-4 w-4" /> Excluir Agendamento
-                </Button>
-              </div>
-            </TabsContent>
-            <TabsContent value="itens" className="py-4">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Item</TableHead>
-                    <TableHead>Tamanho</TableHead>
-                    <TableHead>Quantidade</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {agendamentoSelecionado?.itens.map((item, index) => (
-                    <TableRow key={index}>
-                      <TableCell>{item.nome}</TableCell>
-                      <TableCell>{item.tamanho}</TableCell>
-                      <TableCell>{item.quantidade}</TableCell>
-                    </TableRow>
+                      {/* Detalhes da Montagem/Destinatário */}
+                      <div className="mt-3 grid grid-cols-1 gap-2 pt-3 border-t border-slate-50">
+                        {item.destinatarioNome && (
+                          <div className="flex items-center text-xs text-slate-600">
+                            <User className="h-3 w-3 mr-2 text-slate-400" />
+                            Para: <span className="font-bold text-slate-800 ml-1">{item.destinatarioNome}</span>
+                          </div>
+                        )}
+                        
+                        {(item.carbo || item.proteina || item.legume || item.feijao) && (
+                          <div className="bg-slate-50 p-2 rounded-lg grid grid-cols-2 gap-x-4 gap-y-1 text-[11px]">
+                            {item.carbo && <div className="text-slate-500">• {item.carbo}</div>}
+                            {item.proteina && <div className="text-slate-500">• {item.proteina}</div>}
+                            {item.legume && <div className="text-slate-500">• {item.legume}</div>}
+                            {item.feijao && <div className="text-slate-500">• {item.feijao}</div>}
+                          </div>
+                        )}
+
+                        {item.trocas && (
+                          <div className="text-[10px] text-emerald-700 bg-emerald-50 px-2 py-1 rounded-md font-medium">
+                            Modificações: {item.trocas}
+                          </div>
+                        )}
+
+                        {item.observacaoItem && (
+                          <div className="text-[11px] text-slate-600 italic bg-amber-50/50 p-2 rounded border-l-2 border-amber-300">
+                            "{item.observacaoItem}"
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   ))}
-                </TableBody>
-              </Table>
-            </TabsContent>
-          </Tabs>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="p-4 bg-white border-t border-slate-100 flex items-center justify-between rounded-b-2xl">
+             <Button
+              variant="destructive"
+              className="rounded-xl px-6"
+              onClick={() => agendamentoSelecionado && handleDeleteAgendamento(agendamentoSelecionado.id)}
+            >
+              <Trash className="mr-2 h-4 w-4" /> Excluir
+            </Button>
+
+            <div className="flex gap-2">
+              <Button variant="outline" className="rounded-xl px-6" onClick={() => setDetalhesDialogOpen(false)}>
+                Fechar
+              </Button>
+              <Button
+                className="bg-emerald-700 hover:bg-emerald-800 rounded-xl px-8 shadow-lg shadow-emerald-100"
+                onClick={() => {
+                  if (!agendamentoSelecionado) return;
+                  setModoEdicao(true);
+                  setAgendamentoEditandoId(Number(agendamentoSelecionado.id));
+                  setDadosEdicao(agendamentoSelecionado._raw);
+                  setDetalhesDialogOpen(false);
+                  setCadastroOpen(true);
+                }}
+              >
+                Editar Pedido
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
       <Sheet open={preparoSheetOpen} onOpenChange={setPreparoSheetOpen}>
@@ -696,60 +807,90 @@ export default function Agendamentos() {
             {errorRelatorioPreparos ? (
               <div className="text-sm text-destructive">{errorRelatorioPreparos}</div>
             ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Preparo</TableHead>
-                    <TableHead className="text-right">Pronto (kg)</TableHead>
-                    <TableHead className="text-right">Cru (kg)</TableHead>
-                  </TableRow>
-                </TableHeader>
-
-                <TableBody>
-                  {(relatorioPreparos?.prontos ?? []).length > 0 ? (
-                    <>
-                      {(relatorioPreparos?.prontos ?? []).map((row) => (
-                        <TableRow key={row.preparoId}>
-                          <TableCell>{row.nome}</TableCell>
-                          <TableCell className="text-right">
-                            {Number(row.kgPronto ?? 0).toFixed(3)}
-                          </TableCell>
-                          <TableCell className="text-right">
-                            {Number(row.kgCru ?? 0).toFixed(3)}
-                          </TableCell>
+              <Tabs defaultValue="lista1" className="w-full">
+                <TabsList className="w-full grid grid-cols-2 text-xs">
+                  <TabsTrigger value="lista1">Total Preparado</TabsTrigger>
+                  <TabsTrigger value="lista2">Ingredientes Crus</TabsTrigger>
+                </TabsList>
+                
+                <TabsContent value="lista1" className="mt-4">
+                  <ScrollArea className="h-[60vh]">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Preparo</TableHead>
+                          <TableHead className="text-right">Peso Pronto</TableHead>
                         </TableRow>
-                      ))}
+                      </TableHeader>
+                      <TableBody>
+                        {(relatorioPreparos?.prontos ?? []).length > 0 ? (
+                          <>
+                            {relatorioPreparos!.prontos.map((row) => (
+                              <TableRow key={row.preparoId}>
+                                <TableCell>{row.nome}</TableCell>
+                                <TableCell className="text-right font-medium">
+                                  {Number(row.kgPronto ?? 0).toFixed(3)} kg
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                            <TableRow>
+                              <TableCell className="font-bold text-slate-800">TOTAL</TableCell>
+                              <TableCell className="text-right font-black text-slate-800">
+                                {(
+                                  relatorioPreparos!.prontos.reduce((acc, r) => acc + Number(r.kgPronto ?? 0), 0)
+                                ).toFixed(3)} kg
+                              </TableCell>
+                            </TableRow>
+                          </>
+                        ) : (
+                          <TableRow>
+                            <TableCell colSpan={2} className="text-center py-8 text-muted-foreground">Nenhum dado encontrado</TableCell>
+                          </TableRow>
+                        )}
+                      </TableBody>
+                    </Table>
+                  </ScrollArea>
+                </TabsContent>
 
-                      {/* Totais */}
-                      <TableRow>
-                        <TableCell className="font-medium">Total</TableCell>
-                        <TableCell className="text-right font-medium">
-                          {(
-                            (relatorioPreparos?.prontos ?? []).reduce(
-                              (acc, r) => acc + Number(r.kgPronto ?? 0),
-                              0,
-                            ) || 0
-                          ).toFixed(3)}
-                        </TableCell>
-                        <TableCell className="text-right font-medium">
-                          {(
-                            (relatorioPreparos?.prontos ?? []).reduce(
-                              (acc, r) => acc + Number(r.kgCru ?? 0),
-                              0,
-                            ) || 0
-                          ).toFixed(3)}
-                        </TableCell>
-                      </TableRow>
-                    </>
-                  ) : (
-                    <TableRow>
-                      <TableCell colSpan={3} className="text-center">
-                        Nenhum preparo encontrado para o dia
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
+                <TabsContent value="lista2" className="mt-4">
+                  <ScrollArea className="h-[60vh]">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Ingrediente (Ref. Cru)</TableHead>
+                          <TableHead className="text-right">Peso Cru</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {(relatorioPreparos?.crus ?? []).length > 0 ? (
+                          <>
+                            {relatorioPreparos!.crus.map((row) => (
+                              <TableRow key={row.ingredienteId}>
+                                <TableCell>{row.nome}</TableCell>
+                                <TableCell className="text-right font-medium text-emerald-700">
+                                  {Number(row.kgCru ?? 0).toFixed(3)} kg
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                            <TableRow>
+                              <TableCell className="font-bold text-slate-800">TOTAL</TableCell>
+                              <TableCell className="text-right font-black text-slate-800">
+                                {(
+                                  relatorioPreparos!.crus.reduce((acc, r) => acc + Number(r.kgCru ?? 0), 0)
+                                ).toFixed(3)} kg
+                              </TableCell>
+                            </TableRow>
+                          </>
+                        ) : (
+                          <TableRow>
+                            <TableCell colSpan={2} className="text-center py-8 text-muted-foreground">Nenhum dado encontrado</TableCell>
+                          </TableRow>
+                        )}
+                      </TableBody>
+                    </Table>
+                  </ScrollArea>
+                </TabsContent>
+              </Tabs>
             )}
             <div className="flex justify-center mt-4">
               <Button
@@ -881,7 +1022,7 @@ export default function Agendamentos() {
         })}
         tamanhos={tamanhos.map((t) => ({
           id: String(t.id),
-          label: t.nome,
+          nome: t.nome,
           valorUnitario: Number(t.valorUnitario ?? 0),
           valor10: Number(t.valor10 ?? 0),
           valor20: Number(t.valor20 ?? 0),
@@ -892,6 +1033,7 @@ export default function Agendamentos() {
         proteinas={proteinas}
         legumes={legumes}
         feijoes={feijoes}
+        initialData={dadosEdicao}
         onSubmit={async (payload) => {
           if (modoEdicao && agendamentoEditandoId) {
             await updateAgendamento(agendamentoEditandoId, {
@@ -917,6 +1059,7 @@ export default function Agendamentos() {
                 adicionarFeijao: !!it.adicionarFeijao,
                 observacaoItem: it.observacaoItem ?? "",
                 precoUnit: Number(it.precoUnit ?? 0),
+                usarPlano: !!it.usarPlano,
               })),
             });
           } else {
@@ -944,6 +1087,7 @@ export default function Agendamentos() {
                 adicionarFeijao: !!it.adicionarFeijao,
                 observacaoItem: it.observacaoItem ?? "",
                 precoUnit: Number(it.precoUnit ?? 0),
+                usarPlano: !!it.usarPlano,
               })),
             });
           }

@@ -60,7 +60,7 @@ type ClienteOption = {
 
 type TamanhoOption = {
   id: string;
-  label: string;
+  nome: string;
   valorUnitario: number;
   valor10?: number;
   valor20?: number;
@@ -116,6 +116,7 @@ type NovoPedidoItem = {
   legumeGramas?: number;
   feijaoGramas?: number;
   groupId?: string;
+  usarPlano?: boolean;
 };
 
 type Props = {
@@ -128,6 +129,7 @@ type Props = {
   proteinas: OpcaoCardapio[];
   legumes: OpcaoCardapio[];
   feijoes?: OpcaoCardapio[];
+  initialData?: any;
   onSubmit?: (payload: any) => Promise<void> | void;
 };
 
@@ -186,6 +188,7 @@ export function NovoAgendamentoNovoLayout({
   legumes,
   feijoes = [],
   onSubmit,
+  initialData,
 }: Props) {
   const { regras } = useRegrasPersonalizadas();
   const { toast } = useToast();
@@ -204,7 +207,6 @@ export function NovoAgendamentoNovoLayout({
   const [modalNovoPedidoOpen, setModalNovoPedidoOpen] = useState(false);
   const [modalTrocasOpen, setModalTrocasOpen] = useState(false);
   const [itens, setItens] = useState<NovoPedidoItem[]>([]);
-  const [usarPlano, setUsarPlano] = useState(false);
 
   const [formItem, setFormItem] = useState<NovoPedidoItem>({
     id: "",
@@ -242,6 +244,7 @@ export function NovoAgendamentoNovoLayout({
     trocaLegumeNome: "",
 
     precoUnit: 0,
+    usarPlano: false,
   });
 
   const clienteSelecionado = useMemo(
@@ -270,6 +273,57 @@ export function NovoAgendamentoNovoLayout({
   }, [horario.inicio, horario.fim, horarios]);
 
   useEffect(() => {
+    if (open && initialData) {
+      setClienteId(String(initialData.pedido?.clienteId || initialData.clienteId || ""));
+      setTipo(initialData.tipoEntrega || initialData.tipo || "ENTREGA");
+      setData(initialData.data ? new Date(initialData.data) : new Date());
+      
+      const faixa = initialData.faixaHorario || "11:00-11:30";
+      const [inicio, fim] = faixa.includes("-") ? faixa.split("-") : [faixa, "11:30"];
+      setHorario({ inicio: inicio || "11:00", fim: fim || "11:30" });
+      
+      setEndereco(initialData.endereco || "");
+      setObservacoesPedido(initialData.observacoes || "");
+      setFormaPagamento(initialData.formaPagamento || "PIX");
+      
+      const rawItens = initialData.itens || initialData.pedido?.itens || [];
+      const mappedItens: NovoPedidoItem[] = rawItens.map((it: any) => ({
+        id: it.id ? String(it.id) : uid(),
+        tipoItem: it.tipoItem || (it.opcaoId || it.opcao ? "PADRAO" : "PERSONALIZADA"),
+        destinatarioNome: it.destinatarioNome || "",
+        tamanhoId: String(it.tamanhoId || ""),
+        tamanhoLabel: it.tamanho?.pesagemGramas ? `${it.tamanho.pesagemGramas}g` : (it.tamanhoLabel || ""),
+        quantidade: it.quantidade || 1,
+        opcaoId: String(it.opcaoId || ""),
+        opcaoNome: it.opcao?.nome || it.nome || "",
+        carboId: String(it.carboId || ""),
+        carboNome: it.carbo?.nome || "",
+        proteinaId: String(it.proteinaId || ""),
+        proteinaNome: it.proteina?.nome || "",
+        legumeId: String(it.legumeId || ""),
+        legumeNome: it.legume?.nome || "",
+        feijaoId: String(it.feijaoId || ""),
+        feijaoNome: it.feijao?.nome || "",
+        zerarLegume: !!it.zerarLegume,
+        adicionarFeijao: !!it.adicionarFeijao,
+        observacaoItem: it.observacaoItem || "",
+        precoUnit: Number(it.valor || it.precoUnit || 0) / Math.max(1, Number(it.quantidade || 1)),
+        usarPlano: !!it.usarPlano,
+        trocaCarboId: String(it.trocaCarboId || ""),
+        trocaProteinaId: String(it.trocaProteinaId || ""),
+        trocaLegumeId: String(it.trocaLegumeId || ""),
+        carboGramas: Number(it.carboGramas || 0),
+        proteinaGramas: Number(it.proteinaGramas || 0),
+        legumeGramas: Number(it.legumeGramas || 0),
+        feijaoGramas: Number(it.feijaoGramas || 0),
+      }));
+      setItens(mappedItens);
+    } else if (open && !initialData) {
+      resetForm();
+    }
+  }, [open, initialData]);
+
+  useEffect(() => {
     if (!clienteSelecionado) return;
     if (tipo === "ENTREGA" && !endereco.trim()) {
       setEndereco(clienteSelecionado.enderecoPrincipal || "");
@@ -281,7 +335,7 @@ export function NovoAgendamentoNovoLayout({
     [itens]
   );
 
-  const itensComPrecoAtualizado = useMemo(() => {
+  const itensComPrecoBruto = useMemo(() => {
     return itens.map((item) => {
       const tamanho = tamanhos.find((t) => t.id === item.tamanhoId);
       if (!tamanho) return item;
@@ -298,11 +352,17 @@ export function NovoAgendamentoNovoLayout({
     });
   }, [itens, tamanhos, totalMarmitas]);
 
-  const subtotalPedido = useMemo(() => {
-    return itensComPrecoAtualizado.reduce((acc, item) => {
-      return acc + Number(item.precoUnit || 0) * Number(item.quantidade || 0);
-    }, 0);
-  }, [itensComPrecoAtualizado]);
+  const itensComPrecoFinal = useMemo(() => {
+    return itensComPrecoBruto.map((item) => {
+      if (item.usarPlano) return { ...item, precoUnit: 0 };
+      return item;
+    });
+  }, [itensComPrecoBruto]);
+
+  const subtotalPedido = useMemo(
+    () => itensComPrecoFinal.reduce((acc, item) => acc + Number(item.precoUnit || 0) * Number(item.quantidade || 0), 0),
+    [itensComPrecoFinal]
+  );
 
   function resetForm() {
     setClienteId("");
@@ -313,7 +373,6 @@ export function NovoAgendamentoNovoLayout({
     setObservacoesPedido("");
     setFormaPagamento("PIX");
     setItens([]);
-    setUsarPlano(false);
     resetFormItem();
   }
 
@@ -347,6 +406,7 @@ export function NovoAgendamentoNovoLayout({
 
       trocaLegumeId: "",
       trocaLegumeNome: "",
+      usarPlano: false,
     });
   }
 
@@ -379,6 +439,7 @@ export function NovoAgendamentoNovoLayout({
       proteinaGramas: 0,
       legumeGramas: 0,
       feijaoGramas: 0,
+      usarPlano: false,
     }));
   }
 
@@ -491,7 +552,7 @@ export function NovoAgendamentoNovoLayout({
         ...formItem,
         id: uid(),
         groupId: currentGroupId,
-        tamanhoLabel: tamanho.label,
+        tamanhoLabel: tamanho.nome,
         precoUnit,
       };
 
@@ -512,7 +573,8 @@ export function NovoAgendamentoNovoLayout({
       ...formItem,
       id: uid(),
       groupId: currentGroupId,
-      tamanhoId: "",
+      // Tenta encontrar um ID de tamanho que combine com a gramagem da personalizada
+      tamanhoId: tamanhos.find(t => parseInt(t.nome) === totalGramasPersonalizada)?.id || "",
       tamanhoLabel: `${totalGramasPersonalizada}g`,
       precoUnit: Number(formItem.precoUnit || 0),
     };
@@ -548,35 +610,6 @@ export function NovoAgendamentoNovoLayout({
     if (tipo === "ENTREGA" && !endereco.trim()) return;
     if (itens.length === 0) return;
 
-    // Se usarPlano, verificamos consistência de tamanhos e saldo
-    if (usarPlano) {
-      const primeiroTamanhoId = itens[0].tamanhoId;
-      const tamanhosDiferentes = itens.some(it => it.tamanhoId !== primeiroTamanhoId);
-      
-      if (tamanhosDiferentes) {
-        toast({
-          title: "Erro no Plano",
-          description: "Um agendamento por plano deve ter todos os itens do mesmo tamanho.",
-          variant: "destructive"
-        });
-        return;
-      }
-      
-      const plano = clienteSelecionado?.planos?.find((p: any) => 
-        Number(p.tamanhoId) === Number(primeiroTamanhoId) && 
-        (p.saldoUnidades ?? 0) >= totalMarmitas
-      );
-
-      if (!plano) {
-        toast({
-          title: "Saldo insuficiente no plano",
-          description: "O cliente não possui saldo suficiente para este tamanho/quantidade.",
-          variant: "destructive",
-        });
-        return;
-      }
-    }
-
     const payload: any = {
       clienteId,
       tipo,
@@ -584,14 +617,16 @@ export function NovoAgendamentoNovoLayout({
       faixaHorario: `${horario.inicio}-${horario.fim}`,
       endereco: tipo === "RETIRADA" ? "RETIRADA" : endereco,
       observacoes: observacoesPedido,
-      formaPagamento: usarPlano ? "PLANO" : formaPagamento,
-      itens: itensComPrecoAtualizado,
+      formaPagamento: formaPagamento,
+      itens: itensComPrecoBruto.map(it => ({
+         ...it,
+         usarPlano: !!it.usarPlano
+      })),
     };
 
     await onSubmit?.(payload);
     onOpenChange(false);
     resetForm();
-    setUsarPlano(false);
   }
 
   return (
@@ -666,25 +701,66 @@ export function NovoAgendamentoNovoLayout({
                             </Button>
                           </Link>
                         </div>
-<div className="flex items-center space-2 mt-2">
-  <Checkbox
-    id="usarPlano"
-    checked={usarPlano}
-    onCheckedChange={(checked) => setUsarPlano(!!checked)}
-    disabled={!(clienteSelecionado?.planos && clienteSelecionado.planos.length > 0)}
-  />
-  <Label htmlFor="usarPlano" className="text-sm font-medium leading-none">Usar plano</Label>
-</div>
 
                         {clienteSelecionado.planos && clienteSelecionado.planos.length > 0 && (
                           <div className="flex flex-col gap-1 mt-1">
-                            {clienteSelecionado.planos.map((plano: any) => (
-                              <div key={plano.id} className="text-sm font-medium text-muted-foreground">
-                                {plano.saldoUnidades} marmitas{plano.tamanho?.pesagemGramas ? ` - ${plano.tamanho.pesagemGramas}g` : ""}
-                              </div>
-                            ))}
+                            {clienteSelecionado.planos.map((plano: any) => {
+                              const peso = plano.tamanho?.pesagemGramas || plano.plano?.tamanho?.pesagemGramas;
+                              const pTamanhoId = plano.plano?.tamanhoId || plano.tamanhoId;
+                              const isInUse = itens.some(it => it.usarPlano && Number(it.tamanhoId) === Number(pTamanhoId));
+                              
+                              return (
+                                <div key={plano.id} className={`text-xs font-medium ${isInUse ? "text-green-600 bg-green-50 px-1 rounded-sm border border-green-100" : "text-muted-foreground"}`}>
+                                  {plano.saldoUnidades} marmitas{peso ? ` - ${peso}g` : ""}
+                                </div>
+                              );
+                            })}
                           </div>
                         )}
+                        
+                        {(() => {
+                           const itensComPlano = itens.filter(it => it.usarPlano);
+                           if (itensComPlano.length === 0) return null;
+                           
+                           return (
+                             <div className="mt-3 p-3 bg-blue-50/50 border border-blue-100 rounded-lg space-y-1">
+                                <div className="text-[10px] font-bold text-blue-800 uppercase tracking-tight">Consumo do Plano</div>
+                                {(() => {
+                                   const porTamanho: Record<string, number> = {};
+                                   itensComPlano.forEach(it => {
+                                      porTamanho[it.tamanhoId] = (porTamanho[it.tamanhoId] || 0) + Number(it.quantidade);
+                                   });
+                                   
+                                   return Object.entries(porTamanho).map(([tId, qtdTotal]) => {
+                                      const plano = clienteSelecionado?.planos?.find((p: any) => Number(p.plano?.tamanhoId || p.tamanhoId) === Number(tId));
+                                      const saldo = plano?.saldoUnidades || 0;
+                                      const peso = plano?.tamanho?.pesagemGramas || plano?.plano?.tamanho?.pesagemGramas;
+                                      const abatido = Math.min(qtdTotal, saldo);
+                                      const extra = Math.max(0, qtdTotal - abatido);
+                                      
+                                      return (
+                                         <div key={tId} className="border-b border-blue-100/50 last:border-0 pb-1 last:pb-0 mb-1">
+                                            <div className="text-[10px] font-semibold text-blue-600 mb-1">{peso ? `${peso}g` : "Tamanho desconhecido"}</div>
+                                            <div className="text-sm flex justify-between">
+                                               <span className="text-muted-foreground">Abatido:</span>
+                                               <span className="font-bold">{abatido} un.</span>
+                                            </div>
+                                            {extra > 0 && (
+                                               <div className="text-xs flex justify-between text-orange-700">
+                                                  <span>Excedente:</span>
+                                                  <span className="font-bold">{extra} un.</span>
+                                               </div>
+                                            )}
+                                            {saldo <= 0 && (
+                                               <div className="text-[9px] text-red-500 italic mt-0.5">Sem saldo</div>
+                                            )}
+                                         </div>
+                                      );
+                                   });
+                                })()}
+                             </div>
+                           );
+                        })()}
                       </div>
                     )}
                   </div>
@@ -708,19 +784,19 @@ export function NovoAgendamentoNovoLayout({
                 </CardHeader>
 
                 <CardContent className="space-y-4">
-                  {itensComPrecoAtualizado.length === 0 ? (
+                  {itensComPrecoFinal.length === 0 ? (
                     <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
                       Nenhum pedido adicionado ainda.
                     </div>
                   ) : (
                     <div className="space-y-4">
                       {Object.values(
-                        itensComPrecoAtualizado.reduce((acc, item) => {
+                        itensComPrecoFinal.reduce((acc, item) => {
                           const key = item.groupId || item.id;
                           if (!acc[key]) acc[key] = [];
                           acc[key].push(item);
                           return acc;
-                        }, {} as Record<string, typeof itensComPrecoAtualizado>)
+                        }, {} as Record<string, typeof itensComPrecoFinal>)
                       ).map((grupo, gIdx) => {
                         const totalMarmitasG = grupo.reduce((sum, i) => sum + Number(i.quantidade || 0), 0);
                         const subtotalG = grupo.reduce((sum, i) => sum + Number(i.precoUnit || 0) * Number(i.quantidade || 0), 0);
@@ -756,6 +832,9 @@ export function NovoAgendamentoNovoLayout({
                                               : "Padrão"}
                                           </Badge>
                                           <Badge variant="outline">{item.tamanhoLabel}</Badge>
+                                          {item.usarPlano && (
+                                            <Badge className="bg-green-600 hover:bg-green-700">PLANO</Badge>
+                                          )}
                                         </div>
 
                                         <div className="text-sm text-muted-foreground break-words">
@@ -953,9 +1032,9 @@ export function NovoAgendamentoNovoLayout({
                       <span className="font-medium">{totalMarmitas}</span>
                     </div>
 
-                    <div className="flex items-center justify-between text-base">
-                      <span className="font-semibold">Total</span>
-                      <span className="font-bold">R$ {currency(subtotalPedido)}</span>
+                    <div className="flex items-center justify-between text-lg">
+                      <span className="font-bold text-primary">A pagar hoje</span>
+                      <span className="font-extrabold text-xl text-primary">R$ {currency(subtotalPedido)}</span>
                     </div>
                   </div>
 
@@ -1011,7 +1090,7 @@ export function NovoAgendamentoNovoLayout({
                         setFormItem((prev) => ({
                           ...prev,
                           tamanhoId: v,
-                          tamanhoLabel: tamanho?.label || "",
+                          tamanhoLabel: tamanho?.nome || "",
                         }));
                       }}
                     >
@@ -1021,13 +1100,27 @@ export function NovoAgendamentoNovoLayout({
                       <SelectContent>
                         {tamanhos.map((t) => (
                           <SelectItem key={t.id} value={t.id}>
-                            {t.label} — R$ {currency(t.valorUnitario)}
+                            {t.nome} — R$ {currency(t.valorUnitario)}
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                   </div>
                 )}
+              </div>
+              
+              <div className="mt-4 flex items-center justify-between p-3 rounded-lg bg-green-50 border border-green-100">
+                 <div className="space-y-0.5">
+                    <Label htmlFor="itemUsarPlano" className="text-sm font-semibold text-green-900 cursor-pointer">Usar saldo do plano</Label>
+                    <p className="text-[10px] text-green-700">Abate este item do plano do cliente.</p>
+                 </div>
+                 <Checkbox 
+                    id="itemUsarPlano" 
+                    checked={formItem.usarPlano}
+                    onCheckedChange={(v) => {
+                       setFormItem(prev => ({ ...prev, usarPlano: !!v }));
+                    }}
+                 />
               </div>
             </div>
 
@@ -1330,7 +1423,7 @@ export function NovoAgendamentoNovoLayout({
               </div>
             )}
 
-            <div className="grid grid-cols-1 md:grid-cols-[180px_1fr] gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Quantidade</Label>
                 <div className="flex items-center gap-2">

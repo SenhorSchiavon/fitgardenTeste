@@ -385,7 +385,7 @@ export default function PedidosAberto() {
               <Label>Valor Total</Label>
               <div className="text-2xl font-bold">
                 {pedidoSelecionado
-                  ? `R$ ${Number(pedidoSelecionado.valorTotal).toFixed(2)}`
+                  ? `R$ ${Number(pedidoSelecionado.valorTotalFinal ?? pedidoSelecionado.valorTotal).toFixed(2)}`
                   : "-"}
               </div>
             </div>

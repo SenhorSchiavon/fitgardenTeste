@@ -79,9 +79,16 @@ export function ClienteHistoricoDialog({
         tamanhoId: "",
         unidades: 10,
     });
+    const [clientePlanos, setClientePlanos] = useState<any[]>([]);
     const { data, loading, error, getHistorico } = useClienteHistorico();
     const [page, setPage] = useState(1);
     const pageSize = 10;
+
+    useEffect(() => {
+        if (open && cliente) {
+            setClientePlanos(cliente.planos || []);
+        }
+    }, [open, cliente]);
 
     useEffect(() => {
         if (!open) return;
@@ -121,8 +128,7 @@ export function ClienteHistoricoDialog({
     }, [open, aba, listTamanhos, listPlanos]);
 
     const planosSelecionado = useMemo(() => {
-        if (!cliente) return [];
-        const arr = Array.isArray(cliente.planos) ? cliente.planos : [];
+        const arr = Array.isArray(clientePlanos) ? clientePlanos : [];
         return arr.map((p: any) => ({
             id: Number(p.id),
             nome: p.nome || p.plano?.nome || "Plano",
@@ -133,7 +139,7 @@ export function ClienteHistoricoDialog({
                     : "-",
             unidades: Number(p.unidades ?? p.plano?.unidades ?? 0),
         }));
-    }, [cliente]);
+    }, [clientePlanos]);
 
     const planosVinculaveis = useMemo(() => {
         const vinculadosIds = new Set(planosSelecionado.map((p) => p.id));
@@ -249,18 +255,24 @@ export function ClienteHistoricoDialog({
                                         className="w-full"
                                         disabled={savingAll || !cliente || !vinculoPlanoId}
                                         onClick={async () => {
-                                            if (!cliente) return;
-                                            if (!vinculoPlanoId) return;
+                                            try {
+                                                const vinc = await vincularPlano(Number(cliente.id), Number(vinculoPlanoId));
 
-                                            const vinc = await vincularPlano(Number(cliente.id), Number(vinculoPlanoId));
+                                                const plano = planosCatalogo.find((p) => String(p.id) === String(vinculoPlanoId));
+                                                if (plano) {
+                                                    const novoVinculo = { ...vinc, plano };
+                                                    setClientePlanos(prev => [...prev, novoVinculo]);
+                                                    
+                                                    // Opcional: Atualiza o objeto cliente "em memória" para outras telas se necessário
+                                                    if (cliente && cliente.planos) {
+                                                        cliente.planos.push(novoVinculo);
+                                                    }
+                                                }
 
-                                            // otimista: só pra UI refletir que “tem mais um plano”
-                                            const plano = planosCatalogo.find((p) => String(p.id) === String(vinculoPlanoId));
-                                            if (plano) {
-                                                (cliente as any).planos = [...((cliente as any).planos || []), { ...vinc, plano }];
+                                                setVinculoPlanoId("");
+                                            } catch (err) {
+                                                // erro já tratado no hook com toast
                                             }
-
-                                            setVinculoPlanoId("");
                                         }}
                                     >
                                         {savingAll ? "Vinculando..." : "Vincular"}
@@ -391,15 +403,22 @@ export function ClienteHistoricoDialog({
                                                         variant="ghost"
                                                         size="icon"
                                                         disabled={savingAll || !cliente}
-                                                        onClick={async () => {
-                                                            if (!cliente) return;
+                                                                        onClick={async () => {
+                                                            try {
+                                                                await desvincularPlano(Number(cliente.id), Number(plano.id));
 
-                                                            await desvincularPlano(Number(cliente.id), Number(plano.id));
+                                                                setClientePlanos(prev => prev.filter(
+                                                                    (p: any) => Number(p.id) !== Number(plano.id),
+                                                                ));
 
-                                                            // otimista
-                                                            (cliente as any).planos = ((cliente as any).planos || []).filter(
-                                                                (p: any) => Number(p.id) !== Number(plano.id),
-                                                            );
+                                                                if (cliente && cliente.planos) {
+                                                                    cliente.planos = cliente.planos.filter(
+                                                                        (p: any) => Number(p.id) !== Number(plano.id),
+                                                                    );
+                                                                }
+                                                            } catch (err) {
+                                                                // erro já tratado no hook
+                                                            }
                                                         }}
                                                         title="Remover vínculo"
                                                     >
