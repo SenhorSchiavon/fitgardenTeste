@@ -1109,19 +1109,29 @@ export function NovoAgendamentoNovoLayout({
                 )}
               </div>
               
-              <div className="mt-4 flex items-center justify-between p-3 rounded-lg bg-green-50 border border-green-100">
-                 <div className="space-y-0.5">
-                    <Label htmlFor="itemUsarPlano" className="text-sm font-semibold text-green-900 cursor-pointer">Usar saldo do plano</Label>
-                    <p className="text-[10px] text-green-700">Abate este item do plano do cliente.</p>
-                 </div>
-                 <Checkbox 
-                    id="itemUsarPlano" 
-                    checked={formItem.usarPlano}
-                    onCheckedChange={(v) => {
-                       setFormItem(prev => ({ ...prev, usarPlano: !!v }));
-                    }}
-                 />
-              </div>
+              {(() => {
+                const tamanhoId = formItem.tamanhoId;
+                const temPlanoCompativel = clienteSelecionado?.planos?.some((p: any) => {
+                  const pTamanhoId = p.plano?.tamanhoId ?? p.tamanhoId;
+                  return Number(pTamanhoId) === Number(tamanhoId) && p.saldoUnidades > 0;
+                });
+                if (!temPlanoCompativel) return null;
+                return (
+                  <div className="mt-4 flex items-center justify-between p-3 rounded-lg bg-green-50 border border-green-100">
+                     <div className="space-y-0.5">
+                        <Label htmlFor="itemUsarPlano" className="text-sm font-semibold text-green-900 cursor-pointer">Usar saldo do plano</Label>
+                        <p className="text-[10px] text-green-700">Abate este item do plano do cliente.</p>
+                     </div>
+                     <Checkbox 
+                        id="itemUsarPlano" 
+                        checked={formItem.usarPlano}
+                        onCheckedChange={(v) => {
+                           setFormItem(prev => ({ ...prev, usarPlano: !!v }));
+                        }}
+                     />
+                  </div>
+                );
+              })()}
             </div>
 
             <div className="flex bg-muted/60 p-1.5 rounded-xl w-full max-w-sm mx-auto mb-2 mt-4">
