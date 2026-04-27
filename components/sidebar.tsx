@@ -13,6 +13,7 @@ import {
   Layers,
   LayoutDashboard,
   ListChecks,
+  MessageCircle,
   Package,
   Settings,
   ShoppingCart,
@@ -206,6 +207,22 @@ export function Sidebar({ className }: SidebarProps) {
                 </div>
               )}
             </div>
+
+            <Link href="/mensagens">
+              <Button
+                variant={isActive("/mensagens") ? "secondary" : "ghost"}
+                className={cn(
+                  "w-full justify-start gap-3 h-10 px-4 transition-all",
+                  isActive("/mensagens")
+                    ? "bg-secondary text-white shadow-lg shadow-secondary/20"
+                    : "text-white/70 hover:bg-white/5 hover:text-white",
+                )}
+                size="sm"
+              >
+                <MessageCircle className={cn("h-4 w-4", isActive("/mensagens") ? "text-white" : "text-secondary")} />
+                <span className="font-medium">Mensagens</span>
+              </Button>
+            </Link>
 
             <Link href="/mais-vendidos">
               <Button
