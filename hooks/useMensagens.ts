@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import api from "@/lib/api";
+import { apiFetch } from "./api";
 import { toast } from "sonner";
 
 export interface MensagemModelo {
@@ -18,6 +18,38 @@ export interface MensagemHistorico {
     createdAt: string;
 }
 
+function getApiUrl() {
+  const base = process.env.NEXT_PUBLIC_API_URL;
+  if (!base) return "";
+  return base.replace(/\/+$/, "");
+}
+
+async function http<T>(path: string, init?: RequestInit) {
+  const base = getApiUrl();
+  const url = `${base}${path}`;
+
+  const res = await apiFetch(url, {
+    ...init,
+    headers: {
+      "Content-Type": "application/json",
+      ...(init?.headers || {}),
+    },
+    cache: "no-store",
+  });
+
+  if (!res.ok) {
+    let msg = "Erro na requisição.";
+    try {
+      const data = await res.json();
+      msg = data?.message || data?.error || msg;
+    } catch { }
+    throw new Error(msg);
+  }
+
+  if (res.status === 204) return undefined as T;
+  return (await res.json()) as T;
+}
+
 export function useMensagens() {
     const [modelos, setModelos] = useState<MensagemModelo[]>([]);
     const [historico, setHistorico] = useState<MensagemHistorico[]>([]);
@@ -25,7 +57,7 @@ export function useMensagens() {
 
     const loadModelos = useCallback(async () => {
         try {
-            const { data } = await api.get("/mensagens/modelos");
+            const data = await http<MensagemModelo[]>("/mensagens/modelos");
             setModelos(data);
         } catch (error) {
             console.error("Erro ao carregar modelos", error);
@@ -34,9 +66,8 @@ export function useMensagens() {
 
     const loadHistory = useCallback(async (clienteId?: number) => {
         try {
-            const { data } = await api.get("/mensagens/historico", {
-                params: { clienteId }
-            });
+            const query = clienteId ? `?clienteId=${clienteId}` : "";
+            const data = await http<MensagemHistorico[]>(`/mensagens/historico${query}`);
             setHistorico(data);
         } catch (error) {
             console.error("Erro ao carregar histórico", error);
@@ -47,10 +78,16 @@ export function useMensagens() {
         setLoading(true);
         try {
             if (data.id) {
-                await api.put(`/mensagens/modelos/${data.id}`, data);
+                await http(`/mensagens/modelos/${data.id}`, {
+                    method: "PUT",
+                    body: JSON.stringify(data)
+                });
                 toast.success("Modelo atualizado!");
             } else {
-                await api.post("/mensagens/modelos", data);
+                await http("/mensagens/modelos", {
+                    method: "POST",
+                    body: JSON.stringify(data)
+                });
                 toast.success("Modelo criado!");
             }
             await loadModelos();
@@ -63,7 +100,7 @@ export function useMensagens() {
 
     const deleteModelo = async (id: number) => {
         try {
-            await api.delete(`/mensagens/modelos/${id}`);
+            await http(`/mensagens/modelos/${id}`, { method: "DELETE" });
             toast.success("Modelo removido!");
             await loadModelos();
         } catch (error) {
@@ -73,8 +110,11 @@ export function useMensagens() {
 
     const prepareMessage = async (clienteId: number, modeloId: number, extraVars: Record<string, string> = {}) => {
         try {
-            const { data } = await api.post("/mensagens/preparar", { clienteId, modeloId, extraVars });
-            return data.textoFormatado as string;
+            const data = await http<{ textoFormatado: string }>("/mensagens/preparar", {
+                method: "POST",
+                body: JSON.stringify({ clienteId, modeloId, extraVars })
+            });
+            return data.textoFormatado;
         } catch (error) {
             toast.error("Erro ao preparar mensagem");
             return "";
@@ -83,7 +123,10 @@ export function useMensagens() {
 
     const registerSend = async (clienteId: number, modeloId: number, textoEnviado: string) => {
         try {
-            await api.post("/mensagens/historico", { clienteId, modeloId, textoEnviado });
+            await http("/mensagens/historico", {
+                method: "POST",
+                body: JSON.stringify({ clienteId, modeloId, textoEnviado })
+            });
             loadHistory();
         } catch (error) {
             console.error("Erro ao registrar envio", error);

@@ -17,7 +17,7 @@ import { ptBR } from "date-fns/locale"
 
 export default function MensagensPage() {
   const { modelos, historico, loading, saveModelo, deleteModelo, prepareMessage, registerSend } = useMensagens()
-  const { clientes, loading: loadingClientes, fetchClientes } = useClientes()
+  const { filteredClientes: clientes, loading: loadingClientes, refresh } = useClientes()
 
   // Estados para Envio
   const [selectedClienteId, setSelectedClienteId] = useState<number | null>(null)
@@ -102,7 +102,7 @@ export default function MensagensPage() {
                    <Input 
                     placeholder="Nome ou telefone..." 
                     className="mb-4 bg-slate-50 border-none h-10 rounded-xl"
-                    onChange={(e) => fetchClientes({ search: e.target.value })}
+                    onChange={(e) => refresh(e.target.value)}
                    />
                    <ScrollArea className="h-[250px] pr-4">
                       <div className="space-y-1">
