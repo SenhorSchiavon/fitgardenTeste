@@ -680,14 +680,6 @@ export function NovoAgendamentoNovoLayout({
     }
 
     if (formItem.tipoItem === "PERSONALIZADA") {
-      if (!formItem.proteinaId) {
-        toast({
-          title: "Proteína obrigatória",
-          description: "Selecione uma proteína para sua marmita personalizada.",
-          variant: "destructive",
-        });
-        return;
-      }
       if (totalGramasPersonalizada <= 0) {
         toast({
           title: "Peso não informado",
@@ -1501,24 +1493,32 @@ export function NovoAgendamentoNovoLayout({
 
                       <div className="grid grid-cols-[minmax(0,1fr)_120px] gap-3">
                         <div className="space-y-2">
-                          <Label>Proteína <span className="text-destructive">*</span></Label>
+                          <Label>Proteína</Label>
                           <Select
-                            value={formItem.proteinaId}
+                            value={formItem.proteinaId || "none"}
                             onValueChange={(v) => {
+                              if (v === "none") {
+                                setFormItem((prev) => ({
+                                  ...prev,
+                                  proteinaId: "",
+                                  proteinaNome: "",
+                                  proteinaGramas: 0,
+                                }));
+                                return;
+                              }
                               const item = proteinas.find((o) => o.id === v);
                               setFormItem((prev) => ({
                                 ...prev,
                                 proteinaId: v,
                                 proteinaNome: item?.nome || "",
-                                // Se for a primeira vez selecionando, coloca um padrão de 130g
-                                proteinaGramas: prev.proteinaGramas || 130,
                               }));
                             }}
                           >
-                            <SelectTrigger className="border-secondary/40">
-                              <SelectValue placeholder="Selecione (Obrigatório)" />
+                            <SelectTrigger>
+                              <SelectValue placeholder="Selecione" />
                             </SelectTrigger>
                             <SelectContent>
+                              <SelectItem value="none">Nenhum</SelectItem>
                               {proteinas.map((item) => (
                                 <SelectItem key={item.id} value={item.id}>
                                   {item.nome}
@@ -1541,7 +1541,8 @@ export function NovoAgendamentoNovoLayout({
                                 proteinaGramas: Number(e.target.value || 0),
                               }))
                             }
-                            placeholder="130"
+                            placeholder="0"
+                            disabled={!formItem.proteinaId}
                           />
                         </div>
                       </div>
