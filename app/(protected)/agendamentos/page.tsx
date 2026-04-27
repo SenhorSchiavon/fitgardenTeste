@@ -38,7 +38,17 @@ import {
   TruckIcon,
   User,
   CreditCard,
+  ChevronDown,
+  Download,
+  FileDown,
+  LayoutDashboard
 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Header } from "@/components/header";
 import { NovoAgendamentoNovoLayout } from "./agendamento-cadastro";
 import { useOpcoesDoCardapio } from "@/hooks/useOpcoesDoCardapio";
@@ -448,77 +458,95 @@ export default function Agendamentos() {
         subtitle="Gerencie os agendamentos de pedidos"
       />
 
-      <div className="flex items-center justify-end mb-6">
-        <div className="flex flex-wrap justify-end gap-2">
-          <Button
-            onClick={() => {
-              const dateISO = utils.toISODateOnly(selectedDate);
-              downloadPedidosDocx({ data: dateISO });
-            }}
-            disabled={downloadingPedidos}
-          >
-            {downloadingPedidos ? "Gerando..." : "Baixar relatório de pedidos (DOCX)"}
-          </Button>
+      <div className="flex flex-col md:flex-row items-center justify-between gap-4 mb-8 bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
+        <div className="flex items-center gap-2">
+          <div className="bg-emerald-50 p-2 rounded-lg">
+            <CalendarIcon className="h-5 w-5 text-emerald-600" />
+          </div>
+          <div>
+            <h2 className="text-lg font-bold text-slate-800 leading-tight">{formatDate(selectedDate)}</h2>
+            <p className="text-xs text-slate-500 font-medium">{agendamentos.length} agendamentos programados</p>
+          </div>
+        </div>
 
-          {errorPedidosDocx && (
-            <div className="text-xs text-red-600 mt-2">{errorPedidosDocx}</div>
-          )}
+        <div className="flex flex-wrap items-center gap-3 w-full md:w-auto justify-end">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" className="h-10 rounded-xl border-slate-200 hover:bg-slate-50 gap-2">
+                <FileDown className="h-4 w-4 text-slate-500" />
+                <span className="hidden sm:inline">Relatórios e Exportação</span>
+                <span className="sm:hidden">Relatórios</span>
+                <ChevronDown className="h-3 w-3 opacity-50" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56 rounded-xl p-2">
+              <DropdownMenuItem 
+                className="rounded-lg cursor-pointer gap-2 py-2.5"
+                onClick={() => {
+                  const dateISO = utils.toISODateOnly(selectedDate);
+                  downloadPedidosDocx({ data: dateISO });
+                }}
+                disabled={downloadingPedidos}
+              >
+                <FileText className="h-4 w-4 text-blue-500" />
+                <div className="flex flex-col">
+                  <span className="font-medium text-sm">Relatório de Pedidos</span>
+                  <span className="text-[10px] text-slate-500">Documento DOCX</span>
+                </div>
+              </DropdownMenuItem>
 
-          {error && <div className="text-xs text-red-600 mt-2">{error}</div>}
-          <Button
-            className="w-full sm:w-auto"
-            variant="outline"
-            onClick={async () => {
-              try {
-                const dateISO = utils.toISODateOnly(selectedDate);
-                const res = await getRelatorio({ data: dateISO });
+              <DropdownMenuItem 
+                className="rounded-lg cursor-pointer gap-2 py-2.5"
+                onClick={async () => {
+                  const dateISO = utils.toISODateOnly(selectedDate);
+                  await getRelatorio({ data: dateISO });
+                  setPreparoSheetOpen(true);
+                }}
+                disabled={loadingRelatorioPreparos}
+              >
+                <LayoutDashboard className="h-4 w-4 text-amber-500" />
+                <div className="flex flex-col">
+                  <span className="font-medium text-sm">Painel de Preparo</span>
+                  <span className="text-[10px] text-slate-500">Visualizar insumos</span>
+                </div>
+              </DropdownMenuItem>
 
-                if (!res) {
-                  toast({
-                    title: "Não foi possível gerar o relatório",
-                    description: errorRelatorioPreparos ?? "Tente novamente",
-                    variant: "destructive",
-                  });
-                  return;
-                }
+              <DropdownMenuItem 
+                className="rounded-lg cursor-pointer gap-2 py-2.5"
+                onClick={() => setProducaoSheetOpen(true)}
+              >
+                <Download className="h-4 w-4 text-emerald-500" />
+                <div className="flex flex-col">
+                  <span className="font-medium text-sm">Produção do Dia</span>
+                  <span className="text-[10px] text-slate-500">Lista consolidada</span>
+                </div>
+              </DropdownMenuItem>
 
-                setPreparoSheetOpen(true);
-              } catch (e: any) {
-                console.error(e);
-                toast({
-                  title: "Erro ao gerar relatório de preparo",
-                  description: e?.message ?? "Tente novamente",
-                  variant: "destructive",
-                });
-              }
-            }}
-            disabled={loadingRelatorioPreparos}
-          >
-            <FileText className="mr-2 h-4 w-4" />
-            Relatório de Preparo
-          </Button>
-          <Button className="w-full sm:w-auto" variant="outline" onClick={() => setProducaoSheetOpen(true)}>
-            <FileText className="mr-2 h-4 w-4" /> Produção do Dia
-          </Button>
-          <Button className="w-full sm:w-auto"
-            variant="outline"
-            onClick={async () => {
-              try {
-                const dateISO = utils.toISODateOnly(selectedDate);
-                await baixarXlsxImportEntregasDoDia(dateISO);
-              } catch (e: any) {
-                console.error(e);
-              }
-            }}
-          >
-            Baixar planilha para importar
-          </Button>
+              <div className="h-px bg-slate-100 my-1 mx-1" />
 
-          <Button className="w-full sm:w-auto"
+              <DropdownMenuItem 
+                className="rounded-lg cursor-pointer gap-2 py-2.5"
+                onClick={async () => {
+                  const dateISO = utils.toISODateOnly(selectedDate);
+                  await baixarXlsxImportEntregasDoDia(dateISO);
+                }}
+              >
+                <FileDown className="h-4 w-4 text-slate-600" />
+                <div className="flex flex-col">
+                  <span className="font-medium text-sm">Planilha Logística</span>
+                  <span className="text-[10px] text-slate-500">Importar no Leva Certo</span>
+                </div>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          <Button 
+            className="h-10 rounded-xl bg-emerald-700 hover:bg-emerald-800 shadow-md shadow-emerald-100 border-none px-6 gap-2"
             onClick={() => setCadastroOpen(true)}
             disabled={loadingOpcoes}
           >
-            <Plus className="mr-2 h-4 w-4" /> Novo Agendamento
+            <Plus className="h-4 w-4" />
+            <span>Novo Agendamento</span>
           </Button>
         </div>
       </div>
