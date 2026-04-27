@@ -11,7 +11,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Plus, Pencil, Trash, Search } from "lucide-react";
+import { Plus, Pencil, Trash, Search, MessageCircle, Check } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -40,7 +40,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Plano, NovoPlanoInput, usePlanos } from "@/hooks/usePlanos";
+import { usePlanosCliente } from "@/hooks/usePlanosCliente";
 import { useTableSort } from "@/hooks/useTableSort";
 import { SortableHead } from "@/components/ui/sorttable";
 
@@ -66,11 +68,29 @@ export default function PlanosPage() {
   const { planos, tamanhos, loading, saving, createPlano, updatePlano, deletePlano } =
     usePlanos();
 
+  const { listPlanosNaoPagos, marcarPlanoComoPago } = usePlanosCliente();
+
   const [busca, setBusca] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editandoId, setEditandoId] = useState<number | null>(null);
 
   const [excluindoId, setExcluindoId] = useState<number | null>(null);
+  
+  const [planosNaoPagos, setPlanosNaoPagos] = useState<any[]>([]);
+  const [loadingNaoPagos, setLoadingNaoPagos] = useState(false);
+
+  // Load unpaid plans
+  const loadNaoPagos = async () => {
+    setLoadingNaoPagos(true);
+    try {
+      const data = await listPlanosNaoPagos();
+      setPlanosNaoPagos(data || []);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoadingNaoPagos(false);
+    }
+  };
 
   const [form, setForm] = useState<PlanoForm>({
     nome: "",
@@ -148,10 +168,19 @@ export default function PlanosPage() {
     <div className="space-y-6">
       <Header
         title="Planos"
-        subtitle="Crie planos para vincular aos clientes e controlar saldos (unidades/entregas)"
+        subtitle="Crie planos para vincular aos clientes e controle os planos não pagos"
       />
 
-      <div className="flex items-center justify-between gap-3">
+      <Tabs defaultValue="catalogo" onValueChange={(val) => {
+        if (val === "naopagos") loadNaoPagos();
+      }}>
+        <TabsList className="mb-4">
+          <TabsTrigger value="catalogo">Catálogo de Planos</TabsTrigger>
+          <TabsTrigger value="naopagos">Planos Não Pagos</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="catalogo" className="space-y-6">
+          <div className="flex items-center justify-between gap-3">
         <div className="relative w-full max-w-md">
           <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
@@ -300,6 +329,84 @@ export default function PlanosPage() {
           )}
         </CardContent>
       </Card>
+      </TabsContent>
+
+      <TabsContent value="naopagos">
+        <Card className="bg-white border-gray-200">
+          <CardHeader>
+            <CardTitle className="text-gray-800">Planos com Pagamento Pendente</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {loadingNaoPagos ? (
+              <p className="text-sm text-gray-500">Carregando...</p>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-gray-50 hover:bg-gray-50">
+                    <TableHead>Cliente</TableHead>
+                    <TableHead>Telefone</TableHead>
+                    <TableHead>Plano</TableHead>
+                    <TableHead>Data Vínculo</TableHead>
+                    <TableHead className="text-right">Ações</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {planosNaoPagos.map((p) => {
+                    const nomePlano = p.plano?.nome || "Plano";
+                    const gramas = p.plano?.tamanho?.pesagemGramas ? ` - ${p.plano.tamanho.pesagemGramas}g` : "";
+                    const telefone = p.cliente?.telefone || "";
+                    const telefoneLimpo = telefone.replace(/\D/g, "");
+                    const msg = `Olá ${p.cliente?.nome?.split(' ')[0]}! Tudo bem? Estou entrando em contato para lembrar sobre o pagamento do seu plano ${nomePlano}${gramas} que está pendente. Por favor, assim que realizar o pagamento, nos envie o comprovante por aqui. Obrigado(a)!`;
+
+                    return (
+                      <TableRow key={p.id} className="hover:bg-gray-50 border-b border-gray-100">
+                        <TableCell className="font-medium">{p.cliente?.nome}</TableCell>
+                        <TableCell>{telefone}</TableCell>
+                        <TableCell>{nomePlano}{gramas}</TableCell>
+                        <TableCell>{p.createdAt ? new Date(p.createdAt).toLocaleDateString("pt-BR") : ""}</TableCell>
+                        <TableCell className="text-right">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="text-green-600 hover:text-green-700 hover:bg-green-50 mr-2"
+                            title="Cobrar no WhatsApp"
+                            disabled={!telefoneLimpo}
+                            onClick={() => {
+                              window.open(`https://wa.me/55${telefoneLimpo}?text=${encodeURIComponent(msg)}`, "_blank");
+                            }}
+                          >
+                            <MessageCircle className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                            title="Marcar como Pago"
+                            onClick={async () => {
+                              await marcarPlanoComoPago(p.id);
+                              await loadNaoPagos();
+                            }}
+                          >
+                            <Check className="h-4 w-4" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                  {planosNaoPagos.length === 0 && !loadingNaoPagos && (
+                    <TableRow>
+                      <TableCell colSpan={5} className="text-center text-sm text-gray-500 py-4">
+                        Nenhum plano com pagamento pendente.
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            )}
+          </CardContent>
+        </Card>
+      </TabsContent>
+      </Tabs>
 
       <Dialog
         open={dialogOpen}

@@ -69,6 +69,7 @@ export function ClienteHistoricoDialog({
     const [tamanhos, setTamanhos] = useState<{ id: number; pesagemGramas: number }[]>([]);
     const [planosCatalogo, setPlanosCatalogo] = useState<PlanoCatalogo[]>([]);
     const [vinculoPlanoId, setVinculoPlanoId] = useState<string>("");
+    const [planoPago, setPlanoPago] = useState<boolean>(false);
 
     const [novoPlanoCatalogo, setNovoPlanoCatalogo] = useState<{
         nome: string;
@@ -225,7 +226,7 @@ export function ClienteHistoricoDialog({
                                     </div>
                                 </div>
 
-                                <div className="grid grid-cols-3 gap-3 items-end">
+                                <div className="grid grid-cols-4 gap-3 items-end">
                                     <div className="space-y-1 col-span-2">
                                         <Label>Plano</Label>
                                         <Select
@@ -251,12 +252,28 @@ export function ClienteHistoricoDialog({
                                         </Select>
                                     </div>
 
+                                    <div className="space-y-2 flex flex-col justify-end pb-2">
+                                        <div className="flex items-center space-x-2">
+                                            <input
+                                                type="checkbox"
+                                                id="planoPago"
+                                                checked={planoPago}
+                                                onChange={(e) => setPlanoPago(e.target.checked)}
+                                                className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                                                disabled={savingAll || !cliente}
+                                            />
+                                            <Label htmlFor="planoPago" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                                                Plano já foi pago?
+                                            </Label>
+                                        </div>
+                                    </div>
+
                                     <Button
                                         className="w-full"
                                         disabled={savingAll || !cliente || !vinculoPlanoId}
                                         onClick={async () => {
                                             try {
-                                                const vinc = await vincularPlano(Number(cliente.id), Number(vinculoPlanoId));
+                                                const vinc = await vincularPlano(Number(cliente.id), Number(vinculoPlanoId), planoPago);
 
                                                 const plano = planosCatalogo.find((p) => String(p.id) === String(vinculoPlanoId));
                                                 if (plano) {
@@ -265,11 +282,12 @@ export function ClienteHistoricoDialog({
                                                     
                                                     // Opcional: Atualiza o objeto cliente "em memória" para outras telas se necessário
                                                     if (cliente && cliente.planos) {
-                                                        cliente.planos.push(novoVinculo);
+                                                        cliente!.planos.push(novoVinculo);
                                                     }
                                                 }
 
                                                 setVinculoPlanoId("");
+                                                setPlanoPago(false);
                                             } catch (err) {
                                                 // erro já tratado no hook com toast
                                             }
@@ -412,7 +430,7 @@ export function ClienteHistoricoDialog({
                                                                 ));
 
                                                                 if (cliente && cliente.planos) {
-                                                                    cliente.planos = cliente.planos.filter(
+                                                                    cliente!.planos = cliente!.planos.filter(
                                                                         (p: any) => Number(p.id) !== Number(plano.id),
                                                                     );
                                                                 }

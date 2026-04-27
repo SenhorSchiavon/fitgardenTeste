@@ -25,6 +25,12 @@ export type PlanoClienteVinculo = {
   saldoUnidades?: number | null;
   saldoEntregas?: number | null;
   plano?: PlanoCatalogo & { tamanho?: Tamanho };
+  pago?: boolean;
+  cliente?: {
+    id: number;
+    nome?: string;
+    telefone?: string;
+  };
   createdAt?: string;
 };
 
@@ -102,13 +108,13 @@ export function usePlanosCliente() {
     return (await res.json()) as PlanoClienteVinculo[];
   }, []);
   const vincularPlano = useCallback(
-    async (clienteId: number, planoId: number) => {
+    async (clienteId: number, planoId: number, pago: boolean = false) => {
       setSaving(true);
       try {
         const res = await apiFetch(`${API_URL}/clientes/${clienteId}/planos/`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ planoId }),
+          body: JSON.stringify({ planoId, pago }),
         });
 
         if (!res.ok) {
@@ -160,6 +166,45 @@ export function usePlanosCliente() {
   );
 
 
+  const listPlanosNaoPagos = useCallback(async () => {
+    const res = await apiFetch(`${API_URL}/planos-cliente/nao-pagos`, {
+      method: "GET",
+      headers: { "Content-Type": "application/json" },
+    });
+
+    if (!res.ok) {
+      const msg = await res.text().catch(() => "");
+      throw new Error(msg || "Falha ao carregar planos não pagos");
+    }
+
+    return (await res.json()) as PlanoClienteVinculo[];
+  }, []);
+
+  const marcarPlanoComoPago = useCallback(async (planoClienteId: number) => {
+    setSaving(true);
+    try {
+      const res = await apiFetch(`${API_URL}/planos-cliente/${planoClienteId}/pago`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+      });
+
+      if (!res.ok) {
+        const msg = await res.text().catch(() => "");
+        throw new Error(msg || "Falha ao marcar plano como pago");
+      }
+
+      toast.success("Plano marcado como pago!");
+    } catch (e: any) {
+      console.error(e);
+      toast.error("Erro ao marcar plano como pago", {
+        description: e?.message || "Tente novamente.",
+      });
+      throw e;
+    } finally {
+      setSaving(false);
+    }
+  }, []);
+
   return {
     loading,
     saving,
@@ -169,5 +214,7 @@ export function usePlanosCliente() {
     createPlano,
     vincularPlano,
     desvincularPlano,
+    listPlanosNaoPagos,
+    marcarPlanoComoPago,
   };
 }

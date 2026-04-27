@@ -27,6 +27,20 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
 import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import { cn } from "@/lib/utils";
+import {
   Plus,
   Trash,
   CalendarIcon,
@@ -34,6 +48,8 @@ import {
   MapPin,
   Send,
   Minus,
+  Check,
+  ChevronsUpDown,
 } from "lucide-react";
 
 import { useRegrasPersonalizadas } from "@/hooks/useRegrasPersonalizadas";
@@ -193,6 +209,7 @@ export function NovoAgendamentoNovoLayout({
   const { regras } = useRegrasPersonalizadas();
   const { toast } = useToast();
   const [clienteId, setClienteId] = useState("");
+  const [comboboxOpen, setComboboxOpen] = useState(false);
   const [tipo, setTipo] = useState<PedidoTipo>("ENTREGA");
   const [data, setData] = useState<Date | undefined>(new Date());
   const [horario, setHorario] = useState<HorarioIntervalo>({
@@ -694,20 +711,69 @@ export function NovoAgendamentoNovoLayout({
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="space-y-2">
+                  <div className="space-y-2 flex flex-col">
                     <Label>Cliente</Label>
-                    <Select value={clienteId} onValueChange={setClienteId}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Selecione o cliente" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {clientes.map((cliente) => (
-                          <SelectItem key={cliente.id} value={cliente.id}>
-                            {cliente.nome}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <Popover open={comboboxOpen} onOpenChange={setComboboxOpen}>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          role="combobox"
+                          aria-expanded={comboboxOpen}
+                          className="w-full justify-between"
+                        >
+                          <span className="truncate">
+                            {clienteId
+                              ? clientes.find((c) => c.id === clienteId)?.nome
+                              : "Selecione o cliente"}
+                          </span>
+                          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="p-0" style={{ width: 'var(--radix-popover-trigger-width)' }} align="start">
+                        <Command filter={(value, search) => {
+                          const query = search.toLowerCase();
+                          const client = clientes.find(c => c.id === value);
+                          if (!client) return 0;
+                          const name = client.nome.toLowerCase();
+                          const phone = client.telefone?.replace(/\D/g, '') || "";
+                          const rawPhoneSearch = query.replace(/\D/g, '');
+                          if (name.includes(query) || (rawPhoneSearch && phone.includes(rawPhoneSearch))) {
+                            return 1;
+                          }
+                          return 0;
+                        }}>
+                          <CommandInput placeholder="Pesquisar por nome ou telefone..." />
+                          <CommandEmpty>Nenhum cliente encontrado.</CommandEmpty>
+                          <CommandList>
+                            <CommandGroup>
+                              {clientes.map((cliente) => (
+                                <CommandItem
+                                  key={cliente.id}
+                                  value={cliente.id}
+                                  onSelect={(currentValue) => {
+                                    setClienteId(currentValue === clienteId ? "" : currentValue);
+                                    setComboboxOpen(false);
+                                  }}
+                                >
+                                  <Check
+                                    className={cn(
+                                      "mr-2 h-4 w-4 shrink-0",
+                                      clienteId === cliente.id ? "opacity-100" : "opacity-0"
+                                    )}
+                                  />
+                                  <div className="flex flex-col truncate">
+                                    <span className="truncate">{cliente.nome}</span>
+                                    {cliente.telefone && (
+                                      <span className="text-xs text-muted-foreground">{cliente.telefone}</span>
+                                    )}
+                                  </div>
+                                </CommandItem>
+                              ))}
+                            </CommandGroup>
+                          </CommandList>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
                   </div>
 
                   <div className="rounded-lg border p-3 space-y-2 text-sm">
