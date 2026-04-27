@@ -679,35 +679,51 @@ export function NovoAgendamentoNovoLayout({
       return;
     }
 
-    if (!formItem.proteinaId) return;
-    if (totalGramasPersonalizada <= 0) return;
+    if (formItem.tipoItem === "PERSONALIZADA") {
+      if (!formItem.proteinaId) {
+        toast({
+          title: "Proteína obrigatória",
+          description: "Selecione uma proteína para sua marmita personalizada.",
+          variant: "destructive",
+        });
+        return;
+      }
+      if (totalGramasPersonalizada <= 0) {
+        toast({
+          title: "Peso não informado",
+          description: "Informe a gramagem dos ingredientes da sua personalizada.",
+          variant: "destructive",
+        });
+        return;
+      }
 
-    const novo: NovoPedidoItem = {
-      ...formItem,
-      id: isEdit ? formItem.id : uid(),
-      groupId: currentGroupId,
-      // Tenta encontrar um ID de tamanho que combine com a gramagem da personalizada
-      tamanhoId: tamanhos.find(t => parseInt(t.nome) === totalGramasPersonalizada)?.id || "",
-      tamanhoLabel: `${totalGramasPersonalizada}g`,
-      precoUnit: Number(formItem.precoUnit || 0),
-    };
+      const novo: NovoPedidoItem = {
+        ...formItem,
+        id: isEdit ? formItem.id : uid(),
+        groupId: currentGroupId,
+        // Tenta encontrar um ID de tamanho que combine com a gramagem da personalizada
+        tamanhoId: tamanhos.find(t => parseInt(t.nome) === totalGramasPersonalizada)?.id || "",
+        tamanhoLabel: `${totalGramasPersonalizada}g`,
+        precoUnit: Number(formItem.precoUnit || 0),
+      };
 
-    if (isEdit) {
-      setItens((prev) => prev.map((it) => (it.id === formItem.id ? novo : it)));
-    } else {
-      setItens((prev) => [...prev, novo]);
-    }
+      if (isEdit) {
+        setItens((prev) => prev.map((it) => (it.id === formItem.id ? novo : it)));
+      } else {
+        setItens((prev) => [...prev, novo]);
+      }
 
-    toast({
-      title: isEdit ? "Item personalizado atualizado" : "Item personalizado adicionado",
-      description: `${novo.quantidade}x ${novo.tamanhoLabel} — Personalizada`,
-    });
+      toast({
+        title: isEdit ? "Item personalizado atualizado" : "Item personalizado adicionado",
+        description: `${novo.quantidade}x ${novo.tamanhoLabel} — Personalizada`,
+      });
 
-    if (fechar) {
-      setModalNovoPedidoOpen(false);
-      resetFormItem();
-    } else {
-      resetFormItemPartial();
+      if (fechar) {
+        setModalNovoPedidoOpen(false);
+        resetFormItem();
+      } else {
+        resetFormItemPartial();
+      }
     }
   }
 
@@ -1431,8 +1447,17 @@ export function NovoAgendamentoNovoLayout({
                         <div className="space-y-2">
                           <Label>Carboidrato</Label>
                           <Select
-                            value={formItem.carboId}
+                            value={formItem.carboId || "none"}
                             onValueChange={(v) => {
+                              if (v === "none") {
+                                setFormItem((prev) => ({
+                                  ...prev,
+                                  carboId: "",
+                                  carboNome: "",
+                                  carboGramas: 0,
+                                }));
+                                return;
+                              }
                               const item = carboidratos.find((o) => o.id === v);
                               setFormItem((prev) => ({
                                 ...prev,
@@ -1445,6 +1470,7 @@ export function NovoAgendamentoNovoLayout({
                               <SelectValue placeholder="Selecione" />
                             </SelectTrigger>
                             <SelectContent>
+                              <SelectItem value="none">Nenhum</SelectItem>
                               {carboidratos.map((item) => (
                                 <SelectItem key={item.id} value={item.id}>
                                   {item.nome}
@@ -1468,13 +1494,14 @@ export function NovoAgendamentoNovoLayout({
                               }))
                             }
                             placeholder="0"
+                            disabled={!formItem.carboId}
                           />
                         </div>
                       </div>
 
                       <div className="grid grid-cols-[minmax(0,1fr)_120px] gap-3">
                         <div className="space-y-2">
-                          <Label>Proteína</Label>
+                          <Label>Proteína <span className="text-destructive">*</span></Label>
                           <Select
                             value={formItem.proteinaId}
                             onValueChange={(v) => {
@@ -1483,11 +1510,13 @@ export function NovoAgendamentoNovoLayout({
                                 ...prev,
                                 proteinaId: v,
                                 proteinaNome: item?.nome || "",
+                                // Se for a primeira vez selecionando, coloca um padrão de 130g
+                                proteinaGramas: prev.proteinaGramas || 130,
                               }));
                             }}
                           >
-                            <SelectTrigger>
-                              <SelectValue placeholder="Selecione" />
+                            <SelectTrigger className="border-secondary/40">
+                              <SelectValue placeholder="Selecione (Obrigatório)" />
                             </SelectTrigger>
                             <SelectContent>
                               {proteinas.map((item) => (
@@ -1521,8 +1550,17 @@ export function NovoAgendamentoNovoLayout({
                         <div className="space-y-2">
                           <Label>Legume</Label>
                           <Select
-                            value={formItem.legumeId}
+                            value={formItem.legumeId || "none"}
                             onValueChange={(v) => {
+                              if (v === "none") {
+                                setFormItem((prev) => ({
+                                  ...prev,
+                                  legumeId: "",
+                                  legumeNome: "",
+                                  legumeGramas: 0,
+                                }));
+                                return;
+                              }
                               const item = legumes.find((o) => o.id === v);
                               setFormItem((prev) => ({
                                 ...prev,
@@ -1535,6 +1573,7 @@ export function NovoAgendamentoNovoLayout({
                               <SelectValue placeholder="Selecione" />
                             </SelectTrigger>
                             <SelectContent>
+                              <SelectItem value="none">Nenhum</SelectItem>
                               {legumes.map((item) => (
                                 <SelectItem key={item.id} value={item.id}>
                                   {item.nome}
@@ -1558,6 +1597,7 @@ export function NovoAgendamentoNovoLayout({
                               }))
                             }
                             placeholder="0"
+                            disabled={!formItem.legumeId}
                           />
                         </div>
                       </div>
@@ -1566,14 +1606,24 @@ export function NovoAgendamentoNovoLayout({
                         <div className="space-y-2">
                           <Label>Feijão (opcional)</Label>
                           <Select
-                            value={formItem.feijaoId}
+                            value={formItem.feijaoId || "none"}
                             onValueChange={(v) => {
+                              if (v === "none") {
+                                setFormItem((prev) => ({
+                                  ...prev,
+                                  feijaoId: "",
+                                  feijaoNome: "",
+                                  feijaoGramas: 0,
+                                  adicionarFeijao: false,
+                                }));
+                                return;
+                              }
                               const item = feijoes.find((o) => o.id === v);
                               setFormItem((prev) => ({
                                 ...prev,
                                 feijaoId: v,
                                 feijaoNome: item?.nome || "",
-                                adicionarFeijao: !!v,
+                                adicionarFeijao: true,
                               }));
                             }}
                           >
@@ -1581,6 +1631,7 @@ export function NovoAgendamentoNovoLayout({
                               <SelectValue placeholder="Selecione" />
                             </SelectTrigger>
                             <SelectContent>
+                              <SelectItem value="none">Nenhum</SelectItem>
                               {feijoes.map((item) => (
                                 <SelectItem key={item.id} value={item.id}>
                                   {item.nome}
@@ -1605,6 +1656,7 @@ export function NovoAgendamentoNovoLayout({
                               }))
                             }
                             placeholder="0"
+                            disabled={!formItem.feijaoId}
                           />
                         </div>
                       </div>

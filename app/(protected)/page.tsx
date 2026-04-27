@@ -6,9 +6,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Header } from "@/components/header"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
+import { useState } from "react"
+import { ModalEnvioWhatsApp } from "@/components/mensagens/modal-envio-whatsapp"
+import { MessageCircle as ZapIcon } from "lucide-react"
 
 export default function Dashboard() {
   const { data, loading, error } = useDashboard()
+  const [whatsappModal, setWhatsappModal] = useState<{ id: number, nome: string } | null>(null)
 
   const fmtCurrency = (v: number) => 
     new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v)
@@ -196,11 +200,21 @@ export default function Dashboard() {
                     <tr key={p.id} className="hover:bg-muted/10 transition-colors group">
                       <td className="px-6 py-4 text-sm font-bold text-primary">#{p.id}</td>
                       <td className="px-6 py-4">
-                        <div className="flex items-center space-x-3">
-                          <div className="h-8 w-8 rounded-lg bg-primary/5 flex items-center justify-center text-primary font-bold text-xs uppercase">
-                            {p.clienteNome.charAt(0)}
+                        <div className="flex items-center justify-between space-x-3">
+                          <div className="flex items-center space-x-3">
+                            <div className="h-8 w-8 rounded-lg bg-primary/5 flex items-center justify-center text-primary font-bold text-xs uppercase">
+                              {p.clienteNome.charAt(0)}
+                            </div>
+                            <span className="text-sm font-medium text-muted-foreground group-hover:text-primary transition-colors">{p.clienteNome}</span>
                           </div>
-                          <span className="text-sm font-medium text-muted-foreground group-hover:text-primary transition-colors">{p.clienteNome}</span>
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className="h-8 w-8 text-emerald-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                            onClick={() => setWhatsappModal({ id: p.clienteId, nome: p.clienteNome })}
+                          >
+                            <ZapIcon className="h-4 w-4" />
+                          </Button>
                         </div>
                       </td>
                       <td className="px-6 py-4 text-xs text-muted-foreground">{fmtDate(p.createdAt)}</td>
@@ -218,6 +232,22 @@ export default function Dashboard() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Floating Button Premium */}
+      <div className="fixed bottom-8 right-8 z-50">
+        <Button 
+            onClick={() => setWhatsappModal({ id: -1, nome: "" })} 
+            className="h-16 w-16 rounded-full bg-emerald-500 hover:bg-emerald-600 text-white shadow-2xl shadow-emerald-500/40 border-4 border-white flex items-center justify-center transition-all hover:scale-110 active:scale-95"
+        >
+            <ZapIcon className="h-8 w-8 fill-white/20" />
+        </Button>
+      </div>
+
+      <ModalEnvioWhatsApp 
+        clienteId={whatsappModal ? whatsappModal.id : null} 
+        clienteNome={whatsappModal?.nome || ""}
+        onClose={() => setWhatsappModal(null)}
+      />
     </div>
   )
 }

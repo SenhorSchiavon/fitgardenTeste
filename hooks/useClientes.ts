@@ -62,6 +62,7 @@ export type Cliente = {
   enderecos: EnderecoCliente[];
   tags: { id: number; tag: string }[];
   planos: PlanoCliente[];
+  pedidos?: { id: number; createdAt: string }[];
 
   createdAt?: string;
   updatedAt?: string;
