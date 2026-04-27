@@ -150,7 +150,6 @@ export default function Agendamentos() {
     useState<Agendamento | null>(null);
   const [detalhesDialogOpen, setDetalhesDialogOpen] = useState(false);
   const [producaoSheetOpen, setProducaoSheetOpen] = useState(false);
-  const [rotasSheetOpen, setRotasSheetOpen] = useState(false);
   const [modoEdicao, setModoEdicao] = useState(false);
   const [agendamentoEditandoId, setAgendamentoEditandoId] = useState<
     number | null
@@ -947,59 +946,6 @@ export default function Agendamentos() {
         </SheetContent>
       </Sheet>
 
-      <Sheet open={rotasSheetOpen} onOpenChange={setRotasSheetOpen}>
-        <SheetContent className="sm:max-w-md">
-          <SheetHeader>
-            <SheetTitle>
-              Rotas de Montagem - {formatDate(selectedDate)}
-            </SheetTitle>
-          </SheetHeader>
-          <div className="py-6">
-            <Tabs defaultValue="CENTRO">
-              <TabsList className="flex flex-wrap h-auto gap-1 mb-4">
-                <TabsTrigger value="CENTRO">Centro</TabsTrigger>
-                <TabsTrigger value="ZONA SUL">Zona Sul</TabsTrigger>
-                <TabsTrigger value="ZONA OESTE">Zona Oeste</TabsTrigger>
-                <TabsTrigger value="ZONA NORTE">Zona Norte</TabsTrigger>
-                <TabsTrigger value="ZONA LESTE">Zona Leste</TabsTrigger>
-                <TabsTrigger value="CAMBÉ">Cambé</TabsTrigger>
-                <TabsTrigger value="IBIPORÃ">Ibiporã</TabsTrigger>
-              </TabsList>
-
-              {Object.entries(calcularRotasMontagem()).map(([zona, itens]) => (
-                <TabsContent key={zona} value={zona}>
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Item</TableHead>
-                        <TableHead className="text-right">Quantidade</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {Object.entries(itens).length > 0 ? (
-                        Object.entries(itens).map(([item, quantidade]) => (
-                          <TableRow key={item}>
-                            <TableCell>{item}</TableCell>
-                            <TableCell className="text-right">
-                              {quantidade}
-                            </TableCell>
-                          </TableRow>
-                        ))
-                      ) : (
-                        <TableRow>
-                          <TableCell colSpan={2} className="text-center">
-                            Nenhum item para esta região
-                          </TableCell>
-                        </TableRow>
-                      )}
-                    </TableBody>
-                  </Table>
-                </TabsContent>
-              ))}
-            </Tabs>
-          </div>
-        </SheetContent>
-      </Sheet>
       <NovoAgendamentoNovoLayout
         open={cadastroOpen}
         onOpenChange={(open) => {
