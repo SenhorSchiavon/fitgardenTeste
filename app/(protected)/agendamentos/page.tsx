@@ -41,7 +41,11 @@ import {
   ChevronDown,
   Download,
   FileDown,
-  LayoutDashboard
+  LayoutDashboard,
+  Clock,
+  Package,
+  Wallet,
+  CheckCircle2
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -295,27 +299,6 @@ export default function Agendamentos() {
     setDetalhesDialogOpen(false);
   };
 
-  const getZonaColor = (zona: string) => {
-    switch (zona) {
-      case "CENTRO":
-        return "bg-purple-500";
-      case "ZONA SUL":
-        return "bg-yellow-500";
-      case "ZONA NORTE":
-        return "bg-pink-500";
-      case "ZONA LESTE":
-        return "bg-emerald-500";
-      case "ZONA OESTE":
-        return "bg-cyan-500";
-      case "CAMBÉ":
-        return "bg-indigo-500";
-      case "IBIPORÃ":
-        return "bg-amber-500";
-      default:
-        return "bg-gray-500";
-    }
-  };
-
   const calcularProducaoDoDia = () => {
     const producao: Record<string, number> = {};
 
@@ -330,31 +313,6 @@ export default function Agendamentos() {
     });
 
     return producao;
-  };
-
-  const calcularRotasMontagem = () => {
-    const rotas: Record<string, Record<string, number>> = {
-      CENTRO: {},
-      "ZONA SUL": {},
-      "ZONA NORTE": {},
-      "ZONA LESTE": {},
-      "ZONA OESTE": {},
-      CAMBÉ: {},
-      IBIPORÃ: {},
-    };
-
-    agendamentos.forEach((agendamento) => {
-      if (agendamento.tipoEntrega === "ENTREGA") {
-        agendamento.itens.forEach((item) => {
-          if (!rotas[agendamento.zona][item.nome]) {
-            rotas[agendamento.zona][item.nome] = 0;
-          }
-          rotas[agendamento.zona][item.nome] += item.quantidade;
-        });
-      }
-    });
-
-    return rotas;
   };
 
   const formatDate = (date: Date) => {
@@ -567,57 +525,81 @@ export default function Agendamentos() {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center">
-            <CardTitle>Agendamentos para {formatDate(selectedDate)}</CardTitle>
+        <Card className="shadow-sm border-slate-100 overflow-hidden">
+          <CardHeader className="bg-slate-50/50 py-4 px-6 border-b border-slate-100 flex flex-row items-center justify-between">
+            <CardTitle className="text-lg font-bold text-slate-700 flex items-center gap-2">
+              <CalendarIcon className="h-5 w-5 text-primary" />
+              Agendamentos para {formatDate(selectedDate)}
+            </CardTitle>
+            <Badge variant="secondary" className="bg-white border-slate-200 text-slate-600 font-bold px-3">
+              {agendamentos.length} pedidos
+            </Badge>
           </CardHeader>
-          <CardContent>
-            <ScrollArea className="h-[calc(100vh-300px)]">
-              <div className="space-y-4">
-                {agendamentos.map((agendamento) => (
-                  <div
-                    key={agendamento.id}
-                    className="flex flex-col border rounded-lg overflow-hidden cursor-pointer hover:border-primary transition-colors"
-                    onClick={() => handleShowDetalhes(agendamento)}
-                  >
-                    <div className="flex items-center p-4 bg-muted/40">
-                      <div className="flex-1">
-                        <div className="flex items-center">
-                          <span className="font-medium">
-                            {agendamento.numeroPedido}
-                          </span>
-                          <span className="mx-2">-</span>
-                          <span>{agendamento.cliente}</span>
-                        </div>
-                        <div className="flex items-center text-sm text-muted-foreground mt-1">
-                          <Badge
-                            variant={
-                              agendamento.tipoEntrega === "ENTREGA"
-                                ? "default"
-                                : "outline"
-                            }
-                          >
-                            {agendamento.tipoEntrega}
-                          </Badge>
-                          <span className="mx-2">•</span>
-                          <span>{agendamento.faixaHorario}h</span>
-                          <span className="mx-2">•</span>
-                          <span>{agendamento.quantidade} itens</span>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Badge variant="outline">
-                          {agendamento.formaPagamento}
-                        </Badge>
-                      </div>
-                    </div>
-                    <div className="flex h-1 w-full">
-                      <div
-                        className={`h-1 w-full ${getZonaColor(agendamento.zona)}`}
-                      />
-                    </div>
+          <CardContent className="p-0">
+            <ScrollArea className="h-[calc(100vh-320px)]">
+              <div className="p-6 space-y-4">
+                {agendamentos.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-20 text-slate-400">
+                    <CheckCircle2 className="h-12 w-12 mb-4 opacity-20" />
+                    <p className="font-medium">Nenhum agendamento para hoje</p>
+                    <p className="text-sm">Os pedidos aparecerão aqui conforme forem agendados</p>
                   </div>
-                ))}
+                ) : (
+                  agendamentos.map((agendamento) => {
+                    return (
+                      <div
+                        key={agendamento.id}
+                        className="group relative bg-white border border-slate-200 rounded-2xl overflow-hidden cursor-pointer hover:border-emerald-300 hover:shadow-md transition-all duration-200"
+                        onClick={() => handleShowDetalhes(agendamento)}
+                      >
+                        <div className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                          <div className="flex-1 space-y-2">
+                            <div className="flex items-center gap-3">
+                              <span className="text-xs font-black text-slate-400 uppercase tracking-widest">{agendamento.numeroPedido}</span>
+                              <h3 className="text-base font-bold text-slate-800 group-hover:text-emerald-700 transition-colors">{agendamento.cliente}</h3>
+                            </div>
+
+                            <div className="flex flex-wrap items-center gap-y-2 gap-x-4">
+                              <div className="flex items-center text-sm text-slate-500 gap-1.5">
+                                <Clock className="h-3.5 w-3.5 text-slate-400" />
+                                <span className="font-medium">{agendamento.faixaHorario}h</span>
+                              </div>
+
+                              <div className="flex items-center text-sm text-slate-500 gap-1.5">
+                                <Package className="h-3.5 w-3.5 text-slate-400" />
+                                <span className="font-medium">{agendamento.quantidade} marmitas</span>
+                              </div>
+
+                              <div className="flex items-center text-sm text-slate-500 gap-1.5">
+                                <MapPin className="h-3.5 w-3.5 text-slate-400" />
+                                <span className="font-medium truncate max-w-[200px]">{agendamento.endereco}</span>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center justify-between sm:justify-end gap-3 pt-3 sm:pt-0 border-t sm:border-none border-slate-50">
+                            <Badge 
+                              variant={agendamento.tipoEntrega === "ENTREGA" ? "default" : "outline"}
+                              className={agendamento.tipoEntrega === "ENTREGA" ? "bg-slate-800 text-white" : "border-slate-200 text-slate-600"}
+                            >
+                              {agendamento.tipoEntrega}
+                            </Badge>
+
+                            <div className="flex flex-col items-end">
+                              <div className="flex items-center text-xs font-bold text-slate-700 gap-1">
+                                <Wallet className="h-3 w-3 text-slate-400" />
+                                {agendamento.formaPagamento}
+                              </div>
+                              {agendamento.valorTotalFinal > 0 && (
+                                <span className="text-sm font-black text-emerald-700">R$ {agendamento.valorTotalFinal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
               </div>
             </ScrollArea>
           </CardContent>
@@ -673,9 +655,6 @@ export default function Agendamentos() {
                       <div>
                         <p className="text-xs text-slate-500">Endereço de Entrega</p>
                         <p className="text-sm font-medium leading-tight">{agendamentoSelecionado?.endereco}</p>
-                        <Badge variant="secondary" className="mt-2 text-[10px] uppercase bg-slate-100 text-slate-600">
-                          Zona: {agendamentoSelecionado?.zona}
-                        </Badge>
                       </div>
                     </div>
                   </div>
