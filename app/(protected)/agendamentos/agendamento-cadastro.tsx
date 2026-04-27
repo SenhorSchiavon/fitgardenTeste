@@ -55,6 +55,7 @@ import {
 
 import { useRegrasPersonalizadas } from "@/hooks/useRegrasPersonalizadas";
 import { useToast } from "@/hooks/use-toast";
+import { useAgendamentos } from "@/hooks/useAgendamentos";
 
 type PedidoTipo = "ENTREGA" | "RETIRADA";
 type FormaPagamento =
@@ -209,6 +210,8 @@ export function NovoAgendamentoNovoLayout({
 }: Props) {
   const { regras } = useRegrasPersonalizadas();
   const { toast } = useToast();
+  const { estimarTaxaEntrega } = useAgendamentos();
+  const [valorTaxa, setValorTaxa] = useState(0);
   const [clienteId, setClienteId] = useState("");
   const [comboboxOpen, setComboboxOpen] = useState(false);
   const [tipo, setTipo] = useState<PedidoTipo>("ENTREGA");
@@ -347,6 +350,26 @@ export function NovoAgendamentoNovoLayout({
       setEndereco(clienteSelecionado.enderecoPrincipal || "");
     }
   }, [clienteSelecionado, tipo, endereco]);
+
+  // Estimativa de taxa de entrega
+  useEffect(() => {
+    async function updateTaxa() {
+      if (tipo === "RETIRADA" || !clienteId) {
+        setValorTaxa(0);
+        return;
+      }
+      try {
+        const res = await estimarTaxaEntrega({ clienteId: Number(clienteId) });
+        if (res && typeof res.valorTaxa === "number") {
+          setValorTaxa(res.valorTaxa);
+        }
+      } catch (e) {
+        console.error("Erro ao estimar taxa:", e);
+        setValorTaxa(0);
+      }
+    }
+    updateTaxa();
+  }, [clienteId, tipo, estimarTaxaEntrega]);
 
   const totalMarmitas = useMemo(
     () => itens.reduce((acc, item) => acc + Number(item.quantidade || 0), 0),
@@ -1191,14 +1214,23 @@ export function NovoAgendamentoNovoLayout({
                   <Separator />
 
                   <div className="space-y-2 text-sm">
-                    <div className="flex items-center justify-between">
-                      <span>Total de marmitas</span>
-                      <span className="font-medium">{totalMarmitas}</span>
+                    <div className="flex items-center justify-between text-muted-foreground">
+                      <span>Subtotal marmitas</span>
+                      <span>R$ {currency(subtotalPedido)}</span>
                     </div>
 
+                    {tipo === "ENTREGA" && (
+                      <div className="flex items-center justify-between text-muted-foreground">
+                        <span>Taxa de entrega</span>
+                        <span>R$ {currency(valorTaxa)}</span>
+                      </div>
+                    )}
+
+                    <Separator className="my-2" />
+
                     <div className="flex items-center justify-between text-lg">
-                      <span className="font-bold text-primary">A pagar hoje</span>
-                      <span className="font-extrabold text-xl text-primary">R$ {currency(subtotalPedido)}</span>
+                      <span className="font-bold text-primary">Total a pagar</span>
+                      <span className="font-extrabold text-xl text-primary">R$ {currency(subtotalPedido + (tipo === "ENTREGA" ? valorTaxa : 0))}</span>
                     </div>
                   </div>
 
