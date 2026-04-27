@@ -8,10 +8,10 @@ export default function ProtectedLayout({
 }) {
   return (
     <AuthGuard>
-      <div className="flex min-h-screen" suppressHydrationWarning> 
-        <Sidebar className="w-64 flex-col" />
-        <div className="flex-1 flex flex-col">
-          <main className="flex-1 p-6">{children}</main>
+      <div className="flex h-screen overflow-hidden bg-background" suppressHydrationWarning> 
+        <Sidebar className="w-64 flex-col h-full shrink-0" />
+        <div className="flex-1 flex flex-col overflow-hidden">
+          <main className="flex-1 overflow-y-auto p-6">{children}</main>
         </div>
       </div>
     </AuthGuard>
