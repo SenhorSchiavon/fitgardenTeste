@@ -11,10 +11,10 @@ interface HeaderProps {
 
 export function Header({ title, subtitle, searchValue, onSearchChange }: HeaderProps) {
   return (
-    <div className="flex items-center justify-between border-b pb-4">
+    <div className="flex items-center justify-between border-b border-border/40 pb-4 mb-6">
       <div>
-        <h1 className="text-xl font-semibold tracking-tight text-gray-800">{title}</h1>
-        {subtitle && <p className="text-sm text-gray-500">{subtitle}</p>}
+        <h1 className="text-3xl font-serif font-bold tracking-tight text-primary">{title}</h1>
+        {subtitle && <p className="text-sm text-muted-foreground mt-1">{subtitle}</p>}
       </div>
 
       <div className="flex items-center gap-3">

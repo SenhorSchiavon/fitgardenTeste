@@ -717,7 +717,16 @@ export function NovoAgendamentoNovoLayout({
       >
         <DialogContent className="max-w-7xl max-h-[92vh] overflow-hidden flex flex-col">
           <DialogHeader>
-            <DialogTitle>Novo Agendamento</DialogTitle>
+            <DialogTitle className="font-serif text-3xl text-primary flex items-center gap-3">
+              <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center p-2 shadow-lg shadow-primary/20">
+                {/* Ícone simplificado que remete ao logo */}
+                <div className="w-full h-full border-2 border-white/50 rounded-lg relative overflow-hidden">
+                  <div className="absolute top-0 left-0 w-1/2 h-1/2 bg-white/20"></div>
+                  <div className="absolute bottom-0 right-0 w-1/2 h-1/2 border-l border-t border-white/30"></div>
+                </div>
+              </div>
+              Novo Agendamento
+            </DialogTitle>
           </DialogHeader>
 
           <div className="flex-1 overflow-y-auto pr-1">
@@ -725,8 +734,8 @@ export function NovoAgendamentoNovoLayout({
               {/* CLIENTE */}
               <Card className="h-fit">
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-base">
-                    <User className="h-4 w-4" />
+                  <CardTitle className="font-serif text-xl flex items-center gap-2">
+                    <User className="h-5 w-5 text-secondary" />
                     Cliente
                   </CardTitle>
                 </CardHeader>
@@ -897,7 +906,10 @@ export function NovoAgendamentoNovoLayout({
               <Card className="min-w-0">
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 gap-4">
                   <div>
-                    <CardTitle className="text-base">Pedidos da lista</CardTitle>
+                    <CardTitle className="font-serif text-xl flex items-center gap-2">
+                      <Plus className="h-5 w-5 text-secondary" />
+                      Marmitas da lista
+                    </CardTitle>
                     <p className="text-sm text-muted-foreground">
                       Cada linha representa um subpedido/marmita adicionada.
                     </p>
@@ -1034,7 +1046,10 @@ export function NovoAgendamentoNovoLayout({
               {/* DADOS DO AGENDAMENTO */}
               <Card className="h-fit">
                 <CardHeader>
-                  <CardTitle className="text-base">Agendamento</CardTitle>
+                  <CardTitle className="font-serif text-xl flex items-center gap-2">
+                    <CalendarIcon className="h-5 w-5 text-secondary" />
+                    Agendamento
+                  </CardTitle>
                 </CardHeader>
 
                 <CardContent className="space-y-4">
@@ -1164,9 +1179,12 @@ export function NovoAgendamentoNovoLayout({
                     </div>
                   </div>
 
-                  <Button className="w-full" onClick={handleSubmit}>
-                    <Send className="h-4 w-4 mr-2" />
-                    Salvar agendamento
+                  <Button 
+                    className="w-full h-14 text-lg font-bold bg-secondary hover:bg-secondary/90 text-white shadow-xl shadow-secondary/20 transition-all active:scale-[0.98]" 
+                    onClick={handleSubmit}
+                  >
+                    <Send className="h-5 w-5 mr-2" />
+                    Finalizar Agendamento
                   </Button>
                 </CardContent>
               </Card>
@@ -1180,7 +1198,9 @@ export function NovoAgendamentoNovoLayout({
       <Dialog open={modalNovoPedidoOpen} onOpenChange={setModalNovoPedidoOpen}>
         <DialogContent className="max-w-6xl max-h-[92vh] overflow-hidden flex flex-col p-0">
           <DialogHeader className="px-6 pt-6 pb-2 border-b">
-            <DialogTitle>{formItem.id ? "Editar item" : "Novo pedido"}</DialogTitle>
+            <DialogTitle className="font-serif text-2xl text-primary">
+              {formItem.id ? "Editar item" : "Adicionar Marmita ao Pedido"}
+            </DialogTitle>
           </DialogHeader>
 
           <div className="flex-1 overflow-y-auto px-6 py-6">
