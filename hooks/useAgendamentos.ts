@@ -415,10 +415,10 @@ export function useAgendamentos(options?: { baseUrl?: string }) {
             zerarLegume: !!it.zerarLegume,
             adicionarFeijao: !!it.adicionarFeijao,
 
-            carboGramas: it.carboGramas != null ? Number(it.carboGramas) : null,
-            proteinaGramas: it.proteinaGramas != null ? Number(it.proteinaGramas) : null,
-            legumeGramas: it.legumeGramas != null ? Number(it.legumeGramas) : null,
-            feijaoGramas: it.feijaoGramas != null ? Number(it.feijaoGramas) : null,
+            carboGramas: Number(it.carboGramas || 0),
+            proteinaGramas: Number(it.proteinaGramas || 0),
+            legumeGramas: Number(it.legumeGramas || 0),
+            feijaoGramas: Number(it.feijaoGramas || 0),
 
             precoUnit: it.precoUnit != null ? Number(it.precoUnit) : null,
             usarPlano: !!it.usarPlano,
@@ -497,10 +497,10 @@ export function useAgendamentos(options?: { baseUrl?: string }) {
             zerarLegume: !!it.zerarLegume,
             adicionarFeijao: !!it.adicionarFeijao,
 
-            carboGramas: it.carboGramas != null && it.carboGramas !== "" ? Number(it.carboGramas) : null,
-            proteinaGramas: it.proteinaGramas != null && it.proteinaGramas !== "" ? Number(it.proteinaGramas) : null,
-            legumeGramas: it.legumeGramas != null && it.legumeGramas !== "" ? Number(it.legumeGramas) : null,
-            feijaoGramas: it.feijaoGramas != null && it.feijaoGramas !== "" ? Number(it.feijaoGramas) : null,
+            carboGramas: Number(it.carboGramas || 0),
+            proteinaGramas: Number(it.proteinaGramas || 0),
+            legumeGramas: Number(it.legumeGramas || 0),
+            feijaoGramas: Number(it.feijaoGramas || 0),
 
             precoUnit: it.precoUnit != null && it.precoUnit !== "" ? Number(it.precoUnit) : null,
             usarPlano: !!it.usarPlano,

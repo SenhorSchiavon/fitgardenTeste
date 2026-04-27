@@ -266,6 +266,10 @@ export function NovoAgendamentoNovoLayout({
 
     precoUnit: 0,
     usarPlano: false,
+    carboGramas: 0,
+    proteinaGramas: 0,
+    legumeGramas: 0,
+    feijaoGramas: 0,
   });
 
   const clienteSelecionado = useMemo(
@@ -496,6 +500,10 @@ export function NovoAgendamentoNovoLayout({
       trocaLegumeId: "",
       trocaLegumeNome: "",
       usarPlano: false,
+      carboGramas: 0,
+      proteinaGramas: 0,
+      legumeGramas: 0,
+      feijaoGramas: 0,
     });
   }
 
@@ -741,6 +749,21 @@ export function NovoAgendamentoNovoLayout({
     if (tipo === "ENTREGA" && !endereco.trim()) return;
     if (itens.length === 0) return;
 
+    // Validação final de gramagem para personalizadas
+    const itemInvalido = itensComPrecoBruto.find(it => 
+      it.tipoItem === "PERSONALIZADA" && 
+      (Number(it.carboGramas || 0) + Number(it.proteinaGramas || 0) + Number(it.legumeGramas || 0) + Number(it.feijaoGramas || 0)) <= 0
+    );
+
+    if (itemInvalido) {
+      toast({
+        title: "Erro na personalizada",
+        description: `A marmita personalizada "${itemInvalido.destinatarioNome || 'Sem nome'}" está com peso zerado. Por favor, edite-a e informe as gramas.`,
+        variant: "destructive",
+      });
+      return;
+    }
+
     const payload: any = {
       clienteId,
       tipo,
@@ -751,6 +774,10 @@ export function NovoAgendamentoNovoLayout({
       formaPagamento: formaPagamento,
       itens: itensComPrecoBruto.map(it => ({
          ...it,
+         carboGramas: Number(it.carboGramas || 0),
+         proteinaGramas: Number(it.proteinaGramas || 0),
+         legumeGramas: Number(it.legumeGramas || 0),
+         feijaoGramas: Number(it.feijaoGramas || 0),
          usarPlano: !!it.usarPlano
       })),
     };

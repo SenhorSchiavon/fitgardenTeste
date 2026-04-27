@@ -1010,6 +1010,10 @@ export default function Agendamentos() {
 
                 zerarLegume: !!it.zerarLegume,
                 adicionarFeijao: !!it.adicionarFeijao,
+                carboGramas: Number(it.carboGramas || 0),
+                proteinaGramas: Number(it.proteinaGramas || 0),
+                legumeGramas: Number(it.legumeGramas || 0),
+                feijaoGramas: Number(it.feijaoGramas || 0),
                 observacaoItem: it.observacaoItem ?? "",
                 precoUnit: Number(it.precoUnit ?? 0),
                 usarPlano: !!it.usarPlano,
@@ -1038,6 +1042,10 @@ export default function Agendamentos() {
 
                 zerarLegume: !!it.zerarLegume,
                 adicionarFeijao: !!it.adicionarFeijao,
+                carboGramas: Number(it.carboGramas || 0),
+                proteinaGramas: Number(it.proteinaGramas || 0),
+                legumeGramas: Number(it.legumeGramas || 0),
+                feijaoGramas: Number(it.feijaoGramas || 0),
                 observacaoItem: it.observacaoItem ?? "",
                 precoUnit: Number(it.precoUnit ?? 0),
                 usarPlano: !!it.usarPlano,
