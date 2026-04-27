@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { toast } from "sonner";
 import { apiFetch } from "./api";
 
-export type RegraPrecoTipo = "PROTEINA" | "PESO_TOTAL";
+export type RegraPrecoTipo = "PROTEINA" | "PESO_TOTAL" | "QUANTIDADE_INGREDIENTES" | "VOLUME_TOTAL";
 
 export type RegraPrecoPersonalizada = {
   id: number;

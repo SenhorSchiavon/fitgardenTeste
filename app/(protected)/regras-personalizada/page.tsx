@@ -24,9 +24,13 @@ export default function RegrasPersonalizadaPage() {
 
   const regrasProteina = regras.filter((r) => r.tipo === "PROTEINA").sort((a, b) => a.limite - b.limite);
   const regrasTotal = regras.filter((r) => r.tipo === "PESO_TOTAL").sort((a, b) => a.limite - b.limite);
+  const regrasIngredientes = regras.filter((r) => r.tipo === "QUANTIDADE_INGREDIENTES").sort((a, b) => a.limite - b.limite);
+  const regrasVolume = regras.filter((r) => r.tipo === "VOLUME_TOTAL").sort((a, b) => a.limite - b.limite);
 
   const { sort: sortP, onSort: onSortP, sortedRows: rowsP } = useTableSort(regrasProteina, { initialKey: "limite", initialDirection: "asc" });
   const { sort: sortT, onSort: onSortT, sortedRows: rowsT } = useTableSort(regrasTotal, { initialKey: "limite", initialDirection: "asc" });
+  const { sort: sortI, onSort: onSortI, sortedRows: rowsI } = useTableSort(regrasIngredientes, { initialKey: "limite", initialDirection: "asc" });
+  const { sort: sortV, onSort: onSortV, sortedRows: rowsV } = useTableSort(regrasVolume, { initialKey: "limite", initialDirection: "asc" });
 
   function handleOpenModal(tipo: RegraPrecoTipo, item?: RegraPrecoPersonalizada) {
     if (item) {
@@ -73,11 +77,11 @@ export default function RegrasPersonalizadaPage() {
   if (loading) return <div className="p-8">Carregando tabelas de preço...</div>;
 
   return (
-    <div className="p-6 md:p-10 space-y-8 max-w-5xl mx-auto">
+    <div className="p-6 md:p-10 space-y-8 max-w-6xl mx-auto">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">Regras de Preço (Personalizadas)</h1>
+        <h1 className="text-3xl font-bold tracking-tight">Regras de Preço e Descontos</h1>
         <p className="text-muted-foreground mt-2">
-          Gerencie as faixas de preço por peso de proteína e peso total das marmitas. A de maior valor será sempre aplicada.
+          Gerencie as faixas de preço personalizadas, ajustes por ingredientes e descontos progressivos por volume.
         </p>
       </div>
 
@@ -86,7 +90,7 @@ export default function RegrasPersonalizadaPage() {
           <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
             <div>
               <CardTitle>Tabela de Proteína</CardTitle>
-              <CardDescription>Cobrança baseada exclusivamente no peso da proteína.</CardDescription>
+              <CardDescription>Baseado exclusivamente no peso da proteína.</CardDescription>
             </div>
             <Button size="sm" onClick={() => handleOpenModal("PROTEINA")}>
               <Plus className="mr-2 h-4 w-4" /> Nova Regra
@@ -102,11 +106,6 @@ export default function RegrasPersonalizadaPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {regrasProteina.length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={3} className="text-center text-muted-foreground">Nenhuma regra cadastrada.</TableCell>
-                  </TableRow>
-                )}
                 {rowsP.map((r) => (
                   <TableRow key={r.id}>
                     <TableCell>Até {r.limite}g</TableCell>
@@ -130,7 +129,7 @@ export default function RegrasPersonalizadaPage() {
           <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
             <div>
               <CardTitle>Tabela de Peso Total</CardTitle>
-              <CardDescription>Faixa de base de preços para marmitas grandes.</CardDescription>
+              <CardDescription>Base para marmitas grandes (peso total).</CardDescription>
             </div>
             <Button size="sm" onClick={() => handleOpenModal("PESO_TOTAL")}>
               <Plus className="mr-2 h-4 w-4" /> Nova Regra
@@ -146,11 +145,6 @@ export default function RegrasPersonalizadaPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {regrasTotal.length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={3} className="text-center text-muted-foreground">Nenhuma regra cadastrada.</TableCell>
-                  </TableRow>
-                )}
                 {rowsT.map((r) => (
                   <TableRow key={r.id}>
                     <TableCell>Até {r.limite}g</TableCell>
@@ -169,37 +163,128 @@ export default function RegrasPersonalizadaPage() {
             </Table>
           </CardContent>
         </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
+            <div>
+              <CardTitle>Ajuste por Qtd. Ingredientes</CardTitle>
+              <CardDescription>Acréscimo ou desconto por tipos de alimento.</CardDescription>
+            </div>
+            <Button size="sm" onClick={() => handleOpenModal("QUANTIDADE_INGREDIENTES")}>
+              <Plus className="mr-2 h-4 w-4" /> Nova Regra
+            </Button>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <SortableHead label="Qtd. Ingredientes" field="limite" sort={sortI} onSort={onSortI} />
+                  <SortableHead label="Ajuste (R$)" field="preco" sort={sortI} onSort={onSortI} />
+                  <TableHead className="text-right">Ações</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {rowsI.map((r) => (
+                  <TableRow key={r.id}>
+                    <TableCell>{r.limite} ingrediente(s)</TableCell>
+                    <TableCell className={r.preco < 0 ? "text-green-600 font-bold" : r.preco > 0 ? "text-red-600 font-bold" : ""}>
+                      {r.preco > 0 ? "+" : ""} R$ {Number(r.preco).toFixed(2)}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button variant="ghost" size="icon" onClick={() => handleOpenModal("QUANTIDADE_INGREDIENTES", r)}>
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button variant="ghost" size="icon" onClick={() => deletarRegra(r.id)}>
+                        <Trash className="h-4 w-4" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
+            <div>
+              <CardTitle>Desconto por Volume Total</CardTitle>
+              <CardDescription>Desconto em % para pedidos com muitas marmitas.</CardDescription>
+            </div>
+            <Button size="sm" onClick={() => handleOpenModal("VOLUME_TOTAL")}>
+              <Plus className="mr-2 h-4 w-4" /> Nova Regra
+            </Button>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <SortableHead label="A partir de (Marmitas)" field="limite" sort={sortV} onSort={onSortV} />
+                  <SortableHead label="Desconto (%)" field="preco" sort={sortV} onSort={onSortV} />
+                  <TableHead className="text-right">Ações</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {rowsV.map((r) => (
+                  <TableRow key={r.id}>
+                    <TableCell>{r.limite} marmitas</TableCell>
+                    <TableCell className="font-bold text-green-600">{r.preco}% de desconto</TableCell>
+                    <TableCell className="text-right">
+                      <Button variant="ghost" size="icon" onClick={() => handleOpenModal("VOLUME_TOTAL", r)}>
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button variant="ghost" size="icon" onClick={() => deletarRegra(r.id)}>
+                        <Trash className="h-4 w-4" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
       </div>
 
       <Dialog open={modalOpen} onOpenChange={setModalOpen}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              {formData.id ? "Editar Teto de Preço" : "Novo Teto de Preço"}
-              {formData.tipo === "PROTEINA" ? " (Proteína)" : " (Peso Total)"}
+              {formData.id ? "Editar Regra" : "Nova Regra"}
+              {formData.tipo === "PROTEINA" && " (Proteína)"}
+              {formData.tipo === "PESO_TOTAL" && " (Peso Total)"}
+              {formData.tipo === "QUANTIDADE_INGREDIENTES" && " (Ajuste Ingredientes)"}
+              {formData.tipo === "VOLUME_TOTAL" && " (Desconto Volume)"}
             </DialogTitle>
           </DialogHeader>
 
           <div className="grid gap-4 py-4">
             <div className="space-y-2">
-              <Label>Gramagem Máxima (Até x gramas)</Label>
+              <Label>
+                {formData.tipo === "PROTEINA" || formData.tipo === "PESO_TOTAL" ? "Gramagem Máxima (Até X gramas)" : 
+                 formData.tipo === "QUANTIDADE_INGREDIENTES" ? "Quantidade de Ingredientes" : 
+                 "Quantidade Mínima de Marmitas"}
+              </Label>
               <Input
                 type="number"
-                placeholder="Ex: 200, 300..."
+                placeholder="Ex: 200, 20, 2..."
                 value={formData.limite}
                 onChange={(e) => setFormData((p) => ({ ...p, limite: e.target.value === "" ? "" : Number(e.target.value) }))}
               />
-              <p className="text-xs text-muted-foreground">Utilize 9999 para criar uma regra geral sem teto máximo.</p>
             </div>
             <div className="space-y-2">
-              <Label>Preço da Faixa</Label>
+              <Label>
+                {formData.tipo === "VOLUME_TOTAL" ? "Percentual de Desconto (%)" : "Valor de Ajuste (R$)"}
+              </Label>
               <Input
                 type="number"
-                placeholder="Ex: 11.70"
+                placeholder={formData.tipo === "VOLUME_TOTAL" ? "Ex: 5, 7, 10" : "Ex: 1.00, -0.50"}
                 step="0.01"
                 value={formData.preco}
                 onChange={(e) => setFormData((p) => ({ ...p, preco: e.target.value === "" ? "" : Number(e.target.value) }))}
               />
+              {formData.tipo === "QUANTIDADE_INGREDIENTES" && (
+                <p className="text-[10px] text-muted-foreground italic">Valores negativos dão desconto, positivos dão acréscimo.</p>
+              )}
             </div>
           </div>
 

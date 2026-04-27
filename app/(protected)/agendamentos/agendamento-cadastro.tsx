@@ -409,10 +409,26 @@ export function NovoAgendamentoNovoLayout({
     });
   }, [itensComPrecoBruto, clienteSelecionado]);
 
-  const subtotalPedido = useMemo(
-    () => itensComPrecoFinal.reduce((acc, item) => acc + Number(item.precoUnit || 0) * Number(item.quantidade || 0), 0),
-    [itensComPrecoFinal]
-  );
+  const subtotalPedido = useMemo(() => {
+    const totalBruto = itensComPrecoFinal.reduce(
+      (acc, item) => acc + Number(item.precoUnit || 0) * Number(item.quantidade || 0),
+      0
+    );
+
+    const totalMarmitas = itensComPrecoFinal.reduce((acc, it) => acc + it.quantidade, 0);
+
+    // Desconto por volume total
+    const regrasVolume = regras
+      .filter((r) => r.tipo === "VOLUME_TOTAL" && totalMarmitas >= Number(r.limite))
+      .sort((a, b) => Number(b.limite) - Number(a.limite));
+
+    if (regrasVolume.length > 0) {
+      const pct = Number(regrasVolume[0].preco);
+      return totalBruto * (1 - pct / 100);
+    }
+
+    return totalBruto;
+  }, [itensComPrecoFinal, regras]);
 
   function resetForm() {
     setClienteId("");
@@ -535,13 +551,20 @@ export function NovoAgendamentoNovoLayout({
       }
     }
 
-    const finalPrice = Math.max(precoProteina, precoTotal);
+    let finalPrice = Math.max(precoProteina, precoTotal);
+
+    // Ajuste por quantidade de ingredientes
+    const tiposCount = [formItem.carboId, formItem.proteinaId, formItem.legumeId, formItem.feijaoId].filter(id => !!id).length;
+    const regraAjuste = regras.find(r => r.tipo === "QUANTIDADE_INGREDIENTES" && Number(r.limite) === tiposCount);
+    const ajuste = regraAjuste ? Number(regraAjuste.preco) : 0;
+    
+    finalPrice += ajuste;
 
     setFormItem((prev) => {
       if (prev.precoUnit === finalPrice) return prev;
       return { ...prev, precoUnit: finalPrice };
     });
-  }, [formItem.tipoItem, formItem.proteinaGramas, totalGramasPersonalizada, regras]);
+  }, [formItem.tipoItem, formItem.carboId, formItem.proteinaId, formItem.legumeId, formItem.feijaoId, formItem.proteinaGramas, totalGramasPersonalizada, regras]);
 
   function abrirNovoPedido() {
     setCurrentGroupId(uid());
