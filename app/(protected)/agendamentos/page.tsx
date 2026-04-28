@@ -103,9 +103,13 @@ type Agendamento = {
     destinatarioNome?: string;
     observacaoItem?: string;
     carbo?: string;
+    carboGramas?: number;
     proteina?: string;
+    proteinaGramas?: number;
     legume?: string;
+    legumeGramas?: number;
     feijao?: string;
+    feijaoGramas?: number;
     trocas?: string;
   }[];
   _raw?: any;
@@ -168,6 +172,12 @@ export default function Agendamentos() {
     setDetalhesDialogOpen(true);
   };
 
+  const formatIngrediente = (nome?: string, gramas?: number | null) => {
+    if (!nome) return "";
+    const qtd = Number(gramas || 0);
+    return qtd > 0 ? `${nome} ${qtd}g` : nome;
+  };
+
   function mapApiToUi(row: any): Agendamento {
     const numeroPedido = `#${row.pedidoId ?? row.pedido?.id ?? row.id}`;
 
@@ -183,6 +193,13 @@ export default function Agendamentos() {
 
     const itensUi =
       (row.pedido?.itens ?? row.itens ?? []).map((it: any) => {
+        const isSalgado = it.tipoItem === "SALGADO";
+        const isPersonalizada = it.tipoItem === "PERSONALIZADA";
+        const totalPersonalizadaGramas =
+          Number(it.carboGramas || 0) +
+          Number(it.proteinaGramas || 0) +
+          Number(it.legumeGramas || 0) +
+          Number(it.feijaoGramas || 0);
         const trocas = [
           it.trocaCarbo?.nome ? `Troca Carbo: ${it.trocaCarbo.nome}` : null,
           it.trocaProteina?.nome ? `Troca Prot.: ${it.trocaProteina.nome}` : null,
@@ -201,10 +218,17 @@ export default function Agendamentos() {
               ? salgados.find((s) => String(s.id) === String(it.salgadoId))?.nome
               : undefined) ??
             it.opcao?.nome ??
+            (isPersonalizada ? "Personalizada" : undefined) ??
             it.nome ??
             "-",
-          tamanho: it.tipoItem === "SALGADO"
+          tamanho: isSalgado
             ? "Salgado"
+            : isPersonalizada
+            ? it.tamanho?.pesagemGramas
+              ? `${it.tamanho.pesagemGramas}g`
+              : totalPersonalizadaGramas > 0
+              ? `${totalPersonalizadaGramas}g`
+              : "Personalizada"
             : it.tamanho?.pesagemGramas
             ? `${it.tamanho.pesagemGramas}g`
             : (it.tamanhoLabel ?? "-"),
@@ -213,9 +237,13 @@ export default function Agendamentos() {
           destinatarioNome: it.destinatarioNome || "",
           observacaoItem: it.observacaoItem || "",
           carbo: it.carbo?.nome || it.carboNome || "",
+          carboGramas: Number(it.carboGramas || 0),
           proteina: it.proteina?.nome || it.proteinaNome || "",
+          proteinaGramas: Number(it.proteinaGramas || 0),
           legume: it.legume?.nome || it.legumeNome || "",
+          legumeGramas: Number(it.legumeGramas || 0),
           feijao: it.feijao?.nome || it.feijaoNome || "",
+          feijaoGramas: Number(it.feijaoGramas || 0),
           trocas: [
             it.trocaCarbo?.nome || it.trocaCarboNome,
             it.trocaProteina?.nome || it.trocaProteinaNome,
@@ -781,10 +809,10 @@ export default function Agendamentos() {
                         
                         {(item.carbo || item.proteina || item.legume || item.feijao) && (
                           <div className="bg-slate-50 p-2 rounded-lg grid grid-cols-2 gap-x-4 gap-y-1 text-[11px]">
-                            {item.carbo && <div className="text-slate-500">• {item.carbo}</div>}
-                            {item.proteina && <div className="text-slate-500">• {item.proteina}</div>}
-                            {item.legume && <div className="text-slate-500">• {item.legume}</div>}
-                            {item.feijao && <div className="text-slate-500">• {item.feijao}</div>}
+                            {item.carbo && <div className="text-slate-500">• {formatIngrediente(item.carbo, item.carboGramas)}</div>}
+                            {item.proteina && <div className="text-slate-500">• {formatIngrediente(item.proteina, item.proteinaGramas)}</div>}
+                            {item.legume && <div className="text-slate-500">• {formatIngrediente(item.legume, item.legumeGramas)}</div>}
+                            {item.feijao && <div className="text-slate-500">• {formatIngrediente(item.feijao, item.feijaoGramas)}</div>}
                           </div>
                         )}
 
