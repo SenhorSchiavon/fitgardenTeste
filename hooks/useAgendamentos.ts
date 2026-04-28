@@ -69,8 +69,9 @@ export type FormaPagamento =
   | "PLANO";
 
 export type AgendamentoItemInput = {
-  tipoItem: "PADRAO" | "PERSONALIZADA";
-  tamanhoId: number;
+  tipoItem: "PADRAO" | "PERSONALIZADA" | "SALGADO";
+  tamanhoId?: number | null;
+  salgadoId?: number | null;
   quantidade: number;
 
   destinatarioNome?: string;
@@ -394,8 +395,9 @@ export function useAgendamentos(options?: { baseUrl?: string }) {
           formaPagamento: payload.formaPagamento,
           voucherCodigo: payload.voucherCodigo?.trim() || undefined,
           itens: (payload.itens || []).map((it) => ({
-            tipoItem: it.tipoItem === "PERSONALIZADA" ? "PERSONALIZADA" : "PADRAO",
-            tamanhoId: Number(it.tamanhoId),
+            tipoItem: it.tipoItem === "PERSONALIZADA" ? "PERSONALIZADA" : it.tipoItem === "SALGADO" ? "SALGADO" : "PADRAO",
+            tamanhoId: it.tamanhoId != null && it.tamanhoId !== "" ? Number(it.tamanhoId) : null,
+            salgadoId: it.salgadoId != null && it.salgadoId !== "" ? Number(it.salgadoId) : null,
             quantidade: Number(it.quantidade),
 
             destinatarioNome: it.destinatarioNome?.trim() || undefined,
@@ -476,8 +478,9 @@ export function useAgendamentos(options?: { baseUrl?: string }) {
 
         if (Array.isArray(body.itens)) {
           body.itens = body.itens.map((it: any) => ({
-            tipoItem: it.tipoItem === "PERSONALIZADA" ? "PERSONALIZADA" : "PADRAO",
-            tamanhoId: Number(it.tamanhoId),
+            tipoItem: it.tipoItem === "PERSONALIZADA" ? "PERSONALIZADA" : it.tipoItem === "SALGADO" ? "SALGADO" : "PADRAO",
+            tamanhoId: it.tamanhoId != null && it.tamanhoId !== "" ? Number(it.tamanhoId) : null,
+            salgadoId: it.salgadoId != null && it.salgadoId !== "" ? Number(it.salgadoId) : null,
             quantidade: Number(it.quantidade),
 
             destinatarioNome: it.destinatarioNome?.trim() || undefined,

@@ -20,6 +20,7 @@ import {
   Tag,
   Users,
   Utensils,
+  Cookie,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -104,6 +105,7 @@ export function Sidebar({ className }: SidebarProps) {
                     { href: "/preparos", label: "Preparos", icon: Utensils },
                     { href: "/opcoes", label: "Opções", icon: ListChecks },
                     { href: "/cardapios", label: "Cardápios", icon: ClipboardList },
+                    { href: "/salgados", label: "Salgados", icon: Cookie },
                     { href: "/tamanhos-valores", label: "Tamanhos e Valores", icon: Settings },
                     { href: "/regras-personalizada", label: "Regra Personalizada", icon: Settings },
                   ].map((item) => (

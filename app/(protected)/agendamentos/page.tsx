@@ -63,6 +63,7 @@ import { toast } from "@/components/ui/use-toast";
 import { useRelatorioPreparosDia } from "@/hooks/useRelatorioPreparosDia";
 import { useRelatorioPedidosDia } from "@/hooks/useRelatorioPedidosDia";
 import { usePreparosSelecionaveis } from "@/hooks/usePreparosSelecionaveis";
+import { useSalgados } from "@/hooks/useSalgados";
 type Agendamento = {
   id: string;
   numeroPedido: string;
@@ -157,6 +158,7 @@ export default function Agendamentos() {
   const [dadosEdicao, setDadosEdicao] = useState<any>(null);
 
   const { preparos, loading: loadingPreparos } = usePreparosSelecionaveis();
+  const { salgados } = useSalgados();
   const [preparoSheetOpen, setPreparoSheetOpen] = useState(false);
   const handleShowDetalhes = (agendamento: Agendamento) => {
     setAgendamentoSelecionado(agendamento);
@@ -986,6 +988,11 @@ export default function Agendamentos() {
         proteinas={proteinas}
         legumes={legumes}
         feijoes={feijoes}
+        salgados={salgados.map((s) => ({
+          id: String(s.id),
+          nome: s.nome,
+          preco: Number(s.preco || 0),
+        }))}
         initialData={dadosEdicao}
         onSubmit={async (payload) => {
           if (modoEdicao && agendamentoEditandoId) {
@@ -999,7 +1006,8 @@ export default function Agendamentos() {
               itens: payload.itens.map((it: any) => ({
                 tipoItem: it.tipoItem,
                 destinatarioNome: it.destinatarioNome,
-                tamanhoId: Number(it.tamanhoId),
+                tamanhoId: it.tamanhoId ? Number(it.tamanhoId) : null,
+                salgadoId: it.salgadoId ? Number(it.salgadoId) : null,
                 quantidade: Number(it.quantidade),
 
                 opcaoId: it.opcaoId ? Number(it.opcaoId) : null,
@@ -1031,7 +1039,8 @@ export default function Agendamentos() {
               itens: payload.itens.map((it: any) => ({
                 tipoItem: it.tipoItem,
                 destinatarioNome: it.destinatarioNome,
-                tamanhoId: Number(it.tamanhoId),
+                tamanhoId: it.tamanhoId ? Number(it.tamanhoId) : null,
+                salgadoId: it.salgadoId ? Number(it.salgadoId) : null,
                 quantidade: Number(it.quantidade),
 
                 opcaoId: it.opcaoId ? Number(it.opcaoId) : null,

@@ -51,10 +51,12 @@ import {
   Check,
   ChevronsUpDown,
   Pencil,
+  Cookie,
+  Package,
 } from "lucide-react";
 
 import { useRegrasPersonalizadas } from "@/hooks/useRegrasPersonalizadas";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import { useAgendamentos } from "@/hooks/useAgendamentos";
 
 type PedidoTipo = "ENTREGA" | "RETIRADA";
@@ -91,9 +93,15 @@ type OpcaoCardapio = {
   tipo?: "PRATO" | "CARBOIDRATO" | "PROTEINA" | "LEGUME" | "FEIJAO";
 };
 
+type SalgadoOption = {
+  id: string;
+  nome: string;
+  preco: number;
+};
+
 type NovoPedidoItem = {
   id: string;
-  tipoItem: "PADRAO" | "PERSONALIZADA";
+  tipoItem: "PADRAO" | "PERSONALIZADA" | "SALGADO";
   destinatarioNome: string;
   tamanhoId: string;
   tamanhoLabel: string;
@@ -101,6 +109,8 @@ type NovoPedidoItem = {
 
   opcaoId?: string;
   opcaoNome?: string;
+  salgadoId?: string;
+  salgadoNome?: string;
 
   carboId?: string;
   carboNome?: string;
@@ -147,6 +157,7 @@ type Props = {
   proteinas: OpcaoCardapio[];
   legumes: OpcaoCardapio[];
   feijoes?: OpcaoCardapio[];
+  salgados?: SalgadoOption[];
   initialData?: any;
   onSubmit?: (payload: any) => Promise<void> | void;
 };
@@ -205,13 +216,14 @@ export function NovoAgendamentoNovoLayout({
   proteinas,
   legumes,
   feijoes = [],
+  salgados = [],
   onSubmit,
   initialData,
 }: Props) {
   const { regras } = useRegrasPersonalizadas();
-  const { toast } = useToast();
   const { estimarTaxaEntrega } = useAgendamentos();
   const [valorTaxa, setValorTaxa] = useState(0);
+  const [incluirTaxaEntrega, setIncluirTaxaEntrega] = useState(false);
   const [clienteId, setClienteId] = useState("");
   const [comboboxOpen, setComboboxOpen] = useState(false);
   const [tipo, setTipo] = useState<PedidoTipo>("ENTREGA");
@@ -226,6 +238,7 @@ export function NovoAgendamentoNovoLayout({
 
   const [currentGroupId, setCurrentGroupId] = useState("");
   const [modalNovoPedidoOpen, setModalNovoPedidoOpen] = useState(false);
+  const [modalEscolhaPedidoOpen, setModalEscolhaPedidoOpen] = useState(false);
   const [modalTrocasOpen, setModalTrocasOpen] = useState(false);
   const [itens, setItens] = useState<NovoPedidoItem[]>([]);
 
@@ -239,6 +252,8 @@ export function NovoAgendamentoNovoLayout({
 
     opcaoId: "",
     opcaoNome: "",
+    salgadoId: "",
+    salgadoNome: "",
 
     carboId: "",
     carboNome: "",
@@ -321,6 +336,8 @@ export function NovoAgendamentoNovoLayout({
         quantidade: it.quantidade || 1,
         opcaoId: String(it.opcaoId || ""),
         opcaoNome: it.opcao?.nome || it.nome || "",
+        salgadoId: String(it.salgadoId || ""),
+        salgadoNome: it.salgado?.nome || "",
         carboId: String(it.carboId || ""),
         carboNome: it.carbo?.nome || "",
         proteinaId: String(it.proteinaId || ""),
@@ -376,6 +393,11 @@ export function NovoAgendamentoNovoLayout({
   }, [clienteId, tipo, estimarTaxaEntrega]);
 
   const totalMarmitas = useMemo(
+    () => itens.filter((item) => item.tipoItem !== "SALGADO").reduce((acc, item) => acc + Number(item.quantidade || 0), 0),
+    [itens]
+  );
+
+  const totalItens = useMemo(
     () => itens.reduce((acc, item) => acc + Number(item.quantidade || 0), 0),
     [itens]
   );
@@ -466,6 +488,7 @@ export function NovoAgendamentoNovoLayout({
     setObservacoesPedido("");
     setFormaPagamento("PIX");
     setItens([]);
+    setIncluirTaxaEntrega(false);
     resetFormItem();
   }
 
@@ -479,6 +502,8 @@ export function NovoAgendamentoNovoLayout({
       quantidade: 1,
       opcaoId: "",
       opcaoNome: "",
+      salgadoId: "",
+      salgadoNome: "",
       carboId: "",
       carboNome: "",
       proteinaId: "",
@@ -514,6 +539,8 @@ export function NovoAgendamentoNovoLayout({
       quantidade: 1,
       opcaoId: "",
       opcaoNome: "",
+      salgadoId: "",
+      salgadoNome: "",
       carboId: "",
       carboNome: "",
       proteinaId: "",
@@ -600,10 +627,27 @@ export function NovoAgendamentoNovoLayout({
   function abrirNovoPedido() {
     setCurrentGroupId(uid());
     resetFormItem();
+    setModalEscolhaPedidoOpen(true);
+  }
+
+  function abrirFormularioMarmita() {
+    resetFormItem();
+    setModalEscolhaPedidoOpen(false);
+    setModalNovoPedidoOpen(true);
+  }
+
+  function abrirFormularioSalgado() {
+    resetFormItem();
+    setFormItem((prev) => ({ ...prev, tipoItem: "SALGADO" }));
+    setModalEscolhaPedidoOpen(false);
     setModalNovoPedidoOpen(true);
   }
 
   function getResumoEscolhas(item: NovoPedidoItem) {
+    if (item.tipoItem === "SALGADO") {
+      return item.salgadoNome || "Salgado";
+    }
+
     if (item.tipoItem === "PERSONALIZADA") {
       const partes = [
         item.carboNome ? `Carbo: ${item.carboNome} (${item.carboGramas || 0}g)` : null,
@@ -640,13 +684,76 @@ export function NovoAgendamentoNovoLayout({
     setModalNovoPedidoOpen(true);
   }
 
+  function getNomeItem(item: NovoPedidoItem) {
+    if (item.tipoItem === "SALGADO") return item.salgadoNome || "Salgado";
+    if (item.tipoItem === "PERSONALIZADA") return "Personalizada";
+    return item.opcaoNome || "Marmita padrão";
+  }
+
   function addPedidoNaLista(fechar = true) {
+    if (!clienteId) {
+      toast.error("Cliente não selecionado", { description: "Selecione um cliente antes de adicionar uma marmita." })
+      return;
+    }
+
+    if (formItem.tipoItem === "PADRAO" && !formItem.tamanhoId) {
+      toast.error("Tamanho não selecionado", { description: "Selecione um tamanho para continuar." })
+      return;
+    }
+
     const tamanho = tamanhos.find((t) => t.id === formItem.tamanhoId);
+    const salgado = salgados.find((s) => s.id === formItem.salgadoId);
     const isEdit = !!formItem.id;
 
+    if (formItem.tipoItem === "SALGADO") {
+      if (!salgado) {
+        toast.error("Salgado não selecionado", { description: "Selecione um salgado antes de adicionar." });
+        return;
+      }
+
+      const novo: NovoPedidoItem = {
+        ...formItem,
+        id: isEdit ? formItem.id : uid(),
+        groupId: currentGroupId,
+        salgadoId: salgado.id,
+        salgadoNome: salgado.nome,
+        opcaoId: "",
+        opcaoNome: "",
+        tamanhoId: "",
+        tamanhoLabel: "Salgado",
+        precoUnit: Number(salgado.preco || 0),
+        usarPlano: false,
+      };
+
+      if (isEdit) {
+        setItens((prev) => prev.map((it) => (it.id === formItem.id ? novo : it)));
+      } else {
+        setItens((prev) => [...prev, novo]);
+      }
+
+      toast.success(isEdit ? "Salgado atualizado" : "Salgado adicionado", {
+        description: `${novo.quantidade}x ${novo.salgadoNome}`,
+      });
+
+      if (fechar) {
+        setModalNovoPedidoOpen(false);
+        resetFormItem();
+      } else {
+        resetFormItemPartial();
+        setFormItem((prev) => ({ ...prev, tipoItem: "SALGADO" }));
+      }
+      return;
+    }
+
     if (formItem.tipoItem === "PADRAO") {
-      if (!tamanho) return;
-      if (!formItem.opcaoId) return;
+      if (!tamanho) {
+        toast.error("Tamanho inválido", { description: "Selecione um tamanho válido antes de continuar." })
+        return;
+      }
+      if (!formItem.opcaoId) {
+        toast.error("Opção não selecionada", { description: "Selecione a opção do cardápio antes de adicionar." })
+        return;
+      }
 
       let precoUnit = Number(
         getPrecoUnitPorQuantidade(tamanho, totalMarmitas + (isEdit ? 0 : formItem.quantidade))
@@ -673,8 +780,7 @@ export function NovoAgendamentoNovoLayout({
         setItens((prev) => [...prev, novo]);
       }
 
-      toast({
-        title: isEdit ? "Item atualizado" : "Item adicionado ao pedido",
+      toast.success(isEdit ? "Item atualizado" : "Item adicionado ao pedido", {
         description: `${novo.quantidade}x ${novo.tamanhoLabel} — ${novo.opcaoNome || "Marmita padrão"}${novo.usarPlano ? " (Plano)" : ""}`,
       });
 
@@ -689,11 +795,7 @@ export function NovoAgendamentoNovoLayout({
 
     if (formItem.tipoItem === "PERSONALIZADA") {
       if (totalGramasPersonalizada <= 0) {
-        toast({
-          title: "Peso não informado",
-          description: "Informe a gramagem dos ingredientes da sua personalizada.",
-          variant: "destructive",
-        });
+        toast.error("Peso não informado", { description: "Informe a gramagem dos ingredientes da sua personalizada." })
         return;
       }
 
@@ -713,8 +815,7 @@ export function NovoAgendamentoNovoLayout({
         setItens((prev) => [...prev, novo]);
       }
 
-      toast({
-        title: isEdit ? "Item personalizado atualizado" : "Item personalizado adicionado",
+      toast.success(isEdit ? "Item personalizado atualizado" : "Item personalizado adicionado", {
         description: `${novo.quantidade}x ${novo.tamanhoLabel} — Personalizada`,
       });
 
@@ -756,10 +857,8 @@ export function NovoAgendamentoNovoLayout({
     );
 
     if (itemInvalido) {
-      toast({
-        title: "Erro na personalizada",
+      toast.error("Erro na personalizada", {
         description: `A marmita personalizada "${itemInvalido.destinatarioNome || 'Sem nome'}" está com peso zerado. Por favor, edite-a e informe as gramas.`,
-        variant: "destructive",
       });
       return;
     }
@@ -772,6 +871,7 @@ export function NovoAgendamentoNovoLayout({
       endereco: tipo === "RETIRADA" ? "RETIRADA" : endereco,
       observacoes: observacoesPedido,
       formaPagamento: formaPagamento,
+      ...(tipo === "ENTREGA" && incluirTaxaEntrega && valorTaxa > 0 ? { valorTaxa } : {}),
       itens: itensComPrecoBruto.map(it => ({
          ...it,
          carboGramas: Number(it.carboGramas || 0),
@@ -810,10 +910,11 @@ export function NovoAgendamentoNovoLayout({
             </DialogTitle>
           </DialogHeader>
 
-          <div className="flex-1 overflow-y-auto pr-1">
-            <div className="grid grid-cols-1 xl:grid-cols-[320px_minmax(0,1fr)_320px] gap-4">
+          <div className="flex-1 overflow-hidden pr-1">
+            <div className="grid grid-cols-1 xl:grid-cols-[320px_minmax(0,1fr)_320px] gap-4 h-full">
               {/* CLIENTE */}
-              <Card className="h-fit">
+              <div className="overflow-y-auto pr-1 max-h-[calc(92vh-180px)]">
+                <Card className="h-fit">
                 <CardHeader>
                   <CardTitle className="font-serif text-xl flex items-center gap-2">
                     <User className="h-5 w-5 text-secondary" />
@@ -981,10 +1082,12 @@ export function NovoAgendamentoNovoLayout({
                     )}
                   </div>
                 </CardContent>
-              </Card>
+                </Card>
+              </div>
 
               {/* LISTA CENTRAL */}
-              <Card className="min-w-0">
+              <div className="overflow-y-auto pr-1 max-h-[calc(92vh-180px)]">
+                <Card className="min-w-0">
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 gap-4">
                   <div>
                     <CardTitle className="font-serif text-xl flex items-center gap-2">
@@ -1028,9 +1131,6 @@ export function NovoAgendamentoNovoLayout({
                                 <span className="text-[10px] font-black uppercase tracking-widest text-primary/70">Pedido #{gIdx + 1}</span>
                                 <Badge variant="outline" className="text-[9px] h-3.5 px-1 bg-white/50">{totalMarmitasG} un.</Badge>
                               </div>
-                              <span className="text-[10px] font-bold text-muted-foreground/70 tracking-tight">
-                                Subtotal: R$ {currency(subtotalG)}
-                              </span>
                             </div>
 
                             <div className="divide-y divide-border/30">
@@ -1046,21 +1146,27 @@ export function NovoAgendamentoNovoLayout({
                                         {item.quantidade}x
                                       </span>
                                       <span className="font-bold text-sm truncate">
-                                        {(item.destinatarioNome || "").trim() ||
-                                          clienteSelecionado?.nome ||
-                                          "Marmita"}
+                                        {getNomeItem(item)}
                                       </span>
-                                      <Badge variant="secondary" className="text-[10px] h-4 px-1.5 font-medium uppercase tracking-tighter">
-                                        {item.tamanhoLabel}
-                                      </Badge>
+                                      {item.tamanhoLabel && (
+                                        <Badge variant="secondary" className="text-[10px] h-4 px-1.5 font-medium uppercase tracking-tighter">
+                                          {item.tamanhoLabel}
+                                        </Badge>
+                                      )}
                                       {item.usarPlano && (
                                         <Badge className="h-4 text-[9px] bg-green-600 hover:bg-green-700 border-none font-bold">PLANO</Badge>
                                       )}
+                                      {item.tipoItem === "SALGADO" && (
+                                        <Badge className="h-4 text-[9px] bg-secondary hover:bg-secondary/90 border-none font-bold">SALGADO</Badge>
+                                      )}
                                     </div>
 
-                                    <div className="text-[13px] font-medium text-slate-700">
-                                      {item.opcaoNome || (item.tipoItem === "PERSONALIZADA" ? "Personalizada" : "Marmita padrão")}
-                                    </div>
+                                    {((item.destinatarioNome || "").trim() || clienteSelecionado?.nome) && 
+                                       ((item.destinatarioNome || "").trim() || clienteSelecionado?.nome) !== getNomeItem(item) && (
+                                       <div className="text-[12px] text-muted-foreground font-medium">
+                                         {(item.destinatarioNome || "").trim() || clienteSelecionado?.nome}
+                                       </div>
+                                     )}
 
                                     <div className="text-[11px] text-muted-foreground leading-relaxed italic">
                                       {getResumoEscolhas(item)}
@@ -1100,9 +1206,6 @@ export function NovoAgendamentoNovoLayout({
                                         <Trash className="h-4 w-4" />
                                       </Button>
                                     </div>
-                                    <div className="text-[10px] text-muted-foreground font-medium bg-muted/50 px-2 py-0.5 rounded">
-                                      R$ {currency(item.precoUnit)} /un
-                                    </div>
                                   </div>
                                 </div>
                               ))}
@@ -1115,17 +1218,16 @@ export function NovoAgendamentoNovoLayout({
 
                   <div className="p-4 bg-muted/10 border-t flex items-center justify-between">
                     <div className="text-xs text-muted-foreground font-medium">
-                      Total de itens no agendamento: <span className="text-foreground font-bold">{totalMarmitas}</span>
-                    </div>
-                    <div className="text-sm font-bold text-slate-900">
-                      Total Geral Parcial: R$ {currency(subtotalPedido)}
+                      Total de itens no agendamento: <span className="text-foreground font-bold">{totalItens}</span>
                     </div>
                   </div>
                 </CardContent>
-              </Card>
+                </Card>
+              </div>
 
               {/* DADOS DO AGENDAMENTO */}
-              <Card className="h-fit">
+              <div className="overflow-y-auto pr-1 max-h-[calc(92vh-180px)]">
+                <Card className="h-fit">
                 <CardHeader>
                   <CardTitle className="font-serif text-xl flex items-center gap-2">
                     <CalendarIcon className="h-5 w-5 text-secondary" />
@@ -1254,10 +1356,19 @@ export function NovoAgendamentoNovoLayout({
                       <span>R$ {currency(subtotalPedido)}</span>
                     </div>
 
-                    {tipo === "ENTREGA" && (
-                      <div className="flex items-center justify-between text-muted-foreground">
-                        <span>Taxa de entrega</span>
-                        <span>R$ {currency(valorTaxa)}</span>
+                    {tipo === "ENTREGA" && valorTaxa > 0 && (
+                      <div className="rounded-lg border border-dashed border-border/60 p-3 space-y-2 bg-muted/20">
+                        <div className="flex items-center gap-3">
+                          <Checkbox
+                            id="incluirTaxaEntrega"
+                            checked={incluirTaxaEntrega}
+                            onCheckedChange={(v) => setIncluirTaxaEntrega(!!v)}
+                          />
+                          <Label htmlFor="incluirTaxaEntrega" className="text-sm font-medium cursor-pointer leading-tight">
+                            Tem taxa de entrega?
+                            <span className="block text-[11px] text-muted-foreground font-normal">Estimada: R$ {currency(valorTaxa)}</span>
+                          </Label>
+                        </div>
                       </div>
                     )}
 
@@ -1265,7 +1376,7 @@ export function NovoAgendamentoNovoLayout({
 
                     <div className="flex items-center justify-between text-lg">
                       <span className="font-bold text-primary">Total a pagar</span>
-                      <span className="font-extrabold text-xl text-primary">R$ {currency(subtotalPedido + (tipo === "ENTREGA" ? valorTaxa : 0))}</span>
+                      <span className="font-extrabold text-xl text-primary">R$ {currency(subtotalPedido + (tipo === "ENTREGA" && incluirTaxaEntrega ? valorTaxa : 0))}</span>
                     </div>
                   </div>
 
@@ -1277,7 +1388,8 @@ export function NovoAgendamentoNovoLayout({
                     Finalizar Agendamento
                   </Button>
                 </CardContent>
-              </Card>
+                </Card>
+              </div>
             </div>
           </div>
         </DialogContent>
@@ -1285,11 +1397,73 @@ export function NovoAgendamentoNovoLayout({
 
       {/* MODAL SECUNDÁRIA */}
       {/* MODAL SECUNDÁRIA */}
+      <Dialog open={modalEscolhaPedidoOpen} onOpenChange={setModalEscolhaPedidoOpen}>
+        <DialogContent className="max-w-lg bg-white">
+          <DialogHeader>
+            <DialogTitle className="font-serif text-2xl text-primary">
+              O que deseja vender?
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="grid gap-3 py-2">
+            <Button
+              type="button"
+              variant="outline"
+              className="h-auto justify-start gap-3 rounded-xl border-primary/15 p-4 text-left hover:bg-primary/5"
+              onClick={abrirFormularioMarmita}
+            >
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary text-white">
+                <Plus className="h-5 w-5" />
+              </div>
+              <div>
+                <div className="font-bold text-primary">Marmita</div>
+                <div className="text-xs font-normal text-muted-foreground">Pedido padrão ou personalizada.</div>
+              </div>
+            </Button>
+
+            <Button
+              type="button"
+              variant="outline"
+              className="h-auto justify-start gap-3 rounded-xl border-secondary/20 p-4 text-left hover:bg-secondary/5"
+              onClick={abrirFormularioSalgado}
+            >
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-secondary text-white">
+                <Cookie className="h-5 w-5" />
+              </div>
+              <div>
+                <div className="font-bold text-primary">Salgado</div>
+                <div className="text-xs font-normal text-muted-foreground">Venda avulsa pelo cadastro de salgados.</div>
+              </div>
+            </Button>
+
+            <Link href="/planos" onClick={() => setModalEscolhaPedidoOpen(false)}>
+              <Button
+                type="button"
+                variant="outline"
+                className="h-auto w-full justify-start gap-3 rounded-xl border-emerald-200 p-4 text-left hover:bg-emerald-50"
+              >
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-emerald-600 text-white">
+                  <Package className="h-5 w-5" />
+                </div>
+                <div>
+                  <div className="font-bold text-primary">Planos</div>
+                  <div className="text-xs font-normal text-muted-foreground">Abrir cadastro e controle de planos.</div>
+                </div>
+              </Button>
+            </Link>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={modalNovoPedidoOpen} onOpenChange={setModalNovoPedidoOpen}>
         <DialogContent className="max-w-6xl max-h-[92vh] overflow-hidden flex flex-col p-0">
           <DialogHeader className="px-6 pt-6 pb-2 border-b">
             <DialogTitle className="font-serif text-2xl text-primary">
-              {formItem.id ? "Editar item" : "Adicionar Marmita ao Pedido"}
+              {formItem.id
+                ? "Editar item"
+                : formItem.tipoItem === "SALGADO"
+                  ? "Adicionar Salgado ao Pedido"
+                  : "Adicionar Marmita ao Pedido"}
             </DialogTitle>
           </DialogHeader>
 
@@ -1297,7 +1471,7 @@ export function NovoAgendamentoNovoLayout({
             <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-8 items-start">
               {/* LADO ESQUERDO: FORMULÁRIO */}
               <div className="space-y-6">
-                <div className="p-5 rounded-2xl bg-secondary/20 border border-secondary/30 relative overflow-hidden space-y-4">
+                <div className="p-5 rounded-2xl bg-muted/30 border border-border/50 relative overflow-hidden space-y-4">
                   <div>
                     <Label className="text-[10px] uppercase text-muted-foreground font-bold tracking-wider mb-1 block">Para quem é este item?</Label>
                     <div className="font-medium text-lg">{clienteSelecionado?.nome || "Selecione um cliente antes"}</div>
@@ -1319,18 +1493,57 @@ export function NovoAgendamentoNovoLayout({
                       />
                     </div>
 
-                    {formItem.tipoItem === "PADRAO" && (
+                    {formItem.tipoItem === "SALGADO" ? (
                       <div className="space-y-2">
-                        <Label>Tamanho Padrão</Label>
+                        <Label>Salgado</Label>
                         <Select
-                          value={formItem.tamanhoId}
+                          value={formItem.salgadoId || ""}
                           onValueChange={(v) => {
-                            const tamanho = tamanhos.find((t) => t.id === v);
+                            const salgado = salgados.find((s) => s.id === v);
                             setFormItem((prev) => ({
                               ...prev,
-                              tamanhoId: v,
-                              tamanhoLabel: tamanho?.nome || "",
+                              salgadoId: v,
+                              salgadoNome: salgado?.nome || "",
+                              precoUnit: Number(salgado?.preco || 0),
                             }));
+                          }}
+                        >
+                          <SelectTrigger className="bg-background border-muted-foreground/20 h-11">
+                            <SelectValue placeholder="Selecione o salgado" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {salgados.map((salgado) => (
+                              <SelectItem key={salgado.id} value={salgado.id}>
+                                {salgado.nome} - R$ {currency(salgado.preco)}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        <Label>Tamanho</Label>
+                        <Select
+                          value={formItem.tipoItem === "PERSONALIZADA" ? "__personalizado__" : formItem.tamanhoId}
+                          onValueChange={(v) => {
+                            if (v === "__personalizado__") {
+                              setFormItem((prev) => ({
+                                ...prev,
+                                tipoItem: "PERSONALIZADA",
+                                tamanhoId: "",
+                                tamanhoLabel: "",
+                                opcaoId: "",
+                                opcaoNome: "",
+                              }));
+                            } else {
+                              const tamanho = tamanhos.find((t) => t.id === v);
+                              setFormItem((prev) => ({
+                                ...prev,
+                                tipoItem: "PADRAO",
+                                tamanhoId: v,
+                                tamanhoLabel: tamanho?.nome || "",
+                              }));
+                            }
                           }}
                         >
                           <SelectTrigger className="bg-background border-muted-foreground/20 h-11">
@@ -1339,9 +1552,10 @@ export function NovoAgendamentoNovoLayout({
                           <SelectContent>
                             {tamanhos.map((t) => (
                               <SelectItem key={t.id} value={t.id}>
-                                {t.nome} — R$ {currency(t.valorUnitario)}
+                                {t.nome}
                               </SelectItem>
                             ))}
+                            <SelectItem value="__personalizado__">Personalizado</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
@@ -1349,6 +1563,7 @@ export function NovoAgendamentoNovoLayout({
                   </div>
                   
                   {(() => {
+                    if (formItem.tipoItem === "SALGADO") return null;
                     const tamanhoId = formItem.tamanhoId;
                     const temPlanoCompativel = clienteSelecionado?.planos?.some((p: any) => {
                       const pTamanhoId = p.plano?.tamanhoId ?? p.tamanhoId;
@@ -1373,72 +1588,52 @@ export function NovoAgendamentoNovoLayout({
                   })()}
                 </div>
 
-                <div className="flex bg-muted/60 p-1.5 rounded-xl w-full max-w-sm mx-auto mb-2 mt-4">
-                  <button
-                    type="button"
-                    className={`flex-1 py-1.5 text-sm font-medium rounded-lg transition-all ${
-                      formItem.tipoItem === "PADRAO"
-                        ? "bg-background shadow text-foreground"
-                        : "text-muted-foreground hover:text-foreground"
-                    }`}
-                    onClick={() =>
-                      setFormItem((prev) => ({
-                        ...prev,
-                        tipoItem: "PADRAO",
-                      }))
-                    }
-                  >
-                    Marmita Padrão
-                  </button>
 
-                  <button
-                    type="button"
-                    className={`flex-1 py-1.5 text-sm font-medium rounded-lg transition-all ${
-                      formItem.tipoItem === "PERSONALIZADA"
-                        ? "bg-background shadow text-foreground"
-                        : "text-muted-foreground hover:text-foreground"
-                    }`}
-                    onClick={() =>
-                      setFormItem((prev) => ({
-                        ...prev,
-                        tipoItem: "PERSONALIZADA",
-                        opcaoId: "",
-                        opcaoNome: "",
-                        tamanhoId: "",
-                        tamanhoLabel: "",
-                      }))
-                    }
-                  >
-                    Personalizada
-                  </button>
-                </div>
 
-                {formItem.tipoItem === "PADRAO" ? (
+                {formItem.tipoItem === "SALGADO" ? (
+                  <div className="rounded-xl border border-secondary/20 bg-secondary/5 p-4 text-sm text-muted-foreground">
+                    <span className="font-semibold text-primary">Salgado selecionado:</span>{" "}
+                    {formItem.salgadoNome || "Escolha um salgado acima"}.
+                    {formItem.salgadoId && (
+                      <span className="ml-1">Preço unitário: R$ {currency(formItem.precoUnit)}.</span>
+                    )}
+                  </div>
+                ) : formItem.tipoItem === "PADRAO" ? (
                   <div className="space-y-4">
-                    <div className="space-y-2">
-                      <Label>Opção do cardápio</Label>
-                      <Select
-                        value={formItem.opcaoId}
-                        onValueChange={(v) => {
-                          const opcao = opcoesPadrao.find((o) => o.id === v);
-                          setFormItem((prev) => ({
-                            ...prev,
-                            opcaoId: v,
-                            opcaoNome: opcao?.nome || "",
-                          }));
-                        }}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Selecione a marmita" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {opcoesPadrao.map((opcao) => (
-                            <SelectItem key={opcao.id} value={opcao.id}>
-                              {opcao.nome}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs text-muted-foreground">Opção do cardápio</Label>
+                      <div className="flex items-center gap-2">
+                        <Select
+                          value={formItem.opcaoId}
+                          onValueChange={(v) => {
+                            const opcao = opcoesPadrao.find((o) => o.id === v);
+                            setFormItem((prev) => ({
+                              ...prev,
+                              opcaoId: v,
+                              opcaoNome: opcao?.nome || "",
+                            }));
+                          }}
+                        >
+                          <SelectTrigger className="h-9 text-sm flex-1">
+                            <SelectValue placeholder="Selecione a marmita" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {opcoesPadrao.map((opcao) => (
+                              <SelectItem key={opcao.id} value={opcao.id}>
+                                {opcao.nome}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <Button
+                          type="button"
+                          size="sm"
+                          onClick={() => addPedidoNaLista(false)}
+                          className="shrink-0 h-9 text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
+                        >
+                          Adicionar e continuar
+                        </Button>
+                      </div>
                     </div>
 
                     <div className="pt-2">
@@ -1783,52 +1978,64 @@ export function NovoAgendamentoNovoLayout({
               {/* LADO DIREITO: RESUMO DO PEDIDO (SIDEBAR) */}
               <aside className="lg:sticky lg:top-0 space-y-4">
                 {itens.length > 0 ? (
-                  <div className="rounded-2xl border border-blue-100 bg-blue-50/50 p-4 shadow-sm flex flex-col max-h-[60vh]">
-                    <div className="text-[10px] font-extrabold uppercase tracking-widest text-blue-700 mb-4 flex items-center justify-between">
+                  <div className="rounded-2xl border border-emerald-100 bg-emerald-50/50 p-4 shadow-sm flex flex-col max-h-[60vh]">
+                    <div className="text-[10px] font-extrabold uppercase tracking-widest text-emerald-700 mb-4 flex items-center justify-between">
                       <span>Itens no Pedido</span>
-                      <Badge className="bg-blue-600 hover:bg-blue-700">{itens.length}</Badge>
+                      <Badge className="bg-emerald-600 hover:bg-emerald-700">{itens.length}</Badge>
                     </div>
                     
                     <div className="space-y-2 overflow-y-auto pr-2 custom-scrollbar flex-1">
                       {itens.map((it) => (
                         <div
                           key={it.id}
-                          className="flex flex-col gap-1.5 bg-white border border-blue-100 rounded-xl p-3 text-xs shadow-sm hover:border-blue-300 transition-all group"
+                          className="flex flex-col gap-1 bg-white border border-emerald-100 rounded-xl p-3 text-xs shadow-sm hover:border-emerald-300 transition-all group"
                         >
                           <div className="flex items-start justify-between gap-2">
                             <span className="font-bold text-slate-800 leading-tight">
-                              {it.quantidade}x {it.tamanhoLabel}
+                              {it.quantidade}x {getNomeItem(it)}
                             </span>
                             {it.usarPlano && (
                               <Badge className="h-4 px-1 text-[8px] bg-green-500 hover:bg-green-600 border-none font-black text-white shrink-0">PLANO</Badge>
                             )}
+                            {it.tipoItem === "SALGADO" && (
+                              <Badge className="h-4 px-1 text-[8px] bg-secondary hover:bg-secondary/90 border-none font-black text-white shrink-0">SALGADO</Badge>
+                            )}
                           </div>
-                          
-                          <div className="text-slate-600 font-medium truncate">
-                            {it.opcaoNome || (it.tipoItem === "PERSONALIZADA" ? "Personalizada" : "Marmita padrão")}
+
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            {it.tamanhoLabel && (
+                              <Badge variant="secondary" className="text-[9px] h-3.5 px-1 font-medium uppercase tracking-tighter">{it.tamanhoLabel}</Badge>
+                            )}
                           </div>
+
+                          {it.tipoItem === "PERSONALIZADA" && (() => {
+                            const partes = [
+                              it.carboNome && it.carboGramas ? `${it.carboNome} ${it.carboGramas}g` : null,
+                              it.proteinaNome && it.proteinaGramas ? `${it.proteinaNome} ${it.proteinaGramas}g` : null,
+                              it.legumeNome && it.legumeGramas && !it.zerarLegume ? `${it.legumeNome} ${it.legumeGramas}g` : null,
+                              it.feijaoNome && it.feijaoGramas && it.adicionarFeijao ? `${it.feijaoNome} ${it.feijaoGramas}g` : null,
+                            ].filter(Boolean);
+                            if (partes.length === 0) return null;
+                            return (
+                              <div className="text-[10px] text-slate-500 leading-relaxed mt-0.5">
+                                {partes.map((p, i) => (
+                                  <span key={i}>{p}{i < partes.length - 1 && <br />}</span>
+                                ))}
+                              </div>
+                            );
+                          })()}
                           
-                          {it.destinatarioNome && (
-                            <div className="text-[10px] text-muted-foreground flex items-center gap-1 italic">
+                          {it.destinatarioNome && it.destinatarioNome !== getNomeItem(it) && (
+                            <div className="text-[10px] text-muted-foreground flex items-center gap-1 italic mt-0.5">
                               <User className="h-2.5 w-2.5 opacity-60" />
                               {it.destinatarioNome}
                             </div>
                           )}
-                          
-                          <div className="mt-1 pt-1.5 border-t border-slate-50 flex justify-between items-center text-[10px]">
-                            <span className="text-muted-foreground">R$ {currency(it.precoUnit)}/un</span>
-                            <span className="font-bold text-slate-900">R$ {currency(it.precoUnit * it.quantidade)}</span>
-                          </div>
                         </div>
                       ))}
                     </div>
                     
-                    <Separator className="my-4 bg-blue-200/40" />
-                    
-                    <div className="flex justify-between items-center bg-blue-100/50 p-2.5 rounded-lg border border-blue-200/50">
-                      <span className="text-[10px] text-blue-700 font-black uppercase tracking-tight">Subtotal Acumulado</span>
-                      <span className="text-base font-black text-blue-900">R$ {currency(subtotalPedido)}</span>
-                    </div>
+
                   </div>
                 ) : (
                   <div className="rounded-2xl border border-dashed border-muted p-8 text-center bg-muted/5 flex flex-col items-center gap-3">
@@ -1839,18 +2046,12 @@ export function NovoAgendamentoNovoLayout({
                   </div>
                 )}
 
-                <div className="rounded-2xl border border-secondary/30 bg-secondary/5 p-4 text-[11px] text-muted-foreground leading-relaxed shadow-sm">
-                   <div className="flex items-center gap-2 font-bold text-secondary-foreground uppercase tracking-widest mb-1.5 text-[9px]">
-                      <Check className="h-3 w-3 text-green-500" />
-                      Produtividade
-                   </div>
-                   Você pode clicar em <span className="font-bold text-foreground">"Adicionar e continuar"</span> para montar a próxima marmita sem precisar reabrir este modal.
-                </div>
+
               </aside>
             </div>
           </div>
 
-          <DialogFooter className="px-6 py-4 border-t bg-muted/30 gap-2 sm:gap-0">
+          <DialogFooter className="px-6 py-4 border-t bg-muted/30 flex flex-row items-center justify-end gap-2">
             <Button
               type="button"
               variant="outline"
@@ -1859,21 +2060,9 @@ export function NovoAgendamentoNovoLayout({
             >
               Cancelar
             </Button>
-
-            <div className="flex items-center gap-2">
-              <Button
-                type="button"
-                variant="secondary"
-                onClick={() => addPedidoNaLista(false)}
-                className="rounded-xl"
-              >
-                Adicionar e continuar
-              </Button>
-
-              <Button type="button" onClick={() => addPedidoNaLista(true)} className="rounded-xl shadow-lg">
-                Adicionar e fechar
-              </Button>
-            </div>
+            <Button type="button" onClick={() => addPedidoNaLista(true)} className="rounded-xl shadow-lg">
+              Salvar
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
