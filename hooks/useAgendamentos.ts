@@ -70,8 +70,8 @@ export type FormaPagamento =
 
 export type AgendamentoItemInput = {
   tipoItem: "PADRAO" | "PERSONALIZADA" | "SALGADO";
-  tamanhoId?: number | null;
-  salgadoId?: number | null;
+  tamanhoId?: number | string | null;
+  salgadoId?: number | string | null;
   quantidade: number;
 
   destinatarioNome?: string;
@@ -90,6 +90,10 @@ export type AgendamentoItemInput = {
 
   zerarLegume?: boolean;
   adicionarFeijao?: boolean;
+  carboGramas?: number | null;
+  proteinaGramas?: number | null;
+  legumeGramas?: number | null;
+  feijaoGramas?: number | null;
 
   precoUnit?: number | null;
   usarPlano?: boolean;

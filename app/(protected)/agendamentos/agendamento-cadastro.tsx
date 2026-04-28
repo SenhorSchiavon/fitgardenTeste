@@ -58,6 +58,7 @@ import {
 import { useRegrasPersonalizadas } from "@/hooks/useRegrasPersonalizadas";
 import { toast } from "sonner";
 import { useAgendamentos } from "@/hooks/useAgendamentos";
+import { PlanoCatalogo, usePlanosCliente } from "@/hooks/usePlanosCliente";
 
 type PedidoTipo = "ENTREGA" | "RETIRADA";
 type FormaPagamento =
@@ -222,6 +223,7 @@ export function NovoAgendamentoNovoLayout({
 }: Props) {
   const { regras } = useRegrasPersonalizadas();
   const { estimarTaxaEntrega } = useAgendamentos();
+  const { listPlanos, vincularPlano, saving: savingPlano } = usePlanosCliente();
   const [valorTaxa, setValorTaxa] = useState(0);
   const [incluirTaxaEntrega, setIncluirTaxaEntrega] = useState(false);
   const [clienteId, setClienteId] = useState("");
@@ -239,8 +241,12 @@ export function NovoAgendamentoNovoLayout({
   const [currentGroupId, setCurrentGroupId] = useState("");
   const [modalNovoPedidoOpen, setModalNovoPedidoOpen] = useState(false);
   const [modalEscolhaPedidoOpen, setModalEscolhaPedidoOpen] = useState(false);
+  const [modalPlanoOpen, setModalPlanoOpen] = useState(false);
   const [modalTrocasOpen, setModalTrocasOpen] = useState(false);
   const [itens, setItens] = useState<NovoPedidoItem[]>([]);
+  const [planosCatalogo, setPlanosCatalogo] = useState<PlanoCatalogo[]>([]);
+  const [planoSelecionadoId, setPlanoSelecionadoId] = useState("");
+  const [planoPago, setPlanoPago] = useState(false);
 
   const [formItem, setFormItem] = useState<NovoPedidoItem>({
     id: "",
@@ -641,6 +647,41 @@ export function NovoAgendamentoNovoLayout({
     setFormItem((prev) => ({ ...prev, tipoItem: "SALGADO" }));
     setModalEscolhaPedidoOpen(false);
     setModalNovoPedidoOpen(true);
+  }
+
+  async function abrirModalPlano() {
+    if (!clienteId) {
+      toast.error("Cliente não selecionado", { description: "Selecione um cliente antes de vincular um plano." });
+      return;
+    }
+
+    setModalEscolhaPedidoOpen(false);
+    setModalPlanoOpen(true);
+    setPlanoSelecionadoId("");
+    setPlanoPago(false);
+
+    try {
+      const planos = await listPlanos();
+      setPlanosCatalogo(planos || []);
+    } catch {
+      setPlanosCatalogo([]);
+    }
+  }
+
+  async function handleVincularPlanoCliente() {
+    if (!clienteId || !planoSelecionadoId) return;
+
+    const vinculo = await vincularPlano(Number(clienteId), Number(planoSelecionadoId), planoPago);
+    const plano = planosCatalogo.find((p) => String(p.id) === String(planoSelecionadoId));
+    const novoVinculo = plano ? { ...vinculo, plano } : vinculo;
+
+    if (clienteSelecionado) {
+      clienteSelecionado.planos = [...(clienteSelecionado.planos || []), novoVinculo];
+    }
+
+    setModalPlanoOpen(false);
+    setPlanoSelecionadoId("");
+    setPlanoPago(false);
   }
 
   function getResumoEscolhas(item: NovoPedidoItem) {
@@ -1148,7 +1189,7 @@ export function NovoAgendamentoNovoLayout({
                                       <span className="font-bold text-sm truncate">
                                         {getNomeItem(item)}
                                       </span>
-                                      {item.tamanhoLabel && (
+                                      {item.tamanhoLabel && item.tipoItem !== "SALGADO" && (
                                         <Badge variant="secondary" className="text-[10px] h-4 px-1.5 font-medium uppercase tracking-tighter">
                                           {item.tamanhoLabel}
                                         </Badge>
@@ -1157,7 +1198,7 @@ export function NovoAgendamentoNovoLayout({
                                         <Badge className="h-4 text-[9px] bg-green-600 hover:bg-green-700 border-none font-bold">PLANO</Badge>
                                       )}
                                       {item.tipoItem === "SALGADO" && (
-                                        <Badge className="h-4 text-[9px] bg-secondary hover:bg-secondary/90 border-none font-bold">SALGADO</Badge>
+                                        <Badge variant="outline" className="h-4 text-[9px] border-slate-200 bg-slate-50 text-slate-600 font-bold">SALGADO</Badge>
                                       )}
                                     </div>
 
@@ -1436,21 +1477,86 @@ export function NovoAgendamentoNovoLayout({
               </div>
             </Button>
 
-            <Link href="/planos" onClick={() => setModalEscolhaPedidoOpen(false)}>
-              <Button
-                type="button"
-                variant="outline"
-                className="h-auto w-full justify-start gap-3 rounded-xl border-emerald-200 p-4 text-left hover:bg-emerald-50"
+            <Button
+              type="button"
+              variant="outline"
+              className="h-auto w-full justify-start gap-3 rounded-xl border-emerald-200 p-4 text-left hover:bg-emerald-50"
+              onClick={abrirModalPlano}
+            >
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-emerald-600 text-white">
+                <Package className="h-5 w-5" />
+              </div>
+              <div>
+                <div className="font-bold text-primary">Planos</div>
+                <div className="text-xs font-normal text-muted-foreground">Vincular um plano ao cliente selecionado.</div>
+              </div>
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={modalPlanoOpen} onOpenChange={setModalPlanoOpen}>
+        <DialogContent className="max-w-xl bg-white">
+          <DialogHeader>
+            <DialogTitle className="font-serif text-2xl text-primary">
+              Vincular Plano ao Cliente
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            <div className="rounded-xl border border-emerald-100 bg-emerald-50/60 p-4">
+              <div className="text-[10px] font-black uppercase tracking-widest text-emerald-700">Cliente</div>
+              <div className="mt-1 font-bold text-primary">{clienteSelecionado?.nome || "Selecione um cliente"}</div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Plano</Label>
+              <Select
+                value={planoSelecionadoId}
+                onValueChange={setPlanoSelecionadoId}
+                disabled={savingPlano || !clienteSelecionado}
               >
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-emerald-600 text-white">
-                  <Package className="h-5 w-5" />
-                </div>
-                <div>
-                  <div className="font-bold text-primary">Planos</div>
-                  <div className="text-xs font-normal text-muted-foreground">Abrir cadastro e controle de planos.</div>
-                </div>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione um plano" />
+                </SelectTrigger>
+                <SelectContent>
+                  {planosCatalogo.map((plano) => {
+                    const gramas = plano.tamanho?.pesagemGramas ? `${plano.tamanho.pesagemGramas}g` : "-";
+                    const unidades = Number(plano.unidades || 0);
+                    const nome = plano.nome?.trim() ? plano.nome.trim() : `Plano ${gramas} (${unidades} un.)`;
+                    return (
+                      <SelectItem key={plano.id} value={String(plano.id)}>
+                        {nome}
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="flex items-center justify-between rounded-xl border border-border/70 p-3">
+              <div>
+                <Label htmlFor="planoPagoAgendamento" className="text-sm font-semibold cursor-pointer">
+                  Plano já foi pago?
+                </Label>
+                <p className="text-xs text-muted-foreground">Marque se o pagamento já entrou.</p>
+              </div>
+              <Checkbox
+                id="planoPagoAgendamento"
+                checked={planoPago}
+                onCheckedChange={(v) => setPlanoPago(!!v)}
+                disabled={savingPlano}
+              />
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="outline" onClick={() => setModalPlanoOpen(false)} disabled={savingPlano}>
+                Cancelar
               </Button>
-            </Link>
+              <Button onClick={handleVincularPlanoCliente} disabled={savingPlano || !planoSelecionadoId || !clienteSelecionado}>
+                {savingPlano ? "Vinculando..." : "Vincular plano"}
+              </Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>
@@ -1998,12 +2104,12 @@ export function NovoAgendamentoNovoLayout({
                               <Badge className="h-4 px-1 text-[8px] bg-green-500 hover:bg-green-600 border-none font-black text-white shrink-0">PLANO</Badge>
                             )}
                             {it.tipoItem === "SALGADO" && (
-                              <Badge className="h-4 px-1 text-[8px] bg-secondary hover:bg-secondary/90 border-none font-black text-white shrink-0">SALGADO</Badge>
+                              <Badge variant="outline" className="h-4 px-1 text-[8px] border-slate-200 bg-slate-50 text-slate-600 font-black shrink-0">SALGADO</Badge>
                             )}
                           </div>
 
                           <div className="flex items-center gap-1.5 flex-wrap">
-                            {it.tamanhoLabel && (
+                            {it.tamanhoLabel && it.tipoItem !== "SALGADO" && (
                               <Badge variant="secondary" className="text-[9px] h-3.5 px-1 font-medium uppercase tracking-tighter">{it.tamanhoLabel}</Badge>
                             )}
                           </div>

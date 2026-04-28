@@ -81,6 +81,7 @@ type Agendamento = {
   | "IBIPORÃ";
   telefone: string;
   quantidade: number;
+  quantidadeLabel?: string;
   formaPagamento: string;
   entregador: string;
   observacoes?: string;
@@ -93,6 +94,8 @@ type Agendamento = {
 
   itens: {
     id?: string;
+    tipoItem?: string;
+    salgadoId?: string;
     nome: string;
     tamanho: string;
     quantidade: number;
@@ -190,8 +193,19 @@ export default function Agendamentos() {
 
         return {
           id: String(it.id),
-          nome: it.opcao?.nome ?? it.nome ?? "-",
-          tamanho: it.tamanho?.pesagemGramas
+          tipoItem: it.tipoItem,
+          salgadoId: it.salgadoId != null ? String(it.salgadoId) : undefined,
+          nome:
+            it.salgado?.nome ??
+            (it.salgadoId != null
+              ? salgados.find((s) => String(s.id) === String(it.salgadoId))?.nome
+              : undefined) ??
+            it.opcao?.nome ??
+            it.nome ??
+            "-",
+          tamanho: it.tipoItem === "SALGADO"
+            ? "Salgado"
+            : it.tamanho?.pesagemGramas
             ? `${it.tamanho.pesagemGramas}g`
             : (it.tamanhoLabel ?? "-"),
           quantidade: Number(it.quantidade ?? 0),
@@ -210,10 +224,21 @@ export default function Agendamentos() {
         };
       }) ?? [];
 
-    const quantidade = itensUi.reduce(
+  const quantidade = itensUi.reduce(
       (acc: number, it: any) => acc + it.quantidade,
       0,
     );
+
+    const qtdSalgados = itensUi
+      .filter((it: any) => it.tipoItem === "SALGADO")
+      .reduce((acc: number, it: any) => acc + it.quantidade, 0);
+    const qtdMarmitas = quantidade - qtdSalgados;
+    const quantidadeLabel =
+      qtdSalgados > 0 && qtdMarmitas === 0
+        ? `${qtdSalgados} salgado${qtdSalgados === 1 ? "" : "s"}`
+        : qtdMarmitas > 0 && qtdSalgados === 0
+          ? `${qtdMarmitas} marmita${qtdMarmitas === 1 ? "" : "s"}`
+          : `${quantidade} itens`;
 
     const valorPedido = Number(row.pedido?.valorPedido ?? row.valorPedido ?? 0);
     const valorTotalOriginal = Number(row.pedido?.valorTotal ?? row.valorTotal ?? 0);
@@ -246,6 +271,7 @@ export default function Agendamentos() {
       endereco: row.endereco ?? "-",
       zona: zonaMap[row.regiao] ?? "CENTRO",
       quantidade,
+      quantidadeLabel,
       formaPagamento:
         row.pedido?.pagamentos?.[0]?.forma ?? row.formaPagamento ?? "-",
       entregador: row.entregador ?? "-",
@@ -568,7 +594,7 @@ export default function Agendamentos() {
 
                               <div className="flex items-center text-sm text-slate-500 gap-1.5">
                                 <Package className="h-3.5 w-3.5 text-slate-400" />
-                                <span className="font-medium">{agendamento.quantidade} marmitas</span>
+                                <span className="font-medium">{(agendamento as any).quantidadeLabel ?? `${agendamento.quantidade} itens`}</span>
                               </div>
 
                               <div className="flex items-center text-sm text-slate-500 gap-1.5">
@@ -710,7 +736,7 @@ export default function Agendamentos() {
               {/* Lado Direito: Itens */}
               <div className="md:col-span-7 flex flex-col gap-4">
                 <h3 className="text-sm font-bold text-slate-700 flex items-center sticky top-0 bg-slate-50/50 py-2">
-                  Marmitas do Pedido 
+                  Itens do Pedido 
                   <span className="ml-2 bg-slate-200 text-slate-600 text-[10px] px-2 py-0.5 rounded-full">{agendamentoSelecionado?.itens.length}</span>
                 </h3>
                 <div className="space-y-3">
@@ -731,9 +757,15 @@ export default function Agendamentos() {
                           </div>
                           <div>
                             <h4 className="font-bold text-slate-800 leading-tight">{item.nome}</h4>
-                            <p className="text-[10px] text-slate-500 font-medium bg-slate-100 px-2 py-0.5 rounded w-fit mt-1 uppercase tracking-tight">
-                              Tamanho: {item.tamanho}
-                            </p>
+                            {item.tipoItem === "SALGADO" ? (
+                              <p className="text-[10px] text-slate-500 font-medium bg-slate-100 px-2 py-0.5 rounded w-fit mt-1 uppercase tracking-tight">
+                                Salgado
+                              </p>
+                            ) : (
+                              <p className="text-[10px] text-slate-500 font-medium bg-slate-100 px-2 py-0.5 rounded w-fit mt-1 uppercase tracking-tight">
+                                Tamanho: {item.tamanho}
+                              </p>
+                            )}
                           </div>
                         </div>
                       </div>
