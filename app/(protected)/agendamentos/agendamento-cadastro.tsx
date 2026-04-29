@@ -253,7 +253,7 @@ export function NovoAgendamentoNovoLayout({
   const [planosCatalogo, setPlanosCatalogo] = useState<PlanoCatalogo[]>([]);
   const [planoSelecionadoId, setPlanoSelecionadoId] = useState("");
   const [planoPago, setPlanoPago] = useState(false);
-  const [incluirTaxaPlano, setIncluirTaxaPlano] = useState(false);
+  const [incluirTaxaPlano, setIncluirTaxaPlano] = useState(true);
   const [quantidadeTaxasPlano, setQuantidadeTaxasPlano] = useState(1);
 
   const [formItem, setFormItem] = useState<NovoPedidoItem>({
@@ -724,7 +724,7 @@ export function NovoAgendamentoNovoLayout({
     setModalPlanoOpen(true);
     setPlanoSelecionadoId("");
     setPlanoPago(false);
-    setIncluirTaxaPlano(false);
+    setIncluirTaxaPlano(true);
     setQuantidadeTaxasPlano(1);
 
     try {
@@ -752,7 +752,7 @@ export function NovoAgendamentoNovoLayout({
     setModalPlanoOpen(false);
     setPlanoSelecionadoId("");
     setPlanoPago(false);
-    setIncluirTaxaPlano(false);
+    setIncluirTaxaPlano(true);
     setQuantidadeTaxasPlano(1);
   }
 

@@ -356,13 +356,26 @@ export default function PlanosPage() {
                     const gramas = p.plano?.tamanho?.pesagemGramas ? ` - ${p.plano.tamanho.pesagemGramas}g` : "";
                     const telefone = p.cliente?.telefone || "";
                     const telefoneLimpo = telefone.replace(/\D/g, "");
+                    const qtdTaxas = Number(p.taxasEntregaCompradas || 0);
+                    const valorTaxaUnit = Number(p.valorTaxaEntrega || 0);
+                    const valorTaxas = qtdTaxas * valorTaxaUnit;
+                    const valorPlano = Number(p.plano?.valor || 0);
+                    const valorTotal = valorPlano + valorTaxas;
+                    const msgCobranca = `Olá ${p.cliente?.nome?.split(' ')[0]}! Tudo bem? O pagamento do seu plano ${nomePlano}${gramas}${valorTotal > 0 ? ` no valor de ${moneyBr(valorTotal)}` : ""} ainda não foi identificado. Assim que realizar o pagamento, por favor envie o comprovante por aqui. Obrigado(a)!`;
                     const msg = `Olá ${p.cliente?.nome?.split(' ')[0]}! Tudo bem? Estou entrando em contato para lembrar sobre o pagamento do seu plano ${nomePlano}${gramas} que está pendente. Por favor, assim que realizar o pagamento, nos envie o comprovante por aqui. Obrigado(a)!`;
 
                     return (
                       <TableRow key={p.id} className="hover:bg-gray-50 border-b border-gray-100">
                         <TableCell className="font-medium">{p.cliente?.nome}</TableCell>
                         <TableCell>{telefone}</TableCell>
-                        <TableCell>{nomePlano}{gramas}</TableCell>
+                        <TableCell>
+                          <div>{nomePlano}{gramas}</div>
+                          {valorTotal > 0 && (
+                            <div className="text-xs font-bold text-emerald-700">
+                              Total: {moneyBr(valorTotal)}
+                            </div>
+                          )}
+                        </TableCell>
                         <TableCell>{p.createdAt ? new Date(p.createdAt).toLocaleDateString("pt-BR") : ""}</TableCell>
                         <TableCell className="text-right">
                           <Button
@@ -372,7 +385,7 @@ export default function PlanosPage() {
                             title="Cobrar no WhatsApp"
                             disabled={!telefoneLimpo}
                             onClick={() => {
-                              window.open(`https://wa.me/55${telefoneLimpo}?text=${encodeURIComponent(msg)}`, "_blank");
+                              window.open(`https://wa.me/55${telefoneLimpo}?text=${encodeURIComponent(msgCobranca)}`, "_blank");
                             }}
                           >
                             <MessageCircle className="h-4 w-4" />
