@@ -71,6 +71,15 @@ type FormaPagamento =
   | "VOUCHER_TAXA_CARTAO"
   | "VOUCHER_TAXA_PIX";
 
+function isVoucherForma(forma: FormaPagamento) {
+  return (
+    forma === "VOUCHER" ||
+    forma === "VOUCHER_TAXA_DINHEIRO" ||
+    forma === "VOUCHER_TAXA_CARTAO" ||
+    forma === "VOUCHER_TAXA_PIX"
+  );
+}
+
 type ClienteOption = {
   id: string;
   nome: string;
@@ -231,7 +240,7 @@ export function NovoAgendamentoNovoLayout({
   const { estimarTaxaEntrega } = useAgendamentos();
   const { listPlanos, vincularPlano, saving: savingPlano } = usePlanosCliente();
   const [valorTaxa, setValorTaxa] = useState(0);
-  const [incluirTaxaEntrega, setIncluirTaxaEntrega] = useState(false);
+  const [incluirTaxaEntrega, setIncluirTaxaEntrega] = useState(true);
   const [clienteId, setClienteId] = useState("");
   const [comboboxOpen, setComboboxOpen] = useState(false);
   const [tipo, setTipo] = useState<PedidoTipo>("ENTREGA");
@@ -243,6 +252,7 @@ export function NovoAgendamentoNovoLayout({
   const [endereco, setEndereco] = useState("");
   const [observacoesPedido, setObservacoesPedido] = useState("");
   const [formaPagamento, setFormaPagamento] = useState<FormaPagamento>("PIX");
+  const [voucherCodigo, setVoucherCodigo] = useState("");
 
   const [currentGroupId, setCurrentGroupId] = useState("");
   const [modalNovoPedidoOpen, setModalNovoPedidoOpen] = useState(false);
@@ -339,6 +349,7 @@ export function NovoAgendamentoNovoLayout({
       setEndereco(initialData.endereco || "");
       setObservacoesPedido(initialData.observacoes || "");
       setFormaPagamento(initialData.formaPagamento || "PIX");
+      setVoucherCodigo(initialData.voucherCodigo || "");
       
       const rawItens = initialData.itens || initialData.pedido?.itens || [];
       const mappedItens: NovoPedidoItem[] = rawItens.map((it: any) => ({
@@ -547,8 +558,9 @@ export function NovoAgendamentoNovoLayout({
     setEndereco("");
     setObservacoesPedido("");
     setFormaPagamento("PIX");
+    setVoucherCodigo("");
     setItens([]);
-    setIncluirTaxaEntrega(false);
+    setIncluirTaxaEntrega(true);
     resetFormItem();
   }
 
@@ -1017,6 +1029,13 @@ export function NovoAgendamentoNovoLayout({
     if (tipo === "ENTREGA" && !endereco.trim()) return;
     if (itens.length === 0) return;
 
+    if (isVoucherForma(formaPagamento) && !voucherCodigo.trim()) {
+      toast.error("Voucher obrigatório", {
+        description: "Digite o código do voucher para finalizar este agendamento.",
+      });
+      return;
+    }
+
     // Validação final de gramagem para personalizadas
     const itemInvalido = itensComPrecoBruto.find(it => 
       it.tipoItem === "PERSONALIZADA" && 
@@ -1038,6 +1057,7 @@ export function NovoAgendamentoNovoLayout({
       endereco: tipo === "RETIRADA" ? "RETIRADA" : endereco,
       observacoes: observacoesPedido,
       formaPagamento: formaPagamento,
+      voucherCodigo: isVoucherForma(formaPagamento) ? voucherCodigo.trim() : undefined,
       ...(tipo === "ENTREGA" && incluirTaxaEntrega && valorTaxa > 0 ? { valorTaxa } : {}),
       itens: itensComPrecoBruto.map(it => ({
          ...it,
@@ -1512,6 +1532,18 @@ export function NovoAgendamentoNovoLayout({
                       </SelectContent>
                     </Select>
                   </div>
+
+                  {isVoucherForma(formaPagamento) && (
+                    <div className="space-y-2">
+                      <Label htmlFor="voucherCodigo">Código do voucher</Label>
+                      <Input
+                        id="voucherCodigo"
+                        value={voucherCodigo}
+                        onChange={(e) => setVoucherCodigo(e.target.value)}
+                        placeholder="Digite o voucher"
+                      />
+                    </div>
+                  )}
 
                   <div className="space-y-2">
                     <Label>Observações gerais</Label>

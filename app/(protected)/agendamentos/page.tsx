@@ -1096,6 +1096,7 @@ export default function Agendamentos() {
               endereco: payload.endereco,
               observacoes: payload.observacoes ?? null,
               formaPagamento: payload.formaPagamento,
+              voucherCodigo: payload.voucherCodigo,
               itens: payload.itens.map((it: any) => ({
                 tipoItem: it.tipoItem,
                 destinatarioNome: it.destinatarioNome,
