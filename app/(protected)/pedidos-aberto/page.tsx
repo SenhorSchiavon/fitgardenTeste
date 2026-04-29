@@ -104,7 +104,7 @@ export default function PedidosAberto() {
 
   async function load(date = dataFiltro) {
     const [resp, conciliacaoResp] = await Promise.all([
-      getPedidosPendentes({ date, page: 1, pageSize: 50 }),
+      getPedidosPendentes({ page: 1, pageSize: 50 }),
       getPagamentosParaConciliar({ date, page: 1, pageSize: 50 }),
     ]);
     setPedidosAberto(resp.rows || []);
@@ -214,7 +214,7 @@ export default function PedidosAberto() {
 
       <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
         <div className="space-y-2">
-          <Label htmlFor="dataFiltro">Data dos pedidos</Label>
+          <Label htmlFor="dataFiltro">Data da conciliação</Label>
           <Input
             id="dataFiltro"
             type="date"

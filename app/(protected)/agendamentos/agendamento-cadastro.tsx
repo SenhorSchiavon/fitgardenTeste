@@ -422,6 +422,11 @@ export function NovoAgendamentoNovoLayout({
     [itens]
   );
 
+  const totalSalgados = useMemo(
+    () => itens.filter((item) => item.tipoItem === "SALGADO").reduce((acc, item) => acc + Number(item.quantidade || 0), 0),
+    [itens]
+  );
+
   const totalItens = useMemo(
     () => itens.reduce((acc, item) => acc + Number(item.quantidade || 0), 0),
     [itens]
@@ -474,7 +479,19 @@ export function NovoAgendamentoNovoLayout({
   }
 
   const itensComPrecoBruto = useMemo(() => {
+    const regraSalgado = regras
+      .filter((r) => r.tipo === "VOLUME_SALGADOS" && totalSalgados >= Number(r.limite))
+      .sort((a, b) => Number(b.limite) - Number(a.limite))[0];
+    const precoSalgadoVolume = regraSalgado ? Number(regraSalgado.preco) : null;
+
     return itens.map((item) => {
+      if (item.tipoItem === "SALGADO") {
+        return {
+          ...item,
+          precoUnit: precoSalgadoVolume != null ? precoSalgadoVolume : Number(item.precoUnit || 0),
+        };
+      }
+
       const tamanho = tamanhos.find((t) => t.id === item.tamanhoId);
       if (!tamanho) return item;
 
@@ -488,7 +505,7 @@ export function NovoAgendamentoNovoLayout({
             : Number(precoFaixa || 0),
       };
     });
-  }, [itens, tamanhos, totalMarmitas]);
+  }, [itens, tamanhos, totalMarmitas, totalSalgados, regras]);
 
   const itensComPrecoFinal = useMemo(() => {
     // Para cada item com plano, desconta só as unidades dentro do saldo
@@ -530,12 +547,22 @@ export function NovoAgendamentoNovoLayout({
   }, [itensComPrecoBruto, clienteSelecionado]);
 
   const subtotalPedido = useMemo(() => {
-    const totalBruto = itensComPrecoFinal.reduce(
+    const totalBrutoMarmitas = itensComPrecoFinal
+      .filter((item) => item.tipoItem !== "SALGADO")
+      .reduce(
       (acc, item) => acc + Number(item.precoUnit || 0) * Number(item.quantidade || 0),
       0
     );
+    const totalBrutoSalgados = itensComPrecoFinal
+      .filter((item) => item.tipoItem === "SALGADO")
+      .reduce(
+        (acc, item) => acc + Number(item.precoUnit || 0) * Number(item.quantidade || 0),
+        0
+      );
 
-    const totalMarmitas = itensComPrecoFinal.reduce((acc, it) => acc + it.quantidade, 0);
+    const totalMarmitas = itensComPrecoFinal
+      .filter((item) => item.tipoItem !== "SALGADO")
+      .reduce((acc, it) => acc + it.quantidade, 0);
 
     // Desconto por volume total
     const regrasVolume = regras
@@ -544,10 +571,10 @@ export function NovoAgendamentoNovoLayout({
 
     if (regrasVolume.length > 0) {
       const pct = Number(regrasVolume[0].preco);
-      return totalBruto * (1 - pct / 100);
+      return totalBrutoMarmitas * (1 - pct / 100) + totalBrutoSalgados;
     }
 
-    return totalBruto;
+    return totalBrutoMarmitas + totalBrutoSalgados;
   }, [itensComPrecoFinal, regras]);
 
   function resetForm() {
@@ -1274,7 +1301,7 @@ export function NovoAgendamentoNovoLayout({
                   <div>
                     <CardTitle className="font-serif text-xl flex items-center gap-2">
                       <Plus className="h-5 w-5 text-secondary" />
-                      Marmitas da lista
+                      Pedidos
                     </CardTitle>
                     <p className="text-sm text-muted-foreground">
                       Cada linha representa um subpedido/marmita adicionada.
@@ -1982,7 +2009,7 @@ export function NovoAgendamentoNovoLayout({
                           className="h-9 border-dashed text-muted-foreground font-normal bg-muted/30"
                           onClick={() => setModalTrocasOpen(true)}
                         >
-                          Fazer trocas
+                          Fazer substituições na marmita
                         </Button>
                         <Button
                           type="button"
@@ -2417,11 +2444,11 @@ export function NovoAgendamentoNovoLayout({
         </DialogContent>
       </Dialog>
 
-      {/* Modal de Trocas da Marmita Opcional */}
+      {/* Modal de Substituições da Marmita Opcional */}
       <Dialog open={modalTrocasOpen} onOpenChange={setModalTrocasOpen}>
         <DialogContent className="max-w-3xl overflow-y-auto max-h-[90vh]">
           <DialogHeader>
-            <DialogTitle>Trocas da Marmita</DialogTitle>
+            <DialogTitle>Substituições da Marmita</DialogTitle>
           </DialogHeader>
 
           <div className="space-y-6 pt-2">
@@ -2596,7 +2623,7 @@ export function NovoAgendamentoNovoLayout({
 
           <DialogFooter className="mt-6">
             <Button type="button" onClick={() => setModalTrocasOpen(false)}>
-              Confirmar Trocas
+              Confirmar Substituições
             </Button>
           </DialogFooter>
         </DialogContent>

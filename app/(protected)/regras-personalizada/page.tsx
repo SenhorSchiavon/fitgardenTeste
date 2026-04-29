@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState } from "react";
 import { Plus, Pencil, Trash } from "lucide-react";
@@ -26,11 +26,13 @@ export default function RegrasPersonalizadaPage() {
   const regrasTotal = regras.filter((r) => r.tipo === "PESO_TOTAL").sort((a, b) => a.limite - b.limite);
   const regrasIngredientes = regras.filter((r) => r.tipo === "QUANTIDADE_INGREDIENTES").sort((a, b) => a.limite - b.limite);
   const regrasVolume = regras.filter((r) => r.tipo === "VOLUME_TOTAL").sort((a, b) => a.limite - b.limite);
+  const regrasSalgados = regras.filter((r) => r.tipo === "VOLUME_SALGADOS").sort((a, b) => a.limite - b.limite);
 
   const { sort: sortP, onSort: onSortP, sortedRows: rowsP } = useTableSort(regrasProteina, { initialKey: "limite", initialDirection: "asc" });
   const { sort: sortT, onSort: onSortT, sortedRows: rowsT } = useTableSort(regrasTotal, { initialKey: "limite", initialDirection: "asc" });
   const { sort: sortI, onSort: onSortI, sortedRows: rowsI } = useTableSort(regrasIngredientes, { initialKey: "limite", initialDirection: "asc" });
   const { sort: sortV, onSort: onSortV, sortedRows: rowsV } = useTableSort(regrasVolume, { initialKey: "limite", initialDirection: "asc" });
+  const { sort: sortS, onSort: onSortS, sortedRows: rowsS } = useTableSort(regrasSalgados, { initialKey: "limite", initialDirection: "asc" });
 
   function handleOpenModal(tipo: RegraPrecoTipo, item?: RegraPrecoPersonalizada) {
     if (item) {
@@ -243,6 +245,45 @@ export default function RegrasPersonalizadaPage() {
             </Table>
           </CardContent>
         </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
+            <div>
+              <CardTitle>Salgados</CardTitle>
+              <CardDescription>Preço unitário por quantidade, contando apenas salgados.</CardDescription>
+            </div>
+            <Button size="sm" onClick={() => handleOpenModal("VOLUME_SALGADOS")}>
+              <Plus className="mr-2 h-4 w-4" /> Nova Regra
+            </Button>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <SortableHead label="A partir de (Salgados)" field="limite" sort={sortS} onSort={onSortS} />
+                  <SortableHead label="Preço Unitário" field="preco" sort={sortS} onSort={onSortS} />
+                  <TableHead className="text-right">AÃ§Ãµes</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {rowsS.map((r) => (
+                  <TableRow key={r.id}>
+                    <TableCell>{r.limite} salgados</TableCell>
+                    <TableCell className="font-bold text-green-700">R$ {Number(r.preco).toFixed(2)} / un.</TableCell>
+                    <TableCell className="text-right">
+                      <Button variant="ghost" size="icon" onClick={() => handleOpenModal("VOLUME_SALGADOS", r)}>
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button variant="ghost" size="icon" onClick={() => deletarRegra(r.id)}>
+                        <Trash className="h-4 w-4" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
       </div>
 
       <Dialog open={modalOpen} onOpenChange={setModalOpen}>
@@ -254,15 +295,20 @@ export default function RegrasPersonalizadaPage() {
               {formData.tipo === "PESO_TOTAL" && " (Peso Total)"}
               {formData.tipo === "QUANTIDADE_INGREDIENTES" && " (Ajuste Ingredientes)"}
               {formData.tipo === "VOLUME_TOTAL" && " (Desconto Volume)"}
+              {formData.tipo === "VOLUME_SALGADOS" && " (Salgados)"}
             </DialogTitle>
           </DialogHeader>
 
           <div className="grid gap-4 py-4">
             <div className="space-y-2">
               <Label>
-                {formData.tipo === "PROTEINA" || formData.tipo === "PESO_TOTAL" ? "Gramagem Máxima (Até X gramas)" : 
-                 formData.tipo === "QUANTIDADE_INGREDIENTES" ? "Quantidade de Ingredientes" : 
-                 "Quantidade Mínima de Marmitas"}
+                {formData.tipo === "PROTEINA" || formData.tipo === "PESO_TOTAL"
+                  ? "Gramagem Máxima (Até X gramas)"
+                  : formData.tipo === "QUANTIDADE_INGREDIENTES"
+                    ? "Quantidade de Ingredientes"
+                    : formData.tipo === "VOLUME_SALGADOS"
+                      ? "Quantidade Mínima de Salgados"
+                      : "Quantidade Mínima de Marmitas"}
               </Label>
               <Input
                 type="number"
@@ -273,11 +319,15 @@ export default function RegrasPersonalizadaPage() {
             </div>
             <div className="space-y-2">
               <Label>
-                {formData.tipo === "VOLUME_TOTAL" ? "Percentual de Desconto (%)" : "Valor de Ajuste (R$)"}
+                {formData.tipo === "VOLUME_TOTAL"
+                  ? "Percentual de Desconto (%)"
+                  : formData.tipo === "VOLUME_SALGADOS"
+                    ? "Preço Unitário do Salgado (R$)"
+                    : "Valor de Ajuste (R$)"}
               </Label>
               <Input
                 type="number"
-                placeholder={formData.tipo === "VOLUME_TOTAL" ? "Ex: 5, 7, 10" : "Ex: 1.00, -0.50"}
+                placeholder={formData.tipo === "VOLUME_TOTAL" ? "Ex: 5, 7, 10" : formData.tipo === "VOLUME_SALGADOS" ? "Ex: 7.50" : "Ex: 1.00, -0.50"}
                 step="0.01"
                 value={formData.preco}
                 onChange={(e) => setFormData((p) => ({ ...p, preco: e.target.value === "" ? "" : Number(e.target.value) }))}
