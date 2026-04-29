@@ -33,6 +33,11 @@ export type PedidoPendenteRow = {
 
   quantidade: number;
   formaPagamento: FormaPagamento | string;
+  pagamentoId?: number | null;
+  statusPagamento?: string | null;
+  pagoEm?: string | null;
+  conciliado?: boolean;
+  conciliadoEm?: string | null;
 
   entregador?: string | null;
   observacoes?: string | null;
@@ -263,6 +268,27 @@ export function useAgendamentos(options?: { baseUrl?: string }) {
     },
     [baseUrl, showError],
   );
+  const getPagamentosParaConciliar = useCallback(
+    async (query: PedidosPendentesQuery = {}) => {
+      setLoading(true);
+      setError("");
+      try {
+        const qs = buildQueryString({ ...query });
+        return await fetchJson<AgendamentosListResponse<PedidoPendenteRow>>(
+          `${baseUrl}/conciliacao${qs}`,
+          { method: "GET" },
+        );
+      } catch (e: any) {
+        const msg = e?.message || "Erro ao listar pagamentos para conciliação";
+        setError(msg);
+        showError(msg);
+        throw e;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [baseUrl, showError],
+  );
   const baixarXlsxImportEntregasDoDia = useCallback(
     async (date?: string) => {
       const dateISO = date && date.trim() ? date : toISODateOnly(new Date());
@@ -340,6 +366,32 @@ export function useAgendamentos(options?: { baseUrl?: string }) {
         });
       } catch (e: any) {
         const msg = e?.message || "Erro ao finalizar pagamento";
+        setError(msg);
+        showError(msg);
+        throw e;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [baseUrl, showError],
+  );
+  const conciliarPagamento = useCallback(
+    async (pagamentoId: number, conciliado: boolean = true) => {
+      setLoading(true);
+      setError("");
+      try {
+        return await fetchJson<{
+          success: boolean;
+          pagamentoId: number;
+          pedidoId: number;
+          agendamentoId: number | null;
+          conciliado: boolean;
+        }>(`${baseUrl}/pagamentos/${pagamentoId}/conciliar`, {
+          method: "POST",
+          body: JSON.stringify({ conciliado }),
+        });
+      } catch (e: any) {
+        const msg = e?.message || "Erro ao conciliar pagamento";
         setError(msg);
         showError(msg);
         throw e;
@@ -625,7 +677,9 @@ export function useAgendamentos(options?: { baseUrl?: string }) {
     clearError,
 
     finalizarPagamento,
+    conciliarPagamento,
     getPedidosPendentes,
+    getPagamentosParaConciliar,
     getHistorico,
     baixarXlsxImportEntregasDoDia,
     getAgendamentos,

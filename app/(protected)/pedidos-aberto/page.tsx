@@ -33,6 +33,7 @@ import {
   TruckIcon,
   User,
   CalendarIcon,
+  CheckCircle2,
 } from "lucide-react";
 import { Header } from "@/components/header";
 import {
@@ -75,11 +76,14 @@ export default function PedidosAberto() {
   const {
     loading,
     getPedidosPendentes,
+    getPagamentosParaConciliar,
     finalizarPagamento,
+    conciliarPagamento,
     deleteAgendamento,
   } = useAgendamentos();
 
   const [pedidosAberto, setPedidosAberto] = useState<PedidoPendenteRow[]>([]);
+  const [pagamentosConciliar, setPagamentosConciliar] = useState<PedidoPendenteRow[]>([]);
 
   const [pedidoSelecionado, setPedidoSelecionado] =
     useState<PedidoPendenteRow | null>(null);
@@ -90,8 +94,12 @@ export default function PedidosAberto() {
     useState<Exclude<FormaPagamento, "PLANO">>("PIX");
 
   async function load() {
-    const resp = await getPedidosPendentes({ page: 1, pageSize: 50 });
+    const [resp, conciliacaoResp] = await Promise.all([
+      getPedidosPendentes({ page: 1, pageSize: 50 }),
+      getPagamentosParaConciliar({ page: 1, pageSize: 50 }),
+    ]);
     setPedidosAberto(resp.rows || []);
+    setPagamentosConciliar(conciliacaoResp.rows || []);
   }
 
   useEffect(() => {
@@ -158,9 +166,24 @@ export default function PedidosAberto() {
     setPedidosAberto((prev) =>
       prev.filter((p) => p.agendamentoId !== pedidoSelecionado.agendamentoId),
     );
+    const conciliacaoResp = await getPagamentosParaConciliar({ page: 1, pageSize: 50 });
+    setPagamentosConciliar(conciliacaoResp.rows || []);
     setPagamentoDialogOpen(false);
     setDetalhesDialogOpen(false);
     toast.success("Pagamento finalizado");
+  };
+
+  const handleConciliarPagamento = async (pedido: PedidoPendenteRow) => {
+    if (!pedido.pagamentoId) {
+      toast.error("Pagamento não encontrado para conciliação");
+      return;
+    }
+
+    await conciliarPagamento(pedido.pagamentoId, true);
+    setPagamentosConciliar((prev) =>
+      prev.filter((p) => p.pagamentoId !== pedido.pagamentoId),
+    );
+    toast.success("Pagamento conciliado");
   };
 
   const formatDate = (dateString: string) => {
@@ -180,6 +203,13 @@ export default function PedidosAberto() {
         subtitle="Gerencie os pedidos com pagamento pendente"
       />
 
+      <Tabs defaultValue="pendentes" className="space-y-4">
+        <TabsList>
+          <TabsTrigger value="pendentes">Pendentes ({pedidosAberto.length})</TabsTrigger>
+          <TabsTrigger value="conciliacao">Pagos a conciliar ({pagamentosConciliar.length})</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="pendentes">
       <Card>
         <CardHeader>
           <CardTitle>Pedidos com Pagamento Pendente</CardTitle>
@@ -233,6 +263,69 @@ export default function PedidosAberto() {
           </ScrollArea>
         </CardContent>
       </Card>
+        </TabsContent>
+
+        <TabsContent value="conciliacao">
+          <Card>
+            <CardHeader>
+              <CardTitle>Pagamentos Confirmados para Conciliação</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ScrollArea className="h-[calc(100vh-300px)]">
+                <div className="space-y-4">
+                  {pagamentosConciliar.map((pedido) => (
+                    <div
+                      key={pedido.pagamentoId || pedido.agendamentoId}
+                      className="flex items-center gap-4 border rounded-lg p-4 bg-muted/20"
+                    >
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium">{pedido.numeroPedido}</span>
+                          <span>-</span>
+                          <span className="truncate">{pedido.cliente}</span>
+                          <Badge variant="outline">{pedido.formaPagamento}</Badge>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground mt-1">
+                          <span>{formatDate(pedido.data)}</span>
+                          <span>•</span>
+                          <span>{pedido.tipoEntrega}</span>
+                          {pedido.pagoEm && (
+                            <>
+                              <span>•</span>
+                              <span>Pago em {new Date(pedido.pagoEm).toLocaleDateString("pt-BR")}</span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="text-right">
+                        <div className="text-sm text-muted-foreground">Valor</div>
+                        <div className="text-lg font-bold">
+                          R$ {Number(pedido.valorTotalFinal ?? pedido.valorTotal).toFixed(2)}
+                        </div>
+                      </div>
+
+                      <Button
+                        onClick={() => handleConciliarPagamento(pedido)}
+                        disabled={loading || !pedido.pagamentoId}
+                      >
+                        <CheckCircle2 className="mr-2 h-4 w-4" />
+                        Conciliado
+                      </Button>
+                    </div>
+                  ))}
+
+                  {pagamentosConciliar.length === 0 && (
+                    <div className="text-center py-8 text-muted-foreground">
+                      Nenhum pagamento confirmado aguardando conciliação
+                    </div>
+                  )}
+                </div>
+              </ScrollArea>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
 
       <Dialog open={detalhesDialogOpen} onOpenChange={setDetalhesDialogOpen}>
         <DialogContent className="max-w-3xl">
