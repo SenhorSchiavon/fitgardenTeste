@@ -14,6 +14,8 @@ export type PlanoCatalogo = {
   nome?: string | null;
   tamanhoId: number;
   unidades: number;
+  entregas?: number | null;
+  valor?: number | string | null;
   tamanho?: Tamanho;
   createdAt?: string;
 };
@@ -24,6 +26,8 @@ export type PlanoClienteVinculo = {
   planoId: number;
   saldoUnidades?: number | null;
   saldoEntregas?: number | null;
+  taxasEntregaCompradas?: number | null;
+  valorTaxaEntrega?: number | string | null;
   plano?: PlanoCatalogo & { tamanho?: Tamanho };
   pago?: boolean;
   cliente?: {
@@ -108,13 +112,23 @@ export function usePlanosCliente() {
     return (await res.json()) as PlanoClienteVinculo[];
   }, []);
   const vincularPlano = useCallback(
-    async (clienteId: number, planoId: number, pago: boolean = false) => {
+    async (
+      clienteId: number,
+      planoId: number,
+      pago: boolean = false,
+      extras?: { quantidadeTaxasEntrega?: number; valorTaxaEntrega?: number },
+    ) => {
       setSaving(true);
       try {
         const res = await apiFetch(`${API_URL}/clientes/${clienteId}/planos/`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ planoId, pago }),
+          body: JSON.stringify({
+            planoId,
+            pago,
+            quantidadeTaxasEntrega: Math.max(0, Math.floor(Number(extras?.quantidadeTaxasEntrega || 0))),
+            valorTaxaEntrega: Math.max(0, Number(extras?.valorTaxaEntrega || 0)),
+          }),
         });
 
         if (!res.ok) {

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import { ptBR } from "date-fns/locale";
@@ -207,6 +207,12 @@ function uid() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
+function getDefaultAgendamentoDate() {
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  return tomorrow;
+}
+
 export function NovoAgendamentoNovoLayout({
   open,
   onOpenChange,
@@ -229,7 +235,7 @@ export function NovoAgendamentoNovoLayout({
   const [clienteId, setClienteId] = useState("");
   const [comboboxOpen, setComboboxOpen] = useState(false);
   const [tipo, setTipo] = useState<PedidoTipo>("ENTREGA");
-  const [data, setData] = useState<Date | undefined>(new Date());
+  const [data, setData] = useState<Date | undefined>(() => getDefaultAgendamentoDate());
   const [horario, setHorario] = useState<HorarioIntervalo>({
     inicio: "11:00",
     fim: "11:30",
@@ -247,6 +253,8 @@ export function NovoAgendamentoNovoLayout({
   const [planosCatalogo, setPlanosCatalogo] = useState<PlanoCatalogo[]>([]);
   const [planoSelecionadoId, setPlanoSelecionadoId] = useState("");
   const [planoPago, setPlanoPago] = useState(false);
+  const [incluirTaxaPlano, setIncluirTaxaPlano] = useState(false);
+  const [quantidadeTaxasPlano, setQuantidadeTaxasPlano] = useState(1);
 
   const [formItem, setFormItem] = useState<NovoPedidoItem>({
     id: "",
@@ -322,7 +330,7 @@ export function NovoAgendamentoNovoLayout({
     if (open && initialData) {
       setClienteId(String(initialData.pedido?.clienteId || initialData.clienteId || ""));
       setTipo(initialData.tipoEntrega || initialData.tipo || "ENTREGA");
-      setData(initialData.data ? new Date(initialData.data) : new Date());
+      setData(initialData.data ? new Date(initialData.data) : getDefaultAgendamentoDate());
       
       const faixa = initialData.faixaHorario || "11:00-11:30";
       const [inicio, fim] = faixa.includes("-") ? faixa.split("-") : [faixa, "11:30"];
@@ -408,6 +416,52 @@ export function NovoAgendamentoNovoLayout({
     [itens]
   );
 
+  const itensDoGrupoAtual = useMemo(
+    () => itens.filter((item) => item.groupId === currentGroupId),
+    [itens, currentGroupId]
+  );
+
+  const hasItensNoGrupoAtual = itensDoGrupoAtual.length > 0;
+
+  const planoSelecionado = useMemo(
+    () => planosCatalogo.find((plano) => String(plano.id) === String(planoSelecionadoId)) || null,
+    [planosCatalogo, planoSelecionadoId],
+  );
+
+  const valorPlanoSelecionado = Number(planoSelecionado?.valor || 0);
+  const quantidadeTaxasPlanoFinal =
+    incluirTaxaPlano && tipo === "ENTREGA" && valorTaxa > 0
+      ? Math.max(1, Math.floor(Number(quantidadeTaxasPlano || 1)))
+      : 0;
+  const valorTaxasPlanoTotal = quantidadeTaxasPlanoFinal * Number(valorTaxa || 0);
+  const valorTotalPlanoCliente = valorPlanoSelecionado + valorTaxasPlanoTotal;
+
+  function getSaldoPlanoPorTamanho(tamanhoId?: string) {
+    if (!tamanhoId) return 0;
+    return (clienteSelecionado?.planos || []).reduce((acc: number, plano: any) => {
+      const planoTamanhoId = String(plano.plano?.tamanhoId ?? plano.tamanhoId ?? "");
+      if (planoTamanhoId !== String(tamanhoId)) return acc;
+      return acc + Number(plano.saldoUnidades || 0);
+    }, 0);
+  }
+
+  function getUsoPlanoPorTamanho(tamanhoId?: string, ignoreItemId?: string) {
+    if (!tamanhoId) return 0;
+    return itens.reduce((acc, item) => {
+      if (!item.usarPlano || String(item.tamanhoId) !== String(tamanhoId) || item.id === ignoreItemId) {
+        return acc;
+      }
+      return acc + Number(item.quantidade || 0);
+    }, 0);
+  }
+
+  function canUsePlanoForItem(item: NovoPedidoItem) {
+    if (!item.usarPlano || item.tipoItem === "SALGADO") return true;
+    const saldo = getSaldoPlanoPorTamanho(item.tamanhoId);
+    const usoSemItemAtual = getUsoPlanoPorTamanho(item.tamanhoId, item.id);
+    return usoSemItemAtual + Number(item.quantidade || 0) <= saldo;
+  }
+
   const itensComPrecoBruto = useMemo(() => {
     return itens.map((item) => {
       const tamanho = tamanhos.find((t) => t.id === item.tamanhoId);
@@ -488,7 +542,7 @@ export function NovoAgendamentoNovoLayout({
   function resetForm() {
     setClienteId("");
     setTipo("ENTREGA");
-    setData(new Date());
+    setData(getDefaultAgendamentoDate());
     setHorario({ inicio: "11:00", fim: "11:30" });
     setEndereco("");
     setObservacoesPedido("");
@@ -569,7 +623,6 @@ export function NovoAgendamentoNovoLayout({
       proteinaGramas: 0,
       legumeGramas: 0,
       feijaoGramas: 0,
-      usarPlano: false,
     }));
   }
 
@@ -631,6 +684,13 @@ export function NovoAgendamentoNovoLayout({
   }, [formItem.tipoItem, formItem.carboId, formItem.proteinaId, formItem.legumeId, formItem.feijaoId, formItem.proteinaGramas, totalGramasPersonalizada, regras]);
 
   function abrirNovoPedido() {
+    if (!clienteId) {
+      toast.error("Cliente não selecionado", {
+        description: "Selecione um cliente antes de adicionar um pedido.",
+      });
+      return;
+    }
+
     setCurrentGroupId(uid());
     resetFormItem();
     setModalEscolhaPedidoOpen(true);
@@ -638,6 +698,11 @@ export function NovoAgendamentoNovoLayout({
 
   function abrirFormularioMarmita() {
     resetFormItem();
+    setFormItem((prev) => ({
+      ...prev,
+      tipoItem: "PADRAO",
+      destinatarioNome: clienteSelecionado?.nome || "",
+    }));
     setModalEscolhaPedidoOpen(false);
     setModalNovoPedidoOpen(true);
   }
@@ -659,6 +724,8 @@ export function NovoAgendamentoNovoLayout({
     setModalPlanoOpen(true);
     setPlanoSelecionadoId("");
     setPlanoPago(false);
+    setIncluirTaxaPlano(false);
+    setQuantidadeTaxasPlano(1);
 
     try {
       const planos = await listPlanos();
@@ -671,7 +738,10 @@ export function NovoAgendamentoNovoLayout({
   async function handleVincularPlanoCliente() {
     if (!clienteId || !planoSelecionadoId) return;
 
-    const vinculo = await vincularPlano(Number(clienteId), Number(planoSelecionadoId), planoPago);
+    const vinculo = await vincularPlano(Number(clienteId), Number(planoSelecionadoId), planoPago, {
+      quantidadeTaxasEntrega: quantidadeTaxasPlanoFinal,
+      valorTaxaEntrega: quantidadeTaxasPlanoFinal > 0 ? Number(valorTaxa || 0) : 0,
+    });
     const plano = planosCatalogo.find((p) => String(p.id) === String(planoSelecionadoId));
     const novoVinculo = plano ? { ...vinculo, plano } : vinculo;
 
@@ -682,6 +752,8 @@ export function NovoAgendamentoNovoLayout({
     setModalPlanoOpen(false);
     setPlanoSelecionadoId("");
     setPlanoPago(false);
+    setIncluirTaxaPlano(false);
+    setQuantidadeTaxasPlano(1);
   }
 
   function getResumoEscolhas(item: NovoPedidoItem) {
@@ -692,7 +764,7 @@ export function NovoAgendamentoNovoLayout({
     if (item.tipoItem === "PERSONALIZADA") {
       const partes = [
         item.carboNome ? `Carbo: ${item.carboNome} (${item.carboGramas || 0}g)` : null,
-        item.proteinaNome ? `Proteína: ${item.proteinaNome} (${item.proteinaGramas || 0}g)` : null,
+      item.proteinaNome ? `Proteína: ${item.proteinaNome} (${item.proteinaGramas || 0}g)` : null,
         !item.zerarLegume && item.legumeNome
           ? `Legume: ${item.legumeNome} (${item.legumeGramas || 0}g)`
           : null,
@@ -731,9 +803,35 @@ export function NovoAgendamentoNovoLayout({
     return item.opcaoNome || "Marmita padrão";
   }
 
+  function getDestinatarioItem(item: NovoPedidoItem) {
+    return (item.destinatarioNome || "").trim() || clienteSelecionado?.nome || "-";
+  }
+
+  function getDetalheListaItem(item: NovoPedidoItem) {
+    if (item.tipoItem === "PERSONALIZADA") return getResumoEscolhas(item);
+    if (item.tipoItem === "SALGADO") return "";
+
+    const formatTroca = (nome: string) => `${nome} (+ R$ 2,00 Troca)`;
+    return [
+      item.trocaCarboNome ? `Troca carbo: ${formatTroca(item.trocaCarboNome)}` : null,
+      item.trocaProteinaNome ? `Troca proteína: ${formatTroca(item.trocaProteinaNome)}` : null,
+      !item.zerarLegume && item.trocaLegumeNome
+        ? `Troca legume: ${formatTroca(item.trocaLegumeNome)}`
+        : null,
+      item.zerarLegume ? "Sem legume" : null,
+      item.adicionarFeijao ? "Com feijão" : null,
+    ].filter(Boolean).join(" • ");
+  }
+
   function addPedidoNaLista(fechar = true) {
-    if (!clienteId) {
-      toast.error("Cliente não selecionado", { description: "Selecione um cliente antes de adicionar uma marmita." })
+    if (fechar && formItem.tipoItem === "PADRAO" && opcoesPadrao.length === 0 && !formItem.opcaoId) {
+      setModalNovoPedidoOpen(false);
+      resetFormItem();
+      return;
+    }
+
+    if (formItem.tipoItem !== "SALGADO" && !formItem.destinatarioNome.trim()) {
+      toast.error("Nome não informado", { description: "Informe o nome para a etiqueta antes de adicionar a marmita." });
       return;
     }
 
@@ -792,6 +890,11 @@ export function NovoAgendamentoNovoLayout({
         return;
       }
       if (!formItem.opcaoId) {
+        if (fechar && opcoesPadrao.length === 0) {
+          setModalNovoPedidoOpen(false);
+          resetFormItem();
+          return;
+        }
         toast.error("Opção não selecionada", { description: "Selecione a opção do cardápio antes de adicionar." })
         return;
       }
@@ -814,6 +917,13 @@ export function NovoAgendamentoNovoLayout({
         tamanhoLabel: tamanho.nome,
         precoUnit,
       };
+
+      if (!canUsePlanoForItem(novo)) {
+        toast.error("Saldo insuficiente", {
+          description: "O plano não tem saldo suficiente para adicionar mais marmitas deste tamanho.",
+        });
+        return;
+      }
 
       if (isEdit) {
         setItens((prev) => prev.map((it) => (it.id === formItem.id ? novo : it)));
@@ -850,6 +960,13 @@ export function NovoAgendamentoNovoLayout({
         precoUnit: Number(formItem.precoUnit || 0),
       };
 
+      if (!canUsePlanoForItem(novo)) {
+        toast.error("Saldo insuficiente", {
+          description: "O plano não tem saldo suficiente para adicionar mais marmitas deste tamanho.",
+        });
+        return;
+      }
+
       if (isEdit) {
         setItens((prev) => prev.map((it) => (it.id === formItem.id ? novo : it)));
       } else {
@@ -877,9 +994,18 @@ export function NovoAgendamentoNovoLayout({
     setItens((prev) =>
       prev.map((item) => {
         if (item.id !== id) return item;
-        return {
+        const nextItem = {
           ...item,
           quantidade: Math.max(1, Number(item.quantidade || 1) + delta),
+        };
+        if (delta > 0 && !canUsePlanoForItem(nextItem)) {
+          toast.error("Saldo insuficiente", {
+            description: "O plano não tem saldo suficiente para aumentar este pedido.",
+          });
+          return item;
+        }
+        return {
+          ...nextItem,
         };
       })
     );
@@ -1163,55 +1289,62 @@ export function NovoAgendamentoNovoLayout({
                       ).map((grupo, gIdx) => {
                         const totalMarmitasG = grupo.reduce((sum, i) => sum + Number(i.quantidade || 0), 0);
                         const subtotalG = grupo.reduce((sum, i) => sum + Number(i.precoUnit || 0) * Number(i.quantidade || 0), 0);
+                        const itemReferencia = grupo[0];
+                        const nomePedido = getDestinatarioItem(itemReferencia);
+                        const tamanhoPedido =
+                          itemReferencia.tipoItem === "SALGADO"
+                            ? "Salgado"
+                            : itemReferencia.tamanhoLabel || "Tamanho não definido";
+                        const grupoUsaPlano = grupo.some((item) => item.usarPlano);
                         
                         return (
                           <div key={grupo[0].groupId || grupo[0].id} className="bg-background">
                             {/* Cabeçalho do Grupo - Estilo Minimalista */}
-                            <div className="bg-muted/30 px-4 py-2 flex justify-between items-center border-b border-border/10">
-                              <div className="flex items-center gap-2">
-                                <span className="text-[10px] font-black uppercase tracking-widest text-primary/70">Pedido #{gIdx + 1}</span>
-                                <Badge variant="outline" className="text-[9px] h-3.5 px-1 bg-white/50">{totalMarmitasG} un.</Badge>
+                            <div className="bg-muted/30 px-4 py-3 flex flex-col gap-1 border-b border-border/10 sm:flex-row sm:items-center sm:justify-between">
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className="text-[10px] font-black uppercase tracking-widest text-primary/70">Pedido #{gIdx + 1}</span>
+                                  <Badge variant="outline" className="text-[9px] h-3.5 px-1 bg-white/50">{totalMarmitasG} un.</Badge>
+                                  {grupoUsaPlano && (
+                                    <Badge className="h-4 text-[9px] bg-green-600 hover:bg-green-700 border-none font-bold">PLANO</Badge>
+                                  )}
+                                </div>
+                                <div className="mt-1 flex items-center gap-2 min-w-0 flex-wrap">
+                                  <span className="text-sm font-bold text-foreground truncate">{nomePedido}</span>
+                                  <Badge variant="secondary" className="text-[10px] h-5 px-2 font-medium uppercase tracking-tighter">
+                                    {tamanhoPedido}
+                                  </Badge>
+                                </div>
                               </div>
                             </div>
 
                             <div className="divide-y divide-border/30">
-                              {grupo.map((item, iIdx) => (
-                                <div
-                                  key={item.id}
-                                  className="group relative flex items-start gap-4 p-4 hover:bg-muted/20 transition-colors cursor-pointer"
-                                  onClick={() => editarItem(item)}
-                                >
-                                  <div className="flex-1 min-w-0 space-y-1">
-                                    <div className="flex items-center gap-2 flex-wrap">
-                                      <span className="font-bold text-sm">
-                                        {item.quantidade}x
-                                      </span>
-                                      <span className="font-bold text-sm truncate">
-                                        {getNomeItem(item)}
-                                      </span>
-                                      {item.tamanhoLabel && item.tipoItem !== "SALGADO" && (
-                                        <Badge variant="secondary" className="text-[10px] h-4 px-1.5 font-medium uppercase tracking-tighter">
-                                          {item.tamanhoLabel}
-                                        </Badge>
-                                      )}
-                                      {item.usarPlano && (
-                                        <Badge className="h-4 text-[9px] bg-green-600 hover:bg-green-700 border-none font-bold">PLANO</Badge>
-                                      )}
-                                      {item.tipoItem === "SALGADO" && (
-                                        <Badge variant="outline" className="h-4 text-[9px] border-slate-200 bg-slate-50 text-slate-600 font-bold">SALGADO</Badge>
-                                      )}
-                                    </div>
+                              {grupo.map((item, iIdx) => {
+                                const detalhe = getDetalheListaItem(item);
+                                return (
+                                  <div
+                                    key={item.id}
+                                    className="group relative flex items-start gap-4 p-4 hover:bg-muted/20 transition-colors cursor-pointer"
+                                    onClick={() => editarItem(item)}
+                                  >
+                                    <div className="flex-1 min-w-0 space-y-1">
+                                      <div className="flex items-center gap-2 flex-wrap">
+                                        <span className="font-bold text-sm">
+                                          {item.quantidade}x
+                                        </span>
+                                        <span className="font-bold text-sm truncate">
+                                          {getNomeItem(item)}
+                                        </span>
+                                        {item.tipoItem === "SALGADO" && (
+                                          <Badge variant="outline" className="h-4 text-[9px] border-slate-200 bg-slate-50 text-slate-600 font-bold">SALGADO</Badge>
+                                        )}
+                                      </div>
 
-                                    {((item.destinatarioNome || "").trim() || clienteSelecionado?.nome) && 
-                                       ((item.destinatarioNome || "").trim() || clienteSelecionado?.nome) !== getNomeItem(item) && (
-                                       <div className="text-[12px] text-muted-foreground font-medium">
-                                         {(item.destinatarioNome || "").trim() || clienteSelecionado?.nome}
-                                       </div>
-                                     )}
-
-                                    <div className="text-[11px] text-muted-foreground leading-relaxed italic">
-                                      {getResumoEscolhas(item)}
-                                    </div>
+                                      {detalhe ? (
+                                        <div className="text-[11px] text-muted-foreground leading-relaxed italic">
+                                          {detalhe}
+                                        </div>
+                                      ) : null}
 
                                     {item.observacaoItem?.trim() ? (
                                       <div className="text-[11px] bg-orange-50 text-orange-700 px-2 py-0.5 rounded border border-orange-100 w-fit mt-1">
@@ -1249,7 +1382,7 @@ export function NovoAgendamentoNovoLayout({
                                     </div>
                                   </div>
                                 </div>
-                              ))}
+                              )})}
                             </div>
                           </div>
                         );
@@ -1549,6 +1682,69 @@ export function NovoAgendamentoNovoLayout({
               />
             </div>
 
+            {tipo === "ENTREGA" && valorTaxa > 0 && (
+              <div className="rounded-xl border border-border/70 p-3 space-y-3">
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <Label htmlFor="incluirTaxaPlano" className="text-sm font-semibold cursor-pointer">
+                      Incluir taxa de entrega?
+                    </Label>
+                    <p className="text-xs text-muted-foreground">Valor da taxa: R$ {currency(valorTaxa)}</p>
+                  </div>
+                  <Checkbox
+                    id="incluirTaxaPlano"
+                    checked={incluirTaxaPlano}
+                    onCheckedChange={(v) => setIncluirTaxaPlano(!!v)}
+                    disabled={savingPlano}
+                  />
+                </div>
+
+                {incluirTaxaPlano && (
+                  <div className="grid grid-cols-1 sm:grid-cols-[160px_1fr] gap-3 items-end">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="quantidadeTaxasPlano" className="text-xs text-muted-foreground">
+                        Quantidade
+                      </Label>
+                      <Input
+                        id="quantidadeTaxasPlano"
+                        type="number"
+                        min={1}
+                        step={1}
+                        value={quantidadeTaxasPlano}
+                        onChange={(e) =>
+                          setQuantidadeTaxasPlano(Math.max(1, Math.floor(Number(e.target.value || 1))))
+                        }
+                        disabled={savingPlano}
+                      />
+                    </div>
+                    <div className="rounded-lg bg-emerald-50 border border-emerald-100 px-3 py-2 text-sm">
+                      <div className="text-xs text-emerald-700 font-semibold">Taxas de entrega</div>
+                      <div className="font-bold text-primary">
+                        {quantidadeTaxasPlanoFinal} x R$ {currency(valorTaxa)} = R$ {currency(valorTaxasPlanoTotal)}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div className="rounded-xl border border-primary/10 bg-primary/5 p-4">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">Plano</span>
+                <span className="font-semibold">R$ {currency(valorPlanoSelecionado)}</span>
+              </div>
+              {valorTaxasPlanoTotal > 0 && (
+                <div className="mt-1 flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">Taxas de entrega</span>
+                  <span className="font-semibold">R$ {currency(valorTaxasPlanoTotal)}</span>
+                </div>
+              )}
+              <div className="mt-3 flex items-center justify-between border-t border-primary/10 pt-3">
+                <span className="font-bold text-primary">Total</span>
+                <span className="text-xl font-extrabold text-primary">R$ {currency(valorTotalPlanoCliente)}</span>
+              </div>
+            </div>
+
             <div className="flex justify-end gap-2 pt-2">
               <Button variant="outline" onClick={() => setModalPlanoOpen(false)} disabled={savingPlano}>
                 Cancelar
@@ -1596,7 +1792,13 @@ export function NovoAgendamentoNovoLayout({
                         }
                         placeholder="Ex.: João / Maria / Criança"
                         className="bg-background border-muted-foreground/20 h-11"
+                        disabled={formItem.tipoItem !== "SALGADO" && hasItensNoGrupoAtual && !formItem.id}
                       />
+                      {formItem.tipoItem !== "SALGADO" && hasItensNoGrupoAtual && !formItem.id && (
+                        <p className="text-[10px] text-muted-foreground">
+                          Nome travado para manter este subpedido no mesmo destinatário.
+                        </p>
+                      )}
                     </div>
 
                     {formItem.tipoItem === "SALGADO" ? (
@@ -1631,6 +1833,7 @@ export function NovoAgendamentoNovoLayout({
                         <Label>Tamanho</Label>
                         <Select
                           value={formItem.tipoItem === "PERSONALIZADA" ? "__personalizado__" : formItem.tamanhoId}
+                          disabled={hasItensNoGrupoAtual && !formItem.id}
                           onValueChange={(v) => {
                             if (v === "__personalizado__") {
                               setFormItem((prev) => ({
@@ -1664,6 +1867,11 @@ export function NovoAgendamentoNovoLayout({
                             <SelectItem value="__personalizado__">Personalizado</SelectItem>
                           </SelectContent>
                         </Select>
+                        {hasItensNoGrupoAtual && !formItem.id && (
+                          <p className="text-[10px] text-muted-foreground">
+                            Tamanho travado para as marmitas deste subpedido.
+                          </p>
+                        )}
                       </div>
                     )}
                   </div>
@@ -1685,8 +1893,17 @@ export function NovoAgendamentoNovoLayout({
                          <Checkbox 
                             id="itemUsarPlano" 
                             checked={formItem.usarPlano}
+                            disabled={hasItensNoGrupoAtual && !formItem.id}
                             onCheckedChange={(v) => {
-                               setFormItem(prev => ({ ...prev, usarPlano: !!v }));
+                               const usarPlano = !!v;
+                               const itemComPlano = { ...formItem, usarPlano };
+                               if (usarPlano && !canUsePlanoForItem(itemComPlano)) {
+                                 toast.error("Saldo insuficiente", {
+                                   description: "O plano não tem saldo suficiente para este subpedido.",
+                                 });
+                                 return;
+                               }
+                               setFormItem(prev => ({ ...prev, usarPlano }));
                             }}
                          />
                       </div>
@@ -1708,7 +1925,7 @@ export function NovoAgendamentoNovoLayout({
                   <div className="space-y-4">
                     <div className="space-y-1.5">
                       <Label className="text-xs text-muted-foreground">Opção do cardápio</Label>
-                      <div className="flex items-center gap-2">
+                      <div className="grid grid-cols-1 md:grid-cols-[minmax(220px,1fr)_220px_auto] gap-2 items-center">
                         <Select
                           value={formItem.opcaoId}
                           onValueChange={(v) => {
@@ -1720,7 +1937,7 @@ export function NovoAgendamentoNovoLayout({
                             }));
                           }}
                         >
-                          <SelectTrigger className="h-9 text-sm flex-1">
+                          <SelectTrigger className="h-9 text-sm min-w-0">
                             <SelectValue placeholder="Selecione a marmita" />
                           </SelectTrigger>
                           <SelectContent>
@@ -1733,6 +1950,15 @@ export function NovoAgendamentoNovoLayout({
                         </Select>
                         <Button
                           type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-9 border-dashed text-muted-foreground font-normal bg-muted/30"
+                          onClick={() => setModalTrocasOpen(true)}
+                        >
+                          Fazer trocas
+                        </Button>
+                        <Button
+                          type="button"
                           size="sm"
                           onClick={() => addPedidoNaLista(false)}
                           className="shrink-0 h-9 text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
@@ -1742,16 +1968,7 @@ export function NovoAgendamentoNovoLayout({
                       </div>
                     </div>
 
-                    <div className="pt-2">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="w-full border-dashed text-muted-foreground font-normal bg-muted/30"
-                        onClick={() => setModalTrocasOpen(true)}
-                      >
-                        🔄 Fazer trocas na marmita (Opcional)
-                      </Button>
+                    <div>
                       
                       {(formItem.trocaCarboId || formItem.trocaProteinaId || formItem.trocaLegumeId || formItem.zerarLegume || formItem.adicionarFeijao) ? (
                          <div className="mt-3 text-xs text-muted-foreground bg-muted/40 p-3 rounded-md border border-border/50">
