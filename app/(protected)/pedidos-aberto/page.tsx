@@ -499,6 +499,8 @@ export default function PedidosAberto() {
                   <SelectItem value="DEBITO">Cartão de Débito</SelectItem>
                   <SelectItem value="PIX">PIX</SelectItem>
                   <SelectItem value="VOUCHER">Voucher</SelectItem>
+                  <SelectItem value="TROCA">Troca</SelectItem>
+                  <SelectItem value="BONIFICACAO">Bonificação</SelectItem>
                 </SelectContent>
               </Select>
             </div>

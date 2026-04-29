@@ -69,7 +69,9 @@ type FormaPagamento =
   | "PLANO"
   | "VOUCHER_TAXA_DINHEIRO"
   | "VOUCHER_TAXA_CARTAO"
-  | "VOUCHER_TAXA_PIX";
+  | "VOUCHER_TAXA_PIX"
+  | "TROCA"
+  | "BONIFICACAO";
 
 function isVoucherForma(forma: FormaPagamento) {
   return (
@@ -1550,6 +1552,8 @@ export function NovoAgendamentoNovoLayout({
                         <SelectItem value="DINHEIRO">Dinheiro</SelectItem>
                         <SelectItem value="CARTAO">Cartão</SelectItem>
                         <SelectItem value="VOUCHER">Voucher</SelectItem>
+                        <SelectItem value="TROCA">Troca</SelectItem>
+                        <SelectItem value="BONIFICACAO">Bonificação</SelectItem>
                         <SelectItem value="PLANO">Plano</SelectItem>
                       </SelectContent>
                     </Select>

@@ -71,7 +71,9 @@ export type FormaPagamento =
   | "VOUCHER_TAXA_DINHEIRO"
   | "VOUCHER_TAXA_CARTAO"
   | "VOUCHER_TAXA_PIX"
-  | "PLANO";
+  | "PLANO"
+  | "TROCA"
+  | "BONIFICACAO";
 
 export type AgendamentoItemInput = {
   tipoItem: "PADRAO" | "PERSONALIZADA" | "SALGADO";

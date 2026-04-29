@@ -488,6 +488,14 @@ export default function PedidoSemAgendamento() {
                   <RadioGroupItem value="PIX" id="PIX" />
                   <Label htmlFor="PIX">PIX</Label>
                 </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="TROCA" id="TROCA" />
+                  <Label htmlFor="TROCA">Troca</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="BONIFICACAO" id="BONIFICACAO" />
+                  <Label htmlFor="BONIFICACAO">Bonificação</Label>
+                </div>
               </RadioGroup>
             </div>
 
