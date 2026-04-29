@@ -44,6 +44,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 
 type PedidoAberto = {
   id: string;
@@ -72,6 +73,13 @@ type PedidoAberto = {
   data: string;
 };
 
+function toISODateOnly(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 export default function PedidosAberto() {
   const {
     loading,
@@ -84,6 +92,7 @@ export default function PedidosAberto() {
 
   const [pedidosAberto, setPedidosAberto] = useState<PedidoPendenteRow[]>([]);
   const [pagamentosConciliar, setPagamentosConciliar] = useState<PedidoPendenteRow[]>([]);
+  const [dataFiltro, setDataFiltro] = useState(() => toISODateOnly(new Date()));
 
   const [pedidoSelecionado, setPedidoSelecionado] =
     useState<PedidoPendenteRow | null>(null);
@@ -93,18 +102,18 @@ export default function PedidosAberto() {
   const [formaPagamentoFinal, setFormaPagamentoFinal] =
     useState<Exclude<FormaPagamento, "PLANO">>("PIX");
 
-  async function load() {
+  async function load(date = dataFiltro) {
     const [resp, conciliacaoResp] = await Promise.all([
-      getPedidosPendentes({ page: 1, pageSize: 50 }),
-      getPagamentosParaConciliar({ page: 1, pageSize: 50 }),
+      getPedidosPendentes({ date, page: 1, pageSize: 50 }),
+      getPagamentosParaConciliar({ date, page: 1, pageSize: 50 }),
     ]);
     setPedidosAberto(resp.rows || []);
     setPagamentosConciliar(conciliacaoResp.rows || []);
   }
 
   useEffect(() => {
-    load().catch(() => {});
-  }, []);
+    load(dataFiltro).catch(() => {});
+  }, [dataFiltro]);
 
   const handleShowDetalhes = (pedido: PedidoPendenteRow) => {
     setPedidoSelecionado(pedido);
@@ -166,7 +175,7 @@ export default function PedidosAberto() {
     setPedidosAberto((prev) =>
       prev.filter((p) => p.agendamentoId !== pedidoSelecionado.agendamentoId),
     );
-    const conciliacaoResp = await getPagamentosParaConciliar({ page: 1, pageSize: 50 });
+    const conciliacaoResp = await getPagamentosParaConciliar({ date: dataFiltro, page: 1, pageSize: 50 });
     setPagamentosConciliar(conciliacaoResp.rows || []);
     setPagamentoDialogOpen(false);
     setDetalhesDialogOpen(false);
@@ -202,6 +211,26 @@ export default function PedidosAberto() {
         title="Pedidos em Aberto"
         subtitle="Gerencie os pedidos com pagamento pendente"
       />
+
+      <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+        <div className="space-y-2">
+          <Label htmlFor="dataFiltro">Data dos pedidos</Label>
+          <Input
+            id="dataFiltro"
+            type="date"
+            value={dataFiltro}
+            onChange={(event) => setDataFiltro(event.target.value)}
+            className="w-full sm:w-56"
+          />
+        </div>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => setDataFiltro(toISODateOnly(new Date()))}
+        >
+          Hoje
+        </Button>
+      </div>
 
       <Tabs defaultValue="pendentes" className="space-y-4">
         <TabsList>

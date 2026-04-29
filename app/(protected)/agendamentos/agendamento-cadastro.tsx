@@ -836,7 +836,7 @@ export function NovoAgendamentoNovoLayout({
   }
 
   function addPedidoNaLista(fechar = true) {
-    if (fechar && formItem.tipoItem === "PADRAO" && opcoesPadrao.length === 0 && !formItem.opcaoId) {
+    if (fechar && formItem.tipoItem === "PADRAO" && !formItem.opcaoId) {
       setModalNovoPedidoOpen(false);
       resetFormItem();
       return;
@@ -902,11 +902,6 @@ export function NovoAgendamentoNovoLayout({
         return;
       }
       if (!formItem.opcaoId) {
-        if (fechar && opcoesPadrao.length === 0) {
-          setModalNovoPedidoOpen(false);
-          resetFormItem();
-          return;
-        }
         toast.error("Opção não selecionada", { description: "Selecione a opção do cardápio antes de adicionar." })
         return;
       }
