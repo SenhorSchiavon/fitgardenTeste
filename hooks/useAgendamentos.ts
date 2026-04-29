@@ -12,7 +12,7 @@ export type RegiaoEntrega =
   | "CAMBE"
   | "IBIPORA";
 
-export type PedidoTipo = "ENTREGA" | "RETIRADA";
+export type PedidoTipo = "ENTREGA" | "RETIRADA" | "CONGELAR";
 
 export type PedidoStatus = "ABERTO" | "PAGO" | "CANCELADO";
 export type PedidoPendenteRow = {
@@ -25,7 +25,7 @@ export type PedidoPendenteRow = {
   cliente: string;
   telefone: string;
 
-  tipoEntrega: "ENTREGA" | "RETIRADA";
+  tipoEntrega: "ENTREGA" | "RETIRADA" | "CONGELAR";
   faixaHorario: string;
 
   endereco: string;
@@ -110,6 +110,7 @@ export type CreateAgendamentoInput = {
   clienteId: number;
   tipo: PedidoTipo;
   data: Date | string;
+  dataEntregaCongelada?: Date | string | null;
   faixaHorario: string;
   endereco?: string;
   regiao?: RegiaoEntrega;
@@ -122,6 +123,7 @@ export type CreateAgendamentoInput = {
 export type UpdateAgendamentoInput = Partial<{
   tipo: PedidoTipo;
   data: Date | string;
+  dataEntregaCongelada: Date | string | null;
   faixaHorario: string;
   endereco: string;
   regiao: RegiaoEntrega | null;
@@ -446,6 +448,10 @@ export function useAgendamentos(options?: { baseUrl?: string }) {
             payload.data instanceof Date
               ? payload.data.toISOString()
               : payload.data,
+          dataEntregaCongelada:
+            payload.dataEntregaCongelada instanceof Date
+              ? payload.dataEntregaCongelada.toISOString()
+              : payload.dataEntregaCongelada || undefined,
           faixaHorario: payload.faixaHorario,
           endereco: payload.endereco,
           regiao: payload.regiao,
@@ -533,6 +539,9 @@ export function useAgendamentos(options?: { baseUrl?: string }) {
       try {
         const body: any = { ...payload };
         if (body.data instanceof Date) body.data = body.data.toISOString();
+        if (body.dataEntregaCongelada instanceof Date) {
+          body.dataEntregaCongelada = body.dataEntregaCongelada.toISOString();
+        }
 
         if (Array.isArray(body.itens)) {
           body.itens = body.itens.map((it: any) => ({

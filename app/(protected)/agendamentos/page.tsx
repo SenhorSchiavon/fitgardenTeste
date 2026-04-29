@@ -68,7 +68,8 @@ type Agendamento = {
   id: string;
   numeroPedido: string;
   cliente: string;
-  tipoEntrega: "ENTREGA" | "RETIRADA";
+  tipoEntrega: "ENTREGA" | "RETIRADA" | "CONGELAR";
+  dataEntregaCongelada?: string | null;
   faixaHorario: string;
   endereco: string;
   zona:
@@ -295,6 +296,7 @@ export default function Agendamentos() {
       cliente: row.pedido?.cliente?.nome ?? row.cliente?.nome ?? "-",
       telefone: row.pedido?.cliente?.telefone ?? row.cliente?.telefone ?? "-",
       tipoEntrega: row.pedido?.tipo ?? row.tipo ?? "ENTREGA",
+      dataEntregaCongelada: row.dataEntregaCongelada ?? null,
       faixaHorario: row.faixaHorario,
       endereco: row.endereco ?? "-",
       zona: zonaMap[row.regiao] ?? "CENTRO",
@@ -637,7 +639,7 @@ export default function Agendamentos() {
                               variant={agendamento.tipoEntrega === "ENTREGA" ? "default" : "outline"}
                               className={agendamento.tipoEntrega === "ENTREGA" ? "bg-slate-800 text-white" : "border-slate-200 text-slate-600"}
                             >
-                              {agendamento.tipoEntrega}
+                              {agendamento.tipoEntrega === "CONGELAR" ? "CONGELAR" : agendamento.tipoEntrega}
                             </Badge>
 
                             <div className="flex flex-col items-end">
@@ -1059,6 +1061,7 @@ export default function Agendamentos() {
             await updateAgendamento(agendamentoEditandoId, {
               tipo: payload.tipo,
               data: payload.data,
+              dataEntregaCongelada: payload.dataEntregaCongelada,
               faixaHorario: payload.faixaHorario,
               endereco: payload.endereco,
               observacoes: payload.observacoes ?? null,
@@ -1092,6 +1095,7 @@ export default function Agendamentos() {
               clienteId: Number(payload.clienteId),
               tipo: payload.tipo,
               data: payload.data,
+              dataEntregaCongelada: payload.dataEntregaCongelada,
               faixaHorario: payload.faixaHorario,
               endereco: payload.endereco,
               observacoes: payload.observacoes ?? null,

@@ -60,7 +60,7 @@ import { toast } from "sonner";
 import { useAgendamentos } from "@/hooks/useAgendamentos";
 import { PlanoCatalogo, usePlanosCliente } from "@/hooks/usePlanosCliente";
 
-type PedidoTipo = "ENTREGA" | "RETIRADA";
+type PedidoTipo = "ENTREGA" | "RETIRADA" | "CONGELAR";
 type FormaPagamento =
   | "DINHEIRO"
   | "PIX"
@@ -247,6 +247,7 @@ export function NovoAgendamentoNovoLayout({
   const [comboboxOpen, setComboboxOpen] = useState(false);
   const [tipo, setTipo] = useState<PedidoTipo>("ENTREGA");
   const [data, setData] = useState<Date | undefined>(() => getDefaultAgendamentoDate());
+  const [dataEntregaCongelada, setDataEntregaCongelada] = useState<Date | undefined>(() => getDefaultAgendamentoDate());
   const [horario, setHorario] = useState<HorarioIntervalo>({
     inicio: "11:00",
     fim: "11:30",
@@ -343,6 +344,7 @@ export function NovoAgendamentoNovoLayout({
       setClienteId(String(initialData.pedido?.clienteId || initialData.clienteId || ""));
       setTipo(initialData.tipoEntrega || initialData.tipo || "ENTREGA");
       setData(initialData.data ? new Date(initialData.data) : getDefaultAgendamentoDate());
+      setDataEntregaCongelada(initialData.dataEntregaCongelada ? new Date(initialData.dataEntregaCongelada) : getDefaultAgendamentoDate());
       
       const faixa = initialData.faixaHorario || "11:00-11:30";
       const [inicio, fim] = faixa.includes("-") ? faixa.split("-") : [faixa, "11:30"];
@@ -402,7 +404,7 @@ export function NovoAgendamentoNovoLayout({
   // Estimativa de taxa de entrega
   useEffect(() => {
     async function updateTaxa() {
-      if (tipo === "RETIRADA" || !clienteId) {
+      if (tipo !== "ENTREGA" || !clienteId) {
         setValorTaxa(0);
         return;
       }
@@ -583,6 +585,7 @@ export function NovoAgendamentoNovoLayout({
     setClienteId("");
     setTipo("ENTREGA");
     setData(getDefaultAgendamentoDate());
+    setDataEntregaCongelada(getDefaultAgendamentoDate());
     setHorario({ inicio: "11:00", fim: "11:30" });
     setEndereco("");
     setObservacoesPedido("");
@@ -1050,6 +1053,7 @@ export function NovoAgendamentoNovoLayout({
   async function handleSubmit() {
     if (!clienteId) return;
     if (!data) return;
+    if (tipo === "CONGELAR" && !dataEntregaCongelada) return;
     if (tipo === "ENTREGA" && !endereco.trim()) return;
     if (itens.length === 0) return;
 
@@ -1077,8 +1081,11 @@ export function NovoAgendamentoNovoLayout({
       clienteId,
       tipo,
       data: data instanceof Date ? data.toISOString() : data,
+      dataEntregaCongelada: tipo === "CONGELAR" && dataEntregaCongelada
+        ? (dataEntregaCongelada instanceof Date ? dataEntregaCongelada.toISOString() : dataEntregaCongelada)
+        : null,
       faixaHorario: `${horario.inicio}-${horario.fim}`,
-      endereco: tipo === "RETIRADA" ? "RETIRADA" : endereco,
+      endereco: tipo === "ENTREGA" ? endereco : tipo,
       observacoes: observacoesPedido,
       formaPagamento: formaPagamento,
       voucherCodigo: isVoucherForma(formaPagamento) ? voucherCodigo.trim() : undefined,
@@ -1463,12 +1470,13 @@ export function NovoAgendamentoNovoLayout({
                       <SelectContent>
                         <SelectItem value="ENTREGA">Entrega</SelectItem>
                         <SelectItem value="RETIRADA">Retirada</SelectItem>
+                        <SelectItem value="CONGELAR">Congelar</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
 
                   <div className="space-y-2">
-                    <Label>Data</Label>
+                    <Label>{tipo === "CONGELAR" ? "Data de produção" : "Data"}</Label>
                     <div className="rounded-md border p-2">
                       <Calendar
                         mode="single"
@@ -1478,6 +1486,20 @@ export function NovoAgendamentoNovoLayout({
                       />
                     </div>
                   </div>
+
+                  {tipo === "CONGELAR" && (
+                    <div className="space-y-2">
+                      <Label>Data de entrega da congelada</Label>
+                      <div className="rounded-md border p-2">
+                        <Calendar
+                          mode="single"
+                          selected={dataEntregaCongelada}
+                          onSelect={setDataEntregaCongelada}
+                          locale={ptBR}
+                        />
+                      </div>
+                    </div>
+                  )}
 
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-2">
@@ -1531,6 +1553,10 @@ export function NovoAgendamentoNovoLayout({
                         onChange={(e) => setEndereco(e.target.value)}
                         placeholder="Digite o endereço da entrega"
                       />
+                    </div>
+                  ) : tipo === "CONGELAR" ? (
+                    <div className="rounded-lg border p-3 text-sm text-muted-foreground">
+                      Pedido marcado para congelar. A entrega da congelada usa a data selecionada acima.
                     </div>
                   ) : (
                     <div className="rounded-lg border p-3 text-sm text-muted-foreground">
