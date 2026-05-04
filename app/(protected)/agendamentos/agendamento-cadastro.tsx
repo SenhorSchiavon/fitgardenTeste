@@ -224,6 +224,21 @@ function getDefaultAgendamentoDate() {
   return tomorrow;
 }
 
+function toISODateOnlyLocal(date?: Date | null) {
+  if (!date) return "";
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function formatDateBR(date?: Date | string | null) {
+  if (!date) return "-";
+  const d = typeof date === "string" ? new Date(date) : date;
+  if (Number.isNaN(d.getTime())) return "-";
+  return d.toLocaleDateString("pt-BR");
+}
+
 export function NovoAgendamentoNovoLayout({
   open,
   onOpenChange,
@@ -239,9 +254,11 @@ export function NovoAgendamentoNovoLayout({
   initialData,
 }: Props) {
   const { regras } = useRegrasPersonalizadas();
-  const { estimarTaxaEntrega } = useAgendamentos();
+  const { estimarTaxaEntrega, getAgendamentos } = useAgendamentos();
   const { listPlanos, vincularPlano, saving: savingPlano } = usePlanosCliente();
   const [valorTaxa, setValorTaxa] = useState(0);
+  const [agendamentoDuplicado, setAgendamentoDuplicado] = useState<any | null>(null);
+  const [checandoDuplicidade, setChecandoDuplicidade] = useState(false);
   const [incluirTaxaEntrega, setIncluirTaxaEntrega] = useState(true);
   const [clienteId, setClienteId] = useState("");
   const [comboboxOpen, setComboboxOpen] = useState(false);
@@ -403,23 +420,72 @@ export function NovoAgendamentoNovoLayout({
 
   // Estimativa de taxa de entrega
   useEffect(() => {
+    let ativo = true;
+
     async function updateTaxa() {
-      if (tipo !== "ENTREGA" || !clienteId) {
+      if (tipo !== "ENTREGA" || !clienteId || !endereco.trim()) {
         setValorTaxa(0);
         return;
       }
+
       try {
         const res = await estimarTaxaEntrega({ clienteId: Number(clienteId) });
+        if (!ativo) return;
         if (res && typeof res.valorTaxa === "number") {
           setValorTaxa(res.valorTaxa);
         }
-      } catch (e) {
+      } catch (e: any) {
+        if (!ativo) return;
         console.error("Erro ao estimar taxa:", e);
         setValorTaxa(0);
       }
     }
+
     updateTaxa();
-  }, [clienteId, tipo, estimarTaxaEntrega]);
+    return () => {
+      ativo = false;
+    };
+  }, [clienteId, tipo, endereco, estimarTaxaEntrega]);
+
+  useEffect(() => {
+    let ativo = true;
+
+    async function verificarAgendamentoDuplicado() {
+      if (!open || !clienteId || !data || initialData) {
+        setAgendamentoDuplicado(null);
+        setChecandoDuplicidade(false);
+        return;
+      }
+
+      setChecandoDuplicidade(true);
+      try {
+        const dateISO = toISODateOnlyLocal(data);
+        const res = await getAgendamentos({
+          date: dateISO,
+          clienteId: Number(clienteId),
+          page: 1,
+          pageSize: 1,
+        });
+        if (!ativo) return;
+        const duplicado = res?.rows?.[0] || null;
+        setAgendamentoDuplicado(duplicado);
+        if (duplicado) {
+          toast.warning(`Cliente já possui agendamento para o dia ${formatDateBR(data)}`, {
+            description: "Para adicionar mais coisas, altere o pedido existente.",
+          });
+        }
+      } catch {
+        if (ativo) setAgendamentoDuplicado(null);
+      } finally {
+        if (ativo) setChecandoDuplicidade(false);
+      }
+    }
+
+    verificarAgendamentoDuplicado();
+    return () => {
+      ativo = false;
+    };
+  }, [open, clienteId, data, initialData, getAgendamentos]);
 
   const totalMarmitas = useMemo(
     () => itens.filter((item) => item.tipoItem !== "SALGADO").reduce((acc, item) => acc + Number(item.quantidade || 0), 0),
@@ -1013,6 +1079,12 @@ export function NovoAgendamentoNovoLayout({
   async function handleSubmit() {
     if (!clienteId) return;
     if (!data) return;
+    if (agendamentoDuplicado) {
+      toast.error(`Cliente já possui agendamento para o dia ${formatDateBR(data)}`, {
+        description: "Para adicionar mais coisas, alterar o pedido existente.",
+      });
+      return;
+    }
     if (tipo === "CONGELAR" && !dataEntregaCongelada) return;
     if (tipo === "ENTREGA" && !endereco.trim()) return;
     if (itens.length === 0) return;
@@ -1164,6 +1236,19 @@ export function NovoAgendamentoNovoLayout({
                       </PopoverContent>
                     </Popover>
                   </div>
+
+                  {checandoDuplicidade && clienteId && data && !initialData && (
+                    <div className="rounded-lg border border-dashed border-border/60 bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
+                      Verificando agendamento do cliente para {formatDateBR(data)}...
+                    </div>
+                  )}
+
+                  {agendamentoDuplicado && !initialData && (
+                    <div className="rounded-lg border border-orange-200 bg-orange-50 px-3 py-2 text-xs text-orange-800">
+                      <div className="font-bold">Cliente já possui agendamento para {formatDateBR(data)}.</div>
+                      <div>Para adicionar mais coisas, altere o pedido existente.</div>
+                    </div>
+                  )}
 
                   <div className="rounded-lg border p-3 space-y-2 text-sm">
                     <div>
@@ -1602,6 +1687,7 @@ export function NovoAgendamentoNovoLayout({
                   <Button 
                     className="w-full h-14 text-lg font-bold bg-secondary hover:bg-secondary/90 text-white shadow-xl shadow-secondary/20 transition-all active:scale-[0.98]" 
                     onClick={handleSubmit}
+                    disabled={!!agendamentoDuplicado || checandoDuplicidade}
                   >
                     <Send className="h-5 w-5 mr-2" />
                     Finalizar Agendamento

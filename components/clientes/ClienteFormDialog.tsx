@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { MapPin, Tag, Trash, X } from "lucide-react";
 import { DialogClose } from "@radix-ui/react-dialog";
+import { apiFetch } from "@/hooks/api";
 import "leaflet/dist/leaflet.css";
 
 const MapContainer = dynamic(() => import("react-leaflet").then((m) => m.MapContainer), { ssr: false });
@@ -70,6 +71,38 @@ type Props = {
 
 function onlyDigits(v: string) {
   return (v || "").replace(/\D/g, "");
+}
+
+function currency(value: number) {
+  return Number(value || 0).toFixed(2).replace(".", ",");
+}
+
+function getApiUrl() {
+  const base = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3333";
+  return base.replace(/\/+$/, "");
+}
+
+async function estimarTaxaPorCoordenadas(latitude: number, longitude: number) {
+  const qs = new URLSearchParams({
+    clienteId: "0",
+    latitude: String(latitude),
+    longitude: String(longitude),
+  });
+
+  const res = await apiFetch(`${getApiUrl()}/agendamentos/estimar-taxa?${qs.toString()}`, {
+    method: "GET",
+    headers: { "Content-Type": "application/json" },
+  });
+  const data = await res.json().catch(() => null);
+
+  if (!res.ok) {
+    throw new Error(data?.message || "Não foi possível calcular a taxa de entrega.");
+  }
+
+  return {
+    distanciaKm: Number(data?.distanciaKm || 0),
+    valorTaxa: Number(data?.valorTaxa || 0),
+  };
 }
 
 async function buscarCepViaCep(cep: string) {
@@ -167,6 +200,9 @@ export function ClienteFormDialog({
 }: Props) {
   const [localizando, setLocalizando] = useState(false);
   const [buscandoCep, setBuscandoCep] = useState(false);
+  const [calculandoTaxa, setCalculandoTaxa] = useState(false);
+  const [taxaEntrega, setTaxaEntrega] = useState<{ distanciaKm: number; valorTaxa: number } | null>(null);
+  const [erroTaxaEntrega, setErroTaxaEntrega] = useState<string | null>(null);
   const [erroLocalizacao, setErroLocalizacao] = useState<string | null>(null);
   const [avisoCep, setAvisoCep] = useState<string | null>(null);
   const [novaTag, setNovaTag] = useState("");
@@ -192,6 +228,8 @@ export function ClienteFormDialog({
     if (!open) return;
 
     setErroLocalizacao(null);
+    setErroTaxaEntrega(null);
+    setTaxaEntrega(null);
     setAvisoCep(null);
     setNovaTag("");
 
@@ -212,6 +250,39 @@ export function ClienteFormDialog({
       tags: initialValue?.tags ?? [],
     }));
   }, [open, initialValue]);
+
+  useEffect(() => {
+    let alive = true;
+
+    async function run() {
+      if (!open || !coordsOk || form.latitude == null || form.longitude == null) {
+        setTaxaEntrega(null);
+        setErroTaxaEntrega(null);
+        setCalculandoTaxa(false);
+        return;
+      }
+
+      setCalculandoTaxa(true);
+      setErroTaxaEntrega(null);
+
+      try {
+        const taxa = await estimarTaxaPorCoordenadas(form.latitude, form.longitude);
+        if (!alive) return;
+        setTaxaEntrega(taxa);
+      } catch (e: any) {
+        if (!alive) return;
+        setTaxaEntrega(null);
+        setErroTaxaEntrega(e?.message || "Não foi possível calcular a taxa de entrega.");
+      } finally {
+        if (alive) setCalculandoTaxa(false);
+      }
+    }
+
+    run();
+    return () => {
+      alive = false;
+    };
+  }, [open, coordsOk, form.latitude, form.longitude]);
 
   const coordsOk = useMemo(() => {
     return (
@@ -249,6 +320,8 @@ export function ClienteFormDialog({
         latitude: null,
         longitude: null,
       }));
+      setTaxaEntrega(null);
+      setErroTaxaEntrega(null);
 
       if ("total" in data && data.total > 1) {
         setAvisoCep(`Encontrei ${data.total} CEPs possíveis e preenchi o mais compatível.`);
@@ -479,6 +552,26 @@ export function ClienteFormDialog({
             </div>
 
             {erroLocalizacao && <div className="text-sm text-red-600">{erroLocalizacao}</div>}
+
+            <div className="rounded-md border border-dashed border-emerald-200 bg-emerald-50/50 px-3 py-2 text-sm">
+              {calculandoTaxa ? (
+                <span className="font-medium text-emerald-800">Calculando taxa de entrega...</span>
+              ) : erroTaxaEntrega ? (
+                <span className="text-orange-700">{erroTaxaEntrega}</span>
+              ) : taxaEntrega ? (
+                <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                  <span className="font-medium text-emerald-900">
+                    Taxa de entrega estimada
+                    {taxaEntrega.distanciaKm > 0 ? ` (${taxaEntrega.distanciaKm.toFixed(2).replace(".", ",")} km)` : ""}
+                  </span>
+                  <span className="font-extrabold text-emerald-800">R$ {currency(taxaEntrega.valorTaxa)}</span>
+                </div>
+              ) : (
+                <span className="text-muted-foreground">
+                  Localize o endereço no mapa para calcular a taxa de entrega.
+                </span>
+              )}
+            </div>
 
             <div className="rounded-md border overflow-hidden">
               <div className="p-3 border-b text-sm text-muted-foreground">
