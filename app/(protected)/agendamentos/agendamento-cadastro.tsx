@@ -697,6 +697,15 @@ export function NovoAgendamentoNovoLayout({
     }));
   }
 
+  function resetFormItemMantendoPesagens() {
+    setFormItem((prev) => ({
+      ...prev,
+      id: "",
+      quantidade: 1,
+      observacaoItem: "",
+    }));
+  }
+
   const totalGramasPersonalizada = useMemo(() => {
     if (formItem.tipoItem !== "PERSONALIZADA") return 0;
 
@@ -906,7 +915,7 @@ export function NovoAgendamentoNovoLayout({
     ].filter(Boolean).join(" • ");
   }
 
-  function addPedidoNaLista(fechar = true) {
+  function addPedidoNaLista(fechar = true, options?: { manterPesagens?: boolean }) {
     if (fechar && formItem.tipoItem === "PADRAO" && !formItem.opcaoId) {
       setModalNovoPedidoOpen(false);
       resetFormItem();
@@ -961,7 +970,8 @@ export function NovoAgendamentoNovoLayout({
         setModalNovoPedidoOpen(false);
         resetFormItem();
       } else {
-        resetFormItemPartial();
+        if (options?.manterPesagens) resetFormItemMantendoPesagens();
+        else resetFormItemPartial();
         setFormItem((prev) => ({ ...prev, tipoItem: "SALGADO" }));
       }
       return;
@@ -1017,7 +1027,8 @@ export function NovoAgendamentoNovoLayout({
         setModalNovoPedidoOpen(false);
         resetFormItem();
       } else {
-        resetFormItemPartial();
+        if (options?.manterPesagens) resetFormItemMantendoPesagens();
+        else resetFormItemPartial();
       }
       return;
     }
@@ -1059,7 +1070,8 @@ export function NovoAgendamentoNovoLayout({
         setModalNovoPedidoOpen(false);
         resetFormItem();
       } else {
-        resetFormItemPartial();
+        if (options?.manterPesagens) resetFormItemMantendoPesagens();
+        else resetFormItemPartial();
       }
     }
   }
@@ -1926,7 +1938,7 @@ export function NovoAgendamentoNovoLayout({
                     <div className="font-medium text-lg">{clienteSelecionado?.nome || "Selecione um cliente antes"}</div>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 relative z-10">
+                  <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_170px] gap-4 relative z-10">
                     <div className="space-y-2">
                       <Label>Nome na Etiqueta / Subpedido</Label>
                       <Input
@@ -1980,7 +1992,7 @@ export function NovoAgendamentoNovoLayout({
                         <Label>Tamanho</Label>
                         <Select
                           value={formItem.tipoItem === "PERSONALIZADA" ? "__personalizado__" : formItem.tamanhoId}
-                          disabled={hasItensNoGrupoAtual && !formItem.id}
+                          disabled={hasItensNoGrupoAtual && !formItem.id && formItem.tipoItem !== "PERSONALIZADA"}
                           onValueChange={(v) => {
                             if (v === "__personalizado__") {
                               setFormItem((prev) => ({
@@ -2014,13 +2026,61 @@ export function NovoAgendamentoNovoLayout({
                             <SelectItem value="__personalizado__">Personalizado</SelectItem>
                           </SelectContent>
                         </Select>
-                        {hasItensNoGrupoAtual && !formItem.id && (
+                        {hasItensNoGrupoAtual && !formItem.id && formItem.tipoItem !== "PERSONALIZADA" && (
                           <p className="text-[10px] text-muted-foreground">
                             Tamanho travado para as marmitas deste subpedido.
                           </p>
                         )}
                       </div>
                     )}
+
+                    <div className="space-y-2">
+                      <Label>Quantidade</Label>
+                      <div className="grid grid-cols-[36px_minmax(0,1fr)_36px] gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          className="h-11 w-9"
+                          onClick={() =>
+                            setFormItem((prev) => ({
+                              ...prev,
+                              quantidade: Math.max(1, Number(prev.quantidade || 1) - 1),
+                            }))
+                          }
+                        >
+                          <Minus className="h-4 w-4" />
+                        </Button>
+
+                        <Input
+                          type="number"
+                          min={1}
+                          className="h-11 text-center"
+                          value={formItem.quantidade}
+                          onChange={(e) =>
+                            setFormItem((prev) => ({
+                              ...prev,
+                              quantidade: Math.max(1, Number(e.target.value || 1)),
+                            }))
+                          }
+                        />
+
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          className="h-11 w-9"
+                          onClick={() =>
+                            setFormItem((prev) => ({
+                              ...prev,
+                              quantidade: Number(prev.quantidade || 1) + 1,
+                            }))
+                          }
+                        >
+                          <Plus className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
                   </div>
                   
                   {(() => {
@@ -2382,66 +2442,18 @@ export function NovoAgendamentoNovoLayout({
                   </div>
                 )}
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Quantidade</Label>
-                    <div className="flex items-center gap-2">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="icon"
-                        onClick={() =>
-                          setFormItem((prev) => ({
-                            ...prev,
-                            quantidade: Math.max(1, Number(prev.quantidade || 1) - 1),
-                          }))
-                        }
-                      >
-                        <Minus className="h-4 w-4" />
-                      </Button>
-
-                      <Input
-                        type="number"
-                        min={1}
-                        className="text-center"
-                        value={formItem.quantidade}
-                        onChange={(e) =>
-                          setFormItem((prev) => ({
-                            ...prev,
-                            quantidade: Math.max(1, Number(e.target.value || 1)),
-                          }))
-                        }
-                      />
-
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="icon"
-                        onClick={() =>
-                          setFormItem((prev) => ({
-                            ...prev,
-                            quantidade: Number(prev.quantidade || 1) + 1,
-                          }))
-                        }
-                      >
-                        <Plus className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label>Observação para a cozinha</Label>
-                    <Textarea
-                      value={formItem.observacaoItem}
-                      onChange={(e) =>
-                        setFormItem((prev) => ({
-                          ...prev,
-                          observacaoItem: e.target.value,
-                        }))
-                      }
-                      placeholder="Ex.: sem cebola, carne mais passada, separar talher..."
-                    />
-                  </div>
+                <div className="space-y-2">
+                  <Label>Observação para a cozinha</Label>
+                  <Textarea
+                    value={formItem.observacaoItem}
+                    onChange={(e) =>
+                      setFormItem((prev) => ({
+                        ...prev,
+                        observacaoItem: e.target.value,
+                      }))
+                    }
+                    placeholder="Ex.: sem cebola, carne mais passada, separar talher..."
+                  />
                 </div>
               </div>
 
@@ -2530,6 +2542,26 @@ export function NovoAgendamentoNovoLayout({
             >
               Cancelar
             </Button>
+            {formItem.tipoItem === "PERSONALIZADA" && !formItem.id && (
+              <>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => addPedidoNaLista(false, { manterPesagens: true })}
+                  className="rounded-xl"
+                >
+                  Adicionar e manter pesagens
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => addPedidoNaLista(false)}
+                  className="rounded-xl"
+                >
+                  Adicionar e novas pesagens
+                </Button>
+              </>
+            )}
             <Button type="button" onClick={() => addPedidoNaLista(true)} className="rounded-xl shadow-lg">
               Salvar
             </Button>
