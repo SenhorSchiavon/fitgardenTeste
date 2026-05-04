@@ -457,6 +457,7 @@ export function NovoAgendamentoNovoLayout({
         return;
       }
 
+      setAgendamentoDuplicado(null);
       setChecandoDuplicidade(true);
       try {
         const dateISO = toISODateOnlyLocal(data);
@@ -757,6 +758,18 @@ export function NovoAgendamentoNovoLayout({
     if (!clienteId) {
       toast.error("Cliente não selecionado", {
         description: "Selecione um cliente antes de adicionar um pedido.",
+      });
+      return;
+    }
+    if (checandoDuplicidade) {
+      toast.info("Verificando agendamento do cliente", {
+        description: "Aguarde a checagem do dia escolhido antes de adicionar pedidos.",
+      });
+      return;
+    }
+    if (agendamentoDuplicado && !initialData) {
+      toast.warning(`Cliente já possui agendamento para o dia ${formatDateBR(data)}`, {
+        description: "Para adicionar mais coisas, alterar o pedido existente.",
       });
       return;
     }
@@ -1363,7 +1376,10 @@ export function NovoAgendamentoNovoLayout({
                     </p>
                   </div>
 
-                  <Button onClick={abrirNovoPedido}>
+                  <Button
+                    onClick={abrirNovoPedido}
+                    disabled={!clienteId || checandoDuplicidade || (!!agendamentoDuplicado && !initialData)}
+                  >
                     <Plus className="h-4 w-4 mr-2" />
                     Novo pedido
                   </Button>
