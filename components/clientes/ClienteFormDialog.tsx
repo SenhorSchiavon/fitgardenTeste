@@ -223,6 +223,15 @@ export function ClienteFormDialog({
     tags: [],
   });
 
+  const coordsOk = useMemo(() => {
+    return (
+      typeof form.latitude === "number" &&
+      !Number.isNaN(form.latitude) &&
+      typeof form.longitude === "number" &&
+      !Number.isNaN(form.longitude)
+    );
+  }, [form.latitude, form.longitude]);
+
   // sempre que abrir com initialValue, preenche
   useEffect(() => {
     if (!open) return;
@@ -283,15 +292,6 @@ export function ClienteFormDialog({
       alive = false;
     };
   }, [open, coordsOk, form.latitude, form.longitude]);
-
-  const coordsOk = useMemo(() => {
-    return (
-      typeof form.latitude === "number" &&
-      !Number.isNaN(form.latitude) &&
-      typeof form.longitude === "number" &&
-      !Number.isNaN(form.longitude)
-    );
-  }, [form.latitude, form.longitude]);
 
   const montarEnderecoCompletoParaGeocode = () => {
     const ruaNum = [form.logradouro, form.numero].filter(Boolean).join(", ");
