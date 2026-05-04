@@ -28,10 +28,17 @@ export type EnderecoCliente = {
 export type PlanoCliente = {
   id: number;
   clienteId: number;
-  tamanhoId: number;
+  tamanhoId?: number;
+  planoId?: number;
   saldoUnidades: number;
   saldoEntregas: number;
   tamanho?: { id: number; pesagemGramas: number };
+  plano?: {
+    id: number;
+    nome?: string | null;
+    unidades?: number | null;
+    tamanho?: { id: number; pesagemGramas: number } | null;
+  } | null;
   createdAt?: string;
   updatedAt?: string;
 };

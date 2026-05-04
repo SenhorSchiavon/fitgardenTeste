@@ -1,30 +1,13 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { History, Pencil, Plus, Trash } from "lucide-react";
+
+import { Header } from "@/components/header";
+import { ClienteFormDialog } from "@/components/clientes/ClienteFormDialog";
+import { ClienteHistoricoDialog } from "@/components/clientes/ClienteHistoricoDialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { Plus, Pencil, Trash, Package, ChevronDown } from "lucide-react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Header } from "@/components/header";
-import { useTableSort } from "@/hooks/useTableSort";
-import { SortableHead } from "@/components/ui/sorttable";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -37,27 +20,16 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
-import { ClienteHistoricoDialog } from "@/components/clientes/ClienteHistoricoDialog";
-import { History } from "lucide-react";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Separator } from "@/components/ui/separator";
-
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { SortableHead } from "@/components/ui/sorttable";
+import { useTableSort } from "@/hooks/useTableSort";
 import { Cliente, useClientes } from "@/hooks/useClientes";
-import { usePlanosCliente } from "@/hooks/usePlanosCliente";
-
-// >>> IMPORTA O MODAL REUTILIZÁVEL (ajusta o path conforme teu projeto)
-import { ClienteFormDialog } from "@/components/clientes/ClienteFormDialog";
-
-type PlanoCatalogo = {
-  id: number;
-  nome?: string | null;
-  unidades?: number | null;
-  tamanho?: { id: number; pesagemGramas: number } | null;
-};
 
 function principalEnderecoTexto(c: Cliente) {
   const e = c.enderecos?.find((x) => x.principal);
@@ -84,41 +56,13 @@ export default function Clientes() {
     deleteCliente,
   } = useClientes();
 
-  const {
-    listTamanhos, // [{id, pesagemGramas}]
-    listPlanos, // PlanoCatalogo[]
-    createPlano, // (payload: {nome?: string|null, tamanhoId: number, unidades: number}) => PlanoCatalogo
-    vincularPlano, // (clienteId: number, planoId: number) => any
-    desvincularPlano, // (clienteId: number, planoIdOrVinculoId: number) => any
-    saving: savingPlano,
-  } = usePlanosCliente();
-
-  const savingAll = saving || savingPlano;
-
-  // >>> estados do MODAL reutilizável (criar/editar)
   const [clienteDialogOpen, setClienteDialogOpen] = useState(false);
   const [editandoId, setEditandoId] = useState<number | null>(null);
   const [clienteInitial, setClienteInitial] = useState<any>(null);
 
-  // >>> histórico/planos (continua igual)
   const [historicoDialogOpen, setHistoricoDialogOpen] = useState(false);
   const [clienteSelecionado, setClienteSelecionado] = useState<Cliente | null>(null);
   const [abaHistorico, setAbaHistorico] = useState<"historico" | "planos">("historico");
-
-  const [tamanhos, setTamanhos] = useState<{ id: number; pesagemGramas: number }[]>([]);
-  const [planosCatalogo, setPlanosCatalogo] = useState<PlanoCatalogo[]>([]);
-
-  const [novoPlanoCatalogo, setNovoPlanoCatalogo] = useState<{
-    nome: string;
-    tamanhoId: string;
-    unidades: number;
-  }>({
-    nome: "",
-    tamanhoId: "",
-    unidades: 10,
-  });
-
-  const [vinculoPlanoId, setVinculoPlanoId] = useState<string>("");
   const [excluindoId, setExcluindoId] = useState<number | null>(null);
 
   const handleNew = () => {
@@ -154,24 +98,13 @@ export default function Clientes() {
     setClienteDialogOpen(true);
   };
 
-  const handleShowHistory = async (
+  const handleShowHistory = (
     cliente: Cliente,
     aba: "historico" | "planos" = "historico",
   ) => {
     setClienteSelecionado(cliente);
-    setHistoricoDialogOpen(true);
     setAbaHistorico(aba);
-
-    if (aba === "planos") {
-      try {
-        const [t, planos] = await Promise.all([listTamanhos(), listPlanos()]);
-        setTamanhos(t || []);
-        setPlanosCatalogo(planos || []);
-      } catch {
-        setTamanhos([]);
-        setPlanosCatalogo([]);
-      }
-    }
+    setHistoricoDialogOpen(true);
   };
 
   type ClienteRow = {
@@ -185,11 +118,10 @@ export default function Clientes() {
   const rows: ClienteRow[] = useMemo(() => {
     return (filteredClientes || []).map((c) => {
       const endereco = principalEnderecoTexto(c) || "-";
-
       const plano = c.planos?.length
-        ? `${c.planos[0].tamanho?.pesagemGramas ?? ""}g (${Number(
-          c.planos[0].saldoUnidades || 0,
-        )} un.)`
+        ? `${c.planos[0].tamanho?.pesagemGramas ?? c.planos[0].plano?.tamanho?.pesagemGramas ?? ""}g (${Number(
+            c.planos[0].saldoUnidades || 0,
+          )} un.)`
         : "Sem plano";
 
       return {
@@ -207,36 +139,17 @@ export default function Clientes() {
     "nome" | "telefone" | "endereco" | "plano"
   >(rows, { initialKey: "nome", initialDirection: "asc" });
 
-  const planosSelecionado = useMemo(() => {
-    if (!clienteSelecionado) return [];
-    return (clienteSelecionado.planos || []).map((p: any) => ({
-      id: Number(p.id),
-      nome: p.nome || p.plano?.nome || "Plano",
-      tamanho: p.tamanho?.pesagemGramas
-        ? `${p.tamanho.pesagemGramas}g`
-        : p.plano?.tamanho?.pesagemGramas
-          ? `${p.plano.tamanho.pesagemGramas}g`
-          : "-",
-      unidades: Number(p.unidades ?? p.plano?.unidades ?? 0),
-    }));
-  }, [clienteSelecionado]);
-
-  const planosVinculaveis = useMemo(() => {
-    const vinculadosIds = new Set(planosSelecionado.map((p) => p.id));
-    return (planosCatalogo || []).filter((p) => !vinculadosIds.has(p.id));
-  }, [planosCatalogo, planosSelecionado]);
-
   return (
     <div className="container mx-auto p-6">
       <Header
         title="Cadastro de Clientes"
-        subtitle="Gerencie os clientes e seus planos"
+        subtitle="Gerencie os clientes e seus históricos"
         searchValue={search}
         onSearchChange={setSearch}
       />
 
       <div className="flex items-center justify-end mb-6 gap-3">
-        <Button onClick={handleNew} disabled={savingAll}>
+        <Button onClick={handleNew} disabled={saving}>
           <Plus className="mr-2 h-4 w-4" /> Novo Cliente
         </Button>
       </div>
@@ -279,18 +192,17 @@ export default function Clientes() {
                           variant="ghost"
                           size="icon"
                           onClick={() => handleShowHistory(cliente, "historico")}
-                          disabled={savingAll}
+                          disabled={saving}
                           title="Histórico"
                         >
                           <History className="h-4 w-4" />
                         </Button>
 
-
                         <Button
                           variant="ghost"
                           size="icon"
                           onClick={() => handleEdit(cliente)}
-                          disabled={savingAll}
+                          disabled={saving}
                           title="Editar"
                         >
                           <Pencil className="h-4 w-4" />
@@ -301,7 +213,7 @@ export default function Clientes() {
                           onOpenChange={(open) => setExcluindoId(open ? cliente.id : null)}
                         >
                           <AlertDialogTrigger asChild>
-                            <Button variant="ghost" size="icon" disabled={savingAll} title="Excluir">
+                            <Button variant="ghost" size="icon" disabled={saving} title="Excluir">
                               <Trash className="h-4 w-4" />
                             </Button>
                           </AlertDialogTrigger>
@@ -316,9 +228,9 @@ export default function Clientes() {
                             </AlertDialogHeader>
 
                             <AlertDialogFooter>
-                              <AlertDialogCancel disabled={savingAll}>Cancelar</AlertDialogCancel>
+                              <AlertDialogCancel disabled={saving}>Cancelar</AlertDialogCancel>
                               <AlertDialogAction
-                                disabled={savingAll}
+                                disabled={saving}
                                 onClick={async () => {
                                   await deleteCliente(cliente.id);
                                   setExcluindoId(null);
@@ -361,20 +273,20 @@ export default function Clientes() {
         }}
         title={editandoId ? "Editar Cliente" : "Novo Cliente"}
         initialValue={clienteInitial}
-        saving={savingAll}
+        saving={saving}
         onSubmit={async (payload: any) => {
           if (editandoId) return updateCliente(editandoId, payload);
           return createCliente(payload);
         }}
       />
+
       <ClienteHistoricoDialog
         open={historicoDialogOpen}
         onOpenChange={setHistoricoDialogOpen}
         cliente={clienteSelecionado}
         defaultTab={abaHistorico}
-        saving={savingAll}
+        saving={saving}
       />
-   
     </div>
   );
 }

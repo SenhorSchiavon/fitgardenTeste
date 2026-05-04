@@ -90,6 +90,47 @@ async function buscarCepViaCep(cep: string) {
   };
 }
 
+async function buscarCepPorEnderecoViaCep(input: {
+  uf?: string;
+  cidade?: string;
+  logradouro?: string;
+  bairro?: string;
+}) {
+  const uf = String(input.uf || "").trim().toUpperCase();
+  const cidade = String(input.cidade || "").trim();
+  const logradouro = String(input.logradouro || "").trim();
+  const bairro = String(input.bairro || "").trim().toLowerCase();
+
+  if (uf.length !== 2) throw new Error("Informe a UF com 2 letras.");
+  if (cidade.length < 3) throw new Error("Informe a cidade.");
+  if (logradouro.length < 3) throw new Error("Informe a rua com pelo menos 3 letras.");
+
+  const url = `https://viacep.com.br/ws/${encodeURIComponent(uf)}/${encodeURIComponent(cidade)}/${encodeURIComponent(logradouro)}/json/`;
+  const res = await fetch(url, { cache: "no-store" });
+  if (!res.ok) throw new Error("Erro ao consultar ViaCEP.");
+
+  const data = await res.json();
+  if (!Array.isArray(data) || data.length === 0) {
+    throw new Error("Nenhum CEP encontrado para esse endereço.");
+  }
+
+  const matchBairro =
+    bairro
+      ? data.find((item: any) => String(item.bairro || "").trim().toLowerCase() === bairro) ||
+        data.find((item: any) => String(item.bairro || "").trim().toLowerCase().includes(bairro))
+      : null;
+  const item = matchBairro || data[0];
+
+  return {
+    cep: onlyDigits(item.cep || ""),
+    uf: item.uf as string,
+    cidade: item.localidade as string,
+    bairro: item.bairro as string,
+    logradouro: item.logradouro as string,
+    total: data.length,
+  };
+}
+
 async function geocodeNominatim(address: string) {
   const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&q=${encodeURIComponent(address)}`;
   const res = await fetch(url, { cache: "no-store", headers: { Accept: "application/json" } });
@@ -125,7 +166,9 @@ export function ClienteFormDialog({
   onCreated,
 }: Props) {
   const [localizando, setLocalizando] = useState(false);
+  const [buscandoCep, setBuscandoCep] = useState(false);
   const [erroLocalizacao, setErroLocalizacao] = useState<string | null>(null);
+  const [avisoCep, setAvisoCep] = useState<string | null>(null);
   const [novaTag, setNovaTag] = useState("");
 
   const [form, setForm] = useState<ClienteFormValue>({
@@ -149,6 +192,7 @@ export function ClienteFormDialog({
     if (!open) return;
 
     setErroLocalizacao(null);
+    setAvisoCep(null);
     setNovaTag("");
 
     setForm((prev) => ({
@@ -185,17 +229,35 @@ export function ClienteFormDialog({
   };
 
   const handleBuscarCep = async () => {
-    const data = await buscarCepViaCep(form.cep || "");
-    setForm((p) => ({
-      ...p,
-      cep: data.cep,
-      uf: data.uf || p.uf,
-      cidade: data.cidade || p.cidade,
-      bairro: data.bairro || p.bairro,
-      logradouro: data.logradouro || p.logradouro,
-      latitude: null,
-      longitude: null,
-    }));
+    setAvisoCep(null);
+    setErroLocalizacao(null);
+    setBuscandoCep(true);
+    try {
+      const cepClean = onlyDigits(form.cep || "");
+      const data =
+        cepClean.length === 8
+          ? await buscarCepViaCep(form.cep || "")
+          : await buscarCepPorEnderecoViaCep(form);
+
+      setForm((p) => ({
+        ...p,
+        cep: data.cep,
+        uf: data.uf || p.uf,
+        cidade: data.cidade || p.cidade,
+        bairro: data.bairro || p.bairro,
+        logradouro: data.logradouro || p.logradouro,
+        latitude: null,
+        longitude: null,
+      }));
+
+      if ("total" in data && data.total > 1) {
+        setAvisoCep(`Encontrei ${data.total} CEPs possíveis e preenchi o mais compatível.`);
+      }
+    } catch (e: any) {
+      setAvisoCep(e?.message || "Não foi possível buscar o CEP.");
+    } finally {
+      setBuscandoCep(false);
+    }
   };
 
   const handleLocalizarNoMapa = async () => {
@@ -330,8 +392,8 @@ export function ClienteFormDialog({
               </div>
 
               <div className="flex gap-2">
-                <Button type="button" variant="secondary" onClick={handleBuscarCep} disabled={saving}>
-                  Buscar CEP
+                <Button type="button" variant="secondary" onClick={handleBuscarCep} disabled={saving || buscandoCep}>
+                  {buscandoCep ? "Buscando..." : "Buscar CEP"}
                 </Button>
 
                 <Button
@@ -345,6 +407,12 @@ export function ClienteFormDialog({
                 </Button>
               </div>
             </div>
+
+            {avisoCep && (
+              <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                {avisoCep}
+              </div>
+            )}
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">

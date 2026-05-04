@@ -1,51 +1,37 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
+import { ChevronDown } from "lucide-react";
+
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
-import { Trash, ChevronDown } from "lucide-react";
 import {
     Collapsible,
     CollapsibleContent,
     CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from "@/components/ui/select";
-
-import { usePlanosCliente } from "@/hooks/usePlanosCliente";
 import { useClienteHistorico } from "@/hooks/useClienteHistorico";
 
 type Aba = "historico" | "planos";
 
-type PlanoCatalogo = {
-    id: number;
-    nome?: string | null;
-    unidades?: number | null;
-    tamanho?: { id: number; pesagemGramas: number } | null;
-};
-
 type ClienteMin = {
     id: number | string;
     nome?: string | null;
-    telefone?: string | null;
-    planos?: any[];
 };
+
+function formatDate(value?: string | null) {
+    if (!value) return "-";
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return "-";
+    return date.toLocaleDateString("pt-BR");
+}
 
 export function ClienteHistoricoDialog({
     open,
     onOpenChange,
     cliente,
     defaultTab = "historico",
-    saving = false,
 }: {
     open: boolean;
     onOpenChange: (open: boolean) => void;
@@ -53,99 +39,23 @@ export function ClienteHistoricoDialog({
     defaultTab?: Aba;
     saving?: boolean;
 }) {
-    const {
-        listTamanhos,
-        listPlanos,
-        createPlano,
-        vincularPlano,
-        desvincularPlano,
-        saving: savingPlano,
-    } = usePlanosCliente();
-
-    const savingAll = saving || savingPlano;
-
     const [aba, setAba] = useState<Aba>(defaultTab);
-
-    const [tamanhos, setTamanhos] = useState<{ id: number; pesagemGramas: number }[]>([]);
-    const [planosCatalogo, setPlanosCatalogo] = useState<PlanoCatalogo[]>([]);
-    const [vinculoPlanoId, setVinculoPlanoId] = useState<string>("");
-    const [planoPago, setPlanoPago] = useState<boolean>(false);
-
-    const [novoPlanoCatalogo, setNovoPlanoCatalogo] = useState<{
-        nome: string;
-        tamanhoId: string;
-        unidades: number;
-    }>({
-        nome: "",
-        tamanhoId: "",
-        unidades: 10,
-    });
-    const [clientePlanos, setClientePlanos] = useState<any[]>([]);
     const { data, loading, error, getHistorico } = useClienteHistorico();
     const [page, setPage] = useState(1);
     const pageSize = 10;
 
     useEffect(() => {
-        if (open && cliente) {
-            setClientePlanos(cliente.planos || []);
-        }
-    }, [open, cliente]);
-
-    useEffect(() => {
-        if (!open) return;
-        if (aba !== "historico") return;
-        if (!cliente?.id) return;
-
-        getHistorico({ clienteId: cliente.id, page, pageSize });
-    }, [open, aba, cliente?.id, page, pageSize, getHistorico]);
-    useEffect(() => {
         if (!open) return;
         setAba(defaultTab);
+        setPage(1);
     }, [open, defaultTab]);
 
     useEffect(() => {
-        let alive = true;
+        if (!open || !cliente?.id) return;
+        getHistorico({ clienteId: cliente.id, page, pageSize });
+    }, [open, cliente?.id, page, pageSize, getHistorico]);
 
-        async function run() {
-            if (!open) return;
-            if (aba !== "planos") return;
-
-            try {
-                const [t, planos] = await Promise.all([listTamanhos(), listPlanos()]);
-                if (!alive) return;
-                setTamanhos(t || []);
-                setPlanosCatalogo(planos || []);
-            } catch {
-                if (!alive) return;
-                setTamanhos([]);
-                setPlanosCatalogo([]);
-            }
-        }
-
-        run();
-        return () => {
-            alive = false;
-        };
-    }, [open, aba, listTamanhos, listPlanos]);
-
-    const planosSelecionado = useMemo(() => {
-        const arr = Array.isArray(clientePlanos) ? clientePlanos : [];
-        return arr.map((p: any) => ({
-            id: Number(p.id),
-            nome: p.nome || p.plano?.nome || "Plano",
-            tamanho: p.tamanho?.pesagemGramas
-                ? `${p.tamanho.pesagemGramas}g`
-                : p.plano?.tamanho?.pesagemGramas
-                    ? `${p.plano.tamanho.pesagemGramas}g`
-                    : "-",
-            unidades: Number(p.unidades ?? p.plano?.unidades ?? 0),
-        }));
-    }, [clientePlanos]);
-
-    const planosVinculaveis = useMemo(() => {
-        const vinculadosIds = new Set(planosSelecionado.map((p) => p.id));
-        return (planosCatalogo || []).filter((p) => !vinculadosIds.has(p.id));
-    }, [planosCatalogo, planosSelecionado]);
+    const planos = data?.planos || [];
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
@@ -155,12 +65,12 @@ export function ClienteHistoricoDialog({
                         Histórico de Pedidos - {cliente?.nome || "(sem cliente)"}
                     </DialogTitle>
                 </DialogHeader>
-                <div className="flex-1 overflow-y-auto pr-2">
 
+                <div className="flex-1 overflow-y-auto pr-2">
                     <Tabs value={aba} onValueChange={(v) => setAba(v as Aba)}>
                         <TabsList className="grid w-full grid-cols-2">
                             <TabsTrigger value="historico">Histórico de Pedidos</TabsTrigger>
-                            <TabsTrigger value="planos">Planos</TabsTrigger>
+                            <TabsTrigger value="planos">Histórico de Planos</TabsTrigger>
                         </TabsList>
 
                         <TabsContent value="historico" className="py-4 space-y-3">
@@ -194,10 +104,11 @@ export function ClienteHistoricoDialog({
 
                                                 {r.agendamento?.data && (
                                                     <div>
-                                                        Agendamento: {String(r.agendamento.data)}{" "}
-                                                        {r.agendamento.faixaHorario ? `• ${r.agendamento.faixaHorario}` : ""}
+                                                        Agendamento: {formatDate(r.agendamento.data)}{" "}
+                                                        {r.agendamento.faixaHorario ? `- ${r.agendamento.faixaHorario}` : ""}
                                                     </div>
                                                 )}
+
                                                 {r.itens?.length > 0 && (
                                                     <div className="mt-2 border-t pt-2 space-y-1 text-xs">
                                                         {r.itens.map((item, idx) => (
@@ -215,239 +126,96 @@ export function ClienteHistoricoDialog({
                                     ))}
                                 </div>
                             )}
-                        </TabsContent>
 
-                        <TabsContent value="planos" className="py-4 space-y-4">
-                            <div className="rounded-md border p-4 space-y-3">
-                                <div className="flex items-center justify-between">
-                                    <div className="text-sm font-medium">Vincular plano</div>
-                                    <div className="text-xs text-muted-foreground">
-                                        Selecione um plano do catálogo e vincule ao cliente
-                                    </div>
-                                </div>
-
-                                <div className="grid grid-cols-4 gap-3 items-end">
-                                    <div className="space-y-1 col-span-2">
-                                        <Label>Plano</Label>
-                                        <Select
-                                            value={vinculoPlanoId}
-                                            onValueChange={(v) => setVinculoPlanoId(v)}
-                                            disabled={savingAll || !cliente}
-                                        >
-                                            <SelectTrigger>
-                                                <SelectValue placeholder="Selecione um plano..." />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                {planosVinculaveis.map((p) => {
-                                                    const g = p.tamanho?.pesagemGramas ? `${p.tamanho.pesagemGramas}g` : "-";
-                                                    const u = Number(p.unidades || 0);
-                                                    const nome = p.nome?.trim() ? p.nome.trim() : `Plano ${g} (${u} un.)`;
-                                                    return (
-                                                        <SelectItem key={p.id} value={String(p.id)}>
-                                                            {nome}
-                                                        </SelectItem>
-                                                    );
-                                                })}
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
-
-                                    <div className="space-y-2 flex flex-col justify-end pb-2">
-                                        <div className="flex items-center space-x-2">
-                                            <input
-                                                type="checkbox"
-                                                id="planoPago"
-                                                checked={planoPago}
-                                                onChange={(e) => setPlanoPago(e.target.checked)}
-                                                className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
-                                                disabled={savingAll || !cliente}
-                                            />
-                                            <Label htmlFor="planoPago" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                                                Plano já foi pago?
-                                            </Label>
-                                        </div>
-                                    </div>
-
+                            {data && data.total > pageSize && (
+                                <div className="flex items-center justify-between pt-2">
                                     <Button
-                                        className="w-full"
-                                        disabled={savingAll || !cliente || !vinculoPlanoId}
-                                        onClick={async () => {
-                                            try {
-                                                const vinc = await vincularPlano(Number(cliente.id), Number(vinculoPlanoId), planoPago);
-
-                                                const plano = planosCatalogo.find((p) => String(p.id) === String(vinculoPlanoId));
-                                                if (plano) {
-                                                    const novoVinculo = { ...vinc, plano };
-                                                    setClientePlanos(prev => [...prev, novoVinculo]);
-                                                    
-                                                    // Opcional: Atualiza o objeto cliente "em memória" para outras telas se necessário
-                                                    if (cliente && cliente.planos) {
-                                                        cliente!.planos.push(novoVinculo);
-                                                    }
-                                                }
-
-                                                setVinculoPlanoId("");
-                                                setPlanoPago(false);
-                                            } catch (err) {
-                                                // erro já tratado no hook com toast
-                                            }
-                                        }}
+                                        variant="outline"
+                                        size="sm"
+                                        disabled={page <= 1 || loading}
+                                        onClick={() => setPage((p) => Math.max(1, p - 1))}
                                     >
-                                        {savingAll ? "Vinculando..." : "Vincular"}
+                                        Anterior
+                                    </Button>
+                                    <span className="text-xs text-muted-foreground">
+                                        Página {page} de {Math.max(1, Math.ceil(data.total / pageSize))}
+                                    </span>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        disabled={page >= Math.ceil(data.total / pageSize) || loading}
+                                        onClick={() => setPage((p) => p + 1)}
+                                    >
+                                        Próxima
                                     </Button>
                                 </div>
-                            </div>
+                            )}
+                        </TabsContent>
 
-                            <Separator />
-
-                            <Collapsible defaultOpen={false}>
-                                <div className="rounded-md border p-4">
-                                    <div className="flex items-center justify-between">
-                                        <div className="text-sm font-medium">Criar novo plano</div>
-
-                                        <CollapsibleTrigger asChild>
-                                            <Button variant="ghost" size="sm" className="gap-2">
-                                                Abrir <ChevronDown className="h-4 w-4" />
-                                            </Button>
-                                        </CollapsibleTrigger>
-                                    </div>
-
-                                    <CollapsibleContent className="mt-4 space-y-3">
-                                        <div className="grid grid-cols-3 gap-3 items-end">
-                                            <div className="space-y-1">
-                                                <Label>Nome (opcional)</Label>
-                                                <Input
-                                                    value={novoPlanoCatalogo.nome}
-                                                    onChange={(e) =>
-                                                        setNovoPlanoCatalogo((p) => ({ ...p, nome: e.target.value }))
-                                                    }
-                                                    disabled={savingAll}
-                                                    placeholder="Ex: Plano 300g"
-                                                />
-                                            </div>
-
-                                            <div className="space-y-1">
-                                                <Label>Tamanho</Label>
-                                                <Select
-                                                    value={novoPlanoCatalogo.tamanhoId}
-                                                    onValueChange={(v) =>
-                                                        setNovoPlanoCatalogo((p) => ({ ...p, tamanhoId: v }))
-                                                    }
-                                                    disabled={savingAll}
-                                                >
-                                                    <SelectTrigger>
-                                                        <SelectValue placeholder="Selecione..." />
-                                                    </SelectTrigger>
-                                                    <SelectContent>
-                                                        {tamanhos.map((t) => (
-                                                            <SelectItem key={t.id} value={String(t.id)}>
-                                                                {t.pesagemGramas}g
-                                                            </SelectItem>
-                                                        ))}
-                                                    </SelectContent>
-                                                </Select>
-                                            </div>
-
-                                            <div className="space-y-1">
-                                                <Label>Qtd. unidades</Label>
-                                                <Input
-                                                    type="number"
-                                                    value={String(novoPlanoCatalogo.unidades)}
-                                                    onChange={(e) =>
-                                                        setNovoPlanoCatalogo((p) => ({
-                                                            ...p,
-                                                            unidades: Number(e.target.value || 0),
-                                                        }))
-                                                    }
-                                                    disabled={savingAll}
-                                                    min={0}
-                                                />
-                                            </div>
-                                        </div>
-
-                                        <div className="flex justify-end">
-                                            <Button
-                                                disabled={savingAll || !novoPlanoCatalogo.tamanhoId}
-                                                onClick={async () => {
-                                                    if (!novoPlanoCatalogo.tamanhoId) return;
-
-                                                    const created = await createPlano({
-                                                        nome: novoPlanoCatalogo.nome?.trim()
-                                                            ? novoPlanoCatalogo.nome.trim()
-                                                            : null,
-                                                        tamanhoId: Number(novoPlanoCatalogo.tamanhoId),
-                                                        unidades: Number(novoPlanoCatalogo.unidades || 0),
-                                                    });
-
-                                                    setPlanosCatalogo((prev) => [created, ...(prev || [])]);
-                                                    setNovoPlanoCatalogo({ nome: "", tamanhoId: "", unidades: 10 });
-                                                }}
-                                            >
-                                                {savingAll ? "Criando..." : "Criar plano"}
-                                            </Button>
-                                        </div>
-                                    </CollapsibleContent>
+                        <TabsContent value="planos" className="py-4 space-y-3">
+                            {!cliente ? (
+                                <div className="text-sm text-muted-foreground">Selecione um cliente.</div>
+                            ) : loading ? (
+                                <div className="text-sm text-muted-foreground">Carregando...</div>
+                            ) : error ? (
+                                <div className="text-sm text-red-600">{error}</div>
+                            ) : planos.length === 0 ? (
+                                <div className="rounded-md border p-6 text-sm text-muted-foreground text-center">
+                                    Nenhum plano encontrado para este cliente.
                                 </div>
-                            </Collapsible>
+                            ) : (
+                                <div className="space-y-3">
+                                    {planos.map((plano) => {
+                                        const pesagem = plano.pesagemGramas != null ? `${plano.pesagemGramas}g` : "-";
 
-                            <div className="rounded-md border">
-                                <div className="px-4 py-3 border-b flex items-center justify-between">
-                                    <div className="text-sm font-medium">Planos vinculados</div>
-                                    <div className="text-xs text-muted-foreground">
-                                        {planosSelecionado.length} plano(s)
-                                    </div>
-                                </div>
-
-                                <div className="p-4">
-                                    {planosSelecionado.length === 0 ? (
-                                        <div className="text-sm text-muted-foreground text-center py-6">
-                                            Nenhum plano vinculado
-                                        </div>
-                                    ) : (
-                                        <div className="space-y-2">
-                                            {planosSelecionado.map((plano: any) => (
-                                                <div
-                                                    key={plano.id}
-                                                    className="flex items-center justify-between rounded-md border px-3 py-2"
-                                                >
-                                                    <div className="min-w-0">
-                                                        <div className="text-sm font-medium truncate">{plano.nome}</div>
-                                                        <div className="text-xs text-muted-foreground">
-                                                            {plano.tamanho} • {plano.unidades} un.
+                                        return (
+                                            <Collapsible key={plano.id}>
+                                                <div className="rounded-md border p-4">
+                                                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                                                        <div className="min-w-0 space-y-1">
+                                                            <div className="text-sm font-medium">
+                                                                Plano: {plano.quantidade}x{pesagem}
+                                                            </div>
+                                                            <div className="text-xs text-muted-foreground">
+                                                                Adquirido em: {formatDate(plano.adquiridoEm)}
+                                                            </div>
+                                                            <div className="text-xs text-muted-foreground">
+                                                                Saldo atual: {plano.saldoUnidades} unidades
+                                                            </div>
                                                         </div>
+
+                                                        <CollapsibleTrigger asChild>
+                                                            <Button variant="outline" size="sm" className="gap-2">
+                                                                Ver usos
+                                                                <ChevronDown className="h-4 w-4" />
+                                                            </Button>
+                                                        </CollapsibleTrigger>
                                                     </div>
 
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="icon"
-                                                        disabled={savingAll || !cliente}
-                                                                        onClick={async () => {
-                                                            try {
-                                                                await desvincularPlano(Number(cliente.id), Number(plano.id));
-
-                                                                setClientePlanos(prev => prev.filter(
-                                                                    (p: any) => Number(p.id) !== Number(plano.id),
-                                                                ));
-
-                                                                if (cliente && cliente.planos) {
-                                                                    cliente!.planos = cliente!.planos.filter(
-                                                                        (p: any) => Number(p.id) !== Number(plano.id),
-                                                                    );
-                                                                }
-                                                            } catch (err) {
-                                                                // erro já tratado no hook
-                                                            }
-                                                        }}
-                                                        title="Remover vínculo"
-                                                    >
-                                                        <Trash className="h-4 w-4" />
-                                                    </Button>
+                                                    <CollapsibleContent className="mt-4 border-t pt-3">
+                                                        {plano.usos.length === 0 ? (
+                                                            <div className="text-sm text-muted-foreground">
+                                                                Nenhuma unidade utilizada ainda.
+                                                            </div>
+                                                        ) : (
+                                                            <div className="space-y-2">
+                                                                {plano.usos.map((uso) => (
+                                                                    <div
+                                                                        key={uso.id}
+                                                                        className="rounded-md bg-muted/50 px-3 py-2 text-sm text-muted-foreground"
+                                                                    >
+                                                                        Utilizado {uso.unidades} unidades - {formatDate(uso.data)}
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        )}
+                                                    </CollapsibleContent>
                                                 </div>
-                                            ))}
-                                        </div>
-                                    )}
+                                            </Collapsible>
+                                        );
+                                    })}
                                 </div>
-                            </div>
+                            )}
                         </TabsContent>
                     </Tabs>
                 </div>

@@ -29,11 +29,29 @@ export type ClienteHistoricoRow = {
     } | null;
 };
 
+export type ClientePlanoHistoricoUso = {
+    id: number;
+    unidades: number;
+    data: string | null;
+    pedidoId: number | null;
+    agendamentoId: number | null;
+};
+
+export type ClientePlanoHistorico = {
+    id: number;
+    quantidade: number;
+    pesagemGramas: number | null;
+    adquiridoEm: string | null;
+    saldoUnidades: number;
+    usos: ClientePlanoHistoricoUso[];
+};
+
 export type ClienteHistoricoResponse = {
     page: number;
     pageSize: number;
     total: number;
     rows: ClienteHistoricoRow[];
+    planos: ClientePlanoHistorico[];
 };
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3333";
