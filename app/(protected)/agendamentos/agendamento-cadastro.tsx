@@ -465,21 +465,12 @@ export function NovoAgendamentoNovoLayout({
     }, 0);
   }
 
-  function getUsoPlanoPorTamanho(tamanhoId?: string, ignoreItemId?: string) {
-    if (!tamanhoId) return 0;
-    return itens.reduce((acc, item) => {
-      if (!item.usarPlano || String(item.tamanhoId) !== String(tamanhoId) || item.id === ignoreItemId) {
-        return acc;
-      }
-      return acc + Number(item.quantidade || 0);
-    }, 0);
-  }
-
   function canUsePlanoForItem(item: NovoPedidoItem) {
     if (!item.usarPlano || item.tipoItem === "SALGADO") return true;
-    const saldo = getSaldoPlanoPorTamanho(item.tamanhoId);
-    const usoSemItemAtual = getUsoPlanoPorTamanho(item.tamanhoId, item.id);
-    return usoSemItemAtual + Number(item.quantidade || 0) <= saldo;
+    return (clienteSelecionado?.planos || []).some((plano: any) => {
+      const planoTamanhoId = String(plano.plano?.tamanhoId ?? plano.tamanhoId ?? "");
+      return planoTamanhoId === String(item.tamanhoId || "");
+    });
   }
 
   const itensComPrecoBruto = useMemo(() => {
@@ -512,41 +503,10 @@ export function NovoAgendamentoNovoLayout({
   }, [itens, tamanhos, totalMarmitas, totalSalgados, regras]);
 
   const itensComPrecoFinal = useMemo(() => {
-    // Para cada item com plano, desconta só as unidades dentro do saldo
-    // O excedente paga o preço normal
-    const saldoRestante: Record<string, number> = {};
-    if (clienteSelecionado?.planos) {
-      for (const p of clienteSelecionado.planos) {
-        const tId = String(p.plano?.tamanhoId ?? p.tamanhoId ?? "");
-        saldoRestante[tId] = (saldoRestante[tId] || 0) + (p.saldoUnidades || 0);
-      }
-    }
-
-    const saldoUsado: Record<string, number> = {};
-
     return itensComPrecoBruto.map((item) => {
       if (!item.usarPlano) return item;
-
-      const tId = String(item.tamanhoId);
-      const saldoDisponivel = (saldoRestante[tId] || 0) - (saldoUsado[tId] || 0);
-      const qtd = Number(item.quantidade || 1);
-      const abatido = Math.min(qtd, Math.max(0, saldoDisponivel));
-      const excedente = qtd - abatido;
-
-      saldoUsado[tId] = (saldoUsado[tId] || 0) + abatido;
-
-      if (abatido === qtd) {
-        // Tudo coberto pelo plano
-        return { ...item, precoUnit: 0 };
-      } else if (abatido === 0) {
-        // Nada coberto — cobra tudo no preço normal
-        return item;
-      } else {
-        // Parte coberta, parte excedente — preço médio ponderado
-        const precoNormal = Number(item.precoUnit || 0);
-        const precoMedio = (excedente * precoNormal) / qtd;
-        return { ...item, precoUnit: precoMedio };
-      }
+      if (!canUsePlanoForItem(item)) return item;
+      return { ...item, precoUnit: 0 };
     });
   }, [itensComPrecoBruto, clienteSelecionado]);
 
@@ -958,8 +918,8 @@ export function NovoAgendamentoNovoLayout({
       };
 
       if (!canUsePlanoForItem(novo)) {
-        toast.error("Saldo insuficiente", {
-          description: "O plano não tem saldo suficiente para adicionar mais marmitas deste tamanho.",
+        toast.error("Plano não encontrado", {
+          description: "O cliente não tem um plano compatível com este tamanho.",
         });
         return;
       }
@@ -1000,8 +960,8 @@ export function NovoAgendamentoNovoLayout({
       };
 
       if (!canUsePlanoForItem(novo)) {
-        toast.error("Saldo insuficiente", {
-          description: "O plano não tem saldo suficiente para adicionar mais marmitas deste tamanho.",
+        toast.error("Plano não encontrado", {
+          description: "O cliente não tem um plano compatível com este tamanho.",
         });
         return;
       }
@@ -1038,8 +998,8 @@ export function NovoAgendamentoNovoLayout({
           quantidade: Math.max(1, Number(item.quantidade || 1) + delta),
         };
         if (delta > 0 && !canUsePlanoForItem(nextItem)) {
-          toast.error("Saldo insuficiente", {
-            description: "O plano não tem saldo suficiente para aumentar este pedido.",
+          toast.error("Plano não encontrado", {
+            description: "O cliente não tem um plano compatível com este tamanho.",
           });
           return item;
         }
@@ -1267,11 +1227,12 @@ export function NovoAgendamentoNovoLayout({
                                    });
                                    
                                    return Object.entries(porTamanho).map(([tId, qtdTotal]) => {
-                                      const plano = clienteSelecionado?.planos?.find((p: any) => Number(p.plano?.tamanhoId || p.tamanhoId) === Number(tId));
-                                      const saldo = plano?.saldoUnidades || 0;
+                                      const planosDoTamanho = (clienteSelecionado?.planos || []).filter((p: any) => Number(p.plano?.tamanhoId || p.tamanhoId) === Number(tId));
+                                      const plano = planosDoTamanho[0];
+                                      const saldo = planosDoTamanho.reduce((acc: number, p: any) => acc + Number(p.saldoUnidades || 0), 0);
                                       const peso = plano?.tamanho?.pesagemGramas || plano?.plano?.tamanho?.pesagemGramas;
                                       const abatido = Math.min(qtdTotal, saldo);
-                                      const extra = Math.max(0, qtdTotal - abatido);
+                                      const novoPlano = Math.max(0, qtdTotal - abatido);
                                       
                                       return (
                                          <div key={tId} className="border-b border-blue-100/50 last:border-0 pb-1 last:pb-0 mb-1">
@@ -1280,14 +1241,14 @@ export function NovoAgendamentoNovoLayout({
                                                <span className="text-muted-foreground">Abatido:</span>
                                                <span className="font-bold">{abatido} un.</span>
                                             </div>
-                                            {extra > 0 && (
+                                            {novoPlano > 0 && (
                                                <div className="text-xs flex justify-between text-orange-700">
-                                                  <span>Excedente:</span>
-                                                  <span className="font-bold">{extra} un.</span>
+                                                  <span>Novo plano não pago:</span>
+                                                  <span className="font-bold">{novoPlano} un.</span>
                                                </div>
                                             )}
-                                            {saldo <= 0 && (
-                                               <div className="text-[9px] text-red-500 italic mt-0.5">Sem saldo</div>
+                                            {novoPlano > 0 && (
+                                               <div className="text-[9px] text-orange-600 italic mt-0.5">Será renovado automaticamente</div>
                                             )}
                                          </div>
                                       );
@@ -1965,7 +1926,7 @@ export function NovoAgendamentoNovoLayout({
                     const tamanhoId = formItem.tamanhoId;
                     const temPlanoCompativel = clienteSelecionado?.planos?.some((p: any) => {
                       const pTamanhoId = p.plano?.tamanhoId ?? p.tamanhoId;
-                      return Number(pTamanhoId) === Number(tamanhoId) && p.saldoUnidades > 0;
+                      return Number(pTamanhoId) === Number(tamanhoId);
                     });
                     if (!temPlanoCompativel) return null;
                     return (
@@ -1982,8 +1943,8 @@ export function NovoAgendamentoNovoLayout({
                                const usarPlano = !!v;
                                const itemComPlano = { ...formItem, usarPlano };
                                if (usarPlano && !canUsePlanoForItem(itemComPlano)) {
-                                 toast.error("Saldo insuficiente", {
-                                   description: "O plano não tem saldo suficiente para este subpedido.",
+                                 toast.error("Plano não encontrado", {
+                                   description: "O cliente não tem um plano compatível com este tamanho.",
                                  });
                                  return;
                                }
