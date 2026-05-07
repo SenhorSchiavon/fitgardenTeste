@@ -63,6 +63,7 @@ import { useCardapios } from "@/hooks/useCardapios";
 import { toast } from "@/components/ui/use-toast";
 import { useRelatorioPreparosDia } from "@/hooks/useRelatorioPreparosDia";
 import { useRelatorioPedidosDia } from "@/hooks/useRelatorioPedidosDia";
+import { useRelatorioMontadoresRotas } from "@/hooks/useRelatorioMontadoresRotas";
 import { usePreparosSelecionaveis } from "@/hooks/usePreparosSelecionaveis";
 import { useSalgados } from "@/hooks/useSalgados";
 type Agendamento = {
@@ -190,6 +191,11 @@ export default function Agendamentos() {
     downloading: downloadingPedidos,
     error: errorPedidosDocx,
   } = useRelatorioPedidosDia();
+  const {
+    downloadXlsx: downloadMontadoresRotasXlsx,
+    downloading: downloadingMontadoresRotas,
+    error: errorMontadoresRotas,
+  } = useRelatorioMontadoresRotas();
   const { opcoes, loading: loadingOpcoes } = useOpcoesDoCardapio(
     cardapioAtivo?.id,
   );
@@ -648,6 +654,22 @@ export default function Agendamentos() {
                 <div className="flex flex-col">
                   <span className="font-medium text-sm">Relatório de Pedidos</span>
                   <span className="text-[10px] text-slate-500">Documento DOCX</span>
+                </div>
+              </DropdownMenuItem>
+
+              <DropdownMenuItem
+                className="rounded-lg cursor-pointer gap-2 py-2.5"
+                onClick={async () => {
+                  const dateISO = utils.toISODateOnly(selectedDate);
+                  const ok = await downloadMontadoresRotasXlsx({ data: dateISO });
+                  if (!ok) toast({ title: "Falha ao baixar XLSX", variant: "destructive" });
+                }}
+                disabled={downloadingMontadoresRotas}
+              >
+                <FileDown className="h-4 w-4 text-emerald-600" />
+                <div className="flex flex-col">
+                  <span className="font-medium text-sm">Montadores por Rota</span>
+                  <span className="text-[10px] text-slate-500">Planilha XLSX</span>
                 </div>
               </DropdownMenuItem>
 
