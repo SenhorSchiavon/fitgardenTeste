@@ -318,7 +318,7 @@ export default function CardapiosPage() {
           if (!open) resetForm();
         }}
       >
-        <DialogContent className="max-w-5xl">
+        <DialogContent className="max-w-5xl max-h-[92vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editandoId ? "Editar Cardápio" : "Novo Cardápio"}</DialogTitle>
           </DialogHeader>
