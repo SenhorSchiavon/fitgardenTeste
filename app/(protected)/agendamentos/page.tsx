@@ -171,6 +171,8 @@ export default function Agendamentos() {
     clientes,
     filteredClientes,
     loading: loadingClientes,
+    saving: savingClientes,
+    createCliente,
   } = useClientes();
   const { cardapios, loading: loadingCardapios } = useCardapios();
   const cardapioAtivo = cardapios.find((c) => c.ativo) ?? null;
@@ -1222,6 +1224,8 @@ export default function Agendamentos() {
           preco: Number(s.preco || 0),
         }))}
         initialData={dadosEdicao}
+        savingCliente={savingClientes}
+        onCreateCliente={createCliente}
         onSubmit={async (payload) => {
           if (modoEdicao && agendamentoEditandoId) {
             await updateAgendamento(agendamentoEditandoId, {

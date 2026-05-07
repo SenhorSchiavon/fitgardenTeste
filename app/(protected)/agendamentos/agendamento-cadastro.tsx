@@ -59,6 +59,7 @@ import { useRegrasPersonalizadas } from "@/hooks/useRegrasPersonalizadas";
 import { toast } from "sonner";
 import { useAgendamentos } from "@/hooks/useAgendamentos";
 import { PlanoCatalogo, usePlanosCliente } from "@/hooks/usePlanosCliente";
+import { ClienteFormDialog } from "@/components/clientes/ClienteFormDialog";
 
 type PedidoTipo = "ENTREGA" | "RETIRADA" | "CONGELAR";
 type FormaPagamento =
@@ -174,6 +175,8 @@ type Props = {
   salgados?: SalgadoOption[];
   initialData?: any;
   onSubmit?: (payload: any) => Promise<void> | void;
+  onCreateCliente?: (payload: any) => Promise<any> | any;
+  savingCliente?: boolean;
 };
 
 type HorarioIntervalo = {
@@ -275,6 +278,8 @@ export function NovoAgendamentoNovoLayout({
   feijoes = [],
   salgados = [],
   onSubmit,
+  onCreateCliente,
+  savingCliente = false,
   initialData,
 }: Props) {
   const { regras } = useRegrasPersonalizadas();
@@ -284,6 +289,7 @@ export function NovoAgendamentoNovoLayout({
   const [distanciaEntregaKm, setDistanciaEntregaKm] = useState<number | null>(null);
   const [avisoHorarioAutomatico, setAvisoHorarioAutomatico] = useState("");
   const [avisoPagamentoAutomatico, setAvisoPagamentoAutomatico] = useState("");
+  const [clienteDialogOpen, setClienteDialogOpen] = useState(false);
   const [agendamentoDuplicado, setAgendamentoDuplicado] = useState<any | null>(null);
   const [checandoDuplicidade, setChecandoDuplicidade] = useState(false);
   const [incluirTaxaEntrega, setIncluirTaxaEntrega] = useState(true);
@@ -1295,67 +1301,81 @@ export function NovoAgendamentoNovoLayout({
                 <CardContent className="space-y-4">
                   <div className="space-y-2 flex flex-col">
                     <Label>Cliente</Label>
-                    <Popover open={comboboxOpen} onOpenChange={setComboboxOpen}>
-                      <PopoverTrigger asChild>
-                        <Button
-                          variant="outline"
-                          role="combobox"
-                          aria-expanded={comboboxOpen}
-                          className="w-full justify-between"
-                        >
-                          <span className="truncate">
-                            {clienteId
-                              ? clientes.find((c) => c.id === clienteId)?.nome
-                              : "Selecione o cliente"}
-                          </span>
-                          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="p-0" style={{ width: 'var(--radix-popover-trigger-width)' }} align="start">
-                        <Command filter={(value, search) => {
-                          const query = search.toLowerCase();
-                          const client = clientes.find(c => c.id === value);
-                          if (!client) return 0;
-                          const name = client.nome.toLowerCase();
-                          const phone = client.telefone?.replace(/\D/g, '') || "";
-                          const rawPhoneSearch = query.replace(/\D/g, '');
-                          if (name.includes(query) || (rawPhoneSearch && phone.includes(rawPhoneSearch))) {
-                            return 1;
-                          }
-                          return 0;
-                        }}>
-                          <CommandInput placeholder="Pesquisar por nome ou telefone..." />
-                          <CommandEmpty>Nenhum cliente encontrado.</CommandEmpty>
-                          <CommandList>
-                            <CommandGroup>
-                              {clientes.map((cliente) => (
-                                <CommandItem
-                                  key={cliente.id}
-                                  value={cliente.id}
-                                  onSelect={(currentValue) => {
-                                    setClienteId(currentValue === clienteId ? "" : currentValue);
-                                    setComboboxOpen(false);
-                                  }}
-                                >
-                                  <Check
-                                    className={cn(
-                                      "mr-2 h-4 w-4 shrink-0",
-                                      clienteId === cliente.id ? "opacity-100" : "opacity-0"
-                                    )}
-                                  />
-                                  <div className="flex flex-col truncate">
-                                    <span className="truncate">{cliente.nome}</span>
-                                    {cliente.telefone && (
-                                      <span className="text-xs text-muted-foreground">{cliente.telefone}</span>
-                                    )}
-                                  </div>
-                                </CommandItem>
-                              ))}
-                            </CommandGroup>
-                          </CommandList>
-                        </Command>
-                      </PopoverContent>
-                    </Popover>
+                    <div className="grid grid-cols-[minmax(0,1fr)_40px] gap-2">
+                      <Popover open={comboboxOpen} onOpenChange={setComboboxOpen}>
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant="outline"
+                            role="combobox"
+                            aria-expanded={comboboxOpen}
+                            className="w-full justify-between"
+                          >
+                            <span className="truncate">
+                              {clienteId
+                                ? clientes.find((c) => c.id === clienteId)?.nome
+                                : "Selecione o cliente"}
+                            </span>
+                            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="p-0" style={{ width: 'var(--radix-popover-trigger-width)' }} align="start">
+                          <Command filter={(value, search) => {
+                            const query = search.toLowerCase();
+                            const client = clientes.find(c => c.id === value);
+                            if (!client) return 0;
+                            const name = client.nome.toLowerCase();
+                            const phone = client.telefone?.replace(/\D/g, '') || "";
+                            const rawPhoneSearch = query.replace(/\D/g, '');
+                            if (name.includes(query) || (rawPhoneSearch && phone.includes(rawPhoneSearch))) {
+                              return 1;
+                            }
+                            return 0;
+                          }}>
+                            <CommandInput placeholder="Pesquisar por nome ou telefone..." />
+                            <CommandEmpty>Nenhum cliente encontrado.</CommandEmpty>
+                            <CommandList>
+                              <CommandGroup>
+                                {clientes.map((cliente) => (
+                                  <CommandItem
+                                    key={cliente.id}
+                                    value={cliente.id}
+                                    onSelect={(currentValue) => {
+                                      setClienteId(currentValue === clienteId ? "" : currentValue);
+                                      setComboboxOpen(false);
+                                    }}
+                                  >
+                                    <Check
+                                      className={cn(
+                                        "mr-2 h-4 w-4 shrink-0",
+                                        clienteId === cliente.id ? "opacity-100" : "opacity-0"
+                                      )}
+                                    />
+                                    <div className="flex flex-col truncate">
+                                      <span className="truncate">{cliente.nome}</span>
+                                      {cliente.telefone && (
+                                        <span className="text-xs text-muted-foreground">{cliente.telefone}</span>
+                                      )}
+                                    </div>
+                                  </CommandItem>
+                                ))}
+                              </CommandGroup>
+                            </CommandList>
+                          </Command>
+                        </PopoverContent>
+                      </Popover>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        className="h-10 w-10"
+                        onClick={() => setClienteDialogOpen(true)}
+                        disabled={!onCreateCliente || savingCliente}
+                        title="Cadastrar cliente"
+                      >
+                        <Plus className="h-4 w-4" />
+                        <span className="sr-only">Cadastrar cliente</span>
+                      </Button>
+                    </div>
                   </div>
 
                   {checandoDuplicidade && clienteId && data && !initialData && (
@@ -2908,6 +2928,22 @@ export function NovoAgendamentoNovoLayout({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ClienteFormDialog
+        open={clienteDialogOpen}
+        onOpenChange={setClienteDialogOpen}
+        title="Novo Cliente"
+        saving={savingCliente}
+        onSubmit={async (payload) => {
+          if (!onCreateCliente) return null;
+          return onCreateCliente(payload);
+        }}
+        onCreated={(created) => {
+          if (created?.id) {
+            setClienteId(String(created.id));
+          }
+        }}
+      />
     </>
   );
 }
