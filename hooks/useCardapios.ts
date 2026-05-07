@@ -9,6 +9,15 @@ export type CardapioOpcao = {
   opcaoTipo?: "MARMITA" | "OUTROS";
   opcaoCategoriaId?: number | null;
   opcaoCategoria?: string | null;
+  componentes?: Array<{
+    opcaoPreparoId: number;
+    tipo: "CARBOIDRATO" | "PROTEINA" | "LEGUMES";
+    preparoId: number;
+    preparoNome?: string | null;
+    porcentagem: number;
+    montadorId?: number | null;
+    montadorNome?: string | null;
+  }>;
   ordem: number;
   ativo: boolean;
 };
@@ -25,6 +34,10 @@ type CardapioOpcaoInput = {
   opcaoId: number;
   ordem?: number;
   ativo?: boolean;
+  montadores?: Array<{
+    opcaoPreparoId: number;
+    montadorId?: number | null;
+  }>;
 };
 
 export type NovoCardapioInput = {

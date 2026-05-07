@@ -11,6 +11,13 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Header } from "@/components/header";
 import {
   AlertDialog,
@@ -25,6 +32,7 @@ import {
 
 import { useCardapios, Cardapio } from "@/hooks/useCardapios";
 import { useOpcoes, Opcao } from "@/hooks/useOpcoes";
+import { useMontadores } from "@/hooks/useMontadores";
 import { useTableSort } from "@/hooks/useTableSort";
 import { SortableHead } from "@/components/ui/sorttable";
 
@@ -33,6 +41,7 @@ type NovoCardapioForm = {
   nome: string;
   ativo: boolean;
   opcoesIds: number[];
+  montadores: Record<string, string>;
 };
 
 export default function CardapiosPage() {
@@ -48,6 +57,7 @@ export default function CardapiosPage() {
   } = useCardapios();
 
   const { opcoes, loading: loadingOpcoes } = useOpcoes();
+  const { montadores, isLoading: loadingMontadores } = useMontadores();
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
@@ -60,12 +70,13 @@ export default function CardapiosPage() {
     nome: "",
     ativo: false,
     opcoesIds: [],
+    montadores: {},
   });
 
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<{ id: number; nome: string } | null>(null);
 
-  const isLoading = loadingCardapios || loadingOpcoes;
+  const isLoading = loadingCardapios || loadingOpcoes || loadingMontadores;
   const handleToggleAtivo = async (cardapio: Cardapio) => {
     await setCardapioAtivo(cardapio.id, !cardapio.ativo);
     await fetchCardapios();
@@ -91,7 +102,7 @@ export default function CardapiosPage() {
   }, [opcoes]);
 
   const resetForm = () => {
-    setForm({ codigo: "", nome: "", ativo: false, opcoesIds: [] });
+    setForm({ codigo: "", nome: "", ativo: false, opcoesIds: [], montadores: {} });
     setEditandoId(null);
   };
 
@@ -101,11 +112,21 @@ export default function CardapiosPage() {
   };
 
   const handleEdit = (cardapio: Cardapio) => {
+    const montadoresForm: Record<string, string> = {};
+    for (const opcao of cardapio.opcoes || []) {
+      for (const componente of opcao.componentes || []) {
+        if (componente.montadorId) {
+          montadoresForm[`${opcao.opcaoId}:${componente.opcaoPreparoId}`] = String(componente.montadorId);
+        }
+      }
+    }
+
     setForm({
       codigo: cardapio.codigo,
       nome: cardapio.nome,
       ativo: cardapio.ativo,
       opcoesIds: (cardapio.opcoes || []).filter((x) => x.ativo).map((x) => x.opcaoId),
+      montadores: montadoresForm,
     });
     setEditandoId(cardapio.id);
     setDialogOpen(true);
@@ -119,6 +140,23 @@ export default function CardapiosPage() {
     });
   };
 
+  const handleChangeMontador = (opcaoId: number, opcaoPreparoId: number, value: string) => {
+    const key = `${opcaoId}:${opcaoPreparoId}`;
+    setForm((p) => {
+      const next = { ...p.montadores };
+      if (value === "none") delete next[key];
+      else next[key] = value;
+      return { ...p, montadores: next };
+    });
+  };
+
+  const labelComponente = (tipo: string) => {
+    if (tipo === "CARBOIDRATO") return "Carboidrato";
+    if (tipo === "PROTEINA") return "Proteína";
+    if (tipo === "LEGUMES") return "Legumes";
+    return tipo;
+  };
+
   const handlePreSave = () => {
     if (!form.codigo.trim()) return;
     if (!form.nome.trim()) return;
@@ -128,11 +166,22 @@ export default function CardapiosPage() {
   const handleConfirmSave = async () => {
     setConfirmDialogOpen(false);
 
-    const opcoesPayload = (form.opcoesIds || []).map((opcaoId, idx) => ({
-      opcaoId,
-      ordem: idx + 1,
-      ativo: true,
-    }));
+    const opcoesPayload = (form.opcoesIds || []).map((opcaoId, idx) => {
+      const opcao = opcoes.find((o) => o.id === opcaoId);
+      return {
+        opcaoId,
+        ordem: idx + 1,
+        ativo: true,
+        montadores: (opcao?.componentes || [])
+          .map((componente) => ({
+            opcaoPreparoId: componente.opcaoPreparoId,
+            montadorId: form.montadores[`${opcaoId}:${componente.opcaoPreparoId}`]
+              ? Number(form.montadores[`${opcaoId}:${componente.opcaoPreparoId}`])
+              : null,
+          }))
+          .filter((item) => item.montadorId != null),
+      };
+    });
 
     const payload = {
       codigo: form.codigo.trim(),
@@ -269,7 +318,7 @@ export default function CardapiosPage() {
           if (!open) resetForm();
         }}
       >
-        <DialogContent className="max-w-3xl">
+        <DialogContent className="max-w-5xl">
           <DialogHeader>
             <DialogTitle>{editandoId ? "Editar Cardápio" : "Novo Cardápio"}</DialogTitle>
           </DialogHeader>
@@ -303,7 +352,7 @@ export default function CardapiosPage() {
             <div className="space-y-2 border-t pt-4">
               <Label>Refeições (opções)</Label>
 
-              <ScrollArea className="h-72 rounded-md border">
+              <ScrollArea className="h-[460px] rounded-md border">
                 <div className="p-4">
                   {Object.entries(opcoesPorCategoria).map(([categoria, opcoesCategoria]) => (
                     <div key={categoria} className="mb-4">
@@ -312,17 +361,75 @@ export default function CardapiosPage() {
                       </h3>
 
                       <div className="space-y-2">
-                        {opcoesCategoria.map((opcao) => (
-                          <div key={opcao.id} className="flex items-center space-x-2">
-                            <Checkbox
-                              id={`opcao-${opcao.id}`}
-                              checked={(form.opcoesIds || []).includes(opcao.id)}
-                              onCheckedChange={() => handleToggleOpcao(opcao.id)}
-                              disabled={saving}
-                            />
-                            <Label htmlFor={`opcao-${opcao.id}`}>{opcao.nome}</Label>
-                          </div>
-                        ))}
+                        {opcoesCategoria.map((opcao) => {
+                          const selecionada = (form.opcoesIds || []).includes(opcao.id);
+
+                          return (
+                            <div key={opcao.id} className="rounded-md border border-transparent px-2 py-2 data-[selected=true]:border-emerald-100 data-[selected=true]:bg-emerald-50/40" data-selected={selecionada}>
+                              <div className="flex items-center space-x-2">
+                                <Checkbox
+                                  id={`opcao-${opcao.id}`}
+                                  checked={selecionada}
+                                  onCheckedChange={() => handleToggleOpcao(opcao.id)}
+                                  disabled={saving}
+                                />
+                                <Label htmlFor={`opcao-${opcao.id}`} className="font-medium">
+                                  {opcao.nome}
+                                </Label>
+                              </div>
+
+                              {selecionada && opcao.tipo === "MARMITA" && (
+                                <div className="ml-7 mt-3 space-y-2">
+                                  {(opcao.componentes || []).length === 0 ? (
+                                    <p className="text-xs text-muted-foreground">
+                                      Esta opção não possui componentes cadastrados.
+                                    </p>
+                                  ) : (
+                                    (opcao.componentes || []).map((componente) => {
+                                      const key = `${opcao.id}:${componente.opcaoPreparoId}`;
+
+                                      return (
+                                        <div
+                                          key={componente.opcaoPreparoId}
+                                          className="grid grid-cols-1 gap-2 rounded-md border bg-white px-3 py-2 md:grid-cols-[minmax(0,1fr)_220px] md:items-center"
+                                        >
+                                          <div className="min-w-0">
+                                            <p className="truncate text-sm font-semibold text-slate-800">
+                                              {componente.preparoNome || "-"}
+                                            </p>
+                                            <p className="text-xs text-muted-foreground">
+                                              {labelComponente(componente.tipo)} · {componente.porcentagem}%
+                                            </p>
+                                          </div>
+
+                                          <Select
+                                            value={form.montadores[key] || "none"}
+                                            onValueChange={(value) =>
+                                              handleChangeMontador(opcao.id, componente.opcaoPreparoId, value)
+                                            }
+                                            disabled={saving}
+                                          >
+                                            <SelectTrigger>
+                                              <SelectValue placeholder="Montador" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                              <SelectItem value="none">Sem montador</SelectItem>
+                                              {montadores.map((montador) => (
+                                                <SelectItem key={montador.id} value={String(montador.id)}>
+                                                  {montador.nome}
+                                                </SelectItem>
+                                              ))}
+                                            </SelectContent>
+                                          </Select>
+                                        </div>
+                                      );
+                                    })
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
                       </div>
 
                       <Separator className="my-2" />

@@ -6,6 +6,7 @@ export type OpcaoTipo = "MARMITA" | "OUTROS";
 export type ComponenteTipo = "CARBOIDRATO" | "PROTEINA" | "LEGUMES";
 
 export type OpcaoComponente = {
+  opcaoPreparoId: number;
   tipo: ComponenteTipo;
   preparoId: number;
   preparoNome?: string; // opcional (caso o backend devolva junto)
