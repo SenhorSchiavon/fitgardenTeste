@@ -21,6 +21,7 @@ import {
   Users,
   Utensils,
   Cookie,
+  UserCog,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -106,6 +107,7 @@ export function Sidebar({ className }: SidebarProps) {
                     { href: "/opcoes", label: "Opções", icon: ListChecks },
                     { href: "/cardapios", label: "Cardápios", icon: ClipboardList },
                     { href: "/salgados", label: "Salgados", icon: Cookie },
+                    { href: "/montadores", label: "Montadores", icon: UserCog },
                     { href: "/tamanhos-valores", label: "Tamanhos e Valores", icon: Settings },
                     { href: "/regras-personalizada", label: "Regra Personalizada", icon: Settings },
                   ].map((item) => (

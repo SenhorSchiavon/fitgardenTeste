@@ -27,6 +27,13 @@ function formatDate(value?: string | null) {
     return date.toLocaleDateString("pt-BR");
 }
 
+function moneyBr(value?: number | null) {
+    return Number(value || 0).toLocaleString("pt-BR", {
+        style: "currency",
+        currency: "BRL",
+    });
+}
+
 export function ClienteHistoricoDialog({
     open,
     onOpenChange,
@@ -182,6 +189,10 @@ export function ClienteHistoricoDialog({
                                                             <div className="text-xs text-muted-foreground">
                                                                 Saldo atual: {plano.saldoUnidades} unidades
                                                             </div>
+                                                            <div className="text-xs text-muted-foreground">
+                                                                Taxinhas de entrega: {plano.saldoEntregas} de {plano.taxasEntregaCompradas} restantes
+                                                                {plano.valorTaxaEntrega > 0 ? ` (${moneyBr(plano.valorTaxaEntrega)} cada)` : ""}
+                                                            </div>
                                                         </div>
 
                                                         <CollapsibleTrigger asChild>
@@ -209,6 +220,29 @@ export function ClienteHistoricoDialog({
                                                                 ))}
                                                             </div>
                                                         )}
+
+                                                        <div className="mt-4 border-t pt-3">
+                                                            <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                                                                Uso das taxinhas de entrega
+                                                            </div>
+                                                            {plano.usosEntregas.length === 0 ? (
+                                                                <div className="text-sm text-muted-foreground">
+                                                                    Nenhuma taxinha de entrega utilizada ainda.
+                                                                </div>
+                                                            ) : (
+                                                                <div className="space-y-2">
+                                                                    {plano.usosEntregas.map((uso) => (
+                                                                        <div
+                                                                            key={uso.id}
+                                                                            className="rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-800"
+                                                                        >
+                                                                            Utilizado {uso.entregas} taxa{uso.entregas === 1 ? "" : "s"} de entrega - {formatDate(uso.data)}
+                                                                            {uso.pedidoId ? ` - Pedido #${uso.pedidoId}` : ""}
+                                                                        </div>
+                                                                    ))}
+                                                                </div>
+                                                            )}
+                                                        </div>
                                                     </CollapsibleContent>
                                                 </div>
                                             </Collapsible>

@@ -9,6 +9,8 @@ export type OpcaoComponente = {
   tipo: ComponenteTipo;
   preparoId: number;
   preparoNome?: string; // opcional (caso o backend devolva junto)
+  montadorId?: number | null;
+  montadorNome?: string | null;
   porcentagem: number; // int
 };
 
@@ -29,6 +31,7 @@ type NovaOpcaoInput = {
   componentes?: Array<{
     tipo: ComponenteTipo;
     preparoId: number;
+    montadorId?: number | null;
     porcentagem: number;
   }>;
 };

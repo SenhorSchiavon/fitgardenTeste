@@ -23,6 +23,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Sheet,
   SheetContent,
   SheetHeader,
@@ -52,6 +59,7 @@ import {
 } from "@/hooks/useOpcoes";
 import { usePreparos, Preparo } from "@/hooks/usePreparos";
 import { useCategorias } from "@/hooks/useCategorias";
+import { useMontadores } from "@/hooks/useMontadores";
 import { useTableSort } from "@/hooks/useTableSort";
 import { SortableHead } from "@/components/ui/sorttable";
 
@@ -60,6 +68,8 @@ type ComponenteDraft = {
   tipo: ComponenteTipo;
   preparoId: number | null;
   preparoNome: string;
+  montadorId: number | null;
+  montadorNome?: string | null;
   porcentagem: number;
 };
 
@@ -78,6 +88,8 @@ function toComponenteDraft(c: OpcaoComponente, idx: number): ComponenteDraft {
     tipo: c.tipo,
     preparoId: c.preparoId,
     preparoNome: c.preparoNome ?? "",
+    montadorId: c.montadorId ?? null,
+    montadorNome: c.montadorNome ?? null,
     porcentagem: c.porcentagem,
   };
 }
@@ -94,6 +106,7 @@ export default function OpcoesPage() {
 
   const { preparos, loading: loadingPreparos } = usePreparos();
   const { categorias: todasCategorias, loading: loadingCategorias } = useCategorias();
+  const { montadores, isLoading: loadingMontadores } = useMontadores();
 
   // Filtra apenas categorias do tipo OPCAO
   const categoriasOpcao = useMemo(
@@ -147,7 +160,7 @@ export default function OpcoesPage() {
 
   const { sort, onSort, sortedRows } = useTableSort(opcoesFiltradas);
 
-  const isLoading = loadingOpcoes || loadingPreparos || loadingCategorias;
+  const isLoading = loadingOpcoes || loadingPreparos || loadingCategorias || loadingMontadores;
 
   const somaPct = useMemo(() => {
     return (novaOpcao.componentes || []).reduce(
@@ -241,6 +254,8 @@ export default function OpcoesPage() {
             tipo,
             preparoId: preparo.id,
             preparoNome: preparo.nome,
+            montadorId: null,
+            montadorNome: null,
             porcentagem: 0,
           },
         ],
@@ -270,6 +285,20 @@ export default function OpcoesPage() {
     setErroSoma(false);
   };
 
+  const handleChangeMontador = (draftId: string, value: string) => {
+    const montadorId = value === "none" ? null : Number(value);
+    const montador = montadores.find((m) => m.id === montadorId);
+
+    setNovaOpcao((p) => ({
+      ...p,
+      componentes: p.componentes.map((c) =>
+        c.id === draftId
+          ? { ...c, montadorId, montadorNome: montador?.nome ?? null }
+          : c,
+      ),
+    }));
+  };
+
   const handleSave = async () => {
     if (!novaOpcao.nome.trim()) return;
 
@@ -296,6 +325,7 @@ export default function OpcoesPage() {
             componentes: novaOpcao.componentes.map((c) => ({
               tipo: c.tipo,
               preparoId: c.preparoId!,
+              montadorId: c.montadorId ?? null,
               porcentagem: Math.trunc(c.porcentagem || 0),
             })),
           }
@@ -683,9 +713,9 @@ export default function OpcoesPage() {
                         {novaOpcao.componentes.map((c) => (
                           <div
                             key={c.id}
-                            className="flex items-center gap-3 rounded-md border p-3"
+                            className="grid grid-cols-1 gap-3 rounded-md border p-3 md:grid-cols-[minmax(0,1fr)_220px_128px_40px] md:items-center"
                           >
-                            <div className="flex-1">
+                            <div className="min-w-0">
                               <p className="text-sm font-medium">
                                 {c.preparoNome || "-"}
                               </p>
@@ -698,7 +728,32 @@ export default function OpcoesPage() {
                               </p>
                             </div>
 
-                            <div className="w-32">
+                            <div className="space-y-1">
+                              <Label className="text-xs text-muted-foreground">
+                                Montador
+                              </Label>
+                              <Select
+                                value={c.montadorId ? String(c.montadorId) : "none"}
+                                onValueChange={(value) => handleChangeMontador(c.id, value)}
+                              >
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Selecione" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="none">Sem montador</SelectItem>
+                                  {montadores.map((montador) => (
+                                    <SelectItem key={montador.id} value={String(montador.id)}>
+                                      {montador.nome}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+
+                            <div className="space-y-1">
+                              <Label className="text-xs text-muted-foreground">
+                                Porcentagem
+                              </Label>
                               <div className="flex items-center">
                                 <Input
                                   type="number"

@@ -37,13 +37,25 @@ export type ClientePlanoHistoricoUso = {
     agendamentoId: number | null;
 };
 
+export type ClientePlanoHistoricoUsoEntrega = {
+    id: number;
+    entregas: number;
+    data: string | null;
+    pedidoId: number | null;
+    agendamentoId: number | null;
+};
+
 export type ClientePlanoHistorico = {
     id: number;
     quantidade: number;
     pesagemGramas: number | null;
     adquiridoEm: string | null;
     saldoUnidades: number;
+    saldoEntregas: number;
+    taxasEntregaCompradas: number;
+    valorTaxaEntrega: number;
     usos: ClientePlanoHistoricoUso[];
+    usosEntregas: ClientePlanoHistoricoUsoEntrega[];
 };
 
 export type ClienteHistoricoResponse = {
