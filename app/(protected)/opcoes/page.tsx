@@ -174,6 +174,7 @@ export default function OpcoesPage() {
       CARBOIDRATO: preparos.filter((p) => p.tipo === "CARBOIDRATO"),
       PROTEINA: preparos.filter((p) => p.tipo === "PROTEINA"),
       LEGUMES: preparos.filter((p) => p.tipo === "LEGUMES"),
+      FEIJAO: preparos.filter((p) => p.tipo === "FEIJAO"),
     } as const;
   }, [preparos]);
 
@@ -724,7 +725,9 @@ export default function OpcoesPage() {
                                   ? "Carboidrato"
                                   : c.tipo === "PROTEINA"
                                     ? "Proteína"
-                                    : "Legumes"}
+                                    : c.tipo === "FEIJAO"
+                                      ? "Feijao"
+                                      : "Legumes"}
                               </p>
                             </div>
 

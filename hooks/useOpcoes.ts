@@ -3,7 +3,7 @@ import { toast } from "sonner";
 import { apiFetch } from "./api";
 
 export type OpcaoTipo = "MARMITA" | "OUTROS";
-export type ComponenteTipo = "CARBOIDRATO" | "PROTEINA" | "LEGUMES";
+export type ComponenteTipo = "CARBOIDRATO" | "PROTEINA" | "LEGUMES" | "FEIJAO";
 
 export type OpcaoComponente = {
   opcaoPreparoId: number;
