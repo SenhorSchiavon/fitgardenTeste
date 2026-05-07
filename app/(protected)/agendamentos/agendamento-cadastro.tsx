@@ -64,7 +64,9 @@ type PedidoTipo = "ENTREGA" | "RETIRADA" | "CONGELAR";
 type FormaPagamento =
   | "DINHEIRO"
   | "PIX"
-  | "CARTAO"
+  | "CREDITO"
+  | "DEBITO"
+  | "LINK"
   | "VOUCHER"
   | "PLANO"
   | "VOUCHER_TAXA_DINHEIRO"
@@ -200,6 +202,28 @@ function gerarHorarios30({ start, end }: { start: string; end: string }) {
   return arr;
 }
 
+function getJanelaEntregaPorDistancia(distanciaKm: number | null) {
+  if (distanciaKm == null) return { start: "13:00", end: "20:30" };
+  return distanciaKm < 3
+    ? { start: "13:00", end: "15:00" }
+    : { start: "15:00", end: "20:30" };
+}
+
+function ajustarHorarioNaJanela(
+  atual: HorarioIntervalo,
+  janela: { start: string; end: string },
+) {
+  const minInicio = toMin(janela.start);
+  const maxFim = toMin(janela.end);
+  const inicioAtual = toMin(atual.inicio);
+  const fimAtual = toMin(atual.fim);
+  const inicio = fromMin(Math.min(Math.max(inicioAtual, minInicio), maxFim - 60));
+  const fimMinimo = toMin(inicio) + 60;
+  const fim = fromMin(Math.min(Math.max(fimAtual, fimMinimo), maxFim));
+
+  return { inicio, fim };
+}
+
 function getPrecoUnitPorQuantidade(tamanho: TamanhoOption, quantidade: number) {
   const qtd = Math.max(1, Number(quantidade || 1));
 
@@ -254,9 +278,12 @@ export function NovoAgendamentoNovoLayout({
   initialData,
 }: Props) {
   const { regras } = useRegrasPersonalizadas();
-  const { estimarTaxaEntrega, getAgendamentos } = useAgendamentos();
+  const { estimarTaxaEntrega, getAgendamentos, getUltimoAgendamentoCliente } = useAgendamentos();
   const { listPlanos, vincularPlano, saving: savingPlano } = usePlanosCliente();
   const [valorTaxa, setValorTaxa] = useState(0);
+  const [distanciaEntregaKm, setDistanciaEntregaKm] = useState<number | null>(null);
+  const [avisoHorarioAutomatico, setAvisoHorarioAutomatico] = useState("");
+  const [avisoPagamentoAutomatico, setAvisoPagamentoAutomatico] = useState("");
   const [agendamentoDuplicado, setAgendamentoDuplicado] = useState<any | null>(null);
   const [checandoDuplicidade, setChecandoDuplicidade] = useState(false);
   const [incluirTaxaEntrega, setIncluirTaxaEntrega] = useState(true);
@@ -266,8 +293,8 @@ export function NovoAgendamentoNovoLayout({
   const [data, setData] = useState<Date | undefined>(() => getDefaultAgendamentoDate());
   const [dataEntregaCongelada, setDataEntregaCongelada] = useState<Date | undefined>(() => getDefaultAgendamentoDate());
   const [horario, setHorario] = useState<HorarioIntervalo>({
-    inicio: "11:00",
-    fim: "11:30",
+    inicio: "13:00",
+    fim: "14:00",
   });
   const [endereco, setEndereco] = useState("");
   const [observacoesPedido, setObservacoesPedido] = useState("");
@@ -337,22 +364,30 @@ export function NovoAgendamentoNovoLayout({
   );
 
   const horarios = useMemo(
-    () => gerarHorarios30({ start: "06:00", end: "22:00" }),
-    []
+    () => gerarHorarios30(getJanelaEntregaPorDistancia(tipo === "ENTREGA" ? distanciaEntregaKm : null)),
+    [tipo, distanciaEntregaKm]
   );
 
   const horariosFimDisponiveis = useMemo(() => {
     const ini = toMin(horario.inicio);
-    return horarios.filter((h) => toMin(h) > ini);
+    return horarios.filter((h) => toMin(h) >= ini + 60);
   }, [horario.inicio, horarios]);
 
   useEffect(() => {
+    if (!horarios.length) return;
     const ini = toMin(horario.inicio);
     const fim = toMin(horario.fim);
+    const primeiro = horarios[0];
+    const ultimo = horarios[horarios.length - 1];
 
-    if (fim > ini) return;
+    if (!horarios.includes(horario.inicio) || fim < ini + 60 || toMin(horario.fim) > toMin(ultimo)) {
+      setHorario((prev) => ajustarHorarioNaJanela(prev, { start: primeiro, end: ultimo }));
+      return;
+    }
 
-    const prox = horarios.find((h) => toMin(h) > ini) || "11:30";
+    if (fim >= ini + 60) return;
+
+    const prox = horarios.find((h) => toMin(h) >= ini + 60) || ultimo;
     setHorario((prev) => ({ ...prev, fim: prox }));
   }, [horario.inicio, horario.fim, horarios]);
 
@@ -363,9 +398,9 @@ export function NovoAgendamentoNovoLayout({
       setData(initialData.data ? new Date(initialData.data) : getDefaultAgendamentoDate());
       setDataEntregaCongelada(initialData.dataEntregaCongelada ? new Date(initialData.dataEntregaCongelada) : getDefaultAgendamentoDate());
       
-      const faixa = initialData.faixaHorario || "11:00-11:30";
-      const [inicio, fim] = faixa.includes("-") ? faixa.split("-") : [faixa, "11:30"];
-      setHorario({ inicio: inicio || "11:00", fim: fim || "11:30" });
+      const faixa = initialData.faixaHorario || "13:00-14:00";
+      const [inicio, fim] = faixa.includes("-") ? faixa.split("-") : [faixa, "14:00"];
+      setHorario({ inicio: inicio || "13:00", fim: fim || "14:00" });
       
       setEndereco(initialData.endereco || "");
       setObservacoesPedido(initialData.observacoes || "");
@@ -425,6 +460,7 @@ export function NovoAgendamentoNovoLayout({
     async function updateTaxa() {
       if (tipo !== "ENTREGA" || !clienteId || !endereco.trim()) {
         setValorTaxa(0);
+        setDistanciaEntregaKm(null);
         return;
       }
 
@@ -433,11 +469,13 @@ export function NovoAgendamentoNovoLayout({
         if (!ativo) return;
         if (res && typeof res.valorTaxa === "number") {
           setValorTaxa(res.valorTaxa);
+          setDistanciaEntregaKm(typeof res.distanciaKm === "number" ? res.distanciaKm : null);
         }
       } catch (e: any) {
         if (!ativo) return;
         console.error("Erro ao estimar taxa:", e);
         setValorTaxa(0);
+        setDistanciaEntregaKm(null);
       }
     }
 
@@ -446,6 +484,49 @@ export function NovoAgendamentoNovoLayout({
       ativo = false;
     };
   }, [clienteId, tipo, endereco, estimarTaxaEntrega]);
+
+  useEffect(() => {
+    let ativo = true;
+
+    async function preencherUltimoAgendamento() {
+      setAvisoHorarioAutomatico("");
+      setAvisoPagamentoAutomatico("");
+      if (!open || !clienteId || initialData) return;
+
+      try {
+        const ultimo = await getUltimoAgendamentoCliente(Number(clienteId));
+        if (!ativo || !ultimo) return;
+
+        if (ultimo.faixaHorario && ultimo.faixaHorario.includes("-")) {
+          const [inicio, fim] = ultimo.faixaHorario.split("-");
+          const ajustado = ajustarHorarioNaJanela(
+            { inicio: inicio || "13:00", fim: fim || "14:00" },
+            getJanelaEntregaPorDistancia(tipo === "ENTREGA" ? distanciaEntregaKm : null),
+          );
+          setHorario(ajustado);
+          setAvisoHorarioAutomatico(`Horário puxado automaticamente do último pedido: ${ajustado.inicio}-${ajustado.fim}.`);
+        }
+
+        const forma = ultimo.pedido?.pagamentos?.find((p: any) => p.forma !== "PLANO")?.forma
+          || ultimo.pedido?.pagamentos?.[0]?.forma
+          || ultimo.formaPagamento;
+        if (forma) {
+          setFormaPagamento(forma);
+          setAvisoPagamentoAutomatico(`Forma de pagamento puxada automaticamente do último pedido: ${forma}.`);
+        }
+      } catch {
+        if (ativo) {
+          setAvisoHorarioAutomatico("");
+          setAvisoPagamentoAutomatico("");
+        }
+      }
+    }
+
+    preencherUltimoAgendamento();
+    return () => {
+      ativo = false;
+    };
+  }, [open, clienteId, initialData, getUltimoAgendamentoCliente, tipo, distanciaEntregaKm]);
 
   useEffect(() => {
     let ativo = true;
@@ -613,11 +694,14 @@ export function NovoAgendamentoNovoLayout({
     setTipo("ENTREGA");
     setData(getDefaultAgendamentoDate());
     setDataEntregaCongelada(getDefaultAgendamentoDate());
-    setHorario({ inicio: "11:00", fim: "11:30" });
+    setHorario({ inicio: "13:00", fim: "14:00" });
     setEndereco("");
     setObservacoesPedido("");
     setFormaPagamento("PIX");
     setVoucherCodigo("");
+    setDistanciaEntregaKm(null);
+    setAvisoHorarioAutomatico("");
+    setAvisoPagamentoAutomatico("");
     setItens([]);
     setIncluirTaxaEntrega(true);
     resetFormItem();
@@ -1113,6 +1197,18 @@ export function NovoAgendamentoNovoLayout({
     if (tipo === "CONGELAR" && !dataEntregaCongelada) return;
     if (tipo === "ENTREGA" && !endereco.trim()) return;
     if (itens.length === 0) return;
+
+    const janelaEntrega = getJanelaEntregaPorDistancia(tipo === "ENTREGA" ? distanciaEntregaKm : null);
+    if (
+      toMin(horario.inicio) < toMin(janelaEntrega.start) ||
+      toMin(horario.fim) > toMin(janelaEntrega.end) ||
+      toMin(horario.fim) - toMin(horario.inicio) < 60
+    ) {
+      toast.error("Horário inválido", {
+        description: `Selecione uma janela de pelo menos 1 hora entre ${janelaEntrega.start} e ${janelaEntrega.end}.`,
+      });
+      return;
+    }
 
     if (isVoucherForma(formaPagamento) && !voucherCodigo.trim()) {
       toast.error("Voucher obrigatório", {
@@ -1618,6 +1714,16 @@ export function NovoAgendamentoNovoLayout({
                       </Select>
                     </div>
                   </div>
+                  <p className="text-xs text-muted-foreground">
+                    {tipo === "ENTREGA" && distanciaEntregaKm != null
+                      ? `Distância estimada: ${distanciaEntregaKm.toFixed(2).replace(".", ",")} km. Janela disponível: ${horarios[0]}-${horarios[horarios.length - 1]}.`
+                      : `Janela disponível: ${horarios[0]}-${horarios[horarios.length - 1]}.`}
+                  </p>
+                  {avisoHorarioAutomatico && (
+                    <p className="text-xs font-medium text-emerald-700">
+                      {avisoHorarioAutomatico}
+                    </p>
+                  )}
 
                   {tipo === "ENTREGA" ? (
                     <div className="space-y-2">
@@ -1650,13 +1756,18 @@ export function NovoAgendamentoNovoLayout({
                       <SelectContent>
                         <SelectItem value="PIX">PIX</SelectItem>
                         <SelectItem value="DINHEIRO">Dinheiro</SelectItem>
-                        <SelectItem value="CARTAO">Cartão</SelectItem>
+                        <SelectItem value="CREDITO">Cartão</SelectItem>
                         <SelectItem value="VOUCHER">Voucher</SelectItem>
                         <SelectItem value="TROCA">Troca</SelectItem>
                         <SelectItem value="BONIFICACAO">Bonificação</SelectItem>
                         <SelectItem value="PLANO">Plano</SelectItem>
                       </SelectContent>
                     </Select>
+                    {avisoPagamentoAutomatico && (
+                      <p className="text-xs font-medium text-emerald-700">
+                        {avisoPagamentoAutomatico}
+                      </p>
+                    )}
                   </div>
 
                   {isVoucherForma(formaPagamento) && (
@@ -2034,6 +2145,7 @@ export function NovoAgendamentoNovoLayout({
                       </div>
                     )}
 
+                    {formItem.tipoItem !== "PADRAO" && (
                     <div className="space-y-2">
                       <Label>Quantidade</Label>
                       <div className="grid grid-cols-[36px_minmax(0,1fr)_36px] gap-2">
@@ -2081,6 +2193,7 @@ export function NovoAgendamentoNovoLayout({
                         </Button>
                       </div>
                     </div>
+                    )}
                   </div>
                   
                   {(() => {
@@ -2132,7 +2245,7 @@ export function NovoAgendamentoNovoLayout({
                   <div className="space-y-4">
                     <div className="space-y-1.5">
                       <Label className="text-xs text-muted-foreground">Opção do cardápio</Label>
-                      <div className="grid grid-cols-1 md:grid-cols-[minmax(220px,1fr)_220px_auto] gap-2 items-center">
+                      <div className="grid grid-cols-1 md:grid-cols-[minmax(220px,1fr)_150px_220px_auto] gap-2 items-center">
                         <Select
                           value={formItem.opcaoId}
                           onValueChange={(v) => {
@@ -2155,6 +2268,48 @@ export function NovoAgendamentoNovoLayout({
                             ))}
                           </SelectContent>
                         </Select>
+                        <div className="grid grid-cols-[32px_minmax(0,1fr)_32px] gap-1">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="icon"
+                            className="h-9 w-8"
+                            onClick={() =>
+                              setFormItem((prev) => ({
+                                ...prev,
+                                quantidade: Math.max(1, Number(prev.quantidade || 1) - 1),
+                              }))
+                            }
+                          >
+                            <Minus className="h-4 w-4" />
+                          </Button>
+                          <Input
+                            type="number"
+                            min={1}
+                            className="h-9 text-center"
+                            value={formItem.quantidade}
+                            onChange={(e) =>
+                              setFormItem((prev) => ({
+                                ...prev,
+                                quantidade: Math.max(1, Number(e.target.value || 1)),
+                              }))
+                            }
+                          />
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="icon"
+                            className="h-9 w-8"
+                            onClick={() =>
+                              setFormItem((prev) => ({
+                                ...prev,
+                                quantidade: Number(prev.quantidade || 1) + 1,
+                              }))
+                            }
+                          >
+                            <Plus className="h-4 w-4" />
+                          </Button>
+                        </div>
                         <Button
                           type="button"
                           variant="outline"

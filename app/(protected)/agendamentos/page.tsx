@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ptBR } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -45,7 +45,8 @@ import {
   Clock,
   Package,
   Wallet,
-  CheckCircle2
+  CheckCircle2,
+  Send
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -92,6 +93,8 @@ type Agendamento = {
   valorTotal?: number;
   valorDescontos?: number;
   valorTotalFinal?: number;
+  usouPlano?: boolean;
+  saldoMarmitasAposPedido?: number | null;
 
   itens: {
     id?: string;
@@ -115,6 +118,52 @@ type Agendamento = {
   }[];
   _raw?: any;
 };
+
+const ROTAS_ENTREGA = [
+  { id: 1, label: "ROTA 1", intervalo: "13:00-15:00", start: 13 * 60, end: 15 * 60, color: "#ef4444" },
+  { id: 2, label: "ROTA 2", intervalo: "15:00-17:00", start: 15 * 60, end: 17 * 60, color: "#f97316" },
+  { id: 3, label: "ROTA 3", intervalo: "17:00-18:00", start: 17 * 60, end: 18 * 60, color: "#22c55e" },
+  { id: 4, label: "ROTA 4", intervalo: "18:00-20:30", start: 18 * 60, end: 20 * 60 + 30, color: "#3b82f6" },
+];
+
+function horarioInicioEmMinutos(faixaHorario: string) {
+  const inicio = String(faixaHorario || "").split("-")[0] || "";
+  const [h, m] = inicio.split(":").map(Number);
+  if (!Number.isFinite(h) || !Number.isFinite(m)) return null;
+  return h * 60 + m;
+}
+
+function getRotaAgendamento(agendamento: Agendamento) {
+  const inicio = horarioInicioEmMinutos(agendamento.faixaHorario);
+  if (inicio == null) return null;
+  return ROTAS_ENTREGA.find((rota) => inicio >= rota.start && inicio < rota.end) || null;
+}
+
+function getWhatsappUrl(telefone: string, mensagem: string) {
+  const digits = String(telefone || "").replace(/\D/g, "");
+  if (!digits) return null;
+  const phone = digits.startsWith("55") ? digits : `55${digits}`;
+  return `https://wa.me/${phone}?text=${encodeURIComponent(mensagem)}`;
+}
+
+function getLabelPagamento(forma: string) {
+  const labels: Record<string, string> = {
+    DINHEIRO: "Dinheiro",
+    CREDITO: "Cartao de credito",
+    DEBITO: "Cartao de debito",
+    PIX: "PIX",
+    LINK: "Link",
+    VOUCHER: "Voucher",
+    PLANO: "Plano",
+    TROCA: "Troca",
+    BONIFICACAO: "Bonificacao",
+    VOUCHER_TAXA_DINHEIRO: "Voucher taxa dinheiro",
+    VOUCHER_TAXA_CARTAO: "Voucher taxa cartao",
+    VOUCHER_TAXA_PIX: "Voucher taxa PIX",
+  };
+  return labels[forma] || forma || "-";
+}
+
 export default function Agendamentos() {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [cadastroOpen, setCadastroOpen] = useState(false);
@@ -168,6 +217,26 @@ export default function Agendamentos() {
   const { preparos, loading: loadingPreparos } = usePreparosSelecionaveis();
   const { salgados } = useSalgados();
   const [preparoSheetOpen, setPreparoSheetOpen] = useState(false);
+  const agendamentosPorRota = useMemo(() => {
+    const grupos = ROTAS_ENTREGA.map((rota) => ({
+      ...rota,
+      agendamentos: agendamentos.filter((agendamento) => getRotaAgendamento(agendamento)?.id === rota.id),
+    })).filter((grupo) => grupo.agendamentos.length > 0);
+    const semRota = agendamentos.filter((agendamento) => !getRotaAgendamento(agendamento));
+    if (semRota.length > 0) {
+      grupos.push({
+        id: 0,
+        label: "SEM ROTA",
+        intervalo: "Fora das janelas",
+        start: 0,
+        end: 0,
+        color: "#94a3b8",
+        agendamentos: semRota,
+      });
+    }
+    return grupos;
+  }, [agendamentos]);
+
   const handleShowDetalhes = (agendamento: Agendamento) => {
     setAgendamentoSelecionado(agendamento);
     setDetalhesDialogOpen(true);
@@ -177,6 +246,63 @@ export default function Agendamentos() {
     if (!nome) return "";
     const qtd = Number(gramas || 0);
     return qtd > 0 ? `${nome} ${qtd}g` : nome;
+  };
+
+  const montarMensagemConfirmacao = (agendamento: Agendamento) => {
+    const tipoHorario =
+      agendamento.tipoEntrega === "RETIRADA"
+        ? "Retirada"
+        : agendamento.tipoEntrega === "CONGELAR"
+          ? "Congelamento"
+          : "Entrega";
+    const itens = agendamento.itens
+      .map((item) => {
+        const detalhes = [
+          item.carbo ? formatIngrediente(item.carbo, item.carboGramas) : null,
+          item.proteina ? formatIngrediente(item.proteina, item.proteinaGramas) : null,
+          item.legume ? formatIngrediente(item.legume, item.legumeGramas) : null,
+          item.feijao ? formatIngrediente(item.feijao, item.feijaoGramas) : null,
+        ].filter(Boolean);
+        const descricao = detalhes.length ? detalhes.join(" + ") : item.nome;
+        return `${item.quantidade} ${descricao}`.trim();
+      })
+      .join("\n");
+    const tamanho = agendamento.itens.find((item) => item.tipoItem !== "SALGADO" && item.tamanho)?.tamanho;
+    const linhas = [
+      `Oi, ${agendamento.cliente}! Seu pedido esta confirmado.`,
+      "",
+      `Horario estimado: ${tipoHorario} ${agendamento.faixaHorario}`,
+      agendamento.tipoEntrega === "ENTREGA"
+        ? `Endereco: ${agendamento.endereco}`
+        : `Local: ${agendamento.endereco}`,
+      `Pagamento: ${getLabelPagamento(agendamento.formaPagamento)}`,
+      tamanho ? `Tamanho: ${tamanho}` : null,
+      "",
+      "Resumo do pedido:",
+      itens,
+      "",
+      `Total de unidades no pedido: ${agendamento.quantidadeLabel || `${agendamento.quantidade} itens`}`,
+      agendamento.usouPlano && agendamento.saldoMarmitasAposPedido != null
+        ? `Quantidade de marmitas apos esse pedido: ${agendamento.saldoMarmitasAposPedido}`
+        : null,
+      "",
+      "Qualquer ajuste, e so me chamar por aqui.",
+    ];
+
+    return linhas.filter((linha) => linha !== null && linha !== undefined).join("\n");
+  };
+
+  const handleEnviarConfirmacao = (agendamento: Agendamento) => {
+    const url = getWhatsappUrl(agendamento.telefone, montarMensagemConfirmacao(agendamento));
+    if (!url) {
+      toast({
+        title: "Telefone nao informado",
+        description: "Cadastre um telefone para abrir a confirmacao no WhatsApp.",
+        variant: "destructive",
+      });
+      return;
+    }
+    window.open(url, "_blank");
   };
 
   function mapApiToUi(row: any): Agendamento {
@@ -289,6 +415,17 @@ export default function Agendamentos() {
 
     const valorTaxa = Number(row.pedido?.valorTaxa ?? row.valorTaxa ?? 0);
     const valorTotalFinal = Math.max(0, valorTotalOriginal - valorDescontos);
+    const usouPlano =
+      itens.some((it: any) => !!it.usarPlano) ||
+      pagamentos.some((p: any) => p.forma === "PLANO");
+    const planosCliente = row.pedido?.cliente?.planos ?? row.cliente?.planos ?? [];
+    const saldoMarmitasAposPedido = usouPlano
+      ? planosCliente.length > 0
+        ? planosCliente.reduce((acc: number, plano: any) => acc + Number(plano.saldoUnidades || 0), 0)
+        : pagamentos
+          .filter((p: any) => p.forma === "PLANO" && p.planoCliente)
+          .reduce((acc: number, p: any) => acc + Number(p.planoCliente.saldoUnidades || 0), 0)
+      : null;
 
     return {
       id: String(row.id),
@@ -310,6 +447,8 @@ export default function Agendamentos() {
       valorTotal: valorTotalOriginal,
       valorDescontos,
       valorTotalFinal,
+      usouPlano,
+      saldoMarmitasAposPedido,
       observacoes: row.pedido?.observacoes ?? row.observacoes ?? undefined,
       itens: itensUi,
       _raw: row,
@@ -602,60 +741,74 @@ export default function Agendamentos() {
                     <p className="text-sm">Os pedidos aparecerão aqui conforme forem agendados</p>
                   </div>
                 ) : (
-                  agendamentos.map((agendamento) => {
-                    return (
-                      <div
-                        key={agendamento.id}
-                        className="group relative bg-white border border-slate-200 rounded-2xl overflow-hidden cursor-pointer hover:border-emerald-300 hover:shadow-md transition-all duration-200"
-                        onClick={() => handleShowDetalhes(agendamento)}
-                      >
-                        <div className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                          <div className="flex-1 space-y-2">
-                            <div className="flex items-center gap-3">
-                              <span className="text-xs font-black text-slate-400 uppercase tracking-widest">{agendamento.numeroPedido}</span>
-                              <h3 className="text-base font-bold text-slate-800 group-hover:text-emerald-700 transition-colors">{agendamento.cliente}</h3>
+                  agendamentosPorRota.map((grupo) => (
+                    <section key={grupo.id} className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: grupo.color }} />
+                          <h3 className="text-sm font-black uppercase tracking-widest text-slate-600">{grupo.label}</h3>
+                          <span className="text-xs text-slate-400">{grupo.intervalo}</span>
+                        </div>
+                        <Badge variant="outline" className="border-slate-200 text-slate-500">
+                          {grupo.agendamentos.length} pedido{grupo.agendamentos.length === 1 ? "" : "s"}
+                        </Badge>
+                      </div>
+
+                      {grupo.agendamentos.map((agendamento) => (
+                        <div
+                          key={agendamento.id}
+                          className="group relative bg-white border border-l-4 border-slate-200 rounded-2xl overflow-hidden cursor-pointer hover:border-emerald-300 hover:shadow-md transition-all duration-200"
+                          style={{ borderLeftColor: grupo.color }}
+                          onClick={() => handleShowDetalhes(agendamento)}
+                        >
+                          <div className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                            <div className="flex-1 space-y-2">
+                              <div className="flex items-center gap-3">
+                                <span className="text-xs font-black text-slate-400 uppercase tracking-widest">{agendamento.numeroPedido}</span>
+                                <h3 className="text-base font-bold text-slate-800 group-hover:text-emerald-700 transition-colors">{agendamento.cliente}</h3>
+                              </div>
+
+                              <div className="flex flex-wrap items-center gap-y-2 gap-x-4">
+                                <div className="flex items-center text-sm text-slate-500 gap-1.5">
+                                  <Clock className="h-3.5 w-3.5 text-slate-400" />
+                                  <span className="font-medium">{agendamento.faixaHorario}h</span>
+                                </div>
+
+                                <div className="flex items-center text-sm text-slate-500 gap-1.5">
+                                  <Package className="h-3.5 w-3.5 text-slate-400" />
+                                  <span className="font-medium">{(agendamento as any).quantidadeLabel ?? `${agendamento.quantidade} itens`}</span>
+                                </div>
+
+                                <div className="flex items-center text-sm text-slate-500 gap-1.5">
+                                  <MapPin className="h-3.5 w-3.5 text-slate-400" />
+                                  <span className="font-medium truncate max-w-[200px]">{agendamento.endereco}</span>
+                                </div>
+                              </div>
                             </div>
 
-                            <div className="flex flex-wrap items-center gap-y-2 gap-x-4">
-                              <div className="flex items-center text-sm text-slate-500 gap-1.5">
-                                <Clock className="h-3.5 w-3.5 text-slate-400" />
-                                <span className="font-medium">{agendamento.faixaHorario}h</span>
-                              </div>
+                            <div className="flex items-center justify-between sm:justify-end gap-3 pt-3 sm:pt-0 border-t sm:border-none border-slate-50">
+                              <Badge
+                                variant={agendamento.tipoEntrega === "ENTREGA" ? "default" : "outline"}
+                                className={agendamento.tipoEntrega === "ENTREGA" ? "bg-slate-800 text-white" : "border-slate-200 text-slate-600"}
+                              >
+                                {agendamento.tipoEntrega === "CONGELAR" ? "CONGELAR" : agendamento.tipoEntrega}
+                              </Badge>
 
-                              <div className="flex items-center text-sm text-slate-500 gap-1.5">
-                                <Package className="h-3.5 w-3.5 text-slate-400" />
-                                <span className="font-medium">{(agendamento as any).quantidadeLabel ?? `${agendamento.quantidade} itens`}</span>
+                              <div className="flex flex-col items-end">
+                                <div className="flex items-center text-xs font-bold text-slate-700 gap-1">
+                                  <Wallet className="h-3 w-3 text-slate-400" />
+                                  {agendamento.formaPagamento}
+                                </div>
+                                {(agendamento.valorTotalFinal ?? 0) > 0 && (
+                                  <span className="text-sm font-black text-emerald-700">R$ {(agendamento.valorTotalFinal ?? 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                                )}
                               </div>
-
-                              <div className="flex items-center text-sm text-slate-500 gap-1.5">
-                                <MapPin className="h-3.5 w-3.5 text-slate-400" />
-                                <span className="font-medium truncate max-w-[200px]">{agendamento.endereco}</span>
-                              </div>
-                            </div>
-                          </div>
-
-                          <div className="flex items-center justify-between sm:justify-end gap-3 pt-3 sm:pt-0 border-t sm:border-none border-slate-50">
-                            <Badge 
-                              variant={agendamento.tipoEntrega === "ENTREGA" ? "default" : "outline"}
-                              className={agendamento.tipoEntrega === "ENTREGA" ? "bg-slate-800 text-white" : "border-slate-200 text-slate-600"}
-                            >
-                              {agendamento.tipoEntrega === "CONGELAR" ? "CONGELAR" : agendamento.tipoEntrega}
-                            </Badge>
-
-                            <div className="flex flex-col items-end">
-                              <div className="flex items-center text-xs font-bold text-slate-700 gap-1">
-                                <Wallet className="h-3 w-3 text-slate-400" />
-                                {agendamento.formaPagamento}
-                              </div>
-                              {agendamento.valorTotalFinal > 0 && (
-                                <span className="text-sm font-black text-emerald-700">R$ {agendamento.valorTotalFinal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
-                              )}
                             </div>
                           </div>
                         </div>
-                      </div>
-                    );
-                  })
+                      ))}
+                    </section>
+                  ))
                 )}
               </div>
             </ScrollArea>
@@ -744,6 +897,12 @@ export default function Agendamentos() {
                       <div className="flex justify-between items-center py-1 border-b border-dashed border-slate-100 pb-3">
                         <span className="text-sm text-emerald-600 font-medium">Desconto Plano</span>
                         <span className="text-sm font-bold text-emerald-600">- R$ {agendamentoSelecionado.valorDescontos.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                      </div>
+                    ) : null}
+                    {agendamentoSelecionado?.usouPlano && agendamentoSelecionado.saldoMarmitasAposPedido != null ? (
+                      <div className="flex justify-between items-center py-1 border-b border-dashed border-slate-100 pb-3">
+                        <span className="text-sm text-slate-600">Marmitas após pedido</span>
+                        <span className="text-sm font-bold text-slate-800">{agendamentoSelecionado.saldoMarmitasAposPedido}</span>
                       </div>
                     ) : null}
                     <div className="flex justify-between items-center pt-2">
@@ -847,6 +1006,13 @@ export default function Agendamentos() {
             </Button>
 
             <div className="flex gap-2">
+              <Button
+                variant="outline"
+                className="rounded-xl px-6 border-emerald-200 text-emerald-700 hover:bg-emerald-50"
+                onClick={() => agendamentoSelecionado && handleEnviarConfirmacao(agendamentoSelecionado)}
+              >
+                <Send className="mr-2 h-4 w-4" /> Enviar confirmação
+              </Button>
               <Button variant="outline" className="rounded-xl px-6" onClick={() => setDetalhesDialogOpen(false)}>
                 Fechar
               </Button>

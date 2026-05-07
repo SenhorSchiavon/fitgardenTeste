@@ -272,6 +272,25 @@ export function useAgendamentos(options?: { baseUrl?: string }) {
     },
     [baseUrl, showError],
   );
+
+  const getUltimoAgendamentoCliente = useCallback(
+    async <T = any>(clienteId: number) => {
+      setLoading(true);
+      setError("");
+      try {
+        return await fetchJson<T | null>(`${baseUrl}/clientes/${clienteId}/ultimo`, {
+          method: "GET",
+        });
+      } catch (e: any) {
+        const msg = e?.message || "Erro ao buscar último agendamento do cliente";
+        setError(msg);
+        throw e;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [baseUrl],
+  );
   const getPagamentosParaConciliar = useCallback(
     async (query: PedidosPendentesQuery = {}) => {
       setLoading(true);
@@ -695,6 +714,7 @@ export function useAgendamentos(options?: { baseUrl?: string }) {
     baixarXlsxImportEntregasDoDia,
     getAgendamentos,
     getAgendamentoById,
+    getUltimoAgendamentoCliente,
     createAgendamento,
     updateAgendamento,
     deleteAgendamento,
