@@ -424,6 +424,30 @@ export function useAgendamentos(options?: { baseUrl?: string }) {
     },
     [baseUrl, showError],
   );
+  const marcarPagamentoNaoPago = useCallback(
+    async (pagamentoId: number) => {
+      setLoading(true);
+      setError("");
+      try {
+        return await fetchJson<{
+          success: boolean;
+          pagamentoId: number;
+          pedidoId: number;
+          agendamentoId: number | null;
+        }>(`${baseUrl}/pagamentos/${pagamentoId}/nao-pago`, {
+          method: "POST",
+        });
+      } catch (e: any) {
+        const msg = e?.message || "Erro ao marcar pagamento como não pago";
+        setError(msg);
+        showError(msg);
+        throw e;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [baseUrl, showError],
+  );
   const integrarEntregasDoDia = useCallback(
     async (date?: string) => {
       const dateISO = date && date.trim() ? date : toISODateOnly(new Date());
@@ -708,6 +732,7 @@ export function useAgendamentos(options?: { baseUrl?: string }) {
 
     finalizarPagamento,
     conciliarPagamento,
+    marcarPagamentoNaoPago,
     getPedidosPendentes,
     getPagamentosParaConciliar,
     getHistorico,

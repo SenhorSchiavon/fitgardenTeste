@@ -34,6 +34,8 @@ import {
   User,
   CalendarIcon,
   CheckCircle2,
+  RotateCcw,
+  XCircle,
 } from "lucide-react";
 import { Header } from "@/components/header";
 import {
@@ -87,12 +89,14 @@ export default function PedidosAberto() {
     getPagamentosParaConciliar,
     finalizarPagamento,
     conciliarPagamento,
+    marcarPagamentoNaoPago,
     deleteAgendamento,
   } = useAgendamentos();
 
   const [pedidosAberto, setPedidosAberto] = useState<PedidoPendenteRow[]>([]);
   const [pagamentosConciliar, setPagamentosConciliar] = useState<PedidoPendenteRow[]>([]);
   const [dataFiltro, setDataFiltro] = useState(() => toISODateOnly(new Date()));
+  const [filtroConciliacao, setFiltroConciliacao] = useState<"todos" | "a-conciliar" | "conciliados">("todos");
 
   const [pedidoSelecionado, setPedidoSelecionado] =
     useState<PedidoPendenteRow | null>(null);
@@ -101,6 +105,16 @@ export default function PedidosAberto() {
 
   const [formaPagamentoFinal, setFormaPagamentoFinal] =
     useState<Exclude<FormaPagamento, "PLANO">>("PIX");
+
+  const pagamentosConciliarFiltrados = useMemo(() => {
+    if (filtroConciliacao === "a-conciliar") {
+      return pagamentosConciliar.filter((pedido) => !pedido.conciliado);
+    }
+    if (filtroConciliacao === "conciliados") {
+      return pagamentosConciliar.filter((pedido) => pedido.conciliado);
+    }
+    return pagamentosConciliar;
+  }, [filtroConciliacao, pagamentosConciliar]);
 
   async function load(date = dataFiltro) {
     const [resp, conciliacaoResp] = await Promise.all([
@@ -189,10 +203,30 @@ export default function PedidosAberto() {
     }
 
     await conciliarPagamento(pedido.pagamentoId, true);
-    setPagamentosConciliar((prev) =>
-      prev.filter((p) => p.pagamentoId !== pedido.pagamentoId),
-    );
+    await load(dataFiltro);
     toast.success("Pagamento conciliado");
+  };
+
+  const handleDesconciliarPagamento = async (pedido: PedidoPendenteRow) => {
+    if (!pedido.pagamentoId) {
+      toast.error("Pagamento nÃ£o encontrado para conciliaÃ§Ã£o");
+      return;
+    }
+
+    await conciliarPagamento(pedido.pagamentoId, false);
+    await load(dataFiltro);
+    toast.success("Pagamento desconciliado");
+  };
+
+  const handleMarcarNaoPago = async (pedido: PedidoPendenteRow) => {
+    if (!pedido.pagamentoId) {
+      toast.error("Pagamento nÃ£o encontrado");
+      return;
+    }
+
+    await marcarPagamentoNaoPago(pedido.pagamentoId);
+    await load(dataFiltro);
+    toast.success("Pagamento marcado como nÃ£o pago");
   };
 
   const formatDate = (dateString: string) => {
@@ -235,7 +269,7 @@ export default function PedidosAberto() {
       <Tabs defaultValue="pendentes" className="space-y-4">
         <TabsList>
           <TabsTrigger value="pendentes">Pendentes ({pedidosAberto.length})</TabsTrigger>
-          <TabsTrigger value="conciliacao">Pagos a conciliar ({pagamentosConciliar.length})</TabsTrigger>
+          <TabsTrigger value="conciliacao">Pagos / Conciliacao ({pagamentosConciliarFiltrados.length})</TabsTrigger>
         </TabsList>
 
         <TabsContent value="pendentes">
@@ -297,12 +331,27 @@ export default function PedidosAberto() {
         <TabsContent value="conciliacao">
           <Card>
             <CardHeader>
-              <CardTitle>Pagamentos Confirmados para Conciliação</CardTitle>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <CardTitle>Pagamentos Confirmados e Conciliados</CardTitle>
+                <Select
+                  value={filtroConciliacao}
+                  onValueChange={(value) => setFiltroConciliacao(value as typeof filtroConciliacao)}
+                >
+                  <SelectTrigger className="w-full sm:w-48">
+                    <SelectValue placeholder="Filtrar status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todos">Todos</SelectItem>
+                    <SelectItem value="a-conciliar">A conciliar</SelectItem>
+                    <SelectItem value="conciliados">Conciliados</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </CardHeader>
             <CardContent>
               <ScrollArea className="h-[calc(100vh-300px)]">
                 <div className="space-y-4">
-                  {pagamentosConciliar.map((pedido) => (
+                  {pagamentosConciliarFiltrados.map((pedido) => (
                     <div
                       key={pedido.pagamentoId || pedido.agendamentoId}
                       className="flex items-center gap-4 border rounded-lg p-4 bg-muted/20"
@@ -313,6 +362,15 @@ export default function PedidosAberto() {
                           <span>-</span>
                           <span className="truncate">{pedido.cliente}</span>
                           <Badge variant="outline">{pedido.formaPagamento}</Badge>
+                          {pedido.conciliado ? (
+                            <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100">
+                              Conciliado
+                            </Badge>
+                          ) : (
+                            <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100">
+                              A conciliar
+                            </Badge>
+                          )}
                         </div>
                         <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground mt-1">
                           <span>{formatDate(pedido.data)}</span>
@@ -334,19 +392,41 @@ export default function PedidosAberto() {
                         </div>
                       </div>
 
-                      <Button
-                        onClick={() => handleConciliarPagamento(pedido)}
-                        disabled={loading || !pedido.pagamentoId}
-                      >
-                        <CheckCircle2 className="mr-2 h-4 w-4" />
-                        Conciliado
-                      </Button>
+                      <div className="flex flex-wrap justify-end gap-2">
+                        {pedido.conciliado ? (
+                          <Button
+                            variant="outline"
+                            onClick={() => handleDesconciliarPagamento(pedido)}
+                            disabled={loading || !pedido.pagamentoId}
+                          >
+                            <RotateCcw className="mr-2 h-4 w-4" />
+                            Desconciliar
+                          </Button>
+                        ) : (
+                          <Button
+                            onClick={() => handleConciliarPagamento(pedido)}
+                            disabled={loading || !pedido.pagamentoId}
+                          >
+                            <CheckCircle2 className="mr-2 h-4 w-4" />
+                            Conciliar
+                          </Button>
+                        )}
+                        <Button
+                          variant="outline"
+                          className="border-red-200 text-red-700 hover:bg-red-50"
+                          onClick={() => handleMarcarNaoPago(pedido)}
+                          disabled={loading || !pedido.pagamentoId}
+                        >
+                          <XCircle className="mr-2 h-4 w-4" />
+                          Marcar nao pago
+                        </Button>
+                      </div>
                     </div>
                   ))}
 
-                  {pagamentosConciliar.length === 0 && (
+                  {pagamentosConciliarFiltrados.length === 0 && (
                     <div className="text-center py-8 text-muted-foreground">
-                      Nenhum pagamento confirmado aguardando conciliação
+                      Nenhum pagamento encontrado para esse filtro
                     </div>
                   )}
                 </div>
