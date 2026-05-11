@@ -17,6 +17,7 @@ import {
   Package,
   Settings,
   ShoppingCart,
+  Snowflake,
   Tag,
   Users,
   Utensils,
@@ -191,6 +192,7 @@ export function Sidebar({ className }: SidebarProps) {
                     { href: "/pedidos-aberto", label: "Em Aberto", icon: CreditCard },
                     { href: "/historico-pedidos", label: "Histórico", icon: ClipboardList },
                     { href: "/pedido-sem-agendamento", label: "Sem Agendamento", icon: ShoppingCart },
+                    { href: "/congeladas", label: "Congeladas", icon: Snowflake },
                   ].map((item) => (
                     <Link key={item.href} href={item.href}>
                       <Button
