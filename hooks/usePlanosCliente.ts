@@ -7,16 +7,31 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3333";
 export type Tamanho = {
   id: number;
   pesagemGramas: number;
+  valorUnitario?: number;
+  valor10?: number;
+  valor20?: number;
+  valor40?: number;
+};
+
+export type PlanoCatalogoItem = {
+  id?: number;
+  tamanhoId?: number | null;
+  pesoPersonalizadoGramas?: number | null;
+  unidades: number;
+  valorUnitario?: number | string | null;
+  valorTotal?: number | string | null;
+  tamanho?: Tamanho | null;
 };
 
 export type PlanoCatalogo = {
   id: number;
   nome?: string | null;
-  tamanhoId: number;
+  tamanhoId?: number | null;
   unidades: number;
   entregas?: number | null;
   valor?: number | string | null;
   tamanho?: Tamanho;
+  itens?: PlanoCatalogoItem[];
   createdAt?: string;
 };
 
@@ -39,9 +54,16 @@ export type PlanoClienteVinculo = {
 };
 
 type CreatePlanoCatalogoInput = {
-  tamanhoId: number;
-  unidades: number;
+  tamanhoId?: number | null;
+  unidades?: number;
   nome?: string | null;
+  entregas?: number | null;
+  valor?: number | null;
+  itens?: Array<{
+    tamanhoId?: number | null;
+    pesoPersonalizadoGramas?: number | null;
+    unidades: number;
+  }>;
 };
 
 export function usePlanosCliente() {

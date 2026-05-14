@@ -14,7 +14,7 @@ export type Tamanho = {
 export type Plano = {
   id: number;
   nome: string;
-  tamanhoId: number;
+  tamanhoId?: number | null;
 
   unidades: number;
   entregasInclusas: number;
@@ -23,15 +23,29 @@ export type Plano = {
   ativo: boolean;
 
   tamanho?: Tamanho;
+  itens?: Array<{
+    id?: number;
+    tamanhoId?: number | null;
+    pesoPersonalizadoGramas?: number | null;
+    unidades: number;
+    valorUnitario?: number | string | null;
+    valorTotal?: number | string | null;
+    tamanho?: Tamanho | null;
+  }>;
 };
 
 export type NovoPlanoInput = {
   nome: string;
-  tamanhoId: number;
-  unidades: number;
+  tamanhoId?: number | null;
+  unidades?: number;
   entregasInclusas: number;
-  valor: number;
+  valor?: number;
   ativo: boolean;
+  itens?: Array<{
+    tamanhoId?: number | null;
+    pesoPersonalizadoGramas?: number | null;
+    unidades: number;
+  }>;
 };
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3333";
@@ -110,11 +124,12 @@ export function usePlanos() {
 
       const payload: NovoPlanoInput = {
         nome: String(input.nome || "").trim(),
-        tamanhoId: toNumber(input.tamanhoId),
+        tamanhoId: input.tamanhoId == null ? null : toNumber(input.tamanhoId),
         unidades: toNumber(input.unidades),
         entregasInclusas: toNumber(input.entregasInclusas),
-        valor: toNumber(input.valor),
+        valor: input.valor == null ? undefined : toNumber(input.valor),
         ativo: !!input.ativo,
+        itens: input.itens,
       };
 
       const res = await apiFetch(RESOURCE, {
@@ -152,11 +167,12 @@ export function usePlanos() {
 
       const payload: NovoPlanoInput = {
         nome: String(input.nome || "").trim(),
-        tamanhoId: toNumber(input.tamanhoId),
+        tamanhoId: input.tamanhoId == null ? null : toNumber(input.tamanhoId),
         unidades: toNumber(input.unidades),
         entregasInclusas: toNumber(input.entregasInclusas),
-        valor: toNumber(input.valor),
+        valor: input.valor == null ? undefined : toNumber(input.valor),
         ativo: !!input.ativo,
+        itens: input.itens,
       };
 
       const res = await apiFetch(`${RESOURCE}/${id}`, {

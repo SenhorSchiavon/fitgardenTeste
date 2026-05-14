@@ -251,6 +251,22 @@ function getDefaultAgendamentoDate() {
   return tomorrow;
 }
 
+function getValorPlanoTamanho(tamanho: TamanhoOption, quantidade: number) {
+  const qtd = Math.max(1, Math.floor(Number(quantidade || 1)));
+  if (qtd >= 40 && tamanho.valor40 != null) return Number(tamanho.valor40 || 0);
+  if (qtd >= 20 && tamanho.valor20 != null) return Number(tamanho.valor20 || 0);
+  if (qtd >= 10 && tamanho.valor10 != null) return Number(tamanho.valor10 || 0);
+  return Number(tamanho.valorUnitario || 0) * qtd;
+}
+
+type PlanoComboForm = {
+  id: string;
+  tipo: "TAMANHO" | "PERSONALIZADO";
+  tamanhoId: string;
+  pesoPersonalizadoGramas: string;
+  unidades: string;
+};
+
 function toISODateOnlyLocal(date?: Date | null) {
   if (!date) return "";
   const year = date.getFullYear();
@@ -284,7 +300,7 @@ export function NovoAgendamentoNovoLayout({
 }: Props) {
   const { regras } = useRegrasPersonalizadas();
   const { estimarTaxaEntrega, getAgendamentos, getUltimoAgendamentoCliente } = useAgendamentos();
-  const { listPlanos, vincularPlano, saving: savingPlano } = usePlanosCliente();
+  const { listPlanos, createPlano, vincularPlano, saving: savingPlano } = usePlanosCliente();
   const [valorTaxa, setValorTaxa] = useState(0);
   const [distanciaEntregaKm, setDistanciaEntregaKm] = useState<number | null>(null);
   const [avisoHorarioAutomatico, setAvisoHorarioAutomatico] = useState("");
@@ -315,6 +331,10 @@ export function NovoAgendamentoNovoLayout({
   const [itens, setItens] = useState<NovoPedidoItem[]>([]);
   const [planosCatalogo, setPlanosCatalogo] = useState<PlanoCatalogo[]>([]);
   const [planoSelecionadoId, setPlanoSelecionadoId] = useState("");
+  const [planoNome, setPlanoNome] = useState("");
+  const [planoCombos, setPlanoCombos] = useState<PlanoComboForm[]>([
+    { id: uid(), tipo: "TAMANHO", tamanhoId: "", pesoPersonalizadoGramas: "", unidades: "10" },
+  ]);
   const [planoPago, setPlanoPago] = useState(false);
   const [incluirTaxaPlano, setIncluirTaxaPlano] = useState(true);
   const [quantidadeTaxasPlano, setQuantidadeTaxasPlano] = useState(1);
@@ -602,7 +622,40 @@ export function NovoAgendamentoNovoLayout({
     [planosCatalogo, planoSelecionadoId],
   );
 
-  const valorPlanoSelecionado = Number(planoSelecionado?.valor || 0);
+  const planoCombosCalculados = useMemo(() => {
+    return planoCombos.map((combo) => {
+      const unidades = Math.max(1, Math.floor(Number(combo.unidades || 1)));
+      if (combo.tipo === "TAMANHO") {
+        const tamanho = tamanhos.find((t) => t.id === combo.tamanhoId);
+        const valorTotal = tamanho ? getValorPlanoTamanho(tamanho, unidades) : 0;
+        return {
+          ...combo,
+          unidades,
+          label: tamanho?.nome || "Tamanho",
+          valorUnitario: unidades > 0 ? valorTotal / unidades : 0,
+          valorTotal,
+          valido: !!tamanho,
+        };
+      }
+
+      const peso = Math.max(0, Math.floor(Number(combo.pesoPersonalizadoGramas || 0)));
+      const regrasTotal = regras.filter((r) => r.tipo === "PESO_TOTAL").sort((a, b) => a.limite - b.limite);
+      const regra = regrasTotal.find((r) => peso <= Number(r.limite)) || regrasTotal[regrasTotal.length - 1];
+      const valorUnitario = regra && peso > 0 ? Number(regra.preco || 0) : 0;
+      return {
+        ...combo,
+        unidades,
+        pesoPersonalizadoGramas: String(peso || ""),
+        label: peso > 0 ? `${peso}g personalizada` : "Personalizada",
+        valorUnitario,
+        valorTotal: valorUnitario * unidades,
+        valido: peso > 0 && valorUnitario > 0,
+      };
+    });
+  }, [planoCombos, tamanhos, regras]);
+
+  const valorPlanoSelecionado = planoCombosCalculados.reduce((acc, item) => acc + Number(item.valorTotal || 0), 0);
+  const unidadesPlanoSelecionado = planoCombosCalculados.reduce((acc, item) => acc + Number(item.unidades || 0), 0);
   const quantidadeTaxasPlanoFinal =
     incluirTaxaPlano && tipo === "ENTREGA" && valorTaxa > 0
       ? Math.max(1, Math.floor(Number(quantidadeTaxasPlano || 1)))
@@ -619,12 +672,35 @@ export function NovoAgendamentoNovoLayout({
     }, 0);
   }
 
+  function getPesoPersonalizadoItem(item: NovoPedidoItem) {
+    return (
+      Number(item.carboGramas || 0) +
+      Number(item.proteinaGramas || 0) +
+      Number(item.legumeGramas || 0) +
+      Number(item.feijaoGramas || 0)
+    );
+  }
+
+  function planoClienteTemItemCompativel(plano: any, item: NovoPedidoItem) {
+    const saldos = plano.itens || [];
+    if (saldos.length > 0) {
+      return saldos.some((saldo: any) => {
+        const planoItem = saldo.planoItem || {};
+        if (Number(saldo.saldoUnidades || 0) <= 0) return false;
+        if (item.tipoItem === "PERSONALIZADA") {
+          return Number(planoItem.pesoPersonalizadoGramas || 0) === getPesoPersonalizadoItem(item);
+        }
+        return String(planoItem.tamanhoId || "") === String(item.tamanhoId || "");
+      });
+    }
+
+    const planoTamanhoId = String(plano.plano?.tamanhoId ?? plano.tamanhoId ?? "");
+    return item.tipoItem !== "PERSONALIZADA" && planoTamanhoId === String(item.tamanhoId || "");
+  }
+
   function canUsePlanoForItem(item: NovoPedidoItem) {
     if (!item.usarPlano || item.tipoItem === "SALGADO") return true;
-    return (clienteSelecionado?.planos || []).some((plano: any) => {
-      const planoTamanhoId = String(plano.plano?.tamanhoId ?? plano.tamanhoId ?? "");
-      return planoTamanhoId === String(item.tamanhoId || "");
-    });
+    return (clienteSelecionado?.planos || []).some((plano: any) => planoClienteTemItemCompativel(plano, item));
   }
 
   const itensComPrecoBruto = useMemo(() => {
@@ -901,10 +977,22 @@ export function NovoAgendamentoNovoLayout({
       toast.error("Cliente não selecionado", { description: "Selecione um cliente antes de vincular um plano." });
       return;
     }
+    if (agendamentoDuplicado && !initialData) {
+      toast.warning(`Cliente já possui agendamento para o dia ${formatDateBR(data)}`, {
+        description: "Para adicionar plano, altere o pedido existente.",
+      });
+      return;
+    }
+    if (tipo === "ENTREGA" && !clienteSelecionado?.enderecoPrincipal?.trim() && !endereco.trim()) {
+      toast.error("Cliente sem endereço", { description: "Cadastre um endereço antes de adicionar plano com entrega." });
+      return;
+    }
 
     setModalEscolhaPedidoOpen(false);
     setModalPlanoOpen(true);
     setPlanoSelecionadoId("");
+    setPlanoNome("");
+    setPlanoCombos([{ id: uid(), tipo: "TAMANHO", tamanhoId: "", pesoPersonalizadoGramas: "", unidades: "10" }]);
     setPlanoPago(false);
     setIncluirTaxaPlano(true);
     setQuantidadeTaxasPlano(1);
@@ -918,14 +1006,37 @@ export function NovoAgendamentoNovoLayout({
   }
 
   async function handleVincularPlanoCliente() {
-    if (!clienteId || !planoSelecionadoId) return;
+    if (!clienteId) return;
+    const combosValidos = planoCombosCalculados.filter((combo) => combo.valido);
+    if (combosValidos.length !== planoCombos.length) {
+      toast.error("Combinações incompletas", {
+        description: "Informe tamanho/peso e quantidade em todas as linhas do plano.",
+      });
+      return;
+    }
 
-    const vinculo = await vincularPlano(Number(clienteId), Number(planoSelecionadoId), planoPago, {
+    const nomePlano =
+      planoNome.trim() ||
+      `Plano ${combosValidos.map((combo) => `${combo.unidades}x ${combo.label}`).join(" + ")}`;
+
+    const planoCriado = await createPlano({
+      nome: nomePlano,
+      unidades: unidadesPlanoSelecionado,
+      entregas: 0,
+      valor: valorPlanoSelecionado,
+      itens: combosValidos.map((combo) => ({
+        tamanhoId: combo.tipo === "TAMANHO" ? Number(combo.tamanhoId) : null,
+        pesoPersonalizadoGramas:
+          combo.tipo === "PERSONALIZADO" ? Number(combo.pesoPersonalizadoGramas || 0) : null,
+        unidades: Number(combo.unidades || 0),
+      })),
+    });
+
+    const vinculo = await vincularPlano(Number(clienteId), Number(planoCriado.id), planoPago, {
       quantidadeTaxasEntrega: quantidadeTaxasPlanoFinal,
       valorTaxaEntrega: quantidadeTaxasPlanoFinal > 0 ? Number(valorTaxa || 0) : 0,
     });
-    const plano = planosCatalogo.find((p) => String(p.id) === String(planoSelecionadoId));
-    const novoVinculo = plano ? { ...vinculo, plano } : vinculo;
+    const novoVinculo = { ...vinculo, plano: planoCriado };
 
     if (clienteSelecionado) {
       clienteSelecionado.planos = [...(clienteSelecionado.planos || []), novoVinculo];
@@ -933,6 +1044,8 @@ export function NovoAgendamentoNovoLayout({
 
     setModalPlanoOpen(false);
     setPlanoSelecionadoId("");
+    setPlanoNome("");
+    setPlanoCombos([{ id: uid(), tipo: "TAMANHO", tamanhoId: "", pesoPersonalizadoGramas: "", unidades: "10" }]);
     setPlanoPago(false);
     setIncluirTaxaPlano(true);
     setQuantidadeTaxasPlano(1);
@@ -1264,6 +1377,11 @@ export function NovoAgendamentoNovoLayout({
     resetForm();
   }
 
+  const podeAdicionarPlano =
+    !!clienteSelecionado &&
+    !(agendamentoDuplicado && !initialData) &&
+    (tipo !== "ENTREGA" || !!clienteSelecionado.enderecoPrincipal?.trim() || !!endereco.trim());
+
   return (
     <>
       <Dialog
@@ -1426,6 +1544,30 @@ export function NovoAgendamentoNovoLayout({
                         {clienteSelecionado.planos && clienteSelecionado.planos.length > 0 && (
                           <div className="flex flex-col gap-1 mt-1">
                             {clienteSelecionado.planos.map((plano: any) => {
+                              if (plano.itens?.length) {
+                                return plano.itens.map((saldo: any) => {
+                                  const planoItem = saldo.planoItem || {};
+                                  const peso = planoItem.tamanho?.pesagemGramas || planoItem.pesoPersonalizadoGramas;
+                                  const label = planoItem.pesoPersonalizadoGramas
+                                    ? `${planoItem.pesoPersonalizadoGramas}g personalizada`
+                                    : peso
+                                      ? `${peso}g`
+                                      : "Tamanho desconhecido";
+                                  const isInUse = itens.some((it) => {
+                                    if (!it.usarPlano) return false;
+                                    if (it.tipoItem === "PERSONALIZADA") {
+                                      return Number(planoItem.pesoPersonalizadoGramas || 0) === getPesoPersonalizadoItem(it);
+                                    }
+                                    return Number(it.tamanhoId) === Number(planoItem.tamanhoId);
+                                  });
+
+                                  return (
+                                    <div key={`${plano.id}-${saldo.id}`} className={`text-xs font-medium ${isInUse ? "text-green-600 bg-green-50 px-1 rounded-sm border border-green-100" : "text-muted-foreground"}`}>
+                                      {saldo.saldoUnidades} marmitas - {label}
+                                    </div>
+                                  );
+                                });
+                              }
                               const peso = plano.tamanho?.pesagemGramas || plano.plano?.tamanho?.pesagemGramas;
                               const pTamanhoId = plano.plano?.tamanhoId || plano.tamanhoId;
                               const isInUse = itens.some(it => it.usarPlano && Number(it.tamanhoId) === Number(pTamanhoId));
@@ -1900,20 +2042,22 @@ export function NovoAgendamentoNovoLayout({
               </div>
             </Button>
 
-            <Button
-              type="button"
-              variant="outline"
-              className="h-auto w-full justify-start gap-3 rounded-xl border-emerald-200 p-4 text-left hover:bg-emerald-50"
-              onClick={abrirModalPlano}
-            >
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-emerald-600 text-white">
-                <Package className="h-5 w-5" />
-              </div>
-              <div>
-                <div className="font-bold text-primary">Planos</div>
-                <div className="text-xs font-normal text-muted-foreground">Vincular um plano ao cliente selecionado.</div>
-              </div>
-            </Button>
+            {podeAdicionarPlano && (
+              <Button
+                type="button"
+                variant="outline"
+                className="h-auto w-full justify-start gap-3 rounded-xl border-emerald-200 p-4 text-left hover:bg-emerald-50"
+                onClick={abrirModalPlano}
+              >
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-emerald-600 text-white">
+                  <Package className="h-5 w-5" />
+                </div>
+                <div>
+                  <div className="font-bold text-primary">Planos</div>
+                  <div className="text-xs font-normal text-muted-foreground">Criar e vincular um plano ao cliente.</div>
+                </div>
+              </Button>
+            )}
           </div>
         </DialogContent>
       </Dialog>
@@ -1933,28 +2077,148 @@ export function NovoAgendamentoNovoLayout({
             </div>
 
             <div className="space-y-2">
-              <Label>Plano</Label>
-              <Select
-                value={planoSelecionadoId}
-                onValueChange={setPlanoSelecionadoId}
+              <Label>Nome do plano</Label>
+              <Input
+                value={planoNome}
+                onChange={(e) => setPlanoNome(e.target.value)}
+                placeholder="Ex.: Plano 20 marmitas misto"
                 disabled={savingPlano || !clienteSelecionado}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione um plano" />
-                </SelectTrigger>
-                <SelectContent>
-                  {planosCatalogo.map((plano) => {
-                    const gramas = plano.tamanho?.pesagemGramas ? `${plano.tamanho.pesagemGramas}g` : "-";
-                    const unidades = Number(plano.unidades || 0);
-                    const nome = plano.nome?.trim() ? plano.nome.trim() : `Plano ${gramas} (${unidades} un.)`;
-                    return (
-                      <SelectItem key={plano.id} value={String(plano.id)}>
-                        {nome}
-                      </SelectItem>
-                    );
-                  })}
-                </SelectContent>
-              </Select>
+              />
+            </div>
+
+            <div className="space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <Label>Combinações de marmitas</Label>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() =>
+                    setPlanoCombos((prev) => [
+                      ...prev,
+                      { id: uid(), tipo: "TAMANHO", tamanhoId: "", pesoPersonalizadoGramas: "", unidades: "10" },
+                    ])
+                  }
+                  disabled={savingPlano}
+                >
+                  <Plus className="h-4 w-4 mr-1" />
+                  Adicionar
+                </Button>
+              </div>
+
+              <div className="space-y-2">
+                {planoCombos.map((combo, index) => {
+                  const calculado = planoCombosCalculados[index];
+                  return (
+                    <div key={combo.id} className="rounded-xl border border-border/70 p-3 space-y-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-[130px_1fr_110px_36px] gap-2 items-end">
+                        <div className="space-y-1.5">
+                          <Label className="text-xs text-muted-foreground">Tipo</Label>
+                          <Select
+                            value={combo.tipo}
+                            onValueChange={(value: "TAMANHO" | "PERSONALIZADO") =>
+                              setPlanoCombos((prev) =>
+                                prev.map((item) =>
+                                  item.id === combo.id
+                                    ? { ...item, tipo: value, tamanhoId: "", pesoPersonalizadoGramas: "" }
+                                    : item,
+                                ),
+                              )
+                            }
+                            disabled={savingPlano}
+                          >
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="TAMANHO">Sistema</SelectItem>
+                              <SelectItem value="PERSONALIZADO">Personalizada</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div className="space-y-1.5">
+                          <Label className="text-xs text-muted-foreground">
+                            {combo.tipo === "PERSONALIZADO" ? "Peso exato" : "Tamanho"}
+                          </Label>
+                          {combo.tipo === "PERSONALIZADO" ? (
+                            <Input
+                              type="number"
+                              min={1}
+                              step={1}
+                              value={combo.pesoPersonalizadoGramas}
+                              onChange={(e) =>
+                                setPlanoCombos((prev) =>
+                                  prev.map((item) =>
+                                    item.id === combo.id ? { ...item, pesoPersonalizadoGramas: e.target.value } : item,
+                                  ),
+                                )
+                              }
+                              placeholder="Ex.: 425"
+                              disabled={savingPlano}
+                            />
+                          ) : (
+                            <Select
+                              value={combo.tamanhoId}
+                              onValueChange={(value) =>
+                                setPlanoCombos((prev) =>
+                                  prev.map((item) => (item.id === combo.id ? { ...item, tamanhoId: value } : item)),
+                                )
+                              }
+                              disabled={savingPlano}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Selecione" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {tamanhos.map((tamanho) => (
+                                  <SelectItem key={tamanho.id} value={tamanho.id}>
+                                    {tamanho.nome}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          )}
+                        </div>
+
+                        <div className="space-y-1.5">
+                          <Label className="text-xs text-muted-foreground">Quantidade</Label>
+                          <Input
+                            type="number"
+                            min={1}
+                            step={1}
+                            value={combo.unidades}
+                            onChange={(e) =>
+                              setPlanoCombos((prev) =>
+                                prev.map((item) => (item.id === combo.id ? { ...item, unidades: e.target.value } : item)),
+                              )
+                            }
+                            disabled={savingPlano}
+                          />
+                        </div>
+
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-10 w-9 text-muted-foreground hover:text-red-600"
+                          onClick={() => setPlanoCombos((prev) => prev.filter((item) => item.id !== combo.id))}
+                          disabled={savingPlano || planoCombos.length === 1}
+                        >
+                          <Trash className="h-4 w-4" />
+                        </Button>
+                      </div>
+
+                      <div className="flex items-center justify-between rounded-lg bg-muted/30 px-3 py-2 text-sm">
+                        <span className="text-muted-foreground">
+                          {calculado?.valido ? `${calculado.unidades} x ${calculado.label}` : "Complete a linha"}
+                        </span>
+                        <span className="font-bold text-primary">R$ {currency(Number(calculado?.valorTotal || 0))}</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
 
             <div className="flex items-center justify-between rounded-xl border border-border/70 p-3">
@@ -2039,8 +2303,8 @@ export function NovoAgendamentoNovoLayout({
               <Button variant="outline" onClick={() => setModalPlanoOpen(false)} disabled={savingPlano}>
                 Cancelar
               </Button>
-              <Button onClick={handleVincularPlanoCliente} disabled={savingPlano || !planoSelecionadoId || !clienteSelecionado}>
-                {savingPlano ? "Vinculando..." : "Vincular plano"}
+              <Button onClick={handleVincularPlanoCliente} disabled={savingPlano || !clienteSelecionado || planoCombosCalculados.some((combo) => !combo.valido)}>
+                {savingPlano ? "Vinculando..." : "Criar e vincular plano"}
               </Button>
             </div>
           </div>
@@ -2218,11 +2482,9 @@ export function NovoAgendamentoNovoLayout({
                   
                   {(() => {
                     if (formItem.tipoItem === "SALGADO") return null;
-                    const tamanhoId = formItem.tamanhoId;
-                    const temPlanoCompativel = clienteSelecionado?.planos?.some((p: any) => {
-                      const pTamanhoId = p.plano?.tamanhoId ?? p.tamanhoId;
-                      return Number(pTamanhoId) === Number(tamanhoId);
-                    });
+                    const temPlanoCompativel = clienteSelecionado?.planos?.some((p: any) =>
+                      planoClienteTemItemCompativel(p, formItem),
+                    );
                     if (!temPlanoCompativel) return null;
                     return (
                       <div className="mt-4 flex items-center justify-between p-3 rounded-lg bg-green-50 border border-green-100">
