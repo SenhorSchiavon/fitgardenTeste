@@ -744,6 +744,54 @@ export function NovoAgendamentoNovoLayout({
     return totalBrutoMarmitas + totalBrutoSalgados;
   }, [itensComPrecoFinal, regras]);
 
+  const resumoPedidos = useMemo(() => {
+    const grupos = Object.values(
+      itensComPrecoFinal.reduce((acc, item) => {
+        const key = item.groupId || item.id;
+        if (!acc[key]) acc[key] = [];
+        acc[key].push(item);
+        return acc;
+      }, {} as Record<string, typeof itensComPrecoFinal>)
+    );
+
+    const totalBrutoMarmitas = itensComPrecoFinal
+      .filter((item) => item.tipoItem !== "SALGADO")
+      .reduce((acc, item) => acc + Number(item.precoUnit || 0) * Number(item.quantidade || 0), 0);
+
+    const totalMarmitasResumo = itensComPrecoFinal
+      .filter((item) => item.tipoItem !== "SALGADO")
+      .reduce((acc, item) => acc + Number(item.quantidade || 0), 0);
+
+    const regraVolume = regras
+      .filter((r) => r.tipo === "VOLUME_TOTAL" && totalMarmitasResumo >= Number(r.limite))
+      .sort((a, b) => Number(b.limite) - Number(a.limite))[0];
+
+    const descontoVolume = regraVolume ? totalBrutoMarmitas * (Number(regraVolume.preco) / 100) : 0;
+
+    return grupos.map((grupo, index) => {
+      const subtotalMarmitas = grupo
+        .filter((item) => item.tipoItem !== "SALGADO")
+        .reduce((acc, item) => acc + Number(item.precoUnit || 0) * Number(item.quantidade || 0), 0);
+      const subtotalSalgados = grupo
+        .filter((item) => item.tipoItem === "SALGADO")
+        .reduce((acc, item) => acc + Number(item.precoUnit || 0) * Number(item.quantidade || 0), 0);
+      const descontoGrupo =
+        totalBrutoMarmitas > 0 ? descontoVolume * (subtotalMarmitas / totalBrutoMarmitas) : 0;
+      const itemReferencia = grupo[0];
+
+      return {
+        id: itemReferencia?.groupId || itemReferencia?.id || String(index),
+        label: `Pedido #${index + 1}`,
+        nome: itemReferencia ? getDestinatarioItem(itemReferencia) : "-",
+        subtotal: subtotalMarmitas - descontoGrupo + subtotalSalgados,
+      };
+    });
+  }, [itensComPrecoFinal, regras, clienteSelecionado]);
+
+  const valorTaxaEntregaResumo = tipo === "ENTREGA" && incluirTaxaEntrega ? Number(valorTaxa || 0) : 0;
+  const valorTaxaPorPedido =
+    resumoPedidos.length > 0 && valorTaxaEntregaResumo > 0 ? valorTaxaEntregaResumo / resumoPedidos.length : 0;
+
   function resetForm() {
     setClienteId("");
     setTipo("ENTREGA");
@@ -1650,6 +1698,10 @@ export function NovoAgendamentoNovoLayout({
                                   </Badge>
                                 </div>
                               </div>
+                              <div className="shrink-0 text-left sm:text-right">
+                                <div className="text-[9px] font-black uppercase tracking-widest text-primary/60">Subtotal</div>
+                                <div className="text-sm font-extrabold text-primary">R$ {currency(subtotalG)}</div>
+                              </div>
                             </div>
 
                             <div className="divide-y divide-border/30">
@@ -1907,9 +1959,54 @@ export function NovoAgendamentoNovoLayout({
                   <Separator />
 
                   <div className="space-y-2 text-sm">
-                    <div className="flex items-center justify-between text-muted-foreground">
-                      <span>Subtotal marmitas</span>
-                      <span>R$ {currency(subtotalPedido)}</span>
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between text-[11px] font-bold uppercase tracking-widest text-muted-foreground">
+                        <span>Pedidos</span>
+                        <span>Valores</span>
+                      </div>
+
+                      {resumoPedidos.length > 0 ? (
+                        <div className="space-y-2">
+                          {resumoPedidos.map((pedido) => {
+                            const totalPedido = pedido.subtotal + valorTaxaPorPedido;
+                            return (
+                              <div key={pedido.id} className="rounded-lg border border-border/70 bg-muted/10 px-3 py-2">
+                                <div className="flex items-start justify-between gap-3">
+                                  <div className="min-w-0">
+                                    <div className="text-[10px] font-black uppercase tracking-widest text-primary/70">
+                                      {pedido.label}
+                                    </div>
+                                    <div className="truncate text-xs font-semibold text-foreground">
+                                      {pedido.nome}
+                                    </div>
+                                  </div>
+                                  <div className="shrink-0 text-right font-bold text-foreground">
+                                    R$ {currency(pedido.subtotal)}
+                                  </div>
+                                </div>
+
+                                {valorTaxaPorPedido > 0 && (
+                                  <div className="mt-2 border-t border-border/60 pt-2 text-xs">
+                                    <div className="flex items-center justify-between text-muted-foreground">
+                                      <span>Taxa de entrega</span>
+                                      <span>R$ {currency(valorTaxaPorPedido)}</span>
+                                    </div>
+                                    <div className="mt-1 flex items-center justify-between font-bold text-primary">
+                                      <span>Total do pedido</span>
+                                      <span>R$ {currency(totalPedido)}</span>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <div className="flex items-center justify-between text-muted-foreground">
+                          <span>Subtotal marmitas</span>
+                          <span>R$ {currency(subtotalPedido)}</span>
+                        </div>
+                      )}
                     </div>
 
                     {tipo === "ENTREGA" && valorTaxa > 0 && (
@@ -1921,8 +2018,8 @@ export function NovoAgendamentoNovoLayout({
                             onCheckedChange={(v) => setIncluirTaxaEntrega(!!v)}
                           />
                           <Label htmlFor="incluirTaxaEntrega" className="text-sm font-medium cursor-pointer leading-tight">
-                            Tem taxa de entrega?
-                            <span className="block text-[11px] text-muted-foreground font-normal">Estimada: R$ {currency(valorTaxa)}</span>
+                            Cobrar taxa de entrega
+                            <span className="block text-[11px] text-muted-foreground font-normal">Calculado pelo endereço: R$ {currency(valorTaxa)}</span>
                           </Label>
                         </div>
                       </div>
@@ -1932,7 +2029,7 @@ export function NovoAgendamentoNovoLayout({
 
                     <div className="flex items-center justify-between text-lg">
                       <span className="font-bold text-primary">Total a pagar</span>
-                      <span className="font-extrabold text-xl text-primary">R$ {currency(subtotalPedido + (tipo === "ENTREGA" && incluirTaxaEntrega ? valorTaxa : 0))}</span>
+                      <span className="font-extrabold text-xl text-primary">R$ {currency(subtotalPedido + valorTaxaEntregaResumo)}</span>
                     </div>
                   </div>
 
