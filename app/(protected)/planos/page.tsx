@@ -43,16 +43,23 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Plano, NovoPlanoInput, usePlanos } from "@/hooks/usePlanos";
 import { usePlanosCliente } from "@/hooks/usePlanosCliente";
+import { useRegrasPersonalizadas } from "@/hooks/useRegrasPersonalizadas";
 import { useTableSort } from "@/hooks/useTableSort";
 import { SortableHead } from "@/components/ui/sorttable";
 
+type PlanoItemForm = {
+  id: string;
+  tipo: "TAMANHO" | "PERSONALIZADO";
+  tamanhoId: string;
+  pesoPersonalizadoGramas: string;
+  unidades: string;
+};
+
 type PlanoForm = {
   nome: string;
-  tamanhoId: string; // select
-  unidades: string;
   entregasInclusas: string;
-  valor: string;
   ativo: boolean;
+  itens: PlanoItemForm[];
 };
 
 function toNumber(value: string, fallback = 0) {
@@ -64,9 +71,32 @@ function moneyBr(v: number) {
   return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
 
+function uid() {
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+}
+
+function novaLinhaPlano(): PlanoItemForm {
+  return {
+    id: uid(),
+    tipo: "TAMANHO",
+    tamanhoId: "",
+    pesoPersonalizadoGramas: "",
+    unidades: "10",
+  };
+}
+
+function valorPlanoPorQuantidade(tamanho: any, quantidade: number) {
+  const qtd = Math.max(1, Math.floor(Number(quantidade || 1)));
+  if (qtd >= 40 && tamanho.valor40 != null) return Number(tamanho.valor40 || 0);
+  if (qtd >= 20 && tamanho.valor20 != null) return Number(tamanho.valor20 || 0);
+  if (qtd >= 10 && tamanho.valor10 != null) return Number(tamanho.valor10 || 0);
+  return Number(tamanho.valorUnitario || 0) * qtd;
+}
+
 export default function PlanosPage() {
   const { planos, tamanhos, loading, saving, createPlano, updatePlano, deletePlano } =
     usePlanos();
+  const { regras } = useRegrasPersonalizadas();
 
   const { listPlanosNaoPagos, marcarPlanoComoPago } = usePlanosCliente();
 
@@ -94,31 +124,64 @@ export default function PlanosPage() {
 
   const [form, setForm] = useState<PlanoForm>({
     nome: "",
-    tamanhoId: "",
-    unidades: "10",
     entregasInclusas: "0",
-    valor: "0",
     ativo: true,
+    itens: [novaLinhaPlano()],
   });
 
   const resetForm = () => {
     setForm({
       nome: "",
-      tamanhoId: "",
-      unidades: "10",
       entregasInclusas: "0",
-      valor: "0",
       ativo: true,
+      itens: [novaLinhaPlano()],
     });
     setEditandoId(null);
   };
+
+  const itensCalculados = useMemo(() => {
+    const regrasPeso = regras
+      .filter((r) => r.tipo === "PESO_TOTAL")
+      .sort((a, b) => Number(a.limite) - Number(b.limite));
+
+    return form.itens.map((item) => {
+      const unidades = Math.max(1, Math.floor(toNumber(item.unidades, 1)));
+      if (item.tipo === "TAMANHO") {
+        const tamanho = tamanhos.find((t) => String(t.id) === String(item.tamanhoId));
+        const valorTotal = tamanho ? valorPlanoPorQuantidade(tamanho, unidades) : 0;
+        return {
+          ...item,
+          unidades,
+          label: tamanho?.pesagemGramas ? `${tamanho.pesagemGramas}g` : "Tamanho",
+          valorTotal,
+          valorUnitario: unidades > 0 ? valorTotal / unidades : 0,
+          valido: !!tamanho,
+        };
+      }
+
+      const peso = Math.max(0, Math.floor(toNumber(item.pesoPersonalizadoGramas, 0)));
+      const regra = regrasPeso.find((r) => peso <= Number(r.limite)) || regrasPeso[regrasPeso.length - 1];
+      const valorUnitario = peso > 0 && regra ? Number(regra.preco || 0) : 0;
+      return {
+        ...item,
+        unidades,
+        label: peso > 0 ? `${peso}g personalizada` : "Personalizada",
+        valorTotal: valorUnitario * unidades,
+        valorUnitario,
+        valido: peso > 0 && valorUnitario > 0,
+      };
+    });
+  }, [form.itens, regras, tamanhos]);
+
+  const valorTotalPlano = itensCalculados.reduce((acc, item) => acc + Number(item.valorTotal || 0), 0);
+  const unidadesTotalPlano = itensCalculados.reduce((acc, item) => acc + Number(item.unidades || 0), 0);
 
   const planosFiltrados = useMemo(() => {
     const q = busca.trim().toLowerCase();
     if (!q) return planos;
 
     return planos.filter((p) =>
-      [p.id, p.nome, p.tamanho?.pesagemGramas, p.unidades, p.entregasInclusas, p.valor]
+      [p.id, p.nome, p.tamanho?.pesagemGramas, p.unidades, p.entregasInclusas, p.entregas, p.valor]
         .some((v) => String(v ?? "").toLowerCase().includes(q)),
     );
   }, [planos, busca]);
@@ -131,13 +194,30 @@ export default function PlanosPage() {
   };
 
   const handleEdit = (plano: Plano) => {
+    const itens =
+      plano.itens && plano.itens.length > 0
+        ? plano.itens.map((item) => ({
+            id: item.id ? String(item.id) : uid(),
+            tipo: item.pesoPersonalizadoGramas ? "PERSONALIZADO" as const : "TAMANHO" as const,
+            tamanhoId: item.tamanhoId ? String(item.tamanhoId) : "",
+            pesoPersonalizadoGramas: item.pesoPersonalizadoGramas ? String(item.pesoPersonalizadoGramas) : "",
+            unidades: String(item.unidades || 1),
+          }))
+        : [
+            {
+              id: uid(),
+              tipo: "TAMANHO" as const,
+              tamanhoId: plano.tamanhoId ? String(plano.tamanhoId) : "",
+              pesoPersonalizadoGramas: "",
+              unidades: String(plano.unidades || 1),
+            },
+          ];
+
     setForm({
       nome: plano.nome,
-      tamanhoId: String(plano.tamanhoId),
-      unidades: String(plano.unidades ?? 0),
-      entregasInclusas: String(plano.entregasInclusas ?? 0),
-      valor: String(plano.valor ?? 0),
+      entregasInclusas: String(plano.entregasInclusas ?? plano.entregas ?? 0),
       ativo: !!plano.ativo,
+      itens,
     });
     setEditandoId(plano.id);
     setDialogOpen(true);
@@ -146,15 +226,22 @@ export default function PlanosPage() {
   const handleSave = async () => {
     const nome = String(form.nome || "").trim();
     if (!nome) return;
-    if (!form.tamanhoId) return;
+    if (itensCalculados.some((item) => !item.valido)) return;
+    const primeiroTamanho = form.itens.find((item) => item.tipo === "TAMANHO" && item.tamanhoId);
 
     const payload: NovoPlanoInput = {
       nome,
-      tamanhoId: toNumber(form.tamanhoId),
-      unidades: toNumber(form.unidades),
+      tamanhoId: primeiroTamanho ? toNumber(primeiroTamanho.tamanhoId) : null,
+      unidades: unidadesTotalPlano,
       entregasInclusas: toNumber(form.entregasInclusas),
-      valor: toNumber(form.valor),
+      valor: valorTotalPlano,
       ativo: !!form.ativo,
+      itens: form.itens.map((item) => ({
+        tamanhoId: item.tipo === "TAMANHO" ? toNumber(item.tamanhoId) : null,
+        pesoPersonalizadoGramas:
+          item.tipo === "PERSONALIZADO" ? toNumber(item.pesoPersonalizadoGramas) : null,
+        unidades: toNumber(item.unidades, 1),
+      })),
     };
 
     if (editandoId) await updatePlano(editandoId, payload);
@@ -211,7 +298,7 @@ export default function PlanosPage() {
                 <TableRow className="bg-gray-50 hover:bg-gray-50">
                   <SortableHead label="ID" field="id" sort={sort} onSort={onSort} />
                   <SortableHead label="Nome" field="nome" sort={sort} onSort={onSort} />
-                  <SortableHead label="Tamanho" field="tamanho.pesagemGramas" sort={sort} onSort={onSort} />
+                  <SortableHead label="Composições" field="tamanho.pesagemGramas" sort={sort} onSort={onSort} />
                   <SortableHead label="Unidades" field="unidades" sort={sort} onSort={onSort} />
                   <SortableHead label="Entregas" field="entregasInclusas" sort={sort} onSort={onSort} />
                   <SortableHead label="Valor" field="valor" sort={sort} onSort={onSort} />
@@ -233,9 +320,28 @@ export default function PlanosPage() {
                     <TableCell className="text-gray-700">{plano.nome}</TableCell>
 
                     <TableCell className="text-gray-700">
-                      {plano.tamanho?.pesagemGramas
-                        ? `${plano.tamanho.pesagemGramas}g`
-                        : `#${plano.tamanhoId}`}
+                      {plano.itens && plano.itens.length > 0 ? (
+                        <div className="space-y-1">
+                          {plano.itens.map((item) => {
+                            const label = item.pesoPersonalizadoGramas
+                              ? `${item.pesoPersonalizadoGramas}g personalizada`
+                              : item.tamanho?.pesagemGramas
+                                ? `${item.tamanho.pesagemGramas}g`
+                                : item.tamanhoId
+                                  ? `#${item.tamanhoId}`
+                                  : "Sem tamanho";
+                            return (
+                              <div key={item.id || `${label}-${item.unidades}`} className="text-xs">
+                                {Number(item.unidades || 0)}x {label}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ) : plano.tamanho?.pesagemGramas ? (
+                        `${plano.tamanho.pesagemGramas}g`
+                      ) : (
+                        `#${plano.tamanhoId}`
+                      )}
                     </TableCell>
 
                     <TableCell className="text-gray-700">
@@ -243,7 +349,7 @@ export default function PlanosPage() {
                     </TableCell>
 
                     <TableCell className="text-gray-700">
-                      {Number(plano.entregasInclusas || 0)}
+                      {Number(plano.entregasInclusas ?? plano.entregas ?? 0)}
                     </TableCell>
 
                     <TableCell className="text-gray-700">
@@ -428,7 +534,7 @@ export default function PlanosPage() {
           if (!open) resetForm();
         }}
       >
-        <DialogContent className="bg-white max-w-2xl">
+        <DialogContent className="bg-white max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-gray-800">
               {editandoId ? "Editar Plano" : "Novo Plano"}
@@ -447,51 +553,173 @@ export default function PlanosPage() {
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label className="text-gray-700">Tamanho</Label>
-                <Select
-                  value={form.tamanhoId}
-                  onValueChange={(value) => setForm((p) => ({ ...p, tamanhoId: value }))}
+            <div className="space-y-3 rounded-md border border-gray-200 p-3">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <Label className="text-gray-700">Tamanhos e quantidades</Label>
+                  <p className="text-xs text-gray-500">
+                    O valor é calculado automaticamente pela tabela de preços.
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() =>
+                    setForm((p) => ({
+                      ...p,
+                      itens: [...p.itens, novaLinhaPlano()],
+                    }))
+                  }
                   disabled={saving}
                 >
-                  <SelectTrigger className="border-gray-200">
-                    <SelectValue placeholder="Selecione o tamanho" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {tamanhos.map((t) => (
-                      <SelectItem key={t.id} value={String(t.id)}>
-                        {t.pesagemGramas}g
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  <Plus className="mr-1 h-4 w-4" />
+                  Adicionar
+                </Button>
               </div>
 
               <div className="space-y-2">
-                <Label className="text-gray-700">Valor (R$)</Label>
-                <Input
-                  value={form.valor}
-                  onChange={(e) => setForm((p) => ({ ...p, valor: e.target.value }))}
-                  className="border-gray-200"
-                  disabled={saving}
-                  placeholder="Ex: 199.90"
-                />
+                {form.itens.map((item, index) => {
+                  const calculado = itensCalculados[index];
+                  return (
+                    <div key={item.id} className="rounded-md border border-gray-100 bg-gray-50 p-3">
+                      <div className="grid grid-cols-1 gap-3 md:grid-cols-[140px_minmax(0,1fr)_120px_36px] md:items-end">
+                        <div className="space-y-1.5">
+                          <Label className="text-xs text-gray-500">Tipo</Label>
+                          <Select
+                            value={item.tipo}
+                            onValueChange={(value: "TAMANHO" | "PERSONALIZADO") =>
+                              setForm((p) => ({
+                                ...p,
+                                itens: p.itens.map((linha) =>
+                                  linha.id === item.id
+                                    ? {
+                                        ...linha,
+                                        tipo: value,
+                                        tamanhoId: "",
+                                        pesoPersonalizadoGramas: "",
+                                      }
+                                    : linha,
+                                ),
+                              }))
+                            }
+                            disabled={saving}
+                          >
+                            <SelectTrigger className="bg-white">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="TAMANHO">Sistema</SelectItem>
+                              <SelectItem value="PERSONALIZADO">Personalizada</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div className="space-y-1.5">
+                          <Label className="text-xs text-gray-500">
+                            {item.tipo === "PERSONALIZADO" ? "Peso exato" : "Tamanho"}
+                          </Label>
+                          {item.tipo === "PERSONALIZADO" ? (
+                            <Input
+                              type="number"
+                              min={1}
+                              step={1}
+                              value={item.pesoPersonalizadoGramas}
+                              onChange={(e) =>
+                                setForm((p) => ({
+                                  ...p,
+                                  itens: p.itens.map((linha) =>
+                                    linha.id === item.id
+                                      ? { ...linha, pesoPersonalizadoGramas: e.target.value }
+                                      : linha,
+                                  ),
+                                }))
+                              }
+                              className="bg-white"
+                              disabled={saving}
+                              placeholder="Ex: 425"
+                            />
+                          ) : (
+                            <Select
+                              value={item.tamanhoId}
+                              onValueChange={(value) =>
+                                setForm((p) => ({
+                                  ...p,
+                                  itens: p.itens.map((linha) =>
+                                    linha.id === item.id ? { ...linha, tamanhoId: value } : linha,
+                                  ),
+                                }))
+                              }
+                              disabled={saving}
+                            >
+                              <SelectTrigger className="bg-white">
+                                <SelectValue placeholder="Selecione" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {tamanhos.map((t) => (
+                                  <SelectItem key={t.id} value={String(t.id)}>
+                                    {t.pesagemGramas}g
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          )}
+                        </div>
+
+                        <div className="space-y-1.5">
+                          <Label className="text-xs text-gray-500">Quantidade</Label>
+                          <Input
+                            type="number"
+                            min={1}
+                            step={1}
+                            value={item.unidades}
+                            onChange={(e) =>
+                              setForm((p) => ({
+                                ...p,
+                                itens: p.itens.map((linha) =>
+                                  linha.id === item.id ? { ...linha, unidades: e.target.value } : linha,
+                                ),
+                              }))
+                            }
+                            className="bg-white"
+                            disabled={saving}
+                          />
+                        </div>
+
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="text-gray-500 hover:bg-red-50 hover:text-red-600"
+                          onClick={() =>
+                            setForm((p) => ({
+                              ...p,
+                              itens: p.itens.filter((linha) => linha.id !== item.id),
+                            }))
+                          }
+                          disabled={saving || form.itens.length === 1}
+                        >
+                          <Trash className="h-4 w-4" />
+                        </Button>
+                      </div>
+
+                      <div className="mt-2 flex items-center justify-between rounded-sm bg-white px-3 py-2 text-sm">
+                        <span className="text-gray-500">
+                          {calculado?.valido
+                            ? `${calculado.unidades}x ${calculado.label} a ${moneyBr(Number(calculado.valorUnitario || 0))}/un.`
+                            : "Complete esta combinação"}
+                        </span>
+                        <span className="font-semibold text-gray-800">
+                          {moneyBr(Number(calculado?.valorTotal || 0))}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label className="text-gray-700">Unidades (marmitas)</Label>
-                <Input
-                  value={form.unidades}
-                  onChange={(e) => setForm((p) => ({ ...p, unidades: e.target.value }))}
-                  className="border-gray-200"
-                  disabled={saving}
-                  placeholder="Ex: 10"
-                />
-              </div>
-
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <div className="space-y-2">
                 <Label className="text-gray-700">Entregas inclusas</Label>
                 <Input
@@ -503,6 +731,18 @@ export default function PlanosPage() {
                   disabled={saving}
                   placeholder="Ex: 2"
                 />
+              </div>
+
+              <div className="rounded-md border border-emerald-100 bg-emerald-50 p-3">
+                <div className="text-xs font-semibold uppercase text-emerald-700">
+                  Total automático
+                </div>
+                <div className="mt-1 text-2xl font-bold text-emerald-900">
+                  {moneyBr(valorTotalPlano)}
+                </div>
+                <div className="text-xs text-emerald-700">
+                  {unidadesTotalPlano} marmitas no plano
+                </div>
               </div>
             </div>
 
@@ -531,7 +771,7 @@ export default function PlanosPage() {
               <Button
                 onClick={handleSave}
                 className="bg-blue-600 hover:bg-blue-700 text-white"
-                disabled={saving}
+                disabled={saving || itensCalculados.some((item) => !item.valido)}
               >
                 {saving ? "Salvando..." : "Salvar"}
               </Button>

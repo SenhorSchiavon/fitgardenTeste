@@ -18,6 +18,7 @@ export type Plano = {
 
   unidades: number;
   entregasInclusas: number;
+  entregas?: number | null;
 
   valor: number;
   ativo: boolean;
