@@ -616,7 +616,7 @@ export function NovoAgendamentoNovoLayout({
   );
 
   const itensDoGrupoAtual = useMemo(
-    () => itens.filter((item) => item.groupId === currentGroupId),
+    () => itens.filter((item) => (item.groupId || "") === currentGroupId),
     [itens, currentGroupId]
   );
 
@@ -2741,15 +2741,15 @@ export function NovoAgendamentoNovoLayout({
 
               {/* LADO DIREITO: RESUMO DO PEDIDO (SIDEBAR) */}
               <aside className="lg:sticky lg:top-0 space-y-4">
-                {itens.length > 0 ? (
+                {itensDoGrupoAtual.length > 0 ? (
                   <div className="rounded-2xl border border-emerald-100 bg-emerald-50/50 p-4 shadow-sm flex flex-col max-h-[60vh]">
                     <div className="text-[10px] font-extrabold uppercase tracking-widest text-emerald-700 mb-4 flex items-center justify-between">
                       <span>Itens no Pedido</span>
-                      <Badge className="bg-emerald-600 hover:bg-emerald-700">{itens.length}</Badge>
+                      <Badge className="bg-emerald-600 hover:bg-emerald-700">{itensDoGrupoAtual.length}</Badge>
                     </div>
                     
                     <div className="space-y-2 overflow-y-auto pr-2 custom-scrollbar flex-1">
-                      {itens.map((it) => (
+                      {itensDoGrupoAtual.map((it) => (
                         <div
                           key={it.id}
                           className="flex flex-col gap-1 bg-white border border-emerald-100 rounded-xl p-3 text-xs shadow-sm hover:border-emerald-300 transition-all group"
