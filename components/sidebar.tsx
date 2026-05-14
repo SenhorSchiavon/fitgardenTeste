@@ -17,6 +17,7 @@ import {
   Package,
   Settings,
   ShoppingCart,
+  Smartphone,
   Snowflake,
   Tag,
   Users,
@@ -227,6 +228,22 @@ export function Sidebar({ className }: SidebarProps) {
               >
                 <MessageCircle className={cn("h-4 w-4", isActive("/mensagens") ? "text-white" : "text-secondary")} />
                 <span className="font-medium">Mensagens</span>
+              </Button>
+            </Link>
+
+            <Link href="/whatsapp">
+              <Button
+                variant={isActive("/whatsapp") ? "secondary" : "ghost"}
+                className={cn(
+                  "w-full justify-start gap-3 h-10 px-4 transition-all",
+                  isActive("/whatsapp")
+                    ? "bg-secondary text-white shadow-lg shadow-secondary/20"
+                    : "text-white/70 hover:bg-white/5 hover:text-white",
+                )}
+                size="sm"
+              >
+                <Smartphone className={cn("h-4 w-4", isActive("/whatsapp") ? "text-white" : "text-secondary")} />
+                <span className="font-medium">WhatsApp</span>
               </Button>
             </Link>
 
