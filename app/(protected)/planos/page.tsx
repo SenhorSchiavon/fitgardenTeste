@@ -57,7 +57,6 @@ type PlanoItemForm = {
 
 type PlanoForm = {
   nome: string;
-  entregasInclusas: string;
   ativo: boolean;
   itens: PlanoItemForm[];
 };
@@ -124,7 +123,6 @@ export default function PlanosPage() {
 
   const [form, setForm] = useState<PlanoForm>({
     nome: "",
-    entregasInclusas: "0",
     ativo: true,
     itens: [novaLinhaPlano()],
   });
@@ -132,7 +130,6 @@ export default function PlanosPage() {
   const resetForm = () => {
     setForm({
       nome: "",
-      entregasInclusas: "0",
       ativo: true,
       itens: [novaLinhaPlano()],
     });
@@ -181,7 +178,7 @@ export default function PlanosPage() {
     if (!q) return planos;
 
     return planos.filter((p) =>
-      [p.id, p.nome, p.tamanho?.pesagemGramas, p.unidades, p.entregasInclusas, p.entregas, p.valor]
+      [p.id, p.nome, p.tamanho?.pesagemGramas, p.unidades, p.valor]
         .some((v) => String(v ?? "").toLowerCase().includes(q)),
     );
   }, [planos, busca]);
@@ -215,7 +212,6 @@ export default function PlanosPage() {
 
     setForm({
       nome: plano.nome,
-      entregasInclusas: String(plano.entregasInclusas ?? plano.entregas ?? 0),
       ativo: !!plano.ativo,
       itens,
     });
@@ -233,7 +229,7 @@ export default function PlanosPage() {
       nome,
       tamanhoId: primeiroTamanho ? toNumber(primeiroTamanho.tamanhoId) : null,
       unidades: unidadesTotalPlano,
-      entregasInclusas: toNumber(form.entregasInclusas),
+      entregasInclusas: 0,
       valor: valorTotalPlano,
       ativo: !!form.ativo,
       itens: form.itens.map((item) => ({
@@ -300,7 +296,6 @@ export default function PlanosPage() {
                   <SortableHead label="Nome" field="nome" sort={sort} onSort={onSort} />
                   <SortableHead label="Composições" field="tamanho.pesagemGramas" sort={sort} onSort={onSort} />
                   <SortableHead label="Unidades" field="unidades" sort={sort} onSort={onSort} />
-                  <SortableHead label="Entregas" field="entregasInclusas" sort={sort} onSort={onSort} />
                   <SortableHead label="Valor" field="valor" sort={sort} onSort={onSort} />
                   <SortableHead label="Ativo" field="ativo" sort={sort} onSort={onSort} />
                   <TableHead className="text-right text-gray-700">Ações</TableHead>
@@ -346,10 +341,6 @@ export default function PlanosPage() {
 
                     <TableCell className="text-gray-700">
                       {Number(plano.unidades || 0)}
-                    </TableCell>
-
-                    <TableCell className="text-gray-700">
-                      {Number(plano.entregasInclusas ?? plano.entregas ?? 0)}
                     </TableCell>
 
                     <TableCell className="text-gray-700">
@@ -423,7 +414,7 @@ export default function PlanosPage() {
                 {planosFiltrados.length === 0 && !loading && (
                   <TableRow>
                     <TableCell
-                      colSpan={8}
+                      colSpan={7}
                       className="text-center text-sm text-gray-500 py-4"
                     >
                       Nenhum plano cadastrado.
@@ -719,30 +710,15 @@ export default function PlanosPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <Label className="text-gray-700">Entregas inclusas</Label>
-                <Input
-                  value={form.entregasInclusas}
-                  onChange={(e) =>
-                    setForm((p) => ({ ...p, entregasInclusas: e.target.value }))
-                  }
-                  className="border-gray-200"
-                  disabled={saving}
-                  placeholder="Ex: 2"
-                />
+            <div className="rounded-md border border-emerald-100 bg-emerald-50 p-3">
+              <div className="text-xs font-semibold uppercase text-emerald-700">
+                Total automático
               </div>
-
-              <div className="rounded-md border border-emerald-100 bg-emerald-50 p-3">
-                <div className="text-xs font-semibold uppercase text-emerald-700">
-                  Total automático
-                </div>
-                <div className="mt-1 text-2xl font-bold text-emerald-900">
-                  {moneyBr(valorTotalPlano)}
-                </div>
-                <div className="text-xs text-emerald-700">
-                  {unidadesTotalPlano} marmitas no plano
-                </div>
+              <div className="mt-1 text-2xl font-bold text-emerald-900">
+                {moneyBr(valorTotalPlano)}
+              </div>
+              <div className="text-xs text-emerald-700">
+                {unidadesTotalPlano} marmitas no plano
               </div>
             </div>
 

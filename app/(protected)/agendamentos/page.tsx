@@ -39,7 +39,6 @@ import {
   User,
   CreditCard,
   ChevronDown,
-  Download,
   FileDown,
   LayoutDashboard,
   Clock,
@@ -668,7 +667,7 @@ export default function Agendamentos() {
               >
                 <FileDown className="h-4 w-4 text-emerald-600" />
                 <div className="flex flex-col">
-                  <span className="font-medium text-sm">Montadores por Rota</span>
+                  <span className="font-medium text-sm">Rotas de Montagem</span>
                   <span className="text-[10px] text-slate-500">Planilha XLSX</span>
                 </div>
               </DropdownMenuItem>
@@ -686,17 +685,6 @@ export default function Agendamentos() {
                 <div className="flex flex-col">
                   <span className="font-medium text-sm">Painel de Preparo</span>
                   <span className="text-[10px] text-slate-500">Visualizar insumos</span>
-                </div>
-              </DropdownMenuItem>
-
-              <DropdownMenuItem 
-                className="rounded-lg cursor-pointer gap-2 py-2.5"
-                onClick={() => setProducaoSheetOpen(true)}
-              >
-                <Download className="h-4 w-4 text-emerald-500" />
-                <div className="flex flex-col">
-                  <span className="font-medium text-sm">Produção do Dia</span>
-                  <span className="text-[10px] text-slate-500">Lista consolidada</span>
                 </div>
               </DropdownMenuItem>
 

@@ -241,6 +241,31 @@ function currency(value: number) {
   return Number(value || 0).toFixed(2);
 }
 
+function getPlanoCatalogoResumo(plano?: PlanoCatalogo | null) {
+  if (!plano) return "";
+  if (plano.itens?.length) {
+    return plano.itens
+      .map((item) => {
+        const label = item.pesoPersonalizadoGramas
+          ? `${item.pesoPersonalizadoGramas}g personalizada`
+          : item.tamanho?.pesagemGramas
+            ? `${item.tamanho.pesagemGramas}g`
+            : item.tamanhoId
+              ? `#${item.tamanhoId}`
+              : "sem tamanho";
+        return `${item.unidades}x ${label}`;
+      })
+      .join(" + ");
+  }
+
+  const label = plano.tamanho?.pesagemGramas
+    ? `${plano.tamanho.pesagemGramas}g`
+    : plano.tamanhoId
+      ? `#${plano.tamanhoId}`
+      : "sem tamanho";
+  return `${plano.unidades}x ${label}`;
+}
+
 function uid() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
@@ -250,22 +275,6 @@ function getDefaultAgendamentoDate() {
   tomorrow.setDate(tomorrow.getDate() + 1);
   return tomorrow;
 }
-
-function getValorPlanoTamanho(tamanho: TamanhoOption, quantidade: number) {
-  const qtd = Math.max(1, Math.floor(Number(quantidade || 1)));
-  if (qtd >= 40 && tamanho.valor40 != null) return Number(tamanho.valor40 || 0);
-  if (qtd >= 20 && tamanho.valor20 != null) return Number(tamanho.valor20 || 0);
-  if (qtd >= 10 && tamanho.valor10 != null) return Number(tamanho.valor10 || 0);
-  return Number(tamanho.valorUnitario || 0) * qtd;
-}
-
-type PlanoComboForm = {
-  id: string;
-  tipo: "TAMANHO" | "PERSONALIZADO";
-  tamanhoId: string;
-  pesoPersonalizadoGramas: string;
-  unidades: string;
-};
 
 function toISODateOnlyLocal(date?: Date | null) {
   if (!date) return "";
@@ -300,7 +309,7 @@ export function NovoAgendamentoNovoLayout({
 }: Props) {
   const { regras } = useRegrasPersonalizadas();
   const { estimarTaxaEntrega, getAgendamentos, getUltimoAgendamentoCliente } = useAgendamentos();
-  const { listPlanos, createPlano, vincularPlano, saving: savingPlano } = usePlanosCliente();
+  const { listPlanos, vincularPlano, saving: savingPlano } = usePlanosCliente();
   const [valorTaxa, setValorTaxa] = useState(0);
   const [distanciaEntregaKm, setDistanciaEntregaKm] = useState<number | null>(null);
   const [avisoHorarioAutomatico, setAvisoHorarioAutomatico] = useState("");
@@ -331,10 +340,6 @@ export function NovoAgendamentoNovoLayout({
   const [itens, setItens] = useState<NovoPedidoItem[]>([]);
   const [planosCatalogo, setPlanosCatalogo] = useState<PlanoCatalogo[]>([]);
   const [planoSelecionadoId, setPlanoSelecionadoId] = useState("");
-  const [planoNome, setPlanoNome] = useState("");
-  const [planoCombos, setPlanoCombos] = useState<PlanoComboForm[]>([
-    { id: uid(), tipo: "TAMANHO", tamanhoId: "", pesoPersonalizadoGramas: "", unidades: "10" },
-  ]);
   const [planoPago, setPlanoPago] = useState(false);
   const [incluirTaxaPlano, setIncluirTaxaPlano] = useState(true);
   const [quantidadeTaxasPlano, setQuantidadeTaxasPlano] = useState(1);
@@ -622,40 +627,8 @@ export function NovoAgendamentoNovoLayout({
     [planosCatalogo, planoSelecionadoId],
   );
 
-  const planoCombosCalculados = useMemo(() => {
-    return planoCombos.map((combo) => {
-      const unidades = Math.max(1, Math.floor(Number(combo.unidades || 1)));
-      if (combo.tipo === "TAMANHO") {
-        const tamanho = tamanhos.find((t) => t.id === combo.tamanhoId);
-        const valorTotal = tamanho ? getValorPlanoTamanho(tamanho, unidades) : 0;
-        return {
-          ...combo,
-          unidades,
-          label: tamanho?.nome || "Tamanho",
-          valorUnitario: unidades > 0 ? valorTotal / unidades : 0,
-          valorTotal,
-          valido: !!tamanho,
-        };
-      }
-
-      const peso = Math.max(0, Math.floor(Number(combo.pesoPersonalizadoGramas || 0)));
-      const regrasTotal = regras.filter((r) => r.tipo === "PESO_TOTAL").sort((a, b) => a.limite - b.limite);
-      const regra = regrasTotal.find((r) => peso <= Number(r.limite)) || regrasTotal[regrasTotal.length - 1];
-      const valorUnitario = regra && peso > 0 ? Number(regra.preco || 0) : 0;
-      return {
-        ...combo,
-        unidades,
-        pesoPersonalizadoGramas: String(peso || ""),
-        label: peso > 0 ? `${peso}g personalizada` : "Personalizada",
-        valorUnitario,
-        valorTotal: valorUnitario * unidades,
-        valido: peso > 0 && valorUnitario > 0,
-      };
-    });
-  }, [planoCombos, tamanhos, regras]);
-
-  const valorPlanoSelecionado = planoCombosCalculados.reduce((acc, item) => acc + Number(item.valorTotal || 0), 0);
-  const unidadesPlanoSelecionado = planoCombosCalculados.reduce((acc, item) => acc + Number(item.unidades || 0), 0);
+  const valorPlanoSelecionado = Number(planoSelecionado?.valor || 0);
+  const unidadesPlanoSelecionado = Number(planoSelecionado?.unidades || 0);
   const quantidadeTaxasPlanoFinal =
     incluirTaxaPlano && tipo === "ENTREGA" && valorTaxa > 0
       ? Math.max(1, Math.floor(Number(quantidadeTaxasPlano || 1)))
@@ -991,8 +964,6 @@ export function NovoAgendamentoNovoLayout({
     setModalEscolhaPedidoOpen(false);
     setModalPlanoOpen(true);
     setPlanoSelecionadoId("");
-    setPlanoNome("");
-    setPlanoCombos([{ id: uid(), tipo: "TAMANHO", tamanhoId: "", pesoPersonalizadoGramas: "", unidades: "10" }]);
     setPlanoPago(false);
     setIncluirTaxaPlano(true);
     setQuantidadeTaxasPlano(1);
@@ -1007,36 +978,18 @@ export function NovoAgendamentoNovoLayout({
 
   async function handleVincularPlanoCliente() {
     if (!clienteId) return;
-    const combosValidos = planoCombosCalculados.filter((combo) => combo.valido);
-    if (combosValidos.length !== planoCombos.length) {
-      toast.error("Combinações incompletas", {
-        description: "Informe tamanho/peso e quantidade em todas as linhas do plano.",
+    if (!planoSelecionado) {
+      toast.error("Plano não selecionado", {
+        description: "Escolha um plano cadastrado para vincular ao cliente.",
       });
       return;
     }
 
-    const nomePlano =
-      planoNome.trim() ||
-      `Plano ${combosValidos.map((combo) => `${combo.unidades}x ${combo.label}`).join(" + ")}`;
-
-    const planoCriado = await createPlano({
-      nome: nomePlano,
-      unidades: unidadesPlanoSelecionado,
-      entregas: 0,
-      valor: valorPlanoSelecionado,
-      itens: combosValidos.map((combo) => ({
-        tamanhoId: combo.tipo === "TAMANHO" ? Number(combo.tamanhoId) : null,
-        pesoPersonalizadoGramas:
-          combo.tipo === "PERSONALIZADO" ? Number(combo.pesoPersonalizadoGramas || 0) : null,
-        unidades: Number(combo.unidades || 0),
-      })),
-    });
-
-    const vinculo = await vincularPlano(Number(clienteId), Number(planoCriado.id), planoPago, {
+    const vinculo = await vincularPlano(Number(clienteId), Number(planoSelecionado.id), planoPago, {
       quantidadeTaxasEntrega: quantidadeTaxasPlanoFinal,
       valorTaxaEntrega: quantidadeTaxasPlanoFinal > 0 ? Number(valorTaxa || 0) : 0,
     });
-    const novoVinculo = { ...vinculo, plano: planoCriado };
+    const novoVinculo = { ...vinculo, plano: planoSelecionado };
 
     if (clienteSelecionado) {
       clienteSelecionado.planos = [...(clienteSelecionado.planos || []), novoVinculo];
@@ -1044,8 +997,6 @@ export function NovoAgendamentoNovoLayout({
 
     setModalPlanoOpen(false);
     setPlanoSelecionadoId("");
-    setPlanoNome("");
-    setPlanoCombos([{ id: uid(), tipo: "TAMANHO", tamanhoId: "", pesoPersonalizadoGramas: "", unidades: "10" }]);
     setPlanoPago(false);
     setIncluirTaxaPlano(true);
     setQuantidadeTaxasPlano(1);
@@ -2054,7 +2005,7 @@ export function NovoAgendamentoNovoLayout({
                 </div>
                 <div>
                   <div className="font-bold text-primary">Planos</div>
-                  <div className="text-xs font-normal text-muted-foreground">Criar e vincular um plano ao cliente.</div>
+                  <div className="text-xs font-normal text-muted-foreground">Vincular um plano cadastrado ao cliente.</div>
                 </div>
               </Button>
             )}
@@ -2076,149 +2027,43 @@ export function NovoAgendamentoNovoLayout({
               <div className="mt-1 font-bold text-primary">{clienteSelecionado?.nome || "Selecione um cliente"}</div>
             </div>
 
-            <div className="space-y-2">
-              <Label>Nome do plano</Label>
-              <Input
-                value={planoNome}
-                onChange={(e) => setPlanoNome(e.target.value)}
-                placeholder="Ex.: Plano 20 marmitas misto"
-                disabled={savingPlano || !clienteSelecionado}
-              />
-            </div>
-
             <div className="space-y-3">
-              <div className="flex items-center justify-between gap-3">
-                <Label>Combinações de marmitas</Label>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() =>
-                    setPlanoCombos((prev) => [
-                      ...prev,
-                      { id: uid(), tipo: "TAMANHO", tamanhoId: "", pesoPersonalizadoGramas: "", unidades: "10" },
-                    ])
-                  }
-                  disabled={savingPlano}
-                >
-                  <Plus className="h-4 w-4 mr-1" />
-                  Adicionar
-                </Button>
-              </div>
+              <Label>Plano cadastrado</Label>
+              <Select
+                value={planoSelecionadoId}
+                onValueChange={setPlanoSelecionadoId}
+                disabled={savingPlano || !clienteSelecionado || planosCatalogo.length === 0}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder={planosCatalogo.length ? "Selecione um plano" : "Nenhum plano cadastrado"} />
+                </SelectTrigger>
+                <SelectContent>
+                  {planosCatalogo.map((plano) => (
+                    <SelectItem key={plano.id} value={String(plano.id)}>
+                      {plano.nome || `Plano #${plano.id}`} - {getPlanoCatalogoResumo(plano)} - R$ {currency(Number(plano.valor || 0))}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
 
-              <div className="space-y-2">
-                {planoCombos.map((combo, index) => {
-                  const calculado = planoCombosCalculados[index];
-                  return (
-                    <div key={combo.id} className="rounded-xl border border-border/70 p-3 space-y-3">
-                      <div className="grid grid-cols-1 sm:grid-cols-[130px_1fr_110px_36px] gap-2 items-end">
-                        <div className="space-y-1.5">
-                          <Label className="text-xs text-muted-foreground">Tipo</Label>
-                          <Select
-                            value={combo.tipo}
-                            onValueChange={(value: "TAMANHO" | "PERSONALIZADO") =>
-                              setPlanoCombos((prev) =>
-                                prev.map((item) =>
-                                  item.id === combo.id
-                                    ? { ...item, tipo: value, tamanhoId: "", pesoPersonalizadoGramas: "" }
-                                    : item,
-                                ),
-                              )
-                            }
-                            disabled={savingPlano}
-                          >
-                            <SelectTrigger>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="TAMANHO">Sistema</SelectItem>
-                              <SelectItem value="PERSONALIZADO">Personalizada</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
+              {planoSelecionado && (
+                <div className="rounded-xl border border-border/70 bg-muted/20 p-3 text-sm">
+                  <div className="font-semibold text-primary">
+                    {planoSelecionado.nome || `Plano #${planoSelecionado.id}`}
+                  </div>
+                  <div className="mt-1 text-muted-foreground">{getPlanoCatalogoResumo(planoSelecionado)}</div>
+                  <div className="mt-2 flex items-center justify-between">
+                    <span>{unidadesPlanoSelecionado} marmitas</span>
+                    <span className="font-bold text-primary">R$ {currency(valorPlanoSelecionado)}</span>
+                  </div>
+                </div>
+              )}
 
-                        <div className="space-y-1.5">
-                          <Label className="text-xs text-muted-foreground">
-                            {combo.tipo === "PERSONALIZADO" ? "Peso exato" : "Tamanho"}
-                          </Label>
-                          {combo.tipo === "PERSONALIZADO" ? (
-                            <Input
-                              type="number"
-                              min={1}
-                              step={1}
-                              value={combo.pesoPersonalizadoGramas}
-                              onChange={(e) =>
-                                setPlanoCombos((prev) =>
-                                  prev.map((item) =>
-                                    item.id === combo.id ? { ...item, pesoPersonalizadoGramas: e.target.value } : item,
-                                  ),
-                                )
-                              }
-                              placeholder="Ex.: 425"
-                              disabled={savingPlano}
-                            />
-                          ) : (
-                            <Select
-                              value={combo.tamanhoId}
-                              onValueChange={(value) =>
-                                setPlanoCombos((prev) =>
-                                  prev.map((item) => (item.id === combo.id ? { ...item, tamanhoId: value } : item)),
-                                )
-                              }
-                              disabled={savingPlano}
-                            >
-                              <SelectTrigger>
-                                <SelectValue placeholder="Selecione" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {tamanhos.map((tamanho) => (
-                                  <SelectItem key={tamanho.id} value={tamanho.id}>
-                                    {tamanho.nome}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          )}
-                        </div>
-
-                        <div className="space-y-1.5">
-                          <Label className="text-xs text-muted-foreground">Quantidade</Label>
-                          <Input
-                            type="number"
-                            min={1}
-                            step={1}
-                            value={combo.unidades}
-                            onChange={(e) =>
-                              setPlanoCombos((prev) =>
-                                prev.map((item) => (item.id === combo.id ? { ...item, unidades: e.target.value } : item)),
-                              )
-                            }
-                            disabled={savingPlano}
-                          />
-                        </div>
-
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          className="h-10 w-9 text-muted-foreground hover:text-red-600"
-                          onClick={() => setPlanoCombos((prev) => prev.filter((item) => item.id !== combo.id))}
-                          disabled={savingPlano || planoCombos.length === 1}
-                        >
-                          <Trash className="h-4 w-4" />
-                        </Button>
-                      </div>
-
-                      <div className="flex items-center justify-between rounded-lg bg-muted/30 px-3 py-2 text-sm">
-                        <span className="text-muted-foreground">
-                          {calculado?.valido ? `${calculado.unidades} x ${calculado.label}` : "Complete a linha"}
-                        </span>
-                        <span className="font-bold text-primary">R$ {currency(Number(calculado?.valorTotal || 0))}</span>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
+              {planosCatalogo.length === 0 && (
+                <div className="rounded-xl border border-dashed border-border/70 p-3 text-sm text-muted-foreground">
+                  Cadastre os planos na aba Planos da sidebar antes de vincular ao cliente.
+                </div>
+              )}
             </div>
 
             <div className="flex items-center justify-between rounded-xl border border-border/70 p-3">
@@ -2303,8 +2148,8 @@ export function NovoAgendamentoNovoLayout({
               <Button variant="outline" onClick={() => setModalPlanoOpen(false)} disabled={savingPlano}>
                 Cancelar
               </Button>
-              <Button onClick={handleVincularPlanoCliente} disabled={savingPlano || !clienteSelecionado || planoCombosCalculados.some((combo) => !combo.valido)}>
-                {savingPlano ? "Vinculando..." : "Criar e vincular plano"}
+              <Button onClick={handleVincularPlanoCliente} disabled={savingPlano || !clienteSelecionado || !planoSelecionado}>
+                {savingPlano ? "Vinculando..." : "Vincular plano"}
               </Button>
             </div>
           </div>
