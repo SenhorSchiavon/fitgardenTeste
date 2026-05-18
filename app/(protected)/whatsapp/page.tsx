@@ -132,10 +132,10 @@ export default function WhatsAppPage() {
   };
 
   return (
-    <div className="space-y-6 pb-10">
+    <div className="flex min-h-[calc(100vh-2rem)] flex-col gap-4 pb-4">
       <Header title="WhatsApp" subtitle="Inbox, respostas automaticas e transmissoes" />
 
-      <Tabs defaultValue="conversas" className="w-full">
+      <Tabs defaultValue="conversas" className="flex min-h-0 flex-1 flex-col">
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <TabsList>
             <TabsTrigger value="conversas">Conversas</TabsTrigger>
@@ -148,10 +148,10 @@ export default function WhatsAppPage() {
           </Button>
         </div>
 
-        <TabsContent value="conversas" className="mt-6">
-          <div className="grid min-h-[620px] grid-cols-1 gap-4 lg:grid-cols-[340px_1fr]">
+        <TabsContent value="conversas" className="mt-4 min-h-0 flex-1">
+          <div className="grid h-[calc(100vh-210px)] min-h-[480px] grid-cols-1 gap-4 lg:grid-cols-[320px_minmax(0,1fr)]">
             <Card className="overflow-hidden">
-              <CardHeader className="border-b">
+              <CardHeader className="space-y-3 border-b p-4">
                 <CardTitle className="flex items-center gap-2 text-base">
                   <MessageCircle className="h-4 w-4" />
                   Conversas
@@ -162,12 +162,12 @@ export default function WhatsAppPage() {
                     value={conversationSearch}
                     onChange={(event) => setConversationSearch(event.target.value)}
                     placeholder="Buscar contato"
-                    className="pl-9"
+                    className="h-9 pl-9"
                   />
                 </div>
               </CardHeader>
               <CardContent className="p-0">
-                <ScrollArea className="h-[520px]">
+                <ScrollArea className="h-[calc(100vh-330px)] min-h-[360px]">
                   <div className="divide-y">
                     {filteredConversations.map((conversation) => {
                       const lastMessage = conversation.messages[0];
@@ -177,7 +177,7 @@ export default function WhatsAppPage() {
                           key={conversation.id}
                           onClick={() => setSelectedConversationId(conversation.id)}
                           className={cn(
-                            "w-full px-4 py-4 text-left transition-colors hover:bg-muted/60",
+                            "w-full px-4 py-3 text-left transition-colors hover:bg-muted/60",
                             active && "bg-muted",
                           )}
                         >
@@ -203,13 +203,13 @@ export default function WhatsAppPage() {
               </CardContent>
             </Card>
 
-            <Card className="flex min-h-[620px] flex-col overflow-hidden">
+            <Card className="flex min-h-0 flex-col overflow-hidden">
               {selectedConversation ? (
                 <>
-                  <CardHeader className="border-b">
+                  <CardHeader className="border-b p-4">
                     <div className="flex items-center justify-between gap-3">
                       <div>
-                        <CardTitle className="text-lg">{contactName(selectedConversation)}</CardTitle>
+                        <CardTitle className="text-base">{contactName(selectedConversation)}</CardTitle>
                         <p className="text-sm text-muted-foreground">
                           {displayPhone(selectedConversation.contact.phone)}
                         </p>
@@ -218,9 +218,9 @@ export default function WhatsAppPage() {
                     </div>
                   </CardHeader>
 
-                  <CardContent className="flex flex-1 flex-col p-0">
-                    <ScrollArea className="h-[430px] flex-1 p-5">
-                      <div className="space-y-3">
+                  <CardContent className="flex min-h-0 flex-1 flex-col p-0">
+                    <ScrollArea className="min-h-0 flex-1">
+                      <div className="space-y-2 p-4">
                         {messages.map((message) => {
                           const outbound = message.direction === "OUTBOUND";
                           return (
@@ -230,7 +230,7 @@ export default function WhatsAppPage() {
                             >
                               <div
                                 className={cn(
-                                  "max-w-[78%] rounded-lg px-4 py-3 text-sm shadow-sm",
+                                  "max-w-[78%] rounded-lg px-3 py-2 text-sm shadow-sm",
                                   outbound
                                     ? "bg-primary text-primary-foreground"
                                     : "bg-muted text-foreground",
@@ -239,7 +239,7 @@ export default function WhatsAppPage() {
                                 <p className="whitespace-pre-wrap break-words">{message.body}</p>
                                 <div
                                   className={cn(
-                                    "mt-2 flex items-center justify-end gap-2 text-[10px]",
+                                    "mt-1 flex items-center justify-end gap-2 text-[10px]",
                                     outbound ? "text-primary-foreground/70" : "text-muted-foreground",
                                   )}
                                 >
@@ -253,16 +253,22 @@ export default function WhatsAppPage() {
                       </div>
                     </ScrollArea>
 
-                    <div className="border-t p-4">
+                    <div className="shrink-0 border-t p-3">
                       <div className="flex gap-3">
                         <Textarea
                           value={replyText}
                           onChange={(event) => setReplyText(event.target.value)}
+                          onKeyDown={(event) => {
+                            if (event.key === "Enter" && !event.shiftKey) {
+                              event.preventDefault();
+                              handleSendReply();
+                            }
+                          }}
                           placeholder="Digite a resposta..."
-                          className="min-h-[72px] resize-none"
+                          className="min-h-[48px] resize-none"
                         />
                         <Button
-                          className="h-[72px] px-5"
+                          className="h-[48px] px-4"
                           onClick={handleSendReply}
                           disabled={sending || !replyText.trim()}
                           title="Enviar"
