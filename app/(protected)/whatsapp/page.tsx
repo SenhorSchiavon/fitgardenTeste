@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
@@ -64,6 +64,7 @@ export default function WhatsAppPage() {
   const [selectedConversationId, setSelectedConversationId] = useState<number | null>(null);
   const [conversationSearch, setConversationSearch] = useState("");
   const [replyText, setReplyText] = useState("");
+  const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
   const [editingRule, setEditingRule] = useState<Partial<WhatsAppAutoReply>>({
     keyword: "",
@@ -95,6 +96,10 @@ export default function WhatsAppPage() {
   useEffect(() => {
     if (selectedConversationId) loadMessages(selectedConversationId);
   }, [loadMessages, selectedConversationId]);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ block: "end" });
+  }, [messages, selectedConversationId]);
 
   const handleSendReply = async () => {
     const text = replyText.trim();
@@ -250,6 +255,7 @@ export default function WhatsAppPage() {
                             </div>
                           );
                         })}
+                        <div ref={messagesEndRef} />
                       </div>
                     </ScrollArea>
 
