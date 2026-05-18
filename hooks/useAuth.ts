@@ -7,7 +7,7 @@ const API_URL = process.env.NEXT_PUBLIC_API_LOGIN_URL;
 type LoginResponse = {
   success: boolean;
   token: string;
-  user: { id: number; nome: string; login: string; role: string };
+  user: { id: number; nome: string; login: string; role: string; isAdmin?: boolean; permissions?: string[] };
 };
 async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, {

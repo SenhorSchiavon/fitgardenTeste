@@ -10,9 +10,15 @@ export async function apiFetch(url: string, options: RequestInit = {}) {
 
   if (response.status === 401) {
     localStorage.removeItem("token");
+    localStorage.removeItem("user");
     window.location.href = "/login";
-    throw new Error("Não autorizado"); // <-- garante que nunca volta undefined
+    throw new Error("Nao autorizado");
   }
 
-  return response; // sempre Response
+  if (response.status === 403) {
+    window.location.href = "/";
+    throw new Error("Sem permissao");
+  }
+
+  return response;
 }
