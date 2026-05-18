@@ -12,6 +12,7 @@ import {
   ClipboardList,
   Cookie,
   CreditCard,
+  FileClock,
   Layers,
   LayoutDashboard,
   ListChecks,
@@ -161,6 +162,7 @@ export function Sidebar({ className }: SidebarProps) {
             {canShow("planos") && renderNavButton({ href: "/planos", label: "Planos", icon: Package, screen: "planos" })}
             {canShow("clientes") && renderNavButton({ href: "/clientes", label: "Clientes", icon: Users, screen: "clientes" })}
             {canShow("usuarios") && renderNavButton({ href: "/usuarios", label: "Usuários", icon: UserCog, screen: "usuarios" })}
+            {canShow("auditoria") && renderNavButton({ href: "/auditoria", label: "Auditoria", icon: FileClock, screen: "auditoria" })}
           </div>
 
           <div className="space-y-1">

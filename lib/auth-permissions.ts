@@ -37,6 +37,7 @@ export const SCREEN_DEFINITIONS: ScreenDefinition[] = [
   { key: "mais-vendidos", label: "Relatórios", path: "/mais-vendidos" },
   { key: "vouchers", label: "Vouchers", path: "/vouchers" },
   { key: "usuarios", label: "Usuários", path: "/usuarios" },
+  { key: "auditoria", label: "Auditoria", path: "/auditoria" },
 ];
 
 export function getStoredUser(): AuthUser | null {
