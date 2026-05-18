@@ -10,10 +10,12 @@ import {
   Calendar,
   ChevronDown,
   ClipboardList,
+  Cookie,
   CreditCard,
   Layers,
   LayoutDashboard,
   ListChecks,
+  LogOut,
   MessageCircle,
   Package,
   Settings,
@@ -21,15 +23,20 @@ import {
   Smartphone,
   Snowflake,
   Tag,
+  UserCog,
   Users,
   Utensils,
-  Cookie,
-  UserCog,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { canAccess, getStoredUser, type AuthUser } from "@/lib/auth-permissions";
 import { useAuth } from "@/hooks/useAuth";
+import { canAccess, getStoredUser, type AuthUser } from "@/lib/auth-permissions";
 
 interface SidebarProps {
   className?: string;
@@ -189,20 +196,28 @@ export function Sidebar({ className }: SidebarProps) {
       </ScrollArea>
 
       <div className="mt-auto border-t border-white/10 p-4 bg-black/10">
-        <button
-          type="button"
-          onClick={handleLogout}
-          className="flex w-full items-center gap-3 rounded-lg p-2 text-left transition-colors hover:bg-white/5 focus:outline-none focus:ring-2 focus:ring-secondary/70"
-          title="Sair"
-        >
-          <div className="h-10 w-10 rounded-xl bg-secondary flex items-center justify-center text-white font-black shadow-lg shadow-secondary/20">
-            {(user?.nome || user?.login || "U").charAt(0).toUpperCase()}
-          </div>
-          <div className="min-w-0">
-            <p className="text-sm font-bold text-white truncate">{user?.nome || user?.login || "Usuário"}</p>
-            <p className="text-[10px] text-white/40 uppercase tracking-tighter">{user?.isAdmin ? "Administrador" : "Funcionário"}</p>
-          </div>
-        </button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              className="flex w-full items-center gap-3 rounded-lg p-2 text-left transition-colors hover:bg-white/5 focus:outline-none focus:ring-2 focus:ring-secondary/70"
+            >
+              <div className="h-10 w-10 rounded-xl bg-secondary flex items-center justify-center text-white font-black shadow-lg shadow-secondary/20">
+                {(user?.nome || user?.login || "U").charAt(0).toUpperCase()}
+              </div>
+              <div className="min-w-0">
+                <p className="text-sm font-bold text-white truncate">{user?.nome || user?.login || "Usuário"}</p>
+                <p className="text-[10px] text-white/40 uppercase tracking-tighter">{user?.isAdmin ? "Administrador" : "Funcionário"}</p>
+              </div>
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" side="top" className="w-48">
+            <DropdownMenuItem onClick={handleLogout} className="gap-2 text-red-600 focus:text-red-600">
+              <LogOut className="h-4 w-4" />
+              Sair
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
     </div>
   );
