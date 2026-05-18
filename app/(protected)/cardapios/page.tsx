@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Pencil, Trash, Check, Power } from "lucide-react";
+import { Plus, Pencil, Trash, Check, Power, ImageIcon, Upload } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -44,6 +44,14 @@ type NovoCardapioForm = {
   montadores: Record<string, string>;
 };
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3333";
+
+function imageUrl(url: string) {
+  if (!url) return "";
+  if (url.startsWith("http")) return url;
+  return `${API_URL.replace(/\/api\/?$/, "")}${url}`;
+}
+
 export default function CardapiosPage() {
   const {
     cardapios,
@@ -53,6 +61,8 @@ export default function CardapiosPage() {
     updateCardapio,
     deleteCardapio,
     setCardapioAtivo,
+    uploadCardapioImagem,
+    deleteCardapioImagem,
     fetchCardapios,
   } = useCardapios();
 
@@ -224,6 +234,16 @@ export default function CardapiosPage() {
     return list;
   }, [form.opcoesIds, opcoes]);
 
+  const cardapioEditando = useMemo(
+    () => (editandoId ? cardapios.find((cardapio) => cardapio.id === editandoId) || null : null),
+    [cardapios, editandoId],
+  );
+
+  const handleUploadImagem = async (file: File | null) => {
+    if (!editandoId || !file) return;
+    await uploadCardapioImagem(editandoId, file);
+  };
+
   return (
     <div className="container mx-auto p-6">
       <Header
@@ -253,6 +273,7 @@ export default function CardapiosPage() {
                 <TableRow>
                   <SortableHead label="Código" field="codigo" sort={sort} onSort={onSort} />
                   <SortableHead label="Nome" field="nome" sort={sort} onSort={onSort} />
+                  <TableHead>Imagens</TableHead>
                   <SortableHead label="Ativo" field="ativo" sort={sort} onSort={onSort} />
                   <div className="flex items-center justify-center gap-2">
                     Ações
@@ -264,6 +285,12 @@ export default function CardapiosPage() {
                   <TableRow key={cardapio.id}>
                     <TableCell>{cardapio.codigo}</TableCell>
                     <TableCell>{cardapio.nome}</TableCell>
+                    <TableCell>
+                      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-800">
+                        <ImageIcon className="h-3 w-3" />
+                        {cardapio.imagens?.length || 0}
+                      </span>
+                    </TableCell>
                     <TableCell>
                       {cardapio.ativo ? (
                         <span className="inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800">
@@ -300,7 +327,7 @@ export default function CardapiosPage() {
 
                 {cardapiosFiltrados.length === 0 && !isLoading && (
                   <TableRow>
-                    <TableCell colSpan={4} className="text-center text-sm text-muted-foreground py-4">
+                    <TableCell colSpan={5} className="text-center text-sm text-muted-foreground py-4">
                       Nenhum cardápio cadastrado.
                     </TableCell>
                   </TableRow>
@@ -346,6 +373,65 @@ export default function CardapiosPage() {
                 />
                 <p className="text-xs text-muted-foreground">Código para ordenação dos cardápios</p>
               </div>
+            </div>
+
+            <div className="space-y-3 border-t pt-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <Label>Imagens do cardápio</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Use JPG, PNG ou WEBP. Essas imagens ficarão disponíveis para envio pelo WhatsApp.
+                  </p>
+                </div>
+                {editandoId ? (
+                  <label className="inline-flex h-10 cursor-pointer items-center justify-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90">
+                    <Upload className="h-4 w-4" />
+                    Adicionar imagem
+                    <input
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp"
+                      className="hidden"
+                      disabled={saving}
+                      onChange={(event) => {
+                        const file = event.target.files?.[0] || null;
+                        void handleUploadImagem(file);
+                        event.target.value = "";
+                      }}
+                    />
+                  </label>
+                ) : (
+                  <span className="text-xs text-muted-foreground">Salve o cardápio antes de anexar imagens.</span>
+                )}
+              </div>
+
+              {cardapioEditando?.imagens?.length ? (
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  {cardapioEditando.imagens.map((imagem) => (
+                    <div key={imagem.id} className="overflow-hidden rounded-lg border bg-white">
+                      <img src={imageUrl(imagem.url)} alt={imagem.nome} className="h-32 w-full object-cover" />
+                      <div className="flex items-center justify-between gap-2 p-3">
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-medium">{imagem.nome}</p>
+                          <p className="text-xs text-muted-foreground">{Math.round(imagem.tamanho / 1024)} KB</p>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          disabled={saving}
+                          onClick={() => void deleteCardapioImagem(editandoId!, imagem.id)}
+                          title="Remover imagem"
+                        >
+                          <Trash className="h-4 w-4 text-red-600" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
+                  Nenhuma imagem anexada neste cardápio.
+                </div>
+              )}
             </div>
 
 

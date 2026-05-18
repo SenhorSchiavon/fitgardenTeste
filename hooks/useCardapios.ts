@@ -27,6 +27,14 @@ export type Cardapio = {
   codigo: string;
   nome: string;
   ativo: boolean;
+  imagens?: Array<{
+    id: number;
+    nome: string;
+    mimeType: string;
+    tamanho: number;
+    url: string;
+    createdAt: string;
+  }>;
   opcoes: CardapioOpcao[];
 };
 
@@ -233,6 +241,77 @@ export function useCardapios() {
     }
   }
 
+  async function uploadCardapioImagem(id: number, file: File) {
+    try {
+      setSaving(true);
+      setError(null);
+
+      const base64 = await fileToBase64(file);
+      const res = await apiFetch(`${RESOURCE}/${id}/imagens`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          nome: file.name,
+          mimeType: file.type,
+          base64,
+        }),
+      });
+
+      if (!res.ok) {
+        const msg = await safeReadMessage(res);
+        throw new Error(msg || "Falha ao enviar imagem");
+      }
+
+      const imagem = await res.json();
+      setCardapios((prev) =>
+        prev.map((cardapio) =>
+          cardapio.id === id
+            ? { ...cardapio, imagens: [imagem, ...(cardapio.imagens || [])] }
+            : cardapio,
+        ),
+      );
+      toast.success("Imagem adicionada");
+      return imagem;
+    } catch (err) {
+      toast.error("Erro ao enviar imagem", {
+        description: err instanceof Error ? err.message : "Tente novamente.",
+      });
+      throw err;
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function deleteCardapioImagem(cardapioId: number, imagemId: number) {
+    try {
+      setSaving(true);
+      const res = await apiFetch(`${RESOURCE}/${cardapioId}/imagens/${imagemId}`, {
+        method: "DELETE",
+      });
+
+      if (!res.ok) {
+        const msg = await safeReadMessage(res);
+        throw new Error(msg || "Falha ao remover imagem");
+      }
+
+      setCardapios((prev) =>
+        prev.map((cardapio) =>
+          cardapio.id === cardapioId
+            ? { ...cardapio, imagens: (cardapio.imagens || []).filter((imagem) => imagem.id !== imagemId) }
+            : cardapio,
+        ),
+      );
+      toast.success("Imagem removida");
+    } catch (err) {
+      toast.error("Erro ao remover imagem", {
+        description: err instanceof Error ? err.message : "Tente novamente.",
+      });
+      throw err;
+    } finally {
+      setSaving(false);
+    }
+  }
+
   return {
     cardapios,
     loading,
@@ -243,7 +322,18 @@ export function useCardapios() {
     updateCardapio,
     deleteCardapio,
     setCardapioAtivo,
+    uploadCardapioImagem,
+    deleteCardapioImagem,
   };
+}
+
+function fileToBase64(file: File) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = () => reject(new Error("Não foi possível ler a imagem."));
+    reader.readAsDataURL(file);
+  });
 }
 
 async function safeReadMessage(res: Response) {
