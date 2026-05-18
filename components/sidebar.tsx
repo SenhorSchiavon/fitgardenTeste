@@ -29,6 +29,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { canAccess, getStoredUser, type AuthUser } from "@/lib/auth-permissions";
+import { useAuth } from "@/hooks/useAuth";
 
 interface SidebarProps {
   className?: string;
@@ -64,6 +65,7 @@ const pedidosItems: NavItem[] = [
 
 export function Sidebar({ className }: SidebarProps) {
   const pathname = usePathname();
+  const { logout } = useAuth();
   const [user, setUser] = useState<AuthUser | null>(null);
   const [openMenus, setOpenMenus] = useState<Record<string, boolean>>({
     cadastros: true,
@@ -83,6 +85,10 @@ export function Sidebar({ className }: SidebarProps) {
 
   const isActive = (path: string) => pathname === path;
   const canShow = (screen: string) => canAccess(user, screen);
+  const handleLogout = () => {
+    logout();
+    window.location.href = "/login";
+  };
 
   const renderNavButton = (item: NavItem, compact = false) => (
     <Link key={item.href} href={item.href}>
@@ -182,8 +188,13 @@ export function Sidebar({ className }: SidebarProps) {
         </div>
       </ScrollArea>
 
-      <div className="mt-auto border-t border-white/10 p-6 bg-black/10">
-        <div className="flex items-center gap-3">
+      <div className="mt-auto border-t border-white/10 p-4 bg-black/10">
+        <button
+          type="button"
+          onClick={handleLogout}
+          className="flex w-full items-center gap-3 rounded-lg p-2 text-left transition-colors hover:bg-white/5 focus:outline-none focus:ring-2 focus:ring-secondary/70"
+          title="Sair"
+        >
           <div className="h-10 w-10 rounded-xl bg-secondary flex items-center justify-center text-white font-black shadow-lg shadow-secondary/20">
             {(user?.nome || user?.login || "U").charAt(0).toUpperCase()}
           </div>
@@ -191,7 +202,7 @@ export function Sidebar({ className }: SidebarProps) {
             <p className="text-sm font-bold text-white truncate">{user?.nome || user?.login || "Usuário"}</p>
             <p className="text-[10px] text-white/40 uppercase tracking-tighter">{user?.isAdmin ? "Administrador" : "Funcionário"}</p>
           </div>
-        </div>
+        </button>
       </div>
     </div>
   );
