@@ -123,14 +123,12 @@ export function Sidebar({ className }: SidebarProps) {
   return (
     <div className={cn("flex h-screen flex-col border-r border-white/10 bg-sidebar text-sidebar-foreground", className)}>
       <div className="flex h-20 items-center px-6">
-        <Link href="/" className="flex items-center gap-3">
-          <div className="h-11 w-11 rounded-xl bg-secondary flex items-center justify-center shadow-lg shadow-secondary/25 ring-1 ring-white/20">
-            <Utensils className="h-6 w-6 text-white" />
-          </div>
-          <div className="min-w-0">
-            <span className="block text-2xl font-serif font-bold text-white tracking-tight leading-none">FitGarden</span>
-            <span className="mt-1 block text-[9px] font-semibold uppercase tracking-[0.24em] text-secondary/90">Sistema</span>
-          </div>
+        <Link href="/" className="block w-full">
+          <img
+            src="/brand/fitgarden-sidebar.png"
+            alt="FitGarden"
+            className="h-14 w-full object-contain object-left"
+          />
         </Link>
       </div>
 

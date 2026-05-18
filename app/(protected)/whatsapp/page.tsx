@@ -18,6 +18,7 @@ import {
 import { Header } from "@/components/header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -70,6 +71,7 @@ export default function WhatsAppPage() {
     keyword: "",
     response: "",
     active: true,
+    sendActiveMenuImages: false,
   });
 
   const [broadcastTitle, setBroadcastTitle] = useState("");
@@ -115,8 +117,9 @@ export default function WhatsAppPage() {
       keyword: editingRule.keyword,
       response: editingRule.response,
       active: editingRule.active ?? true,
+      sendActiveMenuImages: editingRule.sendActiveMenuImages ?? false,
     });
-    setEditingRule({ keyword: "", response: "", active: true });
+    setEditingRule({ keyword: "", response: "", active: true, sendActiveMenuImages: false });
   };
 
   const toggleContact = (id: number) => {
@@ -324,6 +327,23 @@ export default function WhatsAppPage() {
                   />
                   Ativa
                 </label>
+                <label className="flex items-start gap-3 rounded-md border p-3 text-sm">
+                  <Checkbox
+                    checked={editingRule.sendActiveMenuImages ?? false}
+                    onCheckedChange={(checked) =>
+                      setEditingRule((current) => ({
+                        ...current,
+                        sendActiveMenuImages: checked === true,
+                      }))
+                    }
+                  />
+                  <span>
+                    <span className="block font-medium">Enviar imagens do cardápio ativo</span>
+                    <span className="mt-1 block text-xs text-muted-foreground">
+                      Quando esta regra responder, o WhatsApp envia também os anexos cadastrados no cardápio ativo.
+                    </span>
+                  </span>
+                </label>
                 <div className="flex gap-2">
                   <Button onClick={handleSaveRule} className="gap-2">
                     <Plus className="h-4 w-4" />
@@ -332,7 +352,7 @@ export default function WhatsAppPage() {
                   {editingRule.id && (
                     <Button
                       variant="outline"
-                      onClick={() => setEditingRule({ keyword: "", response: "", active: true })}
+                      onClick={() => setEditingRule({ keyword: "", response: "", active: true, sendActiveMenuImages: false })}
                     >
                       Cancelar
                     </Button>
@@ -355,6 +375,9 @@ export default function WhatsAppPage() {
                           <Badge variant={rule.active ? "default" : "secondary"}>
                             {rule.active ? "Ativa" : "Inativa"}
                           </Badge>
+                          {rule.sendActiveMenuImages && (
+                            <Badge variant="outline">Envia cardápio</Badge>
+                          )}
                         </div>
                         <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{rule.response}</p>
                       </div>

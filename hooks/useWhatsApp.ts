@@ -35,6 +35,7 @@ export type WhatsAppAutoReply = {
   keyword: string;
   response: string;
   active: boolean;
+  sendActiveMenuImages: boolean;
 };
 
 export type WhatsAppBroadcast = {
@@ -150,7 +151,7 @@ export function useWhatsApp() {
   );
 
   const saveAutoReply = useCallback(
-    async (data: { id?: number; keyword: string; response: string; active: boolean }) => {
+    async (data: { id?: number; keyword: string; response: string; active: boolean; sendActiveMenuImages: boolean }) => {
       const path = data.id ? `/whatsapp/auto-replies/${data.id}` : "/whatsapp/auto-replies";
       await http(path, {
         method: data.id ? "PUT" : "POST",
