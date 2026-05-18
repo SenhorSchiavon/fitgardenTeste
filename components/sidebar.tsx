@@ -124,10 +124,17 @@ export function Sidebar({ className }: SidebarProps) {
     <div className={cn("flex h-screen flex-col border-r border-white/10 bg-sidebar text-sidebar-foreground", className)}>
       <div className="flex h-20 items-center px-6">
         <Link href="/" className="flex items-center gap-3">
-          <div className="h-10 w-10 bg-secondary rounded-xl flex items-center justify-center p-2 shadow-lg shadow-secondary/20">
-            <Utensils className="h-6 w-6 text-white" />
+          <div className="h-11 w-11 overflow-hidden rounded-xl bg-white shadow-lg shadow-secondary/15 ring-1 ring-white/20">
+            <img
+              src="/brand/fitgarden-vertical.png"
+              alt="FitGarden"
+              className="h-full w-full object-cover object-top"
+            />
           </div>
-          <span className="text-2xl font-serif font-bold text-white tracking-tight">FitGarden</span>
+          <div className="min-w-0">
+            <span className="block text-2xl font-serif font-bold text-white tracking-tight leading-none">FitGarden</span>
+            <span className="mt-1 block text-[9px] font-medium uppercase tracking-[0.24em] text-white/35">Sistema</span>
+          </div>
         </Link>
       </div>
 

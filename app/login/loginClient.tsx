@@ -30,24 +30,29 @@ export default function LoginClient() {
   }
 
   return (
-    <div className="min-h-screen grid ">
-    
-      <div className="relative flex items-center justify-center p-6 lg:p-12 bg-gradient-to-b from-background to-muted/30">
-        <div className="pointer-events-none absolute inset-0">
-          <div className="absolute left-1/2 top-12 h-64 w-64 -translate-x-1/2 rounded-full bg-primary/10 blur-3xl" />
-        </div>
+    <div className="min-h-screen grid">
+      <div className="relative flex items-center justify-center overflow-hidden p-6 lg:p-12 bg-[linear-gradient(180deg,hsl(var(--background))_0%,hsl(var(--muted))_100%)]">
+        <img
+          src="/brand/fitgarden-horizontal.png"
+          alt=""
+          className="pointer-events-none absolute -right-24 top-10 hidden h-36 w-[620px] object-contain opacity-[0.08] lg:block"
+        />
+        <img
+          src="/brand/fitgarden-coral.png"
+          alt=""
+          className="pointer-events-none absolute -bottom-12 -left-20 hidden h-44 w-[720px] object-contain opacity-[0.06] lg:block"
+        />
 
         <div className="relative w-full max-w-md">
-          <div className="mb-8 flex items-center justify-center lg:hidden">
+          <div className="mb-8 flex items-center justify-center">
             <img
-              src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/image-uK9grqpX37vYEW3qPxsx0dvubxtUpf.png"
-              alt="FitGarden Logo"
-              className="h-16 w-16 rounded-2xl bg-muted p-2 ring-1 ring-border shadow"
+              src="/brand/fitgarden-horizontal.png"
+              alt="FitGarden"
+              className="h-20 w-full max-w-[340px] rounded-2xl bg-white object-contain px-5 py-3 shadow-sm ring-1 ring-border"
             />
           </div>
 
-          {/* Card */}
-          <div className="rounded-2xl border border-border bg-background/80 backdrop-blur-md shadow-xl">
+          <div className="rounded-2xl border border-border bg-background/90 backdrop-blur-md shadow-xl">
             <div className="px-6 pt-6 pb-2">
               <h1 className="text-2xl font-semibold tracking-tight">
                 Entrar
