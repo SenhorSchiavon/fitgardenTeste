@@ -122,12 +122,12 @@ export function Sidebar({ className }: SidebarProps) {
 
   return (
     <div className={cn("flex h-screen flex-col border-r border-white/10 bg-sidebar text-sidebar-foreground", className)}>
-      <div className="flex h-20 items-center px-6">
+      <div className="flex h-24 items-center justify-center px-4">
         <Link href="/" className="block w-full">
           <img
             src="/brand/fitgarden-sidebar.png"
             alt="FitGarden"
-            className="h-14 w-full object-contain object-left"
+            className="mx-auto h-16 w-[180px] object-contain object-center"
           />
         </Link>
       </div>

@@ -45,6 +45,14 @@ function contactName(conversation: WhatsAppConversation) {
   return conversation.contact.name || displayPhone(conversation.contact.phone);
 }
 
+function getUploadPath(body: string) {
+  return body.split(/\s+/).find((part) => part.startsWith("/uploads/")) || "";
+}
+
+function apiBaseUrl() {
+  return (process.env.NEXT_PUBLIC_API_URL || "").replace(/\/api\/?$/, "").replace(/\/+$/, "");
+}
+
 export default function WhatsAppPage() {
   const {
     conversations,
@@ -231,6 +239,7 @@ export default function WhatsAppPage() {
                       <div className="space-y-2 p-4">
                         {messages.map((message) => {
                           const outbound = message.direction === "OUTBOUND";
+                          const uploadPath = getUploadPath(message.body);
                           return (
                             <div
                               key={message.id}
@@ -244,7 +253,18 @@ export default function WhatsAppPage() {
                                     : "bg-muted text-foreground",
                                 )}
                               >
-                                <p className="whitespace-pre-wrap break-words">{message.body}</p>
+                                {uploadPath ? (
+                                  <div className="space-y-2">
+                                    <img
+                                      src={`${apiBaseUrl()}${uploadPath}`}
+                                      alt="Anexo do cardápio"
+                                      className="max-h-48 rounded-md object-cover"
+                                    />
+                                    <p className="whitespace-pre-wrap break-words">{message.body.replace(uploadPath, "").trim()}</p>
+                                  </div>
+                                ) : (
+                                  <p className="whitespace-pre-wrap break-words">{message.body}</p>
+                                )}
                                 <div
                                   className={cn(
                                     "mt-1 flex items-center justify-end gap-2 text-[10px]",
