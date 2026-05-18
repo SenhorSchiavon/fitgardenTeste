@@ -28,6 +28,10 @@ export type Plano = {
     id?: number;
     tamanhoId?: number | null;
     pesoPersonalizadoGramas?: number | null;
+    carboGramas?: number | null;
+    proteinaGramas?: number | null;
+    legumeGramas?: number | null;
+    feijaoGramas?: number | null;
     unidades: number;
     valorUnitario?: number | string | null;
     valorTotal?: number | string | null;
@@ -45,6 +49,10 @@ export type NovoPlanoInput = {
   itens?: Array<{
     tamanhoId?: number | null;
     pesoPersonalizadoGramas?: number | null;
+    carboGramas?: number | null;
+    proteinaGramas?: number | null;
+    legumeGramas?: number | null;
+    feijaoGramas?: number | null;
     unidades: number;
   }>;
 };

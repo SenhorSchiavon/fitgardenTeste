@@ -247,7 +247,7 @@ function getPlanoCatalogoResumo(plano?: PlanoCatalogo | null) {
     return plano.itens
       .map((item) => {
         const label = item.pesoPersonalizadoGramas
-          ? `${item.pesoPersonalizadoGramas}g personalizada`
+          ? getPlanoPersonalizadoLabel(item)
           : item.tamanho?.pesagemGramas
             ? `${item.tamanho.pesagemGramas}g`
             : item.tamanhoId
@@ -264,6 +264,27 @@ function getPlanoCatalogoResumo(plano?: PlanoCatalogo | null) {
       ? `#${plano.tamanhoId}`
       : "sem tamanho";
   return `${plano.unidades}x ${label}`;
+}
+
+function getPlanoPersonalizadoLabel(item: {
+  pesoPersonalizadoGramas?: number | string | null;
+  carboGramas?: number | string | null;
+  proteinaGramas?: number | string | null;
+  legumeGramas?: number | string | null;
+  feijaoGramas?: number | string | null;
+}) {
+  const partes = [
+    ["carbo", item.carboGramas],
+    ["proteína", item.proteinaGramas],
+    ["legume", item.legumeGramas],
+    ["feijão", item.feijaoGramas],
+  ]
+    .map(([label, value]) => ({ label, value: Number(value || 0) }))
+    .filter((parte) => parte.value > 0)
+    .map((parte) => `${parte.value}g ${parte.label}`);
+
+  if (partes.length) return partes.join(" + ");
+  return item.pesoPersonalizadoGramas ? `${item.pesoPersonalizadoGramas}g personalizada` : "personalizada";
 }
 
 function uid() {
@@ -654,6 +675,74 @@ export function NovoAgendamentoNovoLayout({
     );
   }
 
+  function getPlanoConsumoKey(item: NovoPedidoItem) {
+    if (item.tipoItem === "PERSONALIZADA") {
+      return [
+        "custom",
+        Number(item.carboGramas || 0),
+        Number(item.proteinaGramas || 0),
+        Number(item.legumeGramas || 0),
+        Number(item.feijaoGramas || 0),
+      ].join(":");
+    }
+    return `size:${item.tamanhoId || ""}`;
+  }
+
+  function getPlanoConsumoLabel(item: NovoPedidoItem) {
+    if (item.tipoItem === "PERSONALIZADA") {
+      return getPlanoPersonalizadoLabel({
+        pesoPersonalizadoGramas: getPesoPersonalizadoItem(item),
+        carboGramas: item.carboGramas,
+        proteinaGramas: item.proteinaGramas,
+        legumeGramas: item.legumeGramas,
+        feijaoGramas: item.feijaoGramas,
+      });
+    }
+    return item.tamanhoLabel || "Tamanho desconhecido";
+  }
+
+  function getSaldoPlanoParaItem(item: NovoPedidoItem) {
+    return (clienteSelecionado?.planos || []).reduce((acc: number, plano: any) => {
+      const saldos = plano.itens || [];
+      if (saldos.length > 0) {
+        return acc + saldos.reduce((subAcc: number, saldo: any) => {
+          const planoItem = saldo.planoItem || {};
+          const compativel = item.tipoItem === "PERSONALIZADA"
+            ? planoItemCombinaComPersonalizada(planoItem, item)
+            : Number(item.tamanhoId) === Number(planoItem.tamanhoId);
+          return compativel ? subAcc + Number(saldo.saldoUnidades || 0) : subAcc;
+        }, 0);
+      }
+
+      const planoTamanhoId = String(plano.plano?.tamanhoId ?? plano.tamanhoId ?? "");
+      return item.tipoItem !== "PERSONALIZADA" && planoTamanhoId === String(item.tamanhoId || "")
+        ? acc + Number(plano.saldoUnidades || 0)
+        : acc;
+    }, 0);
+  }
+
+  function planoItemTemComposicao(planoItem: any) {
+    return (
+      planoItem.carboGramas != null ||
+      planoItem.proteinaGramas != null ||
+      planoItem.legumeGramas != null ||
+      planoItem.feijaoGramas != null
+    );
+  }
+
+  function planoItemCombinaComPersonalizada(planoItem: any, item: NovoPedidoItem) {
+    if (!planoItemTemComposicao(planoItem)) {
+      return Number(planoItem.pesoPersonalizadoGramas || 0) === getPesoPersonalizadoItem(item);
+    }
+
+    return (
+      Number(planoItem.carboGramas || 0) === Number(item.carboGramas || 0) &&
+      Number(planoItem.proteinaGramas || 0) === Number(item.proteinaGramas || 0) &&
+      Number(planoItem.legumeGramas || 0) === Number(item.legumeGramas || 0) &&
+      Number(planoItem.feijaoGramas || 0) === Number(item.feijaoGramas || 0)
+    );
+  }
+
   function planoClienteTemItemCompativel(plano: any, item: NovoPedidoItem) {
     const saldos = plano.itens || [];
     if (saldos.length > 0) {
@@ -661,7 +750,7 @@ export function NovoAgendamentoNovoLayout({
         const planoItem = saldo.planoItem || {};
         if (Number(saldo.saldoUnidades || 0) <= 0) return false;
         if (item.tipoItem === "PERSONALIZADA") {
-          return Number(planoItem.pesoPersonalizadoGramas || 0) === getPesoPersonalizadoItem(item);
+          return planoItemCombinaComPersonalizada(planoItem, item);
         }
         return String(planoItem.tamanhoId || "") === String(item.tamanhoId || "");
       });
@@ -1548,14 +1637,14 @@ export function NovoAgendamentoNovoLayout({
                                   const planoItem = saldo.planoItem || {};
                                   const peso = planoItem.tamanho?.pesagemGramas || planoItem.pesoPersonalizadoGramas;
                                   const label = planoItem.pesoPersonalizadoGramas
-                                    ? `${planoItem.pesoPersonalizadoGramas}g personalizada`
+                                    ? getPlanoPersonalizadoLabel(planoItem)
                                     : peso
                                       ? `${peso}g`
                                       : "Tamanho desconhecido";
                                   const isInUse = itens.some((it) => {
                                     if (!it.usarPlano) return false;
                                     if (it.tipoItem === "PERSONALIZADA") {
-                                      return Number(planoItem.pesoPersonalizadoGramas || 0) === getPesoPersonalizadoItem(it);
+                                      return planoItemCombinaComPersonalizada(planoItem, it);
                                     }
                                     return Number(it.tamanhoId) === Number(planoItem.tamanhoId);
                                   });
@@ -1588,22 +1677,22 @@ export function NovoAgendamentoNovoLayout({
                              <div className="mt-3 p-3 bg-blue-50/50 border border-blue-100 rounded-lg space-y-1">
                                 <div className="text-[10px] font-bold text-blue-800 uppercase tracking-tight">Consumo do Plano</div>
                                 {(() => {
-                                   const porTamanho: Record<string, number> = {};
+                                   const porPlano: Record<string, { item: NovoPedidoItem; quantidade: number }> = {};
                                    itensComPlano.forEach(it => {
-                                      porTamanho[it.tamanhoId] = (porTamanho[it.tamanhoId] || 0) + Number(it.quantidade);
+                                      const key = getPlanoConsumoKey(it);
+                                      porPlano[key] = porPlano[key] || { item: it, quantidade: 0 };
+                                      porPlano[key].quantidade += Number(it.quantidade);
                                    });
                                    
-                                   return Object.entries(porTamanho).map(([tId, qtdTotal]) => {
-                                      const planosDoTamanho = (clienteSelecionado?.planos || []).filter((p: any) => Number(p.plano?.tamanhoId || p.tamanhoId) === Number(tId));
-                                      const plano = planosDoTamanho[0];
-                                      const saldo = planosDoTamanho.reduce((acc: number, p: any) => acc + Number(p.saldoUnidades || 0), 0);
-                                      const peso = plano?.tamanho?.pesagemGramas || plano?.plano?.tamanho?.pesagemGramas;
+                                   return Object.entries(porPlano).map(([key, grupo]) => {
+                                      const qtdTotal = grupo.quantidade;
+                                      const saldo = getSaldoPlanoParaItem(grupo.item);
                                       const abatido = Math.min(qtdTotal, saldo);
                                       const novoPlano = Math.max(0, qtdTotal - abatido);
                                       
                                       return (
-                                         <div key={tId} className="border-b border-blue-100/50 last:border-0 pb-1 last:pb-0 mb-1">
-                                            <div className="text-[10px] font-semibold text-blue-600 mb-1">{peso ? `${peso}g` : "Tamanho desconhecido"}</div>
+                                         <div key={key} className="border-b border-blue-100/50 last:border-0 pb-1 last:pb-0 mb-1">
+                                            <div className="text-[10px] font-semibold text-blue-600 mb-1">{getPlanoConsumoLabel(grupo.item)}</div>
                                             <div className="text-sm flex justify-between">
                                                <span className="text-muted-foreground">Abatido:</span>
                                                <span className="font-bold">{abatido} un.</span>

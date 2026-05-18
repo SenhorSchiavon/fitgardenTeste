@@ -17,6 +17,10 @@ export type PlanoCatalogoItem = {
   id?: number;
   tamanhoId?: number | null;
   pesoPersonalizadoGramas?: number | null;
+  carboGramas?: number | null;
+  proteinaGramas?: number | null;
+  legumeGramas?: number | null;
+  feijaoGramas?: number | null;
   unidades: number;
   valorUnitario?: number | string | null;
   valorTotal?: number | string | null;
@@ -62,6 +66,10 @@ type CreatePlanoCatalogoInput = {
   itens?: Array<{
     tamanhoId?: number | null;
     pesoPersonalizadoGramas?: number | null;
+    carboGramas?: number | null;
+    proteinaGramas?: number | null;
+    legumeGramas?: number | null;
+    feijaoGramas?: number | null;
     unidades: number;
   }>;
 };

@@ -52,6 +52,10 @@ type PlanoItemForm = {
   tipo: "TAMANHO" | "PERSONALIZADO";
   tamanhoId: string;
   pesoPersonalizadoGramas: string;
+  carboGramas: string;
+  proteinaGramas: string;
+  legumeGramas: string;
+  feijaoGramas: string;
   unidades: string;
 };
 
@@ -70,6 +74,36 @@ function moneyBr(v: number) {
   return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
 
+function getPesoComponentes(item: Pick<PlanoItemForm, "carboGramas" | "proteinaGramas" | "legumeGramas" | "feijaoGramas">) {
+  return (
+    Math.max(0, Math.floor(toNumber(item.carboGramas, 0))) +
+    Math.max(0, Math.floor(toNumber(item.proteinaGramas, 0))) +
+    Math.max(0, Math.floor(toNumber(item.legumeGramas, 0))) +
+    Math.max(0, Math.floor(toNumber(item.feijaoGramas, 0)))
+  );
+}
+
+function getComposicaoLabel(item: {
+  pesoPersonalizadoGramas?: number | string | null;
+  carboGramas?: number | string | null;
+  proteinaGramas?: number | string | null;
+  legumeGramas?: number | string | null;
+  feijaoGramas?: number | string | null;
+}) {
+  const partes = [
+    ["Carbo", item.carboGramas],
+    ["Proteína", item.proteinaGramas],
+    ["Legume", item.legumeGramas],
+    ["Feijão", item.feijaoGramas],
+  ]
+    .map(([label, value]) => ({ label, value: Number(value || 0) }))
+    .filter((parte) => parte.value > 0)
+    .map((parte) => `${parte.label} ${parte.value}g`);
+
+  if (partes.length) return partes.join(" + ");
+  return item.pesoPersonalizadoGramas ? `${item.pesoPersonalizadoGramas}g personalizada` : "Personalizada";
+}
+
 function uid() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
@@ -80,6 +114,10 @@ function novaLinhaPlano(): PlanoItemForm {
     tipo: "TAMANHO",
     tamanhoId: "",
     pesoPersonalizadoGramas: "",
+    carboGramas: "",
+    proteinaGramas: "",
+    legumeGramas: "",
+    feijaoGramas: "",
     unidades: "10",
   };
 }
@@ -156,13 +194,14 @@ export default function PlanosPage() {
         };
       }
 
-      const peso = Math.max(0, Math.floor(toNumber(item.pesoPersonalizadoGramas, 0)));
+      const pesoComponentes = getPesoComponentes(item);
+      const peso = pesoComponentes || Math.max(0, Math.floor(toNumber(item.pesoPersonalizadoGramas, 0)));
       const regra = regrasPeso.find((r) => peso <= Number(r.limite)) || regrasPeso[regrasPeso.length - 1];
       const valorUnitario = peso > 0 && regra ? Number(regra.preco || 0) : 0;
       return {
         ...item,
         unidades,
-        label: peso > 0 ? `${peso}g personalizada` : "Personalizada",
+        label: peso > 0 ? getComposicaoLabel({ ...item, pesoPersonalizadoGramas: peso }) : "Personalizada",
         valorTotal: valorUnitario * unidades,
         valorUnitario,
         valido: peso > 0 && valorUnitario > 0,
@@ -198,6 +237,10 @@ export default function PlanosPage() {
             tipo: item.pesoPersonalizadoGramas ? "PERSONALIZADO" as const : "TAMANHO" as const,
             tamanhoId: item.tamanhoId ? String(item.tamanhoId) : "",
             pesoPersonalizadoGramas: item.pesoPersonalizadoGramas ? String(item.pesoPersonalizadoGramas) : "",
+            carboGramas: item.carboGramas ? String(item.carboGramas) : "",
+            proteinaGramas: item.proteinaGramas ? String(item.proteinaGramas) : "",
+            legumeGramas: item.legumeGramas ? String(item.legumeGramas) : "",
+            feijaoGramas: item.feijaoGramas ? String(item.feijaoGramas) : "",
             unidades: String(item.unidades || 1),
           }))
         : [
@@ -206,6 +249,10 @@ export default function PlanosPage() {
               tipo: "TAMANHO" as const,
               tamanhoId: plano.tamanhoId ? String(plano.tamanhoId) : "",
               pesoPersonalizadoGramas: "",
+              carboGramas: "",
+              proteinaGramas: "",
+              legumeGramas: "",
+              feijaoGramas: "",
               unidades: String(plano.unidades || 1),
             },
           ];
@@ -235,7 +282,11 @@ export default function PlanosPage() {
       itens: form.itens.map((item) => ({
         tamanhoId: item.tipo === "TAMANHO" ? toNumber(item.tamanhoId) : null,
         pesoPersonalizadoGramas:
-          item.tipo === "PERSONALIZADO" ? toNumber(item.pesoPersonalizadoGramas) : null,
+          item.tipo === "PERSONALIZADO" ? getPesoComponentes(item) || toNumber(item.pesoPersonalizadoGramas) : null,
+        carboGramas: item.tipo === "PERSONALIZADO" ? toNumber(item.carboGramas) : null,
+        proteinaGramas: item.tipo === "PERSONALIZADO" ? toNumber(item.proteinaGramas) : null,
+        legumeGramas: item.tipo === "PERSONALIZADO" ? toNumber(item.legumeGramas) : null,
+        feijaoGramas: item.tipo === "PERSONALIZADO" ? toNumber(item.feijaoGramas) : null,
         unidades: toNumber(item.unidades, 1),
       })),
     };
@@ -319,7 +370,7 @@ export default function PlanosPage() {
                         <div className="space-y-1">
                           {plano.itens.map((item) => {
                             const label = item.pesoPersonalizadoGramas
-                              ? `${item.pesoPersonalizadoGramas}g personalizada`
+                              ? getComposicaoLabel(item)
                               : item.tamanho?.pesagemGramas
                                 ? `${item.tamanho.pesagemGramas}g`
                                 : item.tamanhoId
@@ -589,6 +640,10 @@ export default function PlanosPage() {
                                         tipo: value,
                                         tamanhoId: "",
                                         pesoPersonalizadoGramas: "",
+                                        carboGramas: "",
+                                        proteinaGramas: "",
+                                        legumeGramas: "",
+                                        feijaoGramas: "",
                                       }
                                     : linha,
                                 ),
@@ -608,28 +663,40 @@ export default function PlanosPage() {
 
                         <div className="space-y-1.5">
                           <Label className="text-xs text-gray-500">
-                            {item.tipo === "PERSONALIZADO" ? "Peso exato" : "Tamanho"}
+                            {item.tipo === "PERSONALIZADO" ? "Composição exata" : "Tamanho"}
                           </Label>
                           {item.tipo === "PERSONALIZADO" ? (
-                            <Input
-                              type="number"
-                              min={1}
-                              step={1}
-                              value={item.pesoPersonalizadoGramas}
-                              onChange={(e) =>
-                                setForm((p) => ({
-                                  ...p,
-                                  itens: p.itens.map((linha) =>
-                                    linha.id === item.id
-                                      ? { ...linha, pesoPersonalizadoGramas: e.target.value }
-                                      : linha,
-                                  ),
-                                }))
-                              }
-                              className="bg-white"
-                              disabled={saving}
-                              placeholder="Ex: 425"
-                            />
+                            <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+                              {[
+                                ["carboGramas", "Carbo"],
+                                ["proteinaGramas", "Proteína"],
+                                ["legumeGramas", "Legume"],
+                                ["feijaoGramas", "Feijão"],
+                              ].map(([field, label]) => (
+                                <div key={field} className="space-y-1">
+                                  <Label className="text-[10px] text-gray-500">{label}</Label>
+                                  <Input
+                                    type="number"
+                                    min={0}
+                                    step={1}
+                                    value={item[field as keyof PlanoItemForm]}
+                                    onChange={(e) =>
+                                      setForm((p) => ({
+                                        ...p,
+                                        itens: p.itens.map((linha) =>
+                                          linha.id === item.id
+                                            ? { ...linha, [field]: e.target.value }
+                                            : linha,
+                                        ),
+                                      }))
+                                    }
+                                    className="bg-white"
+                                    disabled={saving}
+                                    placeholder="0g"
+                                  />
+                                </div>
+                              ))}
+                            </div>
                           ) : (
                             <Select
                               value={item.tamanhoId}
