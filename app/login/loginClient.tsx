@@ -32,23 +32,12 @@ export default function LoginClient() {
   return (
     <div className="min-h-screen grid">
       <div className="relative flex items-center justify-center overflow-hidden p-6 lg:p-12 bg-[linear-gradient(180deg,hsl(var(--background))_0%,hsl(var(--muted))_100%)]">
-        <img
-          src="/brand/fitgarden-horizontal.png"
-          alt=""
-          className="pointer-events-none absolute -right-24 top-10 hidden h-36 w-[620px] object-contain opacity-[0.08] lg:block"
-        />
-        <img
-          src="/brand/fitgarden-coral.png"
-          alt=""
-          className="pointer-events-none absolute -bottom-12 -left-20 hidden h-44 w-[720px] object-contain opacity-[0.06] lg:block"
-        />
-
         <div className="relative w-full max-w-md">
           <div className="mb-8 flex items-center justify-center">
             <img
               src="/brand/fitgarden-horizontal.png"
               alt="FitGarden"
-              className="h-20 w-full max-w-[340px] rounded-2xl bg-white object-contain px-5 py-3 shadow-sm ring-1 ring-border"
+              className="h-20 w-full max-w-[360px] object-contain"
             />
           </div>
 
