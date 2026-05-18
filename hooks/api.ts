@@ -16,7 +16,6 @@ export async function apiFetch(url: string, options: RequestInit = {}) {
   }
 
   if (response.status === 403) {
-    window.location.href = "/";
     throw new Error("Sem permissao");
   }
 

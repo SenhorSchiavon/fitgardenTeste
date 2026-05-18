@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Eye, EyeOff, Lock, User } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+import { canAccess, firstAllowedPath, screenForPath } from "@/lib/auth-permissions";
 
 export default function LoginClient() {
   const { login, loading } = useAuth();
@@ -20,8 +21,12 @@ export default function LoginClient() {
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
-    await login(form);
-    router.push(nextPath);
+    const data = await login(form);
+    const nextScreen = screenForPath(nextPath);
+    const destination = nextScreen && !canAccess(data.user, nextScreen.key)
+      ? firstAllowedPath(data.user)
+      : nextPath;
+    router.push(destination);
   }
 
   return (

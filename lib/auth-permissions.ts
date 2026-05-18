@@ -62,5 +62,6 @@ export function screenForPath(pathname: string) {
 }
 
 export function firstAllowedPath(user: AuthUser | null) {
-  return SCREEN_DEFINITIONS.find((screen) => canAccess(user, screen.key))?.path || "/login";
+  if (!user) return "/login";
+  return SCREEN_DEFINITIONS.find((screen) => canAccess(user, screen.key))?.path || "/sem-acesso";
 }
