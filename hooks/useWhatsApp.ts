@@ -26,8 +26,14 @@ export type WhatsAppConversation = {
   contactId: number;
   status: "OPEN" | "CLOSED";
   lastMessageAt?: string | null;
+  humanActive: boolean;
+  lockedByUserId?: number | null;
+  lockedByName?: string | null;
+  lockedAt?: string | null;
+  lockExpiresAt?: string | null;
   contact: WhatsAppContact;
   messages: WhatsAppMessage[];
+  labels: { id: number; labelId: number; label: WhatsAppLabel }[];
 };
 
 export type WhatsAppAutoReply = {
@@ -36,6 +42,25 @@ export type WhatsAppAutoReply = {
   response: string;
   active: boolean;
   sendActiveMenuImages: boolean;
+  onlyFirstMessage: boolean;
+  skipWhenHumanActive: boolean;
+};
+
+export type WhatsAppLabel = {
+  id: number;
+  name: string;
+  color: string;
+  active: boolean;
+};
+
+export type WhatsAppQuickReply = {
+  id: number;
+  shortcut: string;
+  title: string;
+  body: string;
+  mediaUrl?: string | null;
+  mediaType?: string | null;
+  active: boolean;
 };
 
 export type WhatsAppBroadcast = {
@@ -85,6 +110,8 @@ export function useWhatsApp() {
   const [contacts, setContacts] = useState<WhatsAppContact[]>([]);
   const [messages, setMessages] = useState<WhatsAppMessage[]>([]);
   const [autoReplies, setAutoReplies] = useState<WhatsAppAutoReply[]>([]);
+  const [labels, setLabels] = useState<WhatsAppLabel[]>([]);
+  const [quickReplies, setQuickReplies] = useState<WhatsAppQuickReply[]>([]);
   const [broadcasts, setBroadcasts] = useState<WhatsAppBroadcast[]>([]);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
@@ -107,6 +134,18 @@ export function useWhatsApp() {
     return data;
   }, []);
 
+  const loadLabels = useCallback(async () => {
+    const data = await http<WhatsAppLabel[]>("/whatsapp/labels");
+    setLabels(data);
+    return data;
+  }, []);
+
+  const loadQuickReplies = useCallback(async () => {
+    const data = await http<WhatsAppQuickReply[]>("/whatsapp/quick-replies");
+    setQuickReplies(data);
+    return data;
+  }, []);
+
   const loadBroadcasts = useCallback(async () => {
     const data = await http<WhatsAppBroadcast[]>("/whatsapp/broadcasts");
     setBroadcasts(data);
@@ -116,13 +155,13 @@ export function useWhatsApp() {
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
-      await Promise.all([loadConversations(), loadContacts(), loadAutoReplies(), loadBroadcasts()]);
+      await Promise.all([loadConversations(), loadContacts(), loadAutoReplies(), loadLabels(), loadQuickReplies(), loadBroadcasts()]);
     } catch (error: any) {
       toast.error(error?.message || "Erro ao carregar WhatsApp");
     } finally {
       setLoading(false);
     }
-  }, [loadAutoReplies, loadBroadcasts, loadContacts, loadConversations]);
+  }, [loadAutoReplies, loadBroadcasts, loadContacts, loadConversations, loadLabels, loadQuickReplies]);
 
   const loadMessages = useCallback(async (conversationId: number) => {
     const data = await http<WhatsAppMessage[]>(`/whatsapp/conversations/${conversationId}/messages`);
@@ -151,7 +190,15 @@ export function useWhatsApp() {
   );
 
   const saveAutoReply = useCallback(
-    async (data: { id?: number; keyword: string; response: string; active: boolean; sendActiveMenuImages: boolean }) => {
+    async (data: {
+      id?: number;
+      keyword: string;
+      response: string;
+      active: boolean;
+      sendActiveMenuImages: boolean;
+      onlyFirstMessage: boolean;
+      skipWhenHumanActive: boolean;
+    }) => {
       const path = data.id ? `/whatsapp/auto-replies/${data.id}` : "/whatsapp/auto-replies";
       await http(path, {
         method: data.id ? "PUT" : "POST",
@@ -161,6 +208,88 @@ export function useWhatsApp() {
       toast.success("Resposta automatica salva");
     },
     [loadAutoReplies],
+  );
+
+  const saveLabel = useCallback(
+    async (data: { id?: number; name: string; color?: string; active?: boolean }) => {
+      await http("/whatsapp/labels", {
+        method: "POST",
+        body: JSON.stringify(data),
+      });
+      await loadLabels();
+      toast.success("Etiqueta salva");
+    },
+    [loadLabels],
+  );
+
+  const setConversationLabels = useCallback(
+    async (conversationId: number, labelIds: number[]) => {
+      await http(`/whatsapp/conversations/${conversationId}/labels`, {
+        method: "PUT",
+        body: JSON.stringify({ labelIds }),
+      });
+      await loadConversations();
+    },
+    [loadConversations],
+  );
+
+  const saveQuickReply = useCallback(
+    async (data: {
+      id?: number;
+      shortcut: string;
+      title: string;
+      body: string;
+      mediaUrl?: string | null;
+      mediaType?: string | null;
+      active: boolean;
+    }) => {
+      const path = data.id ? `/whatsapp/quick-replies/${data.id}` : "/whatsapp/quick-replies";
+      await http(path, {
+        method: data.id ? "PUT" : "POST",
+        body: JSON.stringify(data),
+      });
+      await loadQuickReplies();
+      toast.success("Macro salva");
+    },
+    [loadQuickReplies],
+  );
+
+  const deleteQuickReply = useCallback(
+    async (id: number) => {
+      await http(`/whatsapp/quick-replies/${id}`, { method: "DELETE" });
+      await loadQuickReplies();
+      toast.success("Macro removida");
+    },
+    [loadQuickReplies],
+  );
+
+  const setHumanActive = useCallback(
+    async (conversationId: number, humanActive: boolean) => {
+      await http(`/whatsapp/conversations/${conversationId}/human-active`, {
+        method: "POST",
+        body: JSON.stringify({ humanActive }),
+      });
+      await loadConversations();
+    },
+    [loadConversations],
+  );
+
+  const assumeConversation = useCallback(
+    async (conversationId: number) => {
+      await http(`/whatsapp/conversations/${conversationId}/assume`, { method: "POST" });
+      await loadConversations();
+      toast.success("Conversa assumida");
+    },
+    [loadConversations],
+  );
+
+  const releaseConversation = useCallback(
+    async (conversationId: number) => {
+      await http(`/whatsapp/conversations/${conversationId}/release`, { method: "POST" });
+      await loadConversations();
+      toast.success("Conversa liberada");
+    },
+    [loadConversations],
   );
 
   const deleteAutoReply = useCallback(
@@ -201,6 +330,8 @@ export function useWhatsApp() {
     contacts,
     messages,
     autoReplies,
+    labels,
+    quickReplies,
     broadcasts,
     loading,
     sending,
@@ -209,6 +340,13 @@ export function useWhatsApp() {
     sendMessage,
     saveAutoReply,
     deleteAutoReply,
+    saveLabel,
+    setConversationLabels,
+    saveQuickReply,
+    deleteQuickReply,
+    setHumanActive,
+    assumeConversation,
+    releaseConversation,
     sendBroadcast,
   };
 }
