@@ -212,14 +212,24 @@ export function useWhatsApp() {
 
   const saveLabel = useCallback(
     async (data: { id?: number; name: string; color?: string; active?: boolean }) => {
-      await http("/whatsapp/labels", {
-        method: "POST",
+      const path = data.id ? `/whatsapp/labels/${data.id}` : "/whatsapp/labels";
+      await http(path, {
+        method: data.id ? "PUT" : "POST",
         body: JSON.stringify(data),
       });
-      await loadLabels();
+      await Promise.all([loadLabels(), loadConversations()]);
       toast.success("Etiqueta salva");
     },
-    [loadLabels],
+    [loadConversations, loadLabels],
+  );
+
+  const deleteLabel = useCallback(
+    async (id: number) => {
+      await http(`/whatsapp/labels/${id}`, { method: "DELETE" });
+      await Promise.all([loadLabels(), loadConversations()]);
+      toast.success("Etiqueta removida");
+    },
+    [loadConversations, loadLabels],
   );
 
   const setConversationLabels = useCallback(
@@ -341,6 +351,7 @@ export function useWhatsApp() {
     saveAutoReply,
     deleteAutoReply,
     saveLabel,
+    deleteLabel,
     setConversationLabels,
     saveQuickReply,
     deleteQuickReply,

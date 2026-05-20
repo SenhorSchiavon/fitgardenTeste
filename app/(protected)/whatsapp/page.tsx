@@ -12,6 +12,7 @@ import {
   RefreshCcw,
   Search,
   Send,
+  Tags,
   Trash2,
   Unlock,
   Users,
@@ -22,6 +23,13 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Switch } from "@/components/ui/switch";
@@ -31,6 +39,7 @@ import { cn } from "@/lib/utils";
 import {
   WhatsAppAutoReply,
   WhatsAppConversation,
+  WhatsAppLabel,
   WhatsAppQuickReply,
   useWhatsApp,
 } from "@/hooks/useWhatsApp";
@@ -79,6 +88,8 @@ function apiBaseUrl() {
   return (process.env.NEXT_PUBLIC_API_URL || "").replace(/\/api\/?$/, "").replace(/\/+$/, "");
 }
 
+const LABEL_COLORS = ["#0f766e", "#16a34a", "#f59e0b", "#0ea5e9", "#8b5cf6", "#e11d48", "#64748b"];
+
 export default function WhatsAppPage() {
   const {
     conversations,
@@ -96,6 +107,7 @@ export default function WhatsAppPage() {
     saveAutoReply,
     deleteAutoReply,
     saveLabel,
+    deleteLabel,
     setConversationLabels,
     saveQuickReply,
     deleteQuickReply,
@@ -117,7 +129,11 @@ export default function WhatsAppPage() {
   const [conversationSearch, setConversationSearch] = useState("");
   const [selectedLabelId, setSelectedLabelId] = useState<number | "all">("all");
   const [replyText, setReplyText] = useState("");
-  const [labelDraft, setLabelDraft] = useState("");
+  const [labelsOpen, setLabelsOpen] = useState(false);
+  const [labelForm, setLabelForm] = useState<{ id?: number; name: string; color: string }>({
+    name: "",
+    color: LABEL_COLORS[0],
+  });
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
@@ -265,10 +281,28 @@ export default function WhatsAppPage() {
     await setConversationLabels(selectedConversation.id, nextIds);
   };
 
-  const handleCreateLabel = async () => {
-    if (!labelDraft.trim()) return;
-    await saveLabel({ name: labelDraft.trim() });
-    setLabelDraft("");
+  const resetLabelForm = () => {
+    setLabelForm({ name: "", color: LABEL_COLORS[0] });
+  };
+
+  const handleEditLabel = (label: WhatsAppLabel) => {
+    setLabelForm({ id: label.id, name: label.name, color: label.color || LABEL_COLORS[0] });
+  };
+
+  const handleSaveLabel = async () => {
+    if (!labelForm.name.trim()) return;
+    await saveLabel({
+      id: labelForm.id,
+      name: labelForm.name.trim(),
+      color: labelForm.color,
+    });
+    resetLabelForm();
+  };
+
+  const handleDeleteLabel = async (labelId: number) => {
+    await deleteLabel(labelId);
+    if (selectedLabelId === labelId) setSelectedLabelId("all");
+    if (labelForm.id === labelId) resetLabelForm();
   };
 
   const toggleContact = (id: number) => {
@@ -430,35 +464,36 @@ export default function WhatsAppPage() {
                       </div>
                     </div>
                     <div className="mt-3 flex flex-col gap-3 border-t border-border/60 pt-3 xl:flex-row xl:items-center">
-                      <div className="flex flex-1 flex-wrap items-center gap-2">
-                        {labels.map((label) => (
-                          <button
-                            key={label.id}
-                            type="button"
-                            onClick={() => handleToggleConversationLabel(label.id)}
-                            className={cn(
-                              "rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
-                              selectedConversationLabelIds.includes(label.id) && "text-white",
-                            )}
-                            style={{
-                              borderColor: label.color,
-                              backgroundColor: selectedConversationLabelIds.includes(label.id) ? label.color : "transparent",
-                              color: selectedConversationLabelIds.includes(label.id) ? "#fff" : label.color,
-                            }}
-                          >
-                            {label.name}
-                          </button>
-                        ))}
-                        <div className="flex items-center gap-1">
-                          <Input
-                            value={labelDraft}
-                            onChange={(event) => setLabelDraft(event.target.value)}
-                            placeholder="Nova etiqueta"
-                            className="h-8 w-32 rounded-full shadow-none"
-                          />
-                          <Button type="button" variant="ghost" size="icon" onClick={handleCreateLabel} className="h-8 w-8 rounded-full">
-                            <Plus className="h-4 w-4" />
-                          </Button>
+                      <div className="flex min-w-0 flex-1 items-center gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setLabelsOpen(true)}
+                          className="h-9 shrink-0 rounded-full"
+                        >
+                          <Tags className="mr-2 h-4 w-4" />
+                          Etiquetas
+                        </Button>
+                        <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+                          {selectedConversation.labels?.length ? (
+                            selectedConversation.labels.slice(0, 4).map(({ label }) => (
+                              <span
+                                key={label.id}
+                                className="rounded-full border px-2 py-1 text-xs font-medium"
+                                style={{ borderColor: label.color, color: label.color }}
+                              >
+                                {label.name}
+                              </span>
+                            ))
+                          ) : (
+                            <span className="text-xs text-muted-foreground">Sem etiquetas</span>
+                          )}
+                          {(selectedConversation.labels?.length || 0) > 4 && (
+                            <span className="text-xs text-muted-foreground">
+                              +{(selectedConversation.labels?.length || 0) - 4}
+                            </span>
+                          )}
                         </div>
                       </div>
                       <label className="flex shrink-0 items-center gap-2 text-xs text-muted-foreground">
@@ -879,6 +914,139 @@ export default function WhatsAppPage() {
           </div>
         </TabsContent>
       </Tabs>
+
+      <Dialog open={labelsOpen} onOpenChange={setLabelsOpen}>
+        <DialogContent className="max-w-3xl rounded-xl p-0">
+          <DialogHeader className="border-b px-6 py-5">
+            <DialogTitle>Etiquetas da conversa</DialogTitle>
+            <DialogDescription>
+              Organize a conversa atual e gerencie as etiquetas disponiveis.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid max-h-[70vh] grid-cols-1 overflow-hidden md:grid-cols-[1fr_320px]">
+            <div className="min-h-0 border-b p-5 md:border-b-0 md:border-r">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold">Aplicar nesta conversa</p>
+                  <p className="text-xs text-muted-foreground">
+                    {selectedConversation ? contactName(selectedConversation) : "Nenhuma conversa selecionada"}
+                  </p>
+                </div>
+                <Badge variant="secondary" className="rounded-full">
+                  {selectedConversationLabelIds.length} selecionada{selectedConversationLabelIds.length === 1 ? "" : "s"}
+                </Badge>
+              </div>
+
+              <ScrollArea className="h-[360px] pr-3">
+                <div className="space-y-2">
+                  {labels.map((label) => {
+                    const selected = selectedConversationLabelIds.includes(label.id);
+                    return (
+                      <button
+                        key={label.id}
+                        type="button"
+                        onClick={() => handleToggleConversationLabel(label.id)}
+                        className={cn(
+                          "flex w-full items-center justify-between gap-3 rounded-lg border px-3 py-2.5 text-left transition-colors hover:bg-muted/50",
+                          selected && "border-primary bg-primary/5",
+                        )}
+                      >
+                        <span className="flex min-w-0 items-center gap-3">
+                          <span className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: label.color }} />
+                          <span className="truncate text-sm font-medium">{label.name}</span>
+                        </span>
+                        <span
+                          className={cn(
+                            "flex h-5 w-5 shrink-0 items-center justify-center rounded border",
+                            selected && "border-primary bg-primary text-primary-foreground",
+                          )}
+                        >
+                          {selected && <Check className="h-3 w-3" />}
+                        </span>
+                      </button>
+                    );
+                  })}
+                  {!labels.length && (
+                    <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
+                      Crie a primeira etiqueta no painel ao lado.
+                    </p>
+                  )}
+                </div>
+              </ScrollArea>
+            </div>
+
+            <div className="min-h-0 bg-muted/20 p-5">
+              <div className="space-y-3 rounded-lg border bg-background p-3">
+                <p className="text-sm font-semibold">{labelForm.id ? "Editar etiqueta" : "Nova etiqueta"}</p>
+                <Input
+                  value={labelForm.name}
+                  onChange={(event) => setLabelForm((current) => ({ ...current, name: event.target.value }))}
+                  placeholder="Nome da etiqueta"
+                  className="h-9 shadow-none"
+                />
+                <div className="flex flex-wrap gap-2">
+                  {LABEL_COLORS.map((color) => (
+                    <button
+                      key={color}
+                      type="button"
+                      onClick={() => setLabelForm((current) => ({ ...current, color }))}
+                      className={cn(
+                        "h-7 w-7 rounded-full border-2 border-background shadow-sm ring-1 ring-border",
+                        labelForm.color === color && "ring-2 ring-primary",
+                      )}
+                      style={{ backgroundColor: color }}
+                      title={color}
+                    />
+                  ))}
+                  <Input
+                    type="color"
+                    value={labelForm.color}
+                    onChange={(event) => setLabelForm((current) => ({ ...current, color: event.target.value }))}
+                    className="h-7 w-10 rounded-full p-1"
+                    title="Cor personalizada"
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <Button size="sm" onClick={handleSaveLabel} disabled={!labelForm.name.trim()}>
+                    {labelForm.id ? "Salvar" : "Criar"}
+                  </Button>
+                  {labelForm.id && (
+                    <Button size="sm" variant="outline" onClick={resetLabelForm}>
+                      Cancelar
+                    </Button>
+                  )}
+                </div>
+              </div>
+
+              <div className="mt-4">
+                <p className="mb-2 text-xs font-semibold uppercase text-muted-foreground">Todas as etiquetas</p>
+                <ScrollArea className="h-[210px] pr-3">
+                  <div className="space-y-2">
+                    {labels.map((label) => (
+                      <div key={label.id} className="flex items-center justify-between gap-2 rounded-lg border bg-background px-3 py-2">
+                        <div className="flex min-w-0 items-center gap-2">
+                          <span className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: label.color }} />
+                          <span className="truncate text-sm font-medium">{label.name}</span>
+                        </div>
+                        <div className="flex shrink-0 gap-1">
+                          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleEditLabel(label)} title="Editar">
+                            <Edit3 className="h-4 w-4" />
+                          </Button>
+                          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleDeleteLabel(label.id)} title="Remover">
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </ScrollArea>
+              </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <NovoAgendamentoNovoLayout
         open={scheduleOpen}
         onOpenChange={setScheduleOpen}
