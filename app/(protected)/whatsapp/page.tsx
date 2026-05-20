@@ -8,7 +8,6 @@ import {
   Check,
   Edit3,
   Lock,
-  MessageCircle,
   Plus,
   RefreshCcw,
   Search,
@@ -291,44 +290,41 @@ export default function WhatsAppPage() {
 
   return (
     <div className="flex min-h-[calc(100vh-2rem)] flex-col gap-4 pb-4">
-      <Header title="WhatsApp" subtitle="Inbox, macros, automacoes e atendimento multiusuario" />
+      <Header title="WhatsApp" subtitle="Atendimento, respostas rapidas e transmissao" />
 
       <Tabs defaultValue="conversas" className="flex min-h-0 flex-1 flex-col">
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <TabsList>
+          <TabsList className="w-fit rounded-full bg-muted/60 p-1">
             <TabsTrigger value="conversas">Conversas</TabsTrigger>
             <TabsTrigger value="respostas">Respostas</TabsTrigger>
             <TabsTrigger value="transmissao">Transmissao</TabsTrigger>
           </TabsList>
-          <Button variant="outline" size="sm" onClick={refresh} disabled={loading}>
-            <RefreshCcw className="mr-2 h-4 w-4" />
+          <Button variant="outline" size="sm" onClick={refresh} disabled={loading} className="w-fit rounded-full">
+            <RefreshCcw className={cn("mr-2 h-4 w-4", loading && "animate-spin")} />
             Atualizar
           </Button>
         </div>
 
-        <TabsContent value="conversas" className="mt-4 min-h-0 flex-1">
-          <div className="grid h-[calc(100vh-210px)] min-h-[480px] grid-cols-1 gap-4 lg:grid-cols-[320px_minmax(0,1fr)]">
-            <Card className="overflow-hidden">
-              <CardHeader className="space-y-3 border-b p-4">
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <MessageCircle className="h-4 w-4" />
-                  Conversas
-                </CardTitle>
+        <TabsContent value="conversas" className="mt-3 min-h-0 flex-1">
+          <div className="grid h-[calc(100vh-198px)] min-h-[520px] grid-cols-1 gap-3 lg:grid-cols-[300px_minmax(0,1fr)]">
+            <Card className="overflow-hidden rounded-xl border-border/70 shadow-none">
+              <CardHeader className="space-y-3 border-b bg-background/80 p-3">
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                   <Input
                     value={conversationSearch}
                     onChange={(event) => setConversationSearch(event.target.value)}
                     placeholder="Buscar contato"
-                    className="h-9 pl-9"
+                    className="h-10 rounded-full border-border/70 bg-muted/30 pl-9 shadow-none"
                   />
                 </div>
-                <div className="flex flex-wrap gap-2">
+                <div className="flex gap-2 overflow-x-auto pb-1">
                   <Button
                     type="button"
                     size="sm"
                     variant={selectedLabelId === "all" ? "default" : "outline"}
                     onClick={() => setSelectedLabelId("all")}
+                    className="h-8 shrink-0 rounded-full px-3"
                   >
                     Todas
                   </Button>
@@ -339,6 +335,7 @@ export default function WhatsAppPage() {
                       size="sm"
                       variant={selectedLabelId === label.id ? "default" : "outline"}
                       onClick={() => setSelectedLabelId(label.id)}
+                      className="h-8 shrink-0 rounded-full px-3"
                     >
                       {label.name}
                     </Button>
@@ -346,8 +343,8 @@ export default function WhatsAppPage() {
                 </div>
               </CardHeader>
               <CardContent className="p-0">
-                <ScrollArea className="h-[calc(100vh-330px)] min-h-[360px]">
-                  <div className="divide-y">
+                <ScrollArea className="h-[calc(100vh-313px)] min-h-[405px]">
+                  <div>
                     {filteredConversations.map((conversation) => {
                       const lastMessage = conversation.messages[0];
                       const active = conversation.id === selectedConversationId;
@@ -356,14 +353,14 @@ export default function WhatsAppPage() {
                           key={conversation.id}
                           onClick={() => setSelectedConversationId(conversation.id)}
                           className={cn(
-                            "w-full px-4 py-3 text-left transition-colors hover:bg-muted/60",
-                            active && "bg-muted",
+                            "w-full border-b border-border/60 px-4 py-3 text-left transition-colors hover:bg-muted/45",
+                            active && "bg-primary/5 shadow-[inset_3px_0_0_hsl(var(--primary))]",
                           )}
                         >
                           <div className="flex items-center justify-between gap-3">
-                            <p className="truncate text-sm font-semibold">{contactName(conversation)}</p>
+                            <p className="truncate text-sm font-semibold text-foreground">{contactName(conversation)}</p>
                             {conversation.lastMessageAt && (
-                              <span className="text-[11px] text-muted-foreground">
+                              <span className="shrink-0 text-[11px] text-muted-foreground">
                                 {format(new Date(conversation.lastMessageAt), "dd/MM HH:mm", { locale: ptBR })}
                               </span>
                             )}
@@ -372,11 +369,11 @@ export default function WhatsAppPage() {
                             {lastMessage?.body || displayPhone(conversation.contact.phone)}
                           </p>
                           {!!conversation.labels?.length && (
-                            <div className="mt-2 flex flex-wrap gap-1">
-                              {conversation.labels.map(({ label }) => (
+                            <div className="mt-2 flex gap-1 overflow-hidden">
+                              {conversation.labels.slice(0, 3).map(({ label }) => (
                                 <span
                                   key={label.id}
-                                  className="rounded border px-1.5 py-0.5 text-[10px] font-medium"
+                                  className="truncate rounded-full border px-1.5 py-0.5 text-[10px] font-medium"
                                   style={{ borderColor: label.color, color: label.color }}
                                 >
                                   {label.name}
@@ -395,74 +392,76 @@ export default function WhatsAppPage() {
               </CardContent>
             </Card>
 
-            <Card className="flex min-h-0 flex-col overflow-hidden">
+            <Card className="flex min-h-0 flex-col overflow-hidden rounded-xl border-border/70 shadow-none">
               {selectedConversation ? (
                 <>
-                  <CardHeader className="border-b p-4">
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <CardTitle className="text-base">{contactName(selectedConversation)}</CardTitle>
+                  <CardHeader className="border-b bg-background/90 p-4">
+                    <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+                      <div className="min-w-0">
+                        <CardTitle className="truncate text-base">{contactName(selectedConversation)}</CardTitle>
                         <p className="text-sm text-muted-foreground">
                           {displayPhone(selectedConversation.contact.phone)}
                         </p>
                       </div>
-                      <div className="flex flex-wrap items-center justify-end gap-2">
-                        <Button variant="outline" size="sm" onClick={() => setScheduleOpen(true)}>
+                      <div className="flex flex-wrap items-center gap-2 xl:justify-end">
+                        <Button variant="outline" size="sm" onClick={() => setScheduleOpen(true)} className="h-9 rounded-full">
                           <CalendarPlus className="mr-2 h-4 w-4" />
                           Agendar
                         </Button>
                         {lockActive ? (
-                          <Badge variant={lockedByMe ? "default" : "secondary"} className="gap-1">
+                          <Badge variant={lockedByMe ? "default" : "secondary"} className="h-8 rounded-full px-3">
                             <Lock className="h-3 w-3" />
                             {lockedByMe ? "Atendimento com voce" : `Com ${selectedConversation.lockedByName || "atendente"}`}
                           </Badge>
                         ) : (
-                          <Badge variant="outline">Livre</Badge>
+                          <Badge variant="outline" className="h-8 rounded-full px-3">Livre</Badge>
                         )}
                         {lockedByMe ? (
-                          <Button variant="outline" size="sm" onClick={() => releaseConversation(selectedConversation.id)}>
+                          <Button variant="outline" size="sm" onClick={() => releaseConversation(selectedConversation.id)} className="h-9 rounded-full">
                             <Unlock className="mr-2 h-4 w-4" />
                             Liberar
                           </Button>
                         ) : (
-                          <Button variant="outline" size="sm" onClick={() => assumeConversation(selectedConversation.id)}>
+                          <Button variant="outline" size="sm" onClick={() => assumeConversation(selectedConversation.id)} className="h-9 rounded-full">
                             <Lock className="mr-2 h-4 w-4" />
                             Assumir
                           </Button>
                         )}
                       </div>
                     </div>
-                    <div className="mt-3 flex flex-wrap items-center gap-2">
-                      {labels.map((label) => (
-                        <button
-                          key={label.id}
-                          type="button"
-                          onClick={() => handleToggleConversationLabel(label.id)}
-                          className={cn(
-                            "rounded border px-2 py-1 text-xs font-medium transition-colors",
-                            selectedConversationLabelIds.includes(label.id) && "text-white",
-                          )}
-                          style={{
-                            borderColor: label.color,
-                            backgroundColor: selectedConversationLabelIds.includes(label.id) ? label.color : "transparent",
-                            color: selectedConversationLabelIds.includes(label.id) ? "#fff" : label.color,
-                          }}
-                        >
-                          {label.name}
-                        </button>
-                      ))}
-                      <div className="flex items-center gap-2">
-                        <Input
-                          value={labelDraft}
-                          onChange={(event) => setLabelDraft(event.target.value)}
-                          placeholder="Nova etiqueta"
-                          className="h-8 w-32"
-                        />
-                        <Button type="button" variant="ghost" size="sm" onClick={handleCreateLabel}>
-                          <Plus className="h-4 w-4" />
-                        </Button>
+                    <div className="mt-3 flex flex-col gap-3 border-t border-border/60 pt-3 xl:flex-row xl:items-center">
+                      <div className="flex flex-1 flex-wrap items-center gap-2">
+                        {labels.map((label) => (
+                          <button
+                            key={label.id}
+                            type="button"
+                            onClick={() => handleToggleConversationLabel(label.id)}
+                            className={cn(
+                              "rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
+                              selectedConversationLabelIds.includes(label.id) && "text-white",
+                            )}
+                            style={{
+                              borderColor: label.color,
+                              backgroundColor: selectedConversationLabelIds.includes(label.id) ? label.color : "transparent",
+                              color: selectedConversationLabelIds.includes(label.id) ? "#fff" : label.color,
+                            }}
+                          >
+                            {label.name}
+                          </button>
+                        ))}
+                        <div className="flex items-center gap-1">
+                          <Input
+                            value={labelDraft}
+                            onChange={(event) => setLabelDraft(event.target.value)}
+                            placeholder="Nova etiqueta"
+                            className="h-8 w-32 rounded-full shadow-none"
+                          />
+                          <Button type="button" variant="ghost" size="icon" onClick={handleCreateLabel} className="h-8 w-8 rounded-full">
+                            <Plus className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </div>
-                      <label className="ml-auto flex items-center gap-2 text-xs text-muted-foreground">
+                      <label className="flex shrink-0 items-center gap-2 text-xs text-muted-foreground">
                         Atendimento humano
                         <Switch
                           checked={selectedConversation.humanActive}
@@ -473,8 +472,8 @@ export default function WhatsAppPage() {
                   </CardHeader>
 
                   <CardContent className="flex min-h-0 flex-1 flex-col p-0">
-                    <ScrollArea className="min-h-0 flex-1">
-                      <div className="space-y-2 p-4">
+                    <ScrollArea className="min-h-0 flex-1 bg-muted/20">
+                      <div className="space-y-3 p-4">
                         {messages.map((message) => {
                           const outbound = message.direction === "OUTBOUND";
                           const uploadPath = getUploadPath(message.body);
@@ -485,10 +484,10 @@ export default function WhatsAppPage() {
                             >
                               <div
                                 className={cn(
-                                  "max-w-[78%] rounded-lg px-3 py-2 text-sm shadow-sm",
+                                  "max-w-[76%] rounded-2xl px-3.5 py-2.5 text-sm shadow-sm",
                                   outbound
-                                    ? "bg-primary text-primary-foreground"
-                                    : "bg-muted text-foreground",
+                                    ? "rounded-br-md bg-primary text-primary-foreground"
+                                    : "rounded-bl-md bg-background text-foreground",
                                 )}
                               >
                                 {uploadPath ? (
@@ -520,7 +519,7 @@ export default function WhatsAppPage() {
                       </div>
                     </ScrollArea>
 
-                    <div className="shrink-0 border-t p-3">
+                    <div className="shrink-0 border-t bg-background p-3">
                       <div className="flex gap-3">
                         <Textarea
                           value={replyText}
@@ -532,11 +531,11 @@ export default function WhatsAppPage() {
                             }
                           }}
                           placeholder={canSend ? "Digite a resposta ou use /oferta..." : "Conversa bloqueada por outro atendente"}
-                          className="min-h-[48px] resize-none"
+                          className="min-h-[48px] resize-none rounded-2xl border-border/70 bg-muted/20 px-4 py-3 shadow-none"
                           disabled={!canSend}
                         />
                         <Button
-                          className="h-[48px] px-4"
+                          className="h-[48px] w-[48px] shrink-0 rounded-2xl p-0"
                           onClick={handleSendReply}
                           disabled={sending || !replyText.trim() || !canSend}
                           title="Enviar"
