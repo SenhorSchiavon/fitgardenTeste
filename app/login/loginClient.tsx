@@ -30,32 +30,33 @@ export default function LoginClient() {
   }
 
   return (
-    <div className="min-h-screen grid">
-      <div className="relative flex items-center justify-center overflow-hidden p-6 lg:p-12 bg-[linear-gradient(180deg,hsl(var(--background))_0%,hsl(var(--muted))_100%)]">
+    <div className="fixed inset-0 min-h-dvh w-screen overflow-y-auto bg-[#123f35]">
+      <div className="relative flex min-h-dvh w-full items-center justify-center overflow-hidden p-6 lg:p-12">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,246,225,0.12),transparent_34%),linear-gradient(180deg,rgba(18,63,53,0)_0%,rgba(9,38,32,0.72)_100%)]" />
         <div className="relative w-full max-w-md">
           <div className="mb-8 flex items-center justify-center">
             <img
               src="/brand/fitgarden-horizontal.png"
               alt="FitGarden"
-              className="h-20 w-full max-w-[360px] object-contain"
+              className="h-20 w-full max-w-[360px] object-contain drop-shadow-[0_10px_24px_rgba(0,0,0,0.22)]"
             />
           </div>
 
-          <div className="rounded-2xl border border-border bg-background/90 backdrop-blur-md shadow-xl">
+          <div className="rounded-2xl border border-white/20 bg-white shadow-2xl shadow-black/25">
             <div className="px-6 pt-6 pb-2">
-              <h1 className="text-2xl font-semibold tracking-tight">
+              <h1 className="text-2xl font-semibold tracking-tight text-[#123f35]">
                 Entrar
               </h1>
-              <p className="mt-1 text-sm text-muted-foreground">
+              <p className="mt-1 text-sm text-[#55736b]">
                 Acesse o painel de gestão do FitGarden
               </p>
             </div>
 
             <form onSubmit={onSubmit} className="px-6 pb-6 pt-4 space-y-5">
               <div className="space-y-2">
-                <Label className="text-sm">Login</Label>
+                <Label className="text-sm text-[#123f35]">Login</Label>
                 <div className="relative">
-                  <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#55736b]" />
                   <Input
                     value={form.login}
                     onChange={(e) =>
@@ -63,15 +64,15 @@ export default function LoginClient() {
                     }
                     placeholder="Ex: admin"
                     autoComplete="username"
-                    className="h-11 pl-10"
+                    className="h-11 border-[#d4e1dc] bg-[#f5faf8] pl-10 focus-visible:ring-[#a8c6bb]"
                   />
                 </div>
               </div>
 
               <div className="space-y-2">
-                <Label className="text-sm">Senha</Label>
+                <Label className="text-sm text-[#123f35]">Senha</Label>
                 <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#55736b]" />
                   <Input
                     type={showPassword ? "text" : "password"}
                     value={form.senha}
@@ -80,12 +81,12 @@ export default function LoginClient() {
                     }
                     placeholder="Sua senha"
                     autoComplete="current-password"
-                    className="h-11 pl-10 pr-10"
+                    className="h-11 border-[#d4e1dc] bg-[#f5faf8] pl-10 pr-10 focus-visible:ring-[#a8c6bb]"
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword((v) => !v)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[#55736b] transition-colors hover:text-[#123f35]"
                   >
                     {showPassword ? (
                       <EyeOff className="h-4 w-4" />
@@ -100,7 +101,7 @@ export default function LoginClient() {
               </div>
 
               <Button
-                className="w-full h-11 rounded-xl"
+                className="h-11 w-full rounded-xl bg-[#e8472d] text-white shadow-lg shadow-[#e8472d]/20 hover:bg-[#d83d25]"
                 type="submit"
                 disabled={loading || !form.login || !form.senha}
               >
@@ -114,13 +115,13 @@ export default function LoginClient() {
                 )}
               </Button>
 
-              <div className="text-center text-xs text-muted-foreground">
+              <div className="text-center text-xs text-[#55736b]">
                 {`Ao entrar, você concorda com os `}
-                <a className="underline underline-offset-4 hover:text-foreground" href="#">
+                <a className="underline underline-offset-4 hover:text-[#123f35]" href="#">
                   Termos
                 </a>
                 {` e `}
-                <a className="underline underline-offset-4 hover:text-foreground" href="#">
+                <a className="underline underline-offset-4 hover:text-[#123f35]" href="#">
                   Privacidade
                 </a>
                 .
@@ -128,7 +129,7 @@ export default function LoginClient() {
             </form>
           </div>
 
-          <p className="mt-6 text-center text-xs text-muted-foreground">
+          <p className="mt-6 text-center text-xs text-white/70">
             © {new Date().getFullYear()} FitGarden
           </p>
         </div>
