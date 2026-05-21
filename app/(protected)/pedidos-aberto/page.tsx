@@ -96,6 +96,7 @@ export default function PedidosAberto() {
   const [pedidosAberto, setPedidosAberto] = useState<PedidoPendenteRow[]>([]);
   const [pagamentosConciliar, setPagamentosConciliar] = useState<PedidoPendenteRow[]>([]);
   const [dataFiltro, setDataFiltro] = useState(() => toISODateOnly(new Date()));
+  const [filtroPendentes, setFiltroPendentes] = useState<"todos" | "a-definir" | "definidos">("todos");
   const [filtroConciliacao, setFiltroConciliacao] = useState<"todos" | "a-conciliar" | "conciliados">("todos");
 
   const [pedidoSelecionado, setPedidoSelecionado] =
@@ -104,7 +105,17 @@ export default function PedidosAberto() {
   const [pagamentoDialogOpen, setPagamentoDialogOpen] = useState(false);
 
   const [formaPagamentoFinal, setFormaPagamentoFinal] =
-    useState<Exclude<FormaPagamento, "PLANO">>("PIX");
+    useState<Exclude<FormaPagamento, "PLANO" | "A_DEFINIR">>("PIX");
+
+  const pedidosAbertoFiltrados = useMemo(() => {
+    if (filtroPendentes === "a-definir") {
+      return pedidosAberto.filter((pedido) => pedido.formaPagamento === "A_DEFINIR");
+    }
+    if (filtroPendentes === "definidos") {
+      return pedidosAberto.filter((pedido) => pedido.formaPagamento !== "A_DEFINIR");
+    }
+    return pedidosAberto;
+  }, [filtroPendentes, pedidosAberto]);
 
   const pagamentosConciliarFiltrados = useMemo(() => {
     if (filtroConciliacao === "a-conciliar") {
@@ -176,6 +187,12 @@ export default function PedidosAberto() {
     }
   };
   const handlePagamento = () => {
+    const formaAtual = pedidoSelecionado?.formaPagamento;
+    if (formaAtual && formaAtual !== "A_DEFINIR" && formaAtual !== "PLANO") {
+      setFormaPagamentoFinal(formaAtual as Exclude<FormaPagamento, "PLANO" | "A_DEFINIR">);
+    } else {
+      setFormaPagamentoFinal("PIX");
+    }
     setPagamentoDialogOpen(true);
   };
 
@@ -268,19 +285,34 @@ export default function PedidosAberto() {
 
       <Tabs defaultValue="pendentes" className="space-y-4">
         <TabsList>
-          <TabsTrigger value="pendentes">Pendentes ({pedidosAberto.length})</TabsTrigger>
+          <TabsTrigger value="pendentes">Pendentes ({pedidosAbertoFiltrados.length})</TabsTrigger>
           <TabsTrigger value="conciliacao">Pagos / Conciliacao ({pagamentosConciliarFiltrados.length})</TabsTrigger>
         </TabsList>
 
         <TabsContent value="pendentes">
       <Card>
         <CardHeader>
-          <CardTitle>Pedidos com Pagamento Pendente</CardTitle>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <CardTitle>Pedidos com Pagamento Pendente</CardTitle>
+            <Select
+              value={filtroPendentes}
+              onValueChange={(value) => setFiltroPendentes(value as typeof filtroPendentes)}
+            >
+              <SelectTrigger className="w-full sm:w-48">
+                <SelectValue placeholder="Filtrar pagamento" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todos</SelectItem>
+                <SelectItem value="a-definir">A definir</SelectItem>
+                <SelectItem value="definidos">Já definidos</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </CardHeader>
         <CardContent>
           <ScrollArea className="h-[calc(100vh-250px)]">
             <div className="space-y-4">
-              {pedidosAberto.map((pedido) => (
+              {pedidosAbertoFiltrados.map((pedido) => (
                 <div
                   key={pedido.agendamentoId}
                   className="flex flex-col border rounded-lg overflow-hidden cursor-pointer hover:border-primary transition-colors"
@@ -312,12 +344,16 @@ export default function PedidosAberto() {
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
-                      <Badge variant="destructive">Pagamento Pendente</Badge>
+                      {pedido.formaPagamento === "A_DEFINIR" ? (
+                        <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100">A definir</Badge>
+                      ) : (
+                        <Badge variant="destructive">Pagamento Pendente</Badge>
+                      )}
                     </div>
                   </div>
                 </div>
               ))}
-              {pedidosAberto.length === 0 && (
+              {pedidosAbertoFiltrados.length === 0 && (
                 <div className="text-center py-8 text-muted-foreground">
                   Não há pedidos com pagamento pendente
                 </div>
@@ -498,7 +534,9 @@ export default function PedidosAberto() {
                   <div className="text-sm font-medium">Forma de Pagamento</div>
                   <div className="flex items-center">
                     <CreditCard className="h-4 w-4 mr-2 text-muted-foreground" />
-                    <Badge variant="destructive">Pendente</Badge>
+                    <Badge variant={pedidoSelecionado?.formaPagamento === "A_DEFINIR" ? "outline" : "destructive"}>
+                      {pedidoSelecionado?.formaPagamento === "A_DEFINIR" ? "A definir" : "Pendente"}
+                    </Badge>
                   </div>
                 </div>
                 <div className="space-y-1">

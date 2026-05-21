@@ -163,7 +163,10 @@ export default function PedidoSemAgendamento() {
     // - ou confirmar agora chamando finalizarPagamento
     // vou manter teu fluxo: "Finalizar Pagamento" = confirmar já
     await finalizarPagamentoApi(result.pedidoId, {
-      formaPagamento: pedido.formaPagamento === "PLANO" ? "DINHEIRO" : pedido.formaPagamento,
+      formaPagamento:
+        pedido.formaPagamento === "PLANO" || pedido.formaPagamento === "A_DEFINIR"
+          ? "DINHEIRO"
+          : pedido.formaPagamento,
     });
 
     setPagamentoDialogOpen(false);

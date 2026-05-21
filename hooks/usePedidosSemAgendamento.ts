@@ -7,6 +7,7 @@ import { apiFetch } from "./api";
 export type PedidoTipo = "ENTREGA" | "RETIRADA";
 
 export type FormaPagamento =
+  | "A_DEFINIR"
   | "DINHEIRO"
   | "CREDITO"
   | "DEBITO"
@@ -45,7 +46,7 @@ export type UpdatePedidoSemAgendamentoInput = Partial<{
 }>;
 
 export type FinalizarPagamentoInput = {
-  formaPagamento: Exclude<FormaPagamento, "PLANO">;
+  formaPagamento: Exclude<FormaPagamento, "PLANO" | "A_DEFINIR">;
 };
 
 export type ListQuery = {

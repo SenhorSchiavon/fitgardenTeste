@@ -27,6 +27,7 @@ import {
   UserCog,
   Users,
   Utensils,
+  X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -41,6 +42,8 @@ import { canAccess, getStoredUser, type AuthUser } from "@/lib/auth-permissions"
 
 interface SidebarProps {
   className?: string;
+  onClose?: () => void;
+  onNavigate?: () => void;
 }
 
 type NavItem = {
@@ -71,7 +74,7 @@ const pedidosItems: NavItem[] = [
   { href: "/congeladas", label: "Congeladas", icon: Snowflake, screen: "congeladas" },
 ];
 
-export function Sidebar({ className }: SidebarProps) {
+export function Sidebar({ className, onClose, onNavigate }: SidebarProps) {
   const pathname = usePathname();
   const { logout } = useAuth();
   const [user, setUser] = useState<AuthUser | null>(null);
@@ -99,7 +102,7 @@ export function Sidebar({ className }: SidebarProps) {
   };
 
   const renderNavButton = (item: NavItem, compact = false) => (
-    <Link key={item.href} href={item.href}>
+    <Link key={item.href} href={item.href} onClick={onNavigate}>
       <Button
         variant={isActive(item.href) ? "secondary" : "ghost"}
         className={cn(
@@ -122,14 +125,26 @@ export function Sidebar({ className }: SidebarProps) {
 
   return (
     <div className={cn("flex h-screen flex-col border-r border-white/10 bg-sidebar text-sidebar-foreground", className)}>
-      <div className="flex h-24 items-center justify-center px-4">
-        <Link href="/" className="block w-full">
+      <div className="flex h-24 items-center justify-between gap-3 px-4">
+        <Link href="/" className="block min-w-0 flex-1" onClick={onNavigate}>
           <img
             src="/brand/fitgarden-sidebar.png"
             alt="FitGarden"
             className="mx-auto h-16 w-[180px] object-contain object-center"
           />
         </Link>
+        {onClose && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-9 w-9 shrink-0 text-white/70 hover:bg-white/10 hover:text-white md:hidden"
+            onClick={onClose}
+            aria-label="Fechar menu"
+          >
+            <X className="h-5 w-5" />
+          </Button>
+        )}
       </div>
 
       <ScrollArea className="flex-1 px-3">

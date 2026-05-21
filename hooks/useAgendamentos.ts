@@ -59,9 +59,10 @@ export type EstimarTaxaResponse = {
   valorTaxa: number;
 };
 export type FinalizarPagamentoInput = {
-  formaPagamento: Exclude<FormaPagamento, "PLANO">;
+  formaPagamento: Exclude<FormaPagamento, "PLANO" | "A_DEFINIR">;
 };
 export type FormaPagamento =
+  | "A_DEFINIR"
   | "DINHEIRO"
   | "CREDITO"
   | "DEBITO"

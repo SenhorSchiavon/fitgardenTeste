@@ -63,6 +63,7 @@ import { ClienteFormDialog } from "@/components/clientes/ClienteFormDialog";
 
 type PedidoTipo = "ENTREGA" | "RETIRADA" | "CONGELAR";
 type FormaPagamento =
+  | "A_DEFINIR"
   | "DINHEIRO"
   | "PIX"
   | "CREDITO"
@@ -350,7 +351,7 @@ export function NovoAgendamentoNovoLayout({
   });
   const [endereco, setEndereco] = useState("");
   const [observacoesPedido, setObservacoesPedido] = useState("");
-  const [formaPagamento, setFormaPagamento] = useState<FormaPagamento>("PIX");
+  const [formaPagamento, setFormaPagamento] = useState<FormaPagamento>("A_DEFINIR");
   const [voucherCodigo, setVoucherCodigo] = useState("");
 
   const [currentGroupId, setCurrentGroupId] = useState("");
@@ -456,7 +457,7 @@ export function NovoAgendamentoNovoLayout({
       
       setEndereco(initialData.endereco || "");
       setObservacoesPedido(initialData.observacoes || "");
-      setFormaPagamento(initialData.formaPagamento || "PIX");
+      setFormaPagamento(initialData.formaPagamento || "A_DEFINIR");
       setVoucherCodigo(initialData.voucherCodigo || "");
       
       const rawItens = initialData.itens || initialData.pedido?.itens || [];
@@ -559,13 +560,6 @@ export function NovoAgendamentoNovoLayout({
           setAvisoHorarioAutomatico(`Horário puxado automaticamente do último pedido: ${ajustado.inicio}-${ajustado.fim}.`);
         }
 
-        const forma = ultimo.pedido?.pagamentos?.find((p: any) => p.forma !== "PLANO")?.forma
-          || ultimo.pedido?.pagamentos?.[0]?.forma
-          || ultimo.formaPagamento;
-        if (forma) {
-          setFormaPagamento(forma);
-          setAvisoPagamentoAutomatico(`Forma de pagamento puxada automaticamente do último pedido: ${forma}.`);
-        }
       } catch {
         if (ativo) {
           setAvisoHorarioAutomatico("");
@@ -889,7 +883,7 @@ export function NovoAgendamentoNovoLayout({
     setHorario({ inicio: "13:00", fim: "14:00" });
     setEndereco("");
     setObservacoesPedido("");
-    setFormaPagamento("PIX");
+    setFormaPagamento("A_DEFINIR");
     setVoucherCodigo("");
     setDistanciaEntregaKm(null);
     setAvisoHorarioAutomatico("");
@@ -2008,6 +2002,7 @@ export function NovoAgendamentoNovoLayout({
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
+                        <SelectItem value="A_DEFINIR">A definir</SelectItem>
                         <SelectItem value="PIX">PIX</SelectItem>
                         <SelectItem value="DINHEIRO">Dinheiro</SelectItem>
                         <SelectItem value="CREDITO">Cartão</SelectItem>
