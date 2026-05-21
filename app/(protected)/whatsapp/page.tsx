@@ -382,6 +382,8 @@ export default function WhatsAppPage() {
                     {filteredConversations.map((conversation) => {
                       const lastMessage = conversation.messages[0];
                       const active = conversation.id === selectedConversationId;
+                      const assumed = Boolean(conversation.lockedByUserId);
+                      const hasLabels = Boolean(conversation.labels?.length);
                       return (
                         <button
                           key={conversation.id}
@@ -389,10 +391,20 @@ export default function WhatsAppPage() {
                           className={cn(
                             "w-full border-b border-border/60 px-4 py-3 text-left transition-colors hover:bg-muted/45",
                             active && "bg-primary/5 shadow-[inset_3px_0_0_hsl(var(--primary))]",
+                            hasLabels && !active && "bg-amber-50/50",
                           )}
                         >
                           <div className="flex items-center justify-between gap-3">
-                            <p className="truncate text-sm font-semibold text-foreground">{contactName(conversation)}</p>
+                            <div className="flex min-w-0 items-center gap-1.5">
+                              {hasLabels && (
+                                <span
+                                  className="h-2.5 w-2.5 shrink-0 rounded-full"
+                                  style={{ backgroundColor: conversation.labels[0]?.label.color }}
+                                  title="Possui etiqueta"
+                                />
+                              )}
+                              <p className="truncate text-sm font-semibold text-foreground">{contactName(conversation)}</p>
+                            </div>
                             {conversation.lastMessageAt && (
                               <span className="shrink-0 text-[11px] text-muted-foreground">
                                 {format(new Date(conversation.lastMessageAt), "dd/MM HH:mm", { locale: ptBR })}
@@ -402,6 +414,25 @@ export default function WhatsAppPage() {
                           <p className="mt-1 truncate text-xs text-muted-foreground">
                             {lastMessage?.body || displayPhone(conversation.contact.phone)}
                           </p>
+                          <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                            <span
+                              className={cn(
+                                "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold",
+                                assumed
+                                  ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                                  : "border-border bg-background text-muted-foreground",
+                              )}
+                            >
+                              <Lock className="h-3 w-3" />
+                              {assumed ? `Com ${conversation.lockedByName || "atendente"}` : "Livre"}
+                            </span>
+                            {hasLabels && (
+                              <span className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-700">
+                                <Tags className="h-3 w-3" />
+                                Etiqueta
+                              </span>
+                            )}
+                          </div>
                           {!!conversation.labels?.length && (
                             <div className="mt-2 flex gap-1 overflow-hidden">
                               {conversation.labels.slice(0, 3).map(({ label }) => (
@@ -442,14 +473,6 @@ export default function WhatsAppPage() {
                           <CalendarPlus className="mr-2 h-4 w-4" />
                           Agendar
                         </Button>
-                        {lockActive ? (
-                          <Badge variant={lockedByMe ? "default" : "secondary"} className="h-8 rounded-full px-3">
-                            <Lock className="h-3 w-3" />
-                            {lockedByMe ? "Atendimento com voce" : `Com ${selectedConversation.lockedByName || "atendente"}`}
-                          </Badge>
-                        ) : (
-                          <Badge variant="outline" className="h-8 rounded-full px-3">Livre</Badge>
-                        )}
                         {lockedByMe ? (
                           <Button variant="outline" size="sm" onClick={() => releaseConversation(selectedConversation.id)} className="h-9 rounded-full">
                             <Unlock className="mr-2 h-4 w-4" />
@@ -591,7 +614,14 @@ export default function WhatsAppPage() {
         </TabsContent>
 
         <TabsContent value="respostas" className="mt-6">
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-[380px_1fr]">
+          <Tabs defaultValue="automaticas" className="space-y-4">
+            <TabsList className="grid w-full grid-cols-2 rounded-full bg-muted/60 p-1 sm:w-fit">
+              <TabsTrigger value="automaticas" className="rounded-full">Respostas automáticas</TabsTrigger>
+              <TabsTrigger value="macros" className="rounded-full">Macros</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="automaticas" className="mt-0">
+              <div className="grid grid-cols-1 gap-4 lg:grid-cols-[380px_1fr]">
             <Card>
               <CardHeader>
                 <CardTitle className="text-base">
@@ -719,7 +749,10 @@ export default function WhatsAppPage() {
               </CardContent>
             </Card>
           </div>
-          <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-[380px_1fr]">
+            </TabsContent>
+
+            <TabsContent value="macros" className="mt-0">
+              <div className="grid grid-cols-1 gap-4 lg:grid-cols-[380px_1fr]">
             <Card>
               <CardHeader>
                 <CardTitle className="text-base">
@@ -807,7 +840,9 @@ export default function WhatsAppPage() {
                 </div>
               </CardContent>
             </Card>
-          </div>
+              </div>
+            </TabsContent>
+          </Tabs>
         </TabsContent>
 
         <TabsContent value="transmissao" className="mt-6">
