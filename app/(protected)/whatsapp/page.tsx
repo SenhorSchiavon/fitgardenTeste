@@ -157,6 +157,7 @@ export default function WhatsAppPage() {
   const [broadcastTitle, setBroadcastTitle] = useState("");
   const [broadcastMessage, setBroadcastMessage] = useState("");
   const [selectedContactIds, setSelectedContactIds] = useState<number[]>([]);
+  const [broadcastLabelId, setBroadcastLabelId] = useState<number | "all">("all");
 
   const filteredConversations = useMemo(() => {
     const q = conversationSearch.trim().toLowerCase();
@@ -174,6 +175,24 @@ export default function WhatsAppPage() {
 
   const selectedConversation = conversations.find((item) => item.id === selectedConversationId) || null;
   const selectedConversationLabelIds = selectedConversation?.labels?.map((item) => item.labelId) || [];
+  const conversationByContactId = useMemo(() => {
+    const map = new Map<number, WhatsAppConversation>();
+    conversations.forEach((conversation) => {
+      if (!map.has(conversation.contactId)) {
+        map.set(conversation.contactId, conversation);
+      }
+    });
+    return map;
+  }, [conversations]);
+  const filteredBroadcastContacts = useMemo(() => {
+    if (broadcastLabelId === "all") return contacts;
+    return contacts.filter((contact) =>
+      conversationByContactId.get(contact.id)?.labels?.some((item) => item.labelId === broadcastLabelId),
+    );
+  }, [broadcastLabelId, contacts, conversationByContactId]);
+  const selectedFilteredContactIds = filteredBroadcastContacts
+    .map((contact) => contact.id)
+    .filter((id) => selectedContactIds.includes(id));
   const matchedCliente = useMemo(() => {
     if (!selectedConversation) return null;
     const phone = normalizePhone(selectedConversation.contact.phone);
@@ -866,14 +885,77 @@ export default function WhatsAppPage() {
                   placeholder="Mensagem para os contatos selecionados"
                   className="min-h-[140px]"
                 />
+                <div className="space-y-2 rounded-md border p-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-xs font-semibold text-muted-foreground">Filtrar por etiqueta</p>
+                    <span className="text-xs text-muted-foreground">
+                      {filteredBroadcastContacts.length} contatos
+                    </span>
+                  </div>
+                  <div className="flex gap-2 overflow-x-auto pb-1">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={broadcastLabelId === "all" ? "default" : "outline"}
+                      onClick={() => setBroadcastLabelId("all")}
+                      className="h-8 shrink-0 rounded-full px-3"
+                    >
+                      Todos
+                    </Button>
+                    {labels.map((label) => (
+                      <Button
+                        key={label.id}
+                        type="button"
+                        size="sm"
+                        variant={broadcastLabelId === label.id ? "default" : "outline"}
+                        onClick={() => setBroadcastLabelId(label.id)}
+                        className="h-8 shrink-0 rounded-full px-3"
+                      >
+                        <span className="mr-1.5 h-2 w-2 rounded-full" style={{ backgroundColor: label.color }} />
+                        {label.name}
+                      </Button>
+                    ))}
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() =>
+                        setSelectedContactIds((current) =>
+                          Array.from(new Set([...current, ...filteredBroadcastContacts.map((contact) => contact.id)])),
+                        )
+                      }
+                      disabled={!filteredBroadcastContacts.length}
+                      className="h-8 rounded-full"
+                    >
+                      Selecionar filtrados
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        const filteredIds = new Set(filteredBroadcastContacts.map((contact) => contact.id));
+                        setSelectedContactIds((current) => current.filter((id) => !filteredIds.has(id)));
+                      }}
+                      disabled={!selectedFilteredContactIds.length}
+                      className="h-8 rounded-full"
+                    >
+                      Limpar filtrados
+                    </Button>
+                  </div>
+                </div>
                 <div className="rounded-md border">
                   <div className="border-b px-3 py-2 text-xs font-semibold text-muted-foreground">
                     {selectedContactIds.length} contatos selecionados
+                    {broadcastLabelId !== "all" && ` (${selectedFilteredContactIds.length} nesta etiqueta)`}
                   </div>
                   <ScrollArea className="h-[260px]">
                     <div className="divide-y">
-                      {contacts.map((contact) => {
+                      {filteredBroadcastContacts.map((contact) => {
                         const selected = selectedContactIds.includes(contact.id);
+                        const conversation = conversationByContactId.get(contact.id);
                         return (
                           <button
                             key={contact.id}
@@ -885,6 +967,19 @@ export default function WhatsAppPage() {
                                 {contact.name || displayPhone(contact.phone)}
                               </p>
                               <p className="text-xs text-muted-foreground">{displayPhone(contact.phone)}</p>
+                              {!!conversation?.labels?.length && (
+                                <div className="mt-1 flex gap-1 overflow-hidden">
+                                  {conversation.labels.slice(0, 2).map(({ label }) => (
+                                    <span
+                                      key={label.id}
+                                      className="truncate rounded-full border px-1.5 py-0.5 text-[10px] font-medium"
+                                      style={{ borderColor: label.color, color: label.color }}
+                                    >
+                                      {label.name}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
                             </div>
                             <span
                               className={cn(
@@ -897,9 +992,9 @@ export default function WhatsAppPage() {
                           </button>
                         );
                       })}
-                      {!contacts.length && (
+                      {!filteredBroadcastContacts.length && (
                         <p className="p-6 text-sm text-muted-foreground">
-                          Os contatos aparecem depois das primeiras conversas recebidas.
+                          Nenhum contato encontrado para este filtro.
                         </p>
                       )}
                     </div>
