@@ -751,7 +751,11 @@ export function NovoAgendamentoNovoLayout({
     }
 
     const planoTamanhoId = String(plano.plano?.tamanhoId ?? plano.tamanhoId ?? "");
-    return item.tipoItem !== "PERSONALIZADA" && planoTamanhoId === String(item.tamanhoId || "");
+    return (
+      item.tipoItem !== "PERSONALIZADA" &&
+      planoTamanhoId === String(item.tamanhoId || "") &&
+      Number(plano.saldoUnidades || 0) > 0
+    );
   }
 
   function canUsePlanoForItem(item: NovoPedidoItem) {
