@@ -115,6 +115,8 @@ export type CreateAgendamentoInput = {
   dataEntregaCongelada?: Date | string | null;
   faixaHorario: string;
   endereco?: string;
+  entregaLatitude?: number | null;
+  entregaLongitude?: number | null;
   regiao?: RegiaoEntrega;
   observacoes?: string;
   formaPagamento: FormaPagamento;
@@ -129,6 +131,8 @@ export type UpdateAgendamentoInput = Partial<{
   dataEntregaCongelada: Date | string | null;
   faixaHorario: string;
   endereco: string;
+  entregaLatitude: number | null;
+  entregaLongitude: number | null;
   regiao: RegiaoEntrega | null;
   observacoes: string | null;
   formaPagamento: FormaPagamento;
@@ -504,6 +508,8 @@ export function useAgendamentos(options?: { baseUrl?: string }) {
               : payload.dataEntregaCongelada || undefined,
           faixaHorario: payload.faixaHorario,
           endereco: payload.endereco,
+          entregaLatitude: payload.entregaLatitude,
+          entregaLongitude: payload.entregaLongitude,
           regiao: payload.regiao,
           observacoes: payload.observacoes,
           formaPagamento: payload.formaPagamento,

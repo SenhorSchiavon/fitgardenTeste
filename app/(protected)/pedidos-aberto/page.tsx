@@ -265,6 +265,34 @@ export default function PedidosAberto() {
     });
   };
 
+  const formatTipoEntrega = (tipo?: string | null) => {
+    if (tipo === "NAO_DEFINIR") return "Não definido";
+    if (tipo === "ENTREGA") return "Entrega";
+    if (tipo === "RETIRADA") return "Retirada";
+    if (tipo === "CONGELAR") return "Congelar";
+    return tipo || "-";
+  };
+
+  const getItemResumo = (item: any) => ({
+    nome:
+      typeof item?.nome === "string"
+        ? item.nome
+        : item?.tipoItem === "SALGADO"
+          ? item?.salgado?.nome || "Salgado"
+          : item?.tipoItem === "PERSONALIZADA"
+            ? "Personalizada"
+            : item?.opcao?.nome || "Item",
+    tamanho:
+      typeof item?.tamanho === "string"
+        ? item.tamanho
+        : item?.tamanho?.pesagemGramas
+          ? `${item.tamanho.pesagemGramas}g`
+          : item?.tipoItem === "SALGADO"
+            ? "Salgado"
+            : "-",
+    quantidade: Number(item?.quantidade || 0),
+  });
+
   return (
     <div className="container mx-auto p-6">
       <Header
@@ -348,7 +376,7 @@ export default function PedidosAberto() {
                               : "outline"
                           }
                         >
-                          {pedido.tipoEntrega}
+                          {formatTipoEntrega(pedido.tipoEntrega)}
                         </Badge>
                         <span className="mx-2">•</span>
                         <span>{formatDate(pedido.data)}</span>
@@ -427,7 +455,7 @@ export default function PedidosAberto() {
                         <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground mt-1">
                           <span>{formatDate(pedido.data)}</span>
                           <span>•</span>
-                          <span>{pedido.tipoEntrega}</span>
+                          <span>{formatTipoEntrega(pedido.tipoEntrega)}</span>
                           {pedido.pagoEm && (
                             <>
                               <span>•</span>
@@ -524,7 +552,7 @@ export default function PedidosAberto() {
                   <div className="text-sm font-medium">Tipo de Entrega</div>
                   <div className="flex items-center">
                     <TruckIcon className="h-4 w-4 mr-2 text-muted-foreground" />
-                    {pedidoSelecionado?.tipoEntrega}
+                    {formatTipoEntrega(pedidoSelecionado?.tipoEntrega)}
                   </div>
                 </div>
                 <div className="space-y-1">
@@ -598,13 +626,23 @@ export default function PedidosAberto() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {pedidoSelecionado?.itens.map((item, index) => (
-                    <TableRow key={index}>
-                      <TableCell>{item.nome}</TableCell>
-                      <TableCell>{item.tamanho}</TableCell>
-                      <TableCell>{item.quantidade}</TableCell>
+                  {(pedidoSelecionado?.itens || []).map((item, index) => {
+                    const resumo = getItemResumo(item);
+                    return (
+                      <TableRow key={index}>
+                        <TableCell>{resumo.nome}</TableCell>
+                        <TableCell>{resumo.tamanho}</TableCell>
+                        <TableCell>{resumo.quantidade}</TableCell>
+                      </TableRow>
+                    );
+                  })}
+                  {(!pedidoSelecionado?.itens || pedidoSelecionado.itens.length === 0) && (
+                    <TableRow>
+                      <TableCell colSpan={3} className="py-6 text-center text-sm text-muted-foreground">
+                        Nenhum item encontrado para este pedido.
+                      </TableCell>
                     </TableRow>
-                  ))}
+                  )}
                 </TableBody>
               </Table>
             </TabsContent>

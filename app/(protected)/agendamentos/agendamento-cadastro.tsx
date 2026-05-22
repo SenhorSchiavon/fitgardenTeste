@@ -465,6 +465,11 @@ export function NovoAgendamentoNovoLayout({
     [clienteSelecionado],
   );
 
+  const enderecoSelecionado = useMemo(
+    () => enderecosDisponiveis.find((e) => String(e.id ?? "0") === enderecoSelecionadoId) || null,
+    [enderecosDisponiveis, enderecoSelecionadoId],
+  );
+
   const clienteFormInitialValue = useMemo(() => {
     if (!clienteSelecionado) return null;
     const principal = clienteSelecionado.enderecos?.find((e) => e.principal) || clienteSelecionado.enderecos?.[0];
@@ -626,7 +631,11 @@ export function NovoAgendamentoNovoLayout({
       }
 
       try {
-        const res = await estimarTaxaEntrega({ clienteId: Number(clienteId) });
+        const latitude =
+          enderecoSelecionado?.latitude != null ? Number(enderecoSelecionado.latitude) : undefined;
+        const longitude =
+          enderecoSelecionado?.longitude != null ? Number(enderecoSelecionado.longitude) : undefined;
+        const res = await estimarTaxaEntrega({ clienteId: Number(clienteId), latitude, longitude });
         if (!ativo) return;
         if (res && typeof res.valorTaxa === "number") {
           setValorTaxa(res.valorTaxa);
@@ -644,7 +653,7 @@ export function NovoAgendamentoNovoLayout({
     return () => {
       ativo = false;
     };
-  }, [clienteId, tipo, endereco, estimarTaxaEntrega]);
+  }, [clienteId, tipo, endereco, enderecoSelecionado, estimarTaxaEntrega]);
 
   useEffect(() => {
     let ativo = true;
@@ -1576,6 +1585,8 @@ export function NovoAgendamentoNovoLayout({
         : null,
       faixaHorario: tipo === "RETIRADA" ? horario.inicio : `${horario.inicio}-${horario.fim}`,
       endereco: tipo === "ENTREGA" ? endereco : tipo,
+      entregaLatitude: tipo === "ENTREGA" && enderecoSelecionado?.latitude != null ? Number(enderecoSelecionado.latitude) : undefined,
+      entregaLongitude: tipo === "ENTREGA" && enderecoSelecionado?.longitude != null ? Number(enderecoSelecionado.longitude) : undefined,
       observacoes: observacoesPedido,
       formaPagamento: formaPagamento,
       senhaAutorizacao,
@@ -2020,21 +2031,6 @@ export function NovoAgendamentoNovoLayout({
 
                 <CardContent className="space-y-4">
                   <div className="space-y-2">
-                    <Label>Tipo</Label>
-                    <Select value={tipo} onValueChange={(v: PedidoTipo) => setTipo(v)}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="NAO_DEFINIR">Não definir</SelectItem>
-                        <SelectItem value="ENTREGA">Entrega</SelectItem>
-                        <SelectItem value="RETIRADA">Retirada</SelectItem>
-                        <SelectItem value="CONGELAR">Congelar</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-2">
                     <Label>{tipo === "CONGELAR" ? "Data de produção" : "Data"}</Label>
                     <div className="rounded-md border p-2">
                       <Calendar
@@ -2059,6 +2055,21 @@ export function NovoAgendamentoNovoLayout({
                       </div>
                     </div>
                   )}
+
+                  <div className="space-y-2">
+                    <Label>Tipo</Label>
+                    <Select value={tipo} onValueChange={(v: PedidoTipo) => setTipo(v)}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="NAO_DEFINIR">Não definir</SelectItem>
+                        <SelectItem value="ENTREGA">Entrega</SelectItem>
+                        <SelectItem value="RETIRADA">Retirada</SelectItem>
+                        <SelectItem value="CONGELAR">Congelar</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
 
                   <div className={tipo === "RETIRADA" ? "grid grid-cols-1 gap-3" : "grid grid-cols-2 gap-3"}>
                     <div className="space-y-2">

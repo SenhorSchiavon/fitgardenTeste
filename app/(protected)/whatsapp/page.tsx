@@ -1221,6 +1221,8 @@ export default function WhatsAppPage() {
             dataEntregaCongelada: payload.dataEntregaCongelada,
             faixaHorario: payload.faixaHorario,
             endereco: payload.endereco,
+            entregaLatitude: payload.entregaLatitude,
+            entregaLongitude: payload.entregaLongitude,
             observacoes: payload.observacoes,
             formaPagamento: payload.formaPagamento,
             senhaAutorizacao: payload.senhaAutorizacao,

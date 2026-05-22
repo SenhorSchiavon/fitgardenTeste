@@ -211,11 +211,18 @@ export function ClienteFormDialog({
 }: Props) {
   const [localizando, setLocalizando] = useState(false);
   const [buscandoCep, setBuscandoCep] = useState(false);
+  const [localizandoSecundario, setLocalizandoSecundario] = useState(false);
+  const [buscandoCepSecundario, setBuscandoCepSecundario] = useState(false);
   const [calculandoTaxa, setCalculandoTaxa] = useState(false);
+  const [calculandoTaxaSecundario, setCalculandoTaxaSecundario] = useState(false);
   const [taxaEntrega, setTaxaEntrega] = useState<{ distanciaKm: number; valorTaxa: number } | null>(null);
+  const [taxaEntregaSecundario, setTaxaEntregaSecundario] = useState<{ distanciaKm: number; valorTaxa: number } | null>(null);
   const [erroTaxaEntrega, setErroTaxaEntrega] = useState<string | null>(null);
+  const [erroTaxaEntregaSecundario, setErroTaxaEntregaSecundario] = useState<string | null>(null);
   const [erroLocalizacao, setErroLocalizacao] = useState<string | null>(null);
+  const [erroLocalizacaoSecundario, setErroLocalizacaoSecundario] = useState<string | null>(null);
   const [avisoCep, setAvisoCep] = useState<string | null>(null);
+  const [avisoCepSecundario, setAvisoCepSecundario] = useState<string | null>(null);
   const [novaTag, setNovaTag] = useState("");
 
   const [form, setForm] = useState<ClienteFormValue>({
@@ -253,14 +260,27 @@ export function ClienteFormDialog({
     );
   }, [form.latitude, form.longitude]);
 
+  const coordsSecundarioOk = useMemo(() => {
+    return (
+      typeof form.secundarioLatitude === "number" &&
+      !Number.isNaN(form.secundarioLatitude) &&
+      typeof form.secundarioLongitude === "number" &&
+      !Number.isNaN(form.secundarioLongitude)
+    );
+  }, [form.secundarioLatitude, form.secundarioLongitude]);
+
   // sempre que abrir com initialValue, preenche
   useEffect(() => {
     if (!open) return;
 
     setErroLocalizacao(null);
+    setErroLocalizacaoSecundario(null);
     setErroTaxaEntrega(null);
+    setErroTaxaEntregaSecundario(null);
     setTaxaEntrega(null);
+    setTaxaEntregaSecundario(null);
     setAvisoCep(null);
+    setAvisoCepSecundario(null);
     setNovaTag("");
 
     setForm((prev) => ({
@@ -324,10 +344,49 @@ export function ClienteFormDialog({
     };
   }, [open, coordsOk, form.latitude, form.longitude]);
 
+  useEffect(() => {
+    let alive = true;
+
+    async function run() {
+      if (!open || !coordsSecundarioOk || form.secundarioLatitude == null || form.secundarioLongitude == null) {
+        setTaxaEntregaSecundario(null);
+        setErroTaxaEntregaSecundario(null);
+        setCalculandoTaxaSecundario(false);
+        return;
+      }
+
+      setCalculandoTaxaSecundario(true);
+      setErroTaxaEntregaSecundario(null);
+
+      try {
+        const taxa = await estimarTaxaPorCoordenadas(form.secundarioLatitude, form.secundarioLongitude);
+        if (!alive) return;
+        setTaxaEntregaSecundario(taxa);
+      } catch (e: any) {
+        if (!alive) return;
+        setTaxaEntregaSecundario(null);
+        setErroTaxaEntregaSecundario(e?.message || "Não foi possível calcular a taxa de entrega.");
+      } finally {
+        if (alive) setCalculandoTaxaSecundario(false);
+      }
+    }
+
+    run();
+    return () => {
+      alive = false;
+    };
+  }, [open, coordsSecundarioOk, form.secundarioLatitude, form.secundarioLongitude]);
+
   const montarEnderecoCompletoParaGeocode = () => {
     const ruaNum = [form.logradouro, form.numero].filter(Boolean).join(", ");
     const cidadeUf = [form.cidade, form.uf].filter(Boolean).join(" - ");
     return [ruaNum, form.bairro, cidadeUf, form.cep, "Brasil"].filter(Boolean).join(", ");
+  };
+
+  const montarEnderecoSecundarioCompletoParaGeocode = () => {
+    const ruaNum = [form.secundarioLogradouro, form.secundarioNumero].filter(Boolean).join(", ");
+    const cidadeUf = [form.secundarioCidade, form.secundarioUf].filter(Boolean).join(" - ");
+    return [ruaNum, form.secundarioBairro, cidadeUf, form.secundarioCep, "Brasil"].filter(Boolean).join(", ");
   };
 
   const handleBuscarCep = async () => {
@@ -365,6 +424,47 @@ export function ClienteFormDialog({
     }
   };
 
+  const handleBuscarCepSecundario = async () => {
+    setAvisoCepSecundario(null);
+    setErroLocalizacaoSecundario(null);
+    setBuscandoCepSecundario(true);
+    try {
+      const cepClean = onlyDigits(form.secundarioCep || "");
+      const data =
+        cepClean.length === 8
+          ? await buscarCepViaCep(form.secundarioCep || "")
+          : await buscarCepPorEnderecoViaCep({
+              cep: form.secundarioCep,
+              uf: form.secundarioUf,
+              cidade: form.secundarioCidade,
+              bairro: form.secundarioBairro,
+              logradouro: form.secundarioLogradouro,
+            });
+
+      setForm((p) => ({
+        ...p,
+        secundarioCep: data.cep,
+        secundarioUf: data.uf || p.secundarioUf,
+        secundarioCidade: data.cidade || p.secundarioCidade,
+        secundarioBairro: data.bairro || p.secundarioBairro,
+        secundarioLogradouro: data.logradouro || p.secundarioLogradouro,
+        secundarioLatitude: null,
+        secundarioLongitude: null,
+      }));
+      setTaxaEntregaSecundario(null);
+      setErroTaxaEntregaSecundario(null);
+
+      const totalCeps = "total" in data ? Number(data.total || 0) : 0;
+      if (totalCeps > 1) {
+        setAvisoCepSecundario(`Encontrei ${totalCeps} CEPs possíveis e preenchi o mais compatível.`);
+      }
+    } catch (e: any) {
+      setAvisoCepSecundario(e?.message || "Não foi possível buscar o CEP.");
+    } finally {
+      setBuscandoCepSecundario(false);
+    }
+  };
+
   const handleLocalizarNoMapa = async () => {
     setErroLocalizacao(null);
     setLocalizando(true);
@@ -375,6 +475,19 @@ export function ClienteFormDialog({
       setErroLocalizacao(e?.message || "Não foi possível localizar no mapa.");
     } finally {
       setLocalizando(false);
+    }
+  };
+
+  const handleLocalizarSecundarioNoMapa = async () => {
+    setErroLocalizacaoSecundario(null);
+    setLocalizandoSecundario(true);
+    try {
+      const geo = await geocodeNominatimComFallback(montarEnderecoSecundarioCompletoParaGeocode());
+      setForm((p) => ({ ...p, secundarioLatitude: geo.lat, secundarioLongitude: geo.lon }));
+    } catch (e: any) {
+      setErroLocalizacaoSecundario(e?.message || "Não foi possível localizar no mapa.");
+    } finally {
+      setLocalizandoSecundario(false);
     }
   };
 
@@ -675,7 +788,7 @@ export function ClienteFormDialog({
               />
             </div>
 
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-3 gap-4 items-end">
               <div className="space-y-2">
                 <Label htmlFor="secundarioCep">CEP</Label>
                 <Input id="secundarioCep" value={form.secundarioCep || ""} onChange={(e) => setForm((p) => ({ ...p, secundarioCep: e.target.value }))} disabled={saving} placeholder="00000-000" />
@@ -684,17 +797,36 @@ export function ClienteFormDialog({
                 <Label htmlFor="secundarioUf">UF</Label>
                 <Input id="secundarioUf" value={form.secundarioUf || ""} onChange={(e) => setForm((p) => ({ ...p, secundarioUf: e.target.value.toUpperCase() }))} disabled={saving} placeholder="PR" />
               </div>
+              <div className="flex gap-2">
+                <Button type="button" variant="secondary" onClick={handleBuscarCepSecundario} disabled={saving || buscandoCepSecundario}>
+                  {buscandoCepSecundario ? "Buscando..." : "Buscar CEP"}
+                </Button>
+
+                <Button type="button" variant="secondary" onClick={handleLocalizarSecundarioNoMapa} disabled={saving || localizandoSecundario}>
+                  <MapPin className="mr-2 h-4 w-4" />
+                  {localizandoSecundario ? "Localizando..." : "Localizar"}
+                </Button>
+              </div>
+            </div>
+
+            {avisoCepSecundario && (
+              <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                {avisoCepSecundario}
+              </div>
+            )}
+
+            <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="secundarioCidade">Cidade</Label>
                 <Input id="secundarioCidade" value={form.secundarioCidade || ""} onChange={(e) => setForm((p) => ({ ...p, secundarioCidade: e.target.value }))} disabled={saving} />
               </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="secundarioBairro">Bairro</Label>
                 <Input id="secundarioBairro" value={form.secundarioBairro || ""} onChange={(e) => setForm((p) => ({ ...p, secundarioBairro: e.target.value }))} disabled={saving} />
               </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="secundarioComplemento">Complemento</Label>
                 <Input id="secundarioComplemento" value={form.secundarioComplemento || ""} onChange={(e) => setForm((p) => ({ ...p, secundarioComplemento: e.target.value }))} disabled={saving} />
@@ -709,6 +841,61 @@ export function ClienteFormDialog({
               <div className="space-y-2">
                 <Label htmlFor="secundarioNumero">Número</Label>
                 <Input id="secundarioNumero" value={form.secundarioNumero || ""} onChange={(e) => setForm((p) => ({ ...p, secundarioNumero: e.target.value }))} disabled={saving} />
+              </div>
+            </div>
+
+            {erroLocalizacaoSecundario && <div className="text-sm text-red-600">{erroLocalizacaoSecundario}</div>}
+
+            <div className="rounded-md border border-dashed border-emerald-200 bg-emerald-50/50 px-3 py-2 text-sm">
+              {calculandoTaxaSecundario ? (
+                <span className="font-medium text-emerald-800">Calculando taxa de entrega...</span>
+              ) : erroTaxaEntregaSecundario ? (
+                <span className="text-orange-700">{erroTaxaEntregaSecundario}</span>
+              ) : taxaEntregaSecundario ? (
+                <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                  <span className="font-medium text-emerald-900">
+                    Taxa de entrega estimada
+                    {taxaEntregaSecundario.distanciaKm > 0 ? ` (${taxaEntregaSecundario.distanciaKm.toFixed(2).replace(".", ",")} km)` : ""}
+                  </span>
+                  <span className="font-extrabold text-emerald-800">R$ {currency(taxaEntregaSecundario.valorTaxa)}</span>
+                </div>
+              ) : (
+                <span className="text-muted-foreground">
+                  Localize o endereço secundário no mapa para calcular a taxa de entrega.
+                </span>
+              )}
+            </div>
+
+            <div className="rounded-md border overflow-hidden">
+              <div className="p-3 border-b text-sm text-muted-foreground">
+                {coordsSecundarioOk
+                  ? `Localização aproximada: ${form.secundarioLatitude?.toFixed(5)}, ${form.secundarioLongitude?.toFixed(5)}`
+                  : "Sem localização ainda. Use Localizar para gerar uma posição aproximada."}
+              </div>
+
+              <div className="h-[280px]">
+                {coordsSecundarioOk ? (
+                  <MapContainer
+                    center={[form.secundarioLatitude as number, form.secundarioLongitude as number]}
+                    zoom={15}
+                    style={{ height: "100%", width: "100%" }}
+                    scrollWheelZoom={false}
+                  >
+                    <TileLayer
+                      attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+                      url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                    />
+                    <CircleMarker
+                      center={[form.secundarioLatitude as number, form.secundarioLongitude as number] as [number, number]}
+                      radius={6}
+                      pathOptions={{}}
+                    />
+                  </MapContainer>
+                ) : (
+                  <div className="h-full flex items-center justify-center text-sm text-muted-foreground">
+                    Mapa aparecerá aqui após localizar.
+                  </div>
+                )}
               </div>
             </div>
           </div>
