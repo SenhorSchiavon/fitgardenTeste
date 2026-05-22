@@ -10,6 +10,8 @@ export type OpcaoComponente = {
   tipo: ComponenteTipo;
   preparoId: number;
   preparoNome?: string; // opcional (caso o backend devolva junto)
+  custoPorKg?: number;
+  custoPorPreparo?: Record<"200g" | "300g" | "400g" | "500g", number>;
   montadorId?: number | null;
   montadorNome?: string | null;
   porcentagem: number; // int
@@ -21,6 +23,7 @@ export type Opcao = {
   nome: string;
   categoriaId: number | null;
   categoriaDescricao: string | null;
+  custoPorPreparo?: Record<"200g" | "300g" | "400g" | "500g", number>;
 
   componentes: OpcaoComponente[]; // pra OUTROS pode vir []
 };
@@ -177,6 +180,21 @@ export function useOpcoes() {
     }
   }
 
+  async function exportarXlsx() {
+    const res = await apiFetch(`${RESOURCE}/exportar-xlsx`, { method: "GET" });
+    if (!res.ok) throw new Error("Falha ao exportar opções");
+
+    const blob = await res.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "opcoes-custo-preparo.xlsx";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(url);
+  }
+
   return {
     opcoes,
     loading,
@@ -186,5 +204,6 @@ export function useOpcoes() {
     createOpcao,
     updateOpcao,
     deleteOpcao,
+    exportarXlsx,
   };
 }

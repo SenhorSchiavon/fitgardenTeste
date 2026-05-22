@@ -1187,6 +1187,8 @@ export default function WhatsAppPage() {
             nome: c.nome,
             telefone: c.telefone,
             enderecoPrincipal: enderecoPrincipal ? formatEndereco(enderecoPrincipal) : "",
+            enderecos: c.enderecos,
+            tags: c.tags,
             planos: c.planos,
           };
         })}
@@ -1221,6 +1223,7 @@ export default function WhatsAppPage() {
             endereco: payload.endereco,
             observacoes: payload.observacoes,
             formaPagamento: payload.formaPagamento,
+            senhaAutorizacao: payload.senhaAutorizacao,
             voucherCodigo: payload.voucherCodigo,
             itens: payload.itens,
           });

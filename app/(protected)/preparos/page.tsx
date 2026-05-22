@@ -337,7 +337,7 @@ export default function PreparosPage() {
                   <SortableHead label="Cód. Sistema" field="codigoSistema" sort={sort} onSort={onSort} />
                   <SortableHead label="Nome" field="nome" sort={sort} onSort={onSort} />
                   <SortableHead label="Tipo" field="tipo" sort={sort} onSort={onSort} />
-                  <SortableHead label="Preço de Custo" field="custoTotal" sort={sort} onSort={onSort} />
+                  <SortableHead label="Preço de Custo por kg" field="custoTotal" sort={sort} onSort={onSort} />
                   <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
               </TableHeader>

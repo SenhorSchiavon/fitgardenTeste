@@ -12,7 +12,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Plus, Pencil, Trash, AlertCircle } from "lucide-react";
+import { Plus, Pencil, Trash, AlertCircle, FileSpreadsheet } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -102,6 +102,7 @@ export default function OpcoesPage() {
     createOpcao,
     updateOpcao,
     deleteOpcao,
+    exportarXlsx,
   } = useOpcoes();
 
   const { preparos, loading: loadingPreparos } = usePreparos();
@@ -182,6 +183,12 @@ export default function OpcoesPage() {
     resetForm();
     setDialogOpen(true);
   };
+
+  const money = (value?: number) =>
+    `R$ ${Number(value || 0).toLocaleString("pt-BR", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })}`;
 
   const handleEdit = (opcao: Opcao) => {
     setNovaOpcao({
@@ -358,7 +365,10 @@ export default function OpcoesPage() {
         onSearchChange={setBusca}
       />
 
-      <div className="flex items-center justify-end mb-6">
+      <div className="flex items-center justify-end gap-2 mb-6">
+        <Button variant="outline" onClick={exportarXlsx} disabled={saving || isLoading}>
+          <FileSpreadsheet className="mr-2 h-4 w-4" /> Exportar Excel
+        </Button>
         <Button onClick={handleNew} disabled={saving}>
           <Plus className="mr-2 h-4 w-4" /> Criar Opção
         </Button>
@@ -382,6 +392,7 @@ export default function OpcoesPage() {
                   <SortableHead label="Tipo" field="tipo" sort={sort} onSort={onSort} />
                   <SortableHead label="Nome" field="nome" sort={sort} onSort={onSort} />
                   <SortableHead label="Categoria" field="categoria" sort={sort} onSort={onSort} />
+                  <TableHead>Custo por preparo</TableHead>
                   <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
               </TableHeader>
@@ -398,6 +409,19 @@ export default function OpcoesPage() {
                       {opcao.tipo === "MARMITA"
                         ? (opcao.categoriaDescricao ?? "-")
                         : "-"}
+                    </TableCell>
+                    <TableCell>
+                      {opcao.tipo === "MARMITA" && opcao.custoPorPreparo ? (
+                        <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
+                          {(["200g", "300g", "400g", "500g"] as const).map((peso) => (
+                            <span key={peso}>
+                              <span className="font-medium">{peso}:</span> {money(opcao.custoPorPreparo?.[peso])}
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        "-"
+                      )}
                     </TableCell>
                     <TableCell className="text-right">
                       <Button
@@ -424,7 +448,7 @@ export default function OpcoesPage() {
                 {opcoesFiltradas.length === 0 && !isLoading && (
                   <TableRow>
                     <TableCell
-                      colSpan={5}
+                      colSpan={6}
                       className="text-center text-sm text-muted-foreground py-4"
                     >
                       Nenhuma opção cadastrada.

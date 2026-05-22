@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Separator } from "@/components/ui/separator";
 import {
   Popover,
@@ -61,7 +62,7 @@ import { useAgendamentos } from "@/hooks/useAgendamentos";
 import { PlanoCatalogo, usePlanosCliente } from "@/hooks/usePlanosCliente";
 import { ClienteFormDialog } from "@/components/clientes/ClienteFormDialog";
 
-type PedidoTipo = "ENTREGA" | "RETIRADA" | "CONGELAR";
+type PedidoTipo = "NAO_DEFINIR" | "ENTREGA" | "RETIRADA" | "CONGELAR";
 type FormaPagamento =
   | "A_DEFINIR"
   | "DINHEIRO"
@@ -91,6 +92,22 @@ type ClienteOption = {
   nome: string;
   telefone?: string | null;
   enderecoPrincipal?: string | null;
+  tags?: Array<{ id?: number; tag: string }>;
+  enderecos?: Array<{
+    id?: number;
+    principal?: boolean;
+    apelido?: string | null;
+    endereco?: string | null;
+    cep?: string | null;
+    uf?: string | null;
+    cidade?: string | null;
+    bairro?: string | null;
+    logradouro?: string | null;
+    numero?: string | null;
+    complemento?: string | null;
+    latitude?: number | null;
+    longitude?: number | null;
+  }>;
   planos?: any[];
 };
 
@@ -177,6 +194,7 @@ type Props = {
   initialData?: any;
   onSubmit?: (payload: any) => Promise<void> | void;
   onCreateCliente?: (payload: any) => Promise<any> | any;
+  onUpdateCliente?: (id: number, payload: any) => Promise<any> | any;
   savingCliente?: boolean;
 };
 
@@ -240,6 +258,30 @@ function getPrecoUnitPorQuantidade(tamanho: TamanhoOption, quantidade: number) {
 
 function currency(value: number) {
   return Number(value || 0).toFixed(2);
+}
+
+type EnderecoClienteOption = NonNullable<ClienteOption["enderecos"]>[number];
+
+function formatEnderecoCliente(e?: EnderecoClienteOption | null) {
+  if (!e) return "";
+  if (e.endereco?.trim()) return String(e.endereco).trim();
+
+  return [
+    e.logradouro,
+    e.numero ? `nº ${e.numero}` : null,
+    e.bairro,
+    e.cidade ? `${e.cidade}${e.uf ? `/${e.uf}` : ""}` : null,
+    e.cep ? `CEP ${e.cep}` : null,
+    e.complemento,
+  ]
+    .filter(Boolean)
+    .map((x) => String(x).trim())
+    .join(" • ");
+}
+
+function getEnderecoLabel(e: EnderecoClienteOption, index: number) {
+  if (e.apelido?.trim()) return e.apelido.trim();
+  return e.principal ? "Principal" : index === 1 ? "Secundário" : `Endereço ${index + 1}`;
 }
 
 function getPlanoCatalogoResumo(plano?: PlanoCatalogo | null) {
@@ -326,6 +368,7 @@ export function NovoAgendamentoNovoLayout({
   salgados = [],
   onSubmit,
   onCreateCliente,
+  onUpdateCliente,
   savingCliente = false,
   initialData,
 }: Props) {
@@ -342,7 +385,7 @@ export function NovoAgendamentoNovoLayout({
   const [incluirTaxaEntrega, setIncluirTaxaEntrega] = useState(true);
   const [clienteId, setClienteId] = useState("");
   const [comboboxOpen, setComboboxOpen] = useState(false);
-  const [tipo, setTipo] = useState<PedidoTipo>("ENTREGA");
+  const [tipo, setTipo] = useState<PedidoTipo>("NAO_DEFINIR");
   const [data, setData] = useState<Date | undefined>(() => getDefaultAgendamentoDate());
   const [dataEntregaCongelada, setDataEntregaCongelada] = useState<Date | undefined>(() => getDefaultAgendamentoDate());
   const [horario, setHorario] = useState<HorarioIntervalo>({
@@ -350,6 +393,7 @@ export function NovoAgendamentoNovoLayout({
     fim: "14:00",
   });
   const [endereco, setEndereco] = useState("");
+  const [enderecoSelecionadoId, setEnderecoSelecionadoId] = useState("");
   const [observacoesPedido, setObservacoesPedido] = useState("");
   const [formaPagamento, setFormaPagamento] = useState<FormaPagamento>("A_DEFINIR");
   const [voucherCodigo, setVoucherCodigo] = useState("");
@@ -416,18 +460,69 @@ export function NovoAgendamentoNovoLayout({
     [clientes, clienteId]
   );
 
+  const enderecosDisponiveis = useMemo(
+    () => (clienteSelecionado?.enderecos || []).filter((e) => !!formatEnderecoCliente(e)),
+    [clienteSelecionado],
+  );
+
+  const clienteFormInitialValue = useMemo(() => {
+    if (!clienteSelecionado) return null;
+    const principal = clienteSelecionado.enderecos?.find((e) => e.principal) || clienteSelecionado.enderecos?.[0];
+    const secundario = clienteSelecionado.enderecos?.find((e) => !e.principal);
+
+    return {
+      nome: clienteSelecionado.nome,
+      telefone: clienteSelecionado.telefone || "",
+      apelidoPrincipal: principal?.apelido || "",
+      cep: principal?.cep || "",
+      uf: principal?.uf || "",
+      cidade: principal?.cidade || "",
+      bairro: principal?.bairro || "",
+      logradouro: principal?.logradouro || principal?.endereco || "",
+      numero: principal?.numero || "",
+      complemento: principal?.complemento || "",
+      latitude: principal?.latitude ?? null,
+      longitude: principal?.longitude ?? null,
+      apelidoSecundario: secundario?.apelido || "",
+      secundarioCep: secundario?.cep || "",
+      secundarioUf: secundario?.uf || "",
+      secundarioCidade: secundario?.cidade || "",
+      secundarioBairro: secundario?.bairro || "",
+      secundarioLogradouro: secundario?.logradouro || secundario?.endereco || "",
+      secundarioNumero: secundario?.numero || "",
+      secundarioComplemento: secundario?.complemento || "",
+      secundarioLatitude: secundario?.latitude ?? null,
+      secundarioLongitude: secundario?.longitude ?? null,
+      tags: clienteSelecionado.tags?.map((t) => t.tag) || [],
+    };
+  }, [clienteSelecionado]);
+
   const horarios = useMemo(
-    () => gerarHorarios30(getJanelaEntregaPorDistancia(tipo === "ENTREGA" ? distanciaEntregaKm : null)),
+    () =>
+      gerarHorarios30(
+        tipo === "RETIRADA"
+          ? { start: "12:30", end: "18:00" }
+          : getJanelaEntregaPorDistancia(tipo === "ENTREGA" ? distanciaEntregaKm : null),
+      ),
     [tipo, distanciaEntregaKm]
   );
 
   const horariosFimDisponiveis = useMemo(() => {
+    if (tipo === "RETIRADA") return [];
     const ini = toMin(horario.inicio);
     return horarios.filter((h) => toMin(h) >= ini + 60);
-  }, [horario.inicio, horarios]);
+  }, [horario.inicio, horarios, tipo]);
 
   useEffect(() => {
     if (!horarios.length) return;
+    if (tipo === "RETIRADA") {
+      if (!horarios.includes(horario.inicio)) {
+        setHorario({ inicio: "12:30", fim: "12:30" });
+      } else if (horario.fim !== horario.inicio) {
+        setHorario((prev) => ({ ...prev, fim: prev.inicio }));
+      }
+      return;
+    }
     const ini = toMin(horario.inicio);
     const fim = toMin(horario.fim);
     const primeiro = horarios[0];
@@ -442,12 +537,12 @@ export function NovoAgendamentoNovoLayout({
 
     const prox = horarios.find((h) => toMin(h) >= ini + 60) || ultimo;
     setHorario((prev) => ({ ...prev, fim: prox }));
-  }, [horario.inicio, horario.fim, horarios]);
+  }, [horario.inicio, horario.fim, horarios, tipo]);
 
   useEffect(() => {
     if (open && initialData) {
       setClienteId(String(initialData.pedido?.clienteId || initialData.clienteId || ""));
-      setTipo(initialData.tipoEntrega || initialData.tipo || "ENTREGA");
+      setTipo(initialData.tipoEntrega || initialData.tipo || "NAO_DEFINIR");
       setData(initialData.data ? new Date(initialData.data) : getDefaultAgendamentoDate());
       setDataEntregaCongelada(initialData.dataEntregaCongelada ? new Date(initialData.dataEntregaCongelada) : getDefaultAgendamentoDate());
       
@@ -500,11 +595,24 @@ export function NovoAgendamentoNovoLayout({
   }, [open, initialData]);
 
   useEffect(() => {
-    if (!clienteSelecionado) return;
-    if (tipo === "ENTREGA" && !endereco.trim()) {
-      setEndereco(clienteSelecionado.enderecoPrincipal || "");
+    if (!clienteSelecionado || tipo !== "ENTREGA") return;
+    const principal = enderecosDisponiveis.find((e) => e.principal) || enderecosDisponiveis[0];
+    if (!principal) {
+      setEndereco("");
+      setEnderecoSelecionadoId("");
+      return;
     }
-  }, [clienteSelecionado, tipo, endereco]);
+
+    const principalId = String(principal.id ?? "0");
+    if (!enderecoSelecionadoId) {
+      setEnderecoSelecionadoId(principalId);
+      setEndereco(formatEnderecoCliente(principal));
+      return;
+    }
+
+    const selected = enderecosDisponiveis.find((e) => String(e.id ?? "0") === enderecoSelecionadoId);
+    if (selected) setEndereco(formatEnderecoCliente(selected));
+  }, [clienteSelecionado, tipo, enderecosDisponiveis, enderecoSelecionadoId]);
 
   // Estimativa de taxa de entrega
   useEffect(() => {
@@ -881,7 +989,7 @@ export function NovoAgendamentoNovoLayout({
 
   function resetForm() {
     setClienteId("");
-    setTipo("ENTREGA");
+    setTipo("NAO_DEFINIR");
     setData(getDefaultAgendamentoDate());
     setDataEntregaCongelada(getDefaultAgendamentoDate());
     setHorario({ inicio: "13:00", fim: "14:00" });
@@ -890,6 +998,7 @@ export function NovoAgendamentoNovoLayout({
     setFormaPagamento("A_DEFINIR");
     setVoucherCodigo("");
     setDistanciaEntregaKm(null);
+    setEnderecoSelecionadoId("");
     setAvisoHorarioAutomatico("");
     setAvisoPagamentoAutomatico("");
     setItens([]);
@@ -1400,19 +1509,42 @@ export function NovoAgendamentoNovoLayout({
       return;
     }
     if (tipo === "CONGELAR" && !dataEntregaCongelada) return;
-    if (tipo === "ENTREGA" && !endereco.trim()) return;
+    if (tipo === "ENTREGA" && !endereco.trim()) {
+      toast.error("Pedido marcado como entrega mas sem endereço", {
+        description: "Cadastre ou selecione um endereço do cliente antes de finalizar.",
+      });
+      return;
+    }
     if (itens.length === 0) return;
 
     const janelaEntrega = getJanelaEntregaPorDistancia(tipo === "ENTREGA" ? distanciaEntregaKm : null);
-    if (
+    if (tipo !== "RETIRADA" && (
       toMin(horario.inicio) < toMin(janelaEntrega.start) ||
       toMin(horario.fim) > toMin(janelaEntrega.end) ||
       toMin(horario.fim) - toMin(horario.inicio) < 60
-    ) {
+    )) {
       toast.error("Horário inválido", {
         description: `Selecione uma janela de pelo menos 1 hora entre ${janelaEntrega.start} e ${janelaEntrega.end}.`,
       });
       return;
+    }
+
+    if (formaPagamento === "PLANO" && !itens.some((it) => it.usarPlano)) {
+      toast.error("Plano não selecionado", {
+        description: "Forma de pagamento Plano precisa ter um plano vinculado ao pedido.",
+      });
+      return;
+    }
+
+    let senhaAutorizacao: string | undefined;
+    if (formaPagamento === "TROCA" || formaPagamento === "BONIFICACAO") {
+      senhaAutorizacao = window.prompt("Informe a senha de administrador para autorizar troca/bonificação:") || "";
+      if (!senhaAutorizacao.trim()) {
+        toast.error("Senha obrigatória", {
+          description: "Troca e bonificação só podem ser finalizadas com autorização.",
+        });
+        return;
+      }
     }
 
     if (isVoucherForma(formaPagamento) && !voucherCodigo.trim()) {
@@ -1442,10 +1574,11 @@ export function NovoAgendamentoNovoLayout({
       dataEntregaCongelada: tipo === "CONGELAR" && dataEntregaCongelada
         ? (dataEntregaCongelada instanceof Date ? dataEntregaCongelada.toISOString() : dataEntregaCongelada)
         : null,
-      faixaHorario: `${horario.inicio}-${horario.fim}`,
+      faixaHorario: tipo === "RETIRADA" ? horario.inicio : `${horario.inicio}-${horario.fim}`,
       endereco: tipo === "ENTREGA" ? endereco : tipo,
       observacoes: observacoesPedido,
       formaPagamento: formaPagamento,
+      senhaAutorizacao,
       voucherCodigo: isVoucherForma(formaPagamento) ? voucherCodigo.trim() : undefined,
       ...(tipo === "ENTREGA" && incluirTaxaEntrega && valorTaxa > 0 ? { valorTaxa } : {}),
       itens: itensComPrecoBruto.map(it => ({
@@ -1544,7 +1677,10 @@ export function NovoAgendamentoNovoLayout({
                                     key={cliente.id}
                                     value={cliente.id}
                                     onSelect={(currentValue) => {
-                                      setClienteId(currentValue === clienteId ? "" : currentValue);
+                                      const nextClienteId = currentValue === clienteId ? "" : currentValue;
+                                      setClienteId(nextClienteId);
+                                      setEnderecoSelecionadoId("");
+                                      if (!nextClienteId) setEndereco("");
                                       setComboboxOpen(false);
                                     }}
                                   >
@@ -1573,11 +1709,11 @@ export function NovoAgendamentoNovoLayout({
                         size="icon"
                         className="h-10 w-10"
                         onClick={() => setClienteDialogOpen(true)}
-                        disabled={!onCreateCliente || savingCliente}
-                        title="Cadastrar cliente"
+                        disabled={savingCliente || (clienteSelecionado ? !onUpdateCliente : !onCreateCliente)}
+                        title={clienteSelecionado ? "Editar cliente" : "Cadastrar cliente"}
                       >
-                        <Plus className="h-4 w-4" />
-                        <span className="sr-only">Cadastrar cliente</span>
+                        {clienteSelecionado ? <Pencil className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+                        <span className="sr-only">{clienteSelecionado ? "Editar cliente" : "Cadastrar cliente"}</span>
                       </Button>
                     </div>
                   </div>
@@ -1890,6 +2026,7 @@ export function NovoAgendamentoNovoLayout({
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
+                        <SelectItem value="NAO_DEFINIR">Não definir</SelectItem>
                         <SelectItem value="ENTREGA">Entrega</SelectItem>
                         <SelectItem value="RETIRADA">Retirada</SelectItem>
                         <SelectItem value="CONGELAR">Congelar</SelectItem>
@@ -1923,13 +2060,13 @@ export function NovoAgendamentoNovoLayout({
                     </div>
                   )}
 
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className={tipo === "RETIRADA" ? "grid grid-cols-1 gap-3" : "grid grid-cols-2 gap-3"}>
                     <div className="space-y-2">
-                      <Label>Início</Label>
+                      <Label>{tipo === "RETIRADA" ? "Horário" : "Início"}</Label>
                       <Select
                         value={horario.inicio}
                         onValueChange={(v) =>
-                          setHorario((prev) => ({ ...prev, inicio: v }))
+                          setHorario((prev) => ({ ...prev, inicio: v, fim: tipo === "RETIRADA" ? v : prev.fim }))
                         }
                       >
                         <SelectTrigger>
@@ -1945,29 +2082,33 @@ export function NovoAgendamentoNovoLayout({
                       </Select>
                     </div>
 
-                    <div className="space-y-2">
-                      <Label>Fim</Label>
-                      <Select
-                        value={horario.fim}
-                        onValueChange={(v) =>
-                          setHorario((prev) => ({ ...prev, fim: v }))
-                        }
-                      >
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {horariosFimDisponiveis.map((h) => (
-                            <SelectItem key={h} value={h}>
-                              {h}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
+                    {tipo !== "RETIRADA" && (
+                      <div className="space-y-2">
+                        <Label>Fim</Label>
+                        <Select
+                          value={horario.fim}
+                          onValueChange={(v) =>
+                            setHorario((prev) => ({ ...prev, fim: v }))
+                          }
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {horariosFimDisponiveis.map((h) => (
+                              <SelectItem key={h} value={h}>
+                                {h}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    {tipo === "ENTREGA" && distanciaEntregaKm != null
+                    {tipo === "RETIRADA"
+                      ? "Retirada usa horário único entre 12:30 e 18:00."
+                      : tipo === "ENTREGA" && distanciaEntregaKm != null
                       ? `Distância estimada: ${distanciaEntregaKm.toFixed(2).replace(".", ",")} km. Janela disponível: ${horarios[0]}-${horarios[horarios.length - 1]}.`
                       : `Janela disponível: ${horarios[0]}-${horarios[horarios.length - 1]}.`}
                   </p>
@@ -1980,11 +2121,47 @@ export function NovoAgendamentoNovoLayout({
                   {tipo === "ENTREGA" ? (
                     <div className="space-y-2">
                       <Label>Endereço</Label>
-                      <Textarea
-                        value={endereco}
-                        onChange={(e) => setEndereco(e.target.value)}
-                        placeholder="Digite o endereço da entrega"
-                      />
+                      {enderecosDisponiveis.length > 0 ? (
+                        <RadioGroup
+                          value={enderecoSelecionadoId}
+                          onValueChange={(value) => {
+                            setEnderecoSelecionadoId(value);
+                            const selected = enderecosDisponiveis.find((e) => String(e.id ?? "0") === value);
+                            setEndereco(formatEnderecoCliente(selected));
+                          }}
+                          className="space-y-2"
+                        >
+                          {enderecosDisponiveis.map((end, index) => {
+                            const value = String(end.id ?? index);
+                            return (
+                              <Label
+                                key={value}
+                                htmlFor={`endereco-${value}`}
+                                className="flex cursor-pointer items-start gap-3 rounded-lg border p-3 text-sm"
+                              >
+                                <RadioGroupItem value={value} id={`endereco-${value}`} className="mt-1" />
+                                <span>
+                                  <span className="block font-semibold">{getEnderecoLabel(end, index)}</span>
+                                  <span className="text-muted-foreground">{formatEnderecoCliente(end)}</span>
+                                </span>
+                              </Label>
+                            );
+                          })}
+                        </RadioGroup>
+                      ) : (
+                        <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                          Pedido marcado como entrega mas sem endereço.
+                        </div>
+                      )}
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setClienteDialogOpen(true)}
+                        disabled={!clienteSelecionado || savingCliente || !onUpdateCliente}
+                      >
+                        {enderecosDisponiveis.length ? "Editar endereços do cliente" : "Adicionar endereço ao cliente"}
+                      </Button>
                     </div>
                   ) : tipo === "CONGELAR" ? (
                     <div className="rounded-lg border p-3 text-sm text-muted-foreground">
@@ -3224,9 +3401,13 @@ export function NovoAgendamentoNovoLayout({
       <ClienteFormDialog
         open={clienteDialogOpen}
         onOpenChange={setClienteDialogOpen}
-        title="Novo Cliente"
+        title={clienteSelecionado ? "Editar Cliente" : "Novo Cliente"}
         saving={savingCliente}
+        initialValue={clienteFormInitialValue}
         onSubmit={async (payload) => {
+          if (clienteSelecionado && onUpdateCliente) {
+            return onUpdateCliente(Number(clienteSelecionado.id), payload);
+          }
           if (!onCreateCliente) return null;
           return onCreateCliente(payload);
         }}

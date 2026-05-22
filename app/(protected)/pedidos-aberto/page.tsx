@@ -52,7 +52,7 @@ type PedidoAberto = {
   id: string;
   numeroPedido: string;
   cliente: string;
-  tipoEntrega: "ENTREGA" | "RETIRADA";
+  tipoEntrega: "NAO_DEFINIR" | "ENTREGA" | "RETIRADA" | "CONGELAR";
   faixaHorario: "13-15" | "15-17" | "17-18" | "18-20:30";
   endereco: string;
   zona:
@@ -106,13 +106,14 @@ export default function PedidosAberto() {
 
   const [formaPagamentoFinal, setFormaPagamentoFinal] =
     useState<Exclude<FormaPagamento, "PLANO" | "A_DEFINIR">>("PIX");
+  const [senhaAutorizacaoPagamento, setSenhaAutorizacaoPagamento] = useState("");
 
   const pedidosAbertoFiltrados = useMemo(() => {
     if (filtroPendentes === "a-definir") {
-      return pedidosAberto.filter((pedido) => pedido.formaPagamento === "A_DEFINIR");
+      return pedidosAberto.filter((pedido) => pedido.formaPagamento === "A_DEFINIR" || pedido.tipoEntrega === "NAO_DEFINIR");
     }
     if (filtroPendentes === "definidos") {
-      return pedidosAberto.filter((pedido) => pedido.formaPagamento !== "A_DEFINIR");
+      return pedidosAberto.filter((pedido) => pedido.formaPagamento !== "A_DEFINIR" && pedido.tipoEntrega !== "NAO_DEFINIR");
     }
     return pedidosAberto;
   }, [filtroPendentes, pedidosAberto]);
@@ -193,14 +194,22 @@ export default function PedidosAberto() {
     } else {
       setFormaPagamentoFinal("PIX");
     }
+    setSenhaAutorizacaoPagamento("");
     setPagamentoDialogOpen(true);
   };
 
   const handleFinalizarPagamento = async () => {
     if (!pedidoSelecionado) return;
+    if ((formaPagamentoFinal === "TROCA" || formaPagamentoFinal === "BONIFICACAO") && !senhaAutorizacaoPagamento.trim()) {
+      toast.error("Senha obrigatória", {
+        description: "Troca e bonificação só podem ser finalizadas com autorização.",
+      });
+      return;
+    }
 
     await finalizarPagamento(pedidoSelecionado.agendamentoId, {
       formaPagamento: formaPagamentoFinal,
+      senhaAutorizacao: senhaAutorizacaoPagamento.trim() || undefined,
     });
 
     setPedidosAberto((prev) =>
@@ -315,7 +324,11 @@ export default function PedidosAberto() {
               {pedidosAbertoFiltrados.map((pedido) => (
                 <div
                   key={pedido.agendamentoId}
-                  className="flex flex-col border rounded-lg overflow-hidden cursor-pointer hover:border-primary transition-colors"
+                  className={`flex flex-col border rounded-lg overflow-hidden cursor-pointer hover:border-primary transition-colors ${
+                    pedido.formaPagamento === "A_DEFINIR" || pedido.tipoEntrega === "NAO_DEFINIR"
+                      ? "border-red-300 bg-red-50/70"
+                      : ""
+                  }`}
                   onClick={() => handleShowDetalhes(pedido)}
                 >
                   <div className="flex items-center p-4 bg-muted/40">
@@ -345,9 +358,12 @@ export default function PedidosAberto() {
                     </div>
                     <div className="flex items-center gap-2">
                       {pedido.formaPagamento === "A_DEFINIR" ? (
-                        <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100">A definir</Badge>
+                        <Badge className="bg-red-100 text-red-700 hover:bg-red-100">Pagamento a definir</Badge>
                       ) : (
                         <Badge variant="destructive">Pagamento Pendente</Badge>
+                      )}
+                      {pedido.tipoEntrega === "NAO_DEFINIR" && (
+                        <Badge className="bg-red-100 text-red-700 hover:bg-red-100">Tipo a definir</Badge>
                       )}
                     </div>
                   </div>
@@ -622,6 +638,18 @@ export default function PedidosAberto() {
                 </SelectContent>
               </Select>
             </div>
+
+            {(formaPagamentoFinal === "TROCA" || formaPagamentoFinal === "BONIFICACAO") && (
+              <div className="space-y-2">
+                <Label>Senha de administrador</Label>
+                <Input
+                  type="password"
+                  value={senhaAutorizacaoPagamento}
+                  onChange={(event) => setSenhaAutorizacaoPagamento(event.target.value)}
+                  placeholder="Informe a senha"
+                />
+              </div>
+            )}
 
             <div className="space-y-2">
               <Label>Valor Total</Label>

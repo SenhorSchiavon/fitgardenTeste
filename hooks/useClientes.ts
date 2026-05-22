@@ -10,6 +10,7 @@ export type EnderecoCliente = {
   id?: number;
   principal: boolean;
   endereco?: string | null;
+  apelido?: string | null;
   cep?: string | null;
   uf?: string | null;
   cidade?: string | null;

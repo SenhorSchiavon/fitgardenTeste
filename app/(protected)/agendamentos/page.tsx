@@ -173,6 +173,7 @@ export default function Agendamentos() {
     loading: loadingClientes,
     saving: savingClientes,
     createCliente,
+    updateCliente,
   } = useClientes();
   const { cardapios, loading: loadingCardapios } = useCardapios();
   const cardapioAtivo = cardapios.find((c) => c.ativo) ?? null;
@@ -1212,6 +1213,8 @@ export default function Agendamentos() {
             nome: c.nome,
             telefone: c.telefone,
             enderecoPrincipal: enderecoTexto,
+            enderecos: c.enderecos,
+            tags: c.tags,
             planos: c.planos,
           };
         })}
@@ -1236,6 +1239,7 @@ export default function Agendamentos() {
         initialData={dadosEdicao}
         savingCliente={savingClientes}
         onCreateCliente={createCliente}
+        onUpdateCliente={updateCliente}
         onSubmit={async (payload) => {
           if (modoEdicao && agendamentoEditandoId) {
             await updateAgendamento(agendamentoEditandoId, {
@@ -1246,6 +1250,7 @@ export default function Agendamentos() {
               endereco: payload.endereco,
               observacoes: payload.observacoes ?? null,
               formaPagamento: payload.formaPagamento,
+              senhaAutorizacao: payload.senhaAutorizacao,
               itens: payload.itens.map((it: any) => ({
                 tipoItem: it.tipoItem,
                 destinatarioNome: it.destinatarioNome,
@@ -1280,6 +1285,7 @@ export default function Agendamentos() {
               endereco: payload.endereco,
               observacoes: payload.observacoes ?? null,
               formaPagamento: payload.formaPagamento,
+              senhaAutorizacao: payload.senhaAutorizacao,
               voucherCodigo: payload.voucherCodigo,
               itens: payload.itens.map((it: any) => ({
                 tipoItem: it.tipoItem,

@@ -33,6 +33,7 @@ type ClientePayload = {
     latitude?: number | null;
     longitude?: number | null;
     endereco?: string | null; // alternativo
+    apelido?: string | null;
   }>;
 };
 
@@ -51,7 +52,17 @@ type ClienteFormValue = {
   latitude?: number | null;
   longitude?: number | null;
 
-  enderecoAlternativo?: string;
+  apelidoPrincipal?: string;
+  secundarioCep?: string;
+  secundarioUf?: string;
+  secundarioCidade?: string;
+  secundarioBairro?: string;
+  secundarioLogradouro?: string;
+  secundarioNumero?: string;
+  secundarioComplemento?: string;
+  secundarioLatitude?: number | null;
+  secundarioLongitude?: number | null;
+  apelidoSecundario?: string;
   tags: string[];
 };
 
@@ -219,7 +230,17 @@ export function ClienteFormDialog({
     complemento: "",
     latitude: null,
     longitude: null,
-    enderecoAlternativo: "",
+    apelidoPrincipal: "",
+    secundarioCep: "",
+    secundarioUf: "",
+    secundarioCidade: "",
+    secundarioBairro: "",
+    secundarioLogradouro: "",
+    secundarioNumero: "",
+    secundarioComplemento: "",
+    secundarioLatitude: null,
+    secundarioLongitude: null,
+    apelidoSecundario: "",
     tags: [],
   });
 
@@ -255,7 +276,17 @@ export function ClienteFormDialog({
       complemento: initialValue?.complemento ?? "",
       latitude: initialValue?.latitude ?? null,
       longitude: initialValue?.longitude ?? null,
-      enderecoAlternativo: initialValue?.enderecoAlternativo ?? "",
+      apelidoPrincipal: initialValue?.apelidoPrincipal ?? "",
+      secundarioCep: initialValue?.secundarioCep ?? "",
+      secundarioUf: initialValue?.secundarioUf ?? "",
+      secundarioCidade: initialValue?.secundarioCidade ?? "",
+      secundarioBairro: initialValue?.secundarioBairro ?? "",
+      secundarioLogradouro: initialValue?.secundarioLogradouro ?? "",
+      secundarioNumero: initialValue?.secundarioNumero ?? "",
+      secundarioComplemento: initialValue?.secundarioComplemento ?? "",
+      secundarioLatitude: initialValue?.secundarioLatitude ?? null,
+      secundarioLongitude: initialValue?.secundarioLongitude ?? null,
+      apelidoSecundario: initialValue?.apelidoSecundario ?? "",
       tags: initialValue?.tags ?? [],
     }));
   }, [open, initialValue]);
@@ -323,8 +354,9 @@ export function ClienteFormDialog({
       setTaxaEntrega(null);
       setErroTaxaEntrega(null);
 
-      if ("total" in data && data.total > 1) {
-        setAvisoCep(`Encontrei ${data.total} CEPs possíveis e preenchi o mais compatível.`);
+      const totalCeps = "total" in data ? Number(data.total || 0) : 0;
+      if (totalCeps > 1) {
+        setAvisoCep(`Encontrei ${totalCeps} CEPs possíveis e preenchi o mais compatível.`);
       }
     } catch (e: any) {
       setAvisoCep(e?.message || "Não foi possível buscar o CEP.");
@@ -370,6 +402,7 @@ export function ClienteFormDialog({
       enderecos: [
         {
           principal: true,
+          apelido: form.apelidoPrincipal?.trim() || "Casa",
           cep: form.cep?.trim() ? onlyDigits(form.cep) : null,
           uf: form.uf?.trim() || null,
           cidade: form.cidade?.trim() || null,
@@ -380,8 +413,26 @@ export function ClienteFormDialog({
           latitude: typeof form.latitude === "number" ? form.latitude : null,
           longitude: typeof form.longitude === "number" ? form.longitude : null,
         },
-        ...(form.enderecoAlternativo?.trim()
-          ? [{ principal: false, endereco: form.enderecoAlternativo.trim() }]
+        ...(form.secundarioCep?.trim() ||
+        form.secundarioUf?.trim() ||
+        form.secundarioCidade?.trim() ||
+        form.secundarioBairro?.trim() ||
+        form.secundarioLogradouro?.trim() ||
+        form.secundarioNumero?.trim() ||
+        form.secundarioComplemento?.trim()
+          ? [{
+              principal: false,
+              apelido: form.apelidoSecundario?.trim() || "Trabalho",
+              cep: form.secundarioCep?.trim() ? onlyDigits(form.secundarioCep) : null,
+              uf: form.secundarioUf?.trim() || null,
+              cidade: form.secundarioCidade?.trim() || null,
+              bairro: form.secundarioBairro?.trim() || null,
+              logradouro: form.secundarioLogradouro?.trim() || null,
+              numero: form.secundarioNumero?.trim() || null,
+              complemento: form.secundarioComplemento?.trim() || null,
+              latitude: typeof form.secundarioLatitude === "number" ? form.secundarioLatitude : null,
+              longitude: typeof form.secundarioLongitude === "number" ? form.secundarioLongitude : null,
+            }]
           : []),
       ],
     };
@@ -439,7 +490,18 @@ export function ClienteFormDialog({
 
           {/* ENDEREÇO + MAPA */}
           <div className="space-y-4">
-            <div className="text-sm font-medium">Endereço + Mapa</div>
+            <div className="text-sm font-medium">Endereço principal + Mapa</div>
+
+            <div className="space-y-2">
+              <Label htmlFor="apelidoPrincipal">Apelido do endereço principal</Label>
+              <Input
+                id="apelidoPrincipal"
+                value={form.apelidoPrincipal || ""}
+                onChange={(e) => setForm((p) => ({ ...p, apelidoPrincipal: e.target.value }))}
+                disabled={saving}
+                placeholder="Casa"
+              />
+            </div>
 
             <div className="grid grid-cols-3 gap-4 items-end">
               <div className="space-y-2">
@@ -541,16 +603,6 @@ export function ClienteFormDialog({
               />
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="enderecoAlternativo">Endereço Alternativo</Label>
-              <Input
-                id="enderecoAlternativo"
-                value={form.enderecoAlternativo || ""}
-                onChange={(e) => setForm((p) => ({ ...p, enderecoAlternativo: e.target.value }))}
-                disabled={saving}
-              />
-            </div>
-
             {erroLocalizacao && <div className="text-sm text-red-600">{erroLocalizacao}</div>}
 
             <div className="rounded-md border border-dashed border-emerald-200 bg-emerald-50/50 px-3 py-2 text-sm">
@@ -603,6 +655,60 @@ export function ClienteFormDialog({
                     Mapa aparecerá aqui após localizar.
                   </div>
                 )}
+              </div>
+            </div>
+          </div>
+
+          <Separator />
+
+          <div className="space-y-4">
+            <div className="text-sm font-medium">Endereço secundário</div>
+
+            <div className="space-y-2">
+              <Label htmlFor="apelidoSecundario">Apelido do endereço secundário</Label>
+              <Input
+                id="apelidoSecundario"
+                value={form.apelidoSecundario || ""}
+                onChange={(e) => setForm((p) => ({ ...p, apelidoSecundario: e.target.value }))}
+                disabled={saving}
+                placeholder="Trabalho"
+              />
+            </div>
+
+            <div className="grid grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="secundarioCep">CEP</Label>
+                <Input id="secundarioCep" value={form.secundarioCep || ""} onChange={(e) => setForm((p) => ({ ...p, secundarioCep: e.target.value }))} disabled={saving} placeholder="00000-000" />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="secundarioUf">UF</Label>
+                <Input id="secundarioUf" value={form.secundarioUf || ""} onChange={(e) => setForm((p) => ({ ...p, secundarioUf: e.target.value.toUpperCase() }))} disabled={saving} placeholder="PR" />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="secundarioCidade">Cidade</Label>
+                <Input id="secundarioCidade" value={form.secundarioCidade || ""} onChange={(e) => setForm((p) => ({ ...p, secundarioCidade: e.target.value }))} disabled={saving} />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="secundarioBairro">Bairro</Label>
+                <Input id="secundarioBairro" value={form.secundarioBairro || ""} onChange={(e) => setForm((p) => ({ ...p, secundarioBairro: e.target.value }))} disabled={saving} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="secundarioComplemento">Complemento</Label>
+                <Input id="secundarioComplemento" value={form.secundarioComplemento || ""} onChange={(e) => setForm((p) => ({ ...p, secundarioComplemento: e.target.value }))} disabled={saving} />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-3 gap-4">
+              <div className="space-y-2 col-span-2">
+                <Label htmlFor="secundarioLogradouro">Rua</Label>
+                <Input id="secundarioLogradouro" value={form.secundarioLogradouro || ""} onChange={(e) => setForm((p) => ({ ...p, secundarioLogradouro: e.target.value }))} disabled={saving} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="secundarioNumero">Número</Label>
+                <Input id="secundarioNumero" value={form.secundarioNumero || ""} onChange={(e) => setForm((p) => ({ ...p, secundarioNumero: e.target.value }))} disabled={saving} />
               </div>
             </div>
           </div>

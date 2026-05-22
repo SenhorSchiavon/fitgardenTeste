@@ -12,7 +12,7 @@ export type RegiaoEntrega =
   | "CAMBE"
   | "IBIPORA";
 
-export type PedidoTipo = "ENTREGA" | "RETIRADA" | "CONGELAR";
+export type PedidoTipo = "NAO_DEFINIR" | "ENTREGA" | "RETIRADA" | "CONGELAR";
 
 export type PedidoStatus = "ABERTO" | "PAGO" | "CANCELADO";
 export type PedidoPendenteRow = {
@@ -25,7 +25,7 @@ export type PedidoPendenteRow = {
   cliente: string;
   telefone: string;
 
-  tipoEntrega: "ENTREGA" | "RETIRADA" | "CONGELAR";
+  tipoEntrega: "NAO_DEFINIR" | "ENTREGA" | "RETIRADA" | "CONGELAR";
   faixaHorario: string;
 
   endereco: string;
@@ -60,6 +60,7 @@ export type EstimarTaxaResponse = {
 };
 export type FinalizarPagamentoInput = {
   formaPagamento: Exclude<FormaPagamento, "PLANO" | "A_DEFINIR">;
+  senhaAutorizacao?: string;
 };
 export type FormaPagamento =
   | "A_DEFINIR"
@@ -117,6 +118,7 @@ export type CreateAgendamentoInput = {
   regiao?: RegiaoEntrega;
   observacoes?: string;
   formaPagamento: FormaPagamento;
+  senhaAutorizacao?: string;
   voucherCodigo?: string;
   itens: AgendamentoItemInput[];
 };
@@ -130,6 +132,7 @@ export type UpdateAgendamentoInput = Partial<{
   regiao: RegiaoEntrega | null;
   observacoes: string | null;
   formaPagamento: FormaPagamento;
+  senhaAutorizacao: string;
   itens: AgendamentoItemInput[];
 }>;
 
@@ -386,7 +389,10 @@ export function useAgendamentos(options?: { baseUrl?: string }) {
           agendamentoId: number;
         }>(`${baseUrl}/${agendamentoId}/finalizar-pagamento`, {
           method: "POST",
-          body: JSON.stringify({ formaPagamento: payload.formaPagamento }),
+          body: JSON.stringify({
+            formaPagamento: payload.formaPagamento,
+            senhaAutorizacao: payload.senhaAutorizacao,
+          }),
         });
       } catch (e: any) {
         const msg = e?.message || "Erro ao finalizar pagamento";
@@ -501,6 +507,7 @@ export function useAgendamentos(options?: { baseUrl?: string }) {
           regiao: payload.regiao,
           observacoes: payload.observacoes,
           formaPagamento: payload.formaPagamento,
+          senhaAutorizacao: payload.senhaAutorizacao,
           voucherCodigo: payload.voucherCodigo?.trim() || undefined,
           itens: (payload.itens || []).map((it) => ({
             tipoItem: it.tipoItem === "PERSONALIZADA" ? "PERSONALIZADA" : it.tipoItem === "SALGADO" ? "SALGADO" : "PADRAO",
