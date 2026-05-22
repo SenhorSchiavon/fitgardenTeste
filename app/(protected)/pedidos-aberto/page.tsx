@@ -273,6 +273,17 @@ export default function PedidosAberto() {
     return tipo || "-";
   };
 
+  const formatFormaPagamento = (forma?: string | null) => {
+    if (forma === "A_DEFINIR") return "NÃ£o definido";
+    if (forma === "CREDITO") return "CartÃ£o";
+    if (forma === "DINHEIRO") return "Dinheiro";
+    if (forma === "PIX") return "PIX";
+    if (forma === "PLANO") return "Plano";
+    if (forma === "TROCA") return "Troca";
+    if (forma === "BONIFICACAO") return "BonificaÃ§Ã£o";
+    return forma || "-";
+  };
+
   const getItemResumo = (item: any) => ({
     nome:
       typeof item?.nome === "string"
@@ -340,7 +351,7 @@ export default function PedidosAberto() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="todos">Todos</SelectItem>
-                <SelectItem value="a-definir">A definir</SelectItem>
+                <SelectItem value="a-definir">NÃ£o definido</SelectItem>
                 <SelectItem value="definidos">Já definidos</SelectItem>
               </SelectContent>
             </Select>
@@ -386,7 +397,7 @@ export default function PedidosAberto() {
                     </div>
                     <div className="flex items-center gap-2">
                       {pedido.formaPagamento === "A_DEFINIR" ? (
-                        <Badge className="bg-red-100 text-red-700 hover:bg-red-100">Pagamento a definir</Badge>
+                        <Badge className="bg-red-100 text-red-700 hover:bg-red-100">Pagamento nÃ£o definido</Badge>
                       ) : (
                         <Badge variant="destructive">Pagamento Pendente</Badge>
                       )}
@@ -441,7 +452,12 @@ export default function PedidosAberto() {
                           <span className="font-medium">{pedido.numeroPedido}</span>
                           <span>-</span>
                           <span className="truncate">{pedido.cliente}</span>
-                          <Badge variant="outline">{pedido.formaPagamento}</Badge>
+                          <Badge
+                            variant="outline"
+                            className={pedido.formaPagamento === "A_DEFINIR" ? "border-red-300 bg-red-50 text-red-700" : undefined}
+                          >
+                            {formatFormaPagamento(pedido.formaPagamento)}
+                          </Badge>
                           {pedido.conciliado ? (
                             <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100">
                               Conciliado
@@ -578,8 +594,11 @@ export default function PedidosAberto() {
                   <div className="text-sm font-medium">Forma de Pagamento</div>
                   <div className="flex items-center">
                     <CreditCard className="h-4 w-4 mr-2 text-muted-foreground" />
-                    <Badge variant={pedidoSelecionado?.formaPagamento === "A_DEFINIR" ? "outline" : "destructive"}>
-                      {pedidoSelecionado?.formaPagamento === "A_DEFINIR" ? "A definir" : "Pendente"}
+                    <Badge
+                      variant={pedidoSelecionado?.formaPagamento === "A_DEFINIR" ? "outline" : "destructive"}
+                      className={pedidoSelecionado?.formaPagamento === "A_DEFINIR" ? "border-red-300 bg-red-50 text-red-700" : undefined}
+                    >
+                      {pedidoSelecionado?.formaPagamento === "A_DEFINIR" ? "Não definido" : "Pendente"}
                     </Badge>
                   </div>
                 </div>

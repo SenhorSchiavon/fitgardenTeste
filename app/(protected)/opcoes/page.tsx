@@ -392,6 +392,7 @@ export default function OpcoesPage() {
                   <SortableHead label="Tipo" field="tipo" sort={sort} onSort={onSort} />
                   <SortableHead label="Nome" field="nome" sort={sort} onSort={onSort} />
                   <SortableHead label="Categoria" field="categoria" sort={sort} onSort={onSort} />
+                  <TableHead>Custo por kg</TableHead>
                   <TableHead>Custo por preparo</TableHead>
                   <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
@@ -409,6 +410,15 @@ export default function OpcoesPage() {
                       {opcao.tipo === "MARMITA"
                         ? (opcao.categoriaDescricao ?? "-")
                         : "-"}
+                    </TableCell>
+                    <TableCell>
+                      {opcao.tipo === "MARMITA" && opcao.custoPorPreparo ? (
+                        <span className="text-xs font-medium">
+                          {money(opcao.custoPorPreparo?.["1kg"])}
+                        </span>
+                      ) : (
+                        "-"
+                      )}
                     </TableCell>
                     <TableCell>
                       {opcao.tipo === "MARMITA" && opcao.custoPorPreparo ? (
@@ -448,7 +458,7 @@ export default function OpcoesPage() {
                 {opcoesFiltradas.length === 0 && !isLoading && (
                   <TableRow>
                     <TableCell
-                      colSpan={6}
+                      colSpan={7}
                       className="text-center text-sm text-muted-foreground py-4"
                     >
                       Nenhuma opção cadastrada.

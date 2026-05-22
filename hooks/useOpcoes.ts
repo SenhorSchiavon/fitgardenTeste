@@ -23,7 +23,7 @@ export type Opcao = {
   nome: string;
   categoriaId: number | null;
   categoriaDescricao: string | null;
-  custoPorPreparo?: Record<"200g" | "300g" | "400g" | "500g", number>;
+  custoPorPreparo?: Record<"1kg" | "200g" | "300g" | "400g" | "500g", number>;
 
   componentes: OpcaoComponente[]; // pra OUTROS pode vir []
 };

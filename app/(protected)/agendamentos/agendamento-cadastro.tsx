@@ -2059,11 +2059,11 @@ export function NovoAgendamentoNovoLayout({
                   <div className="space-y-2">
                     <Label>Tipo</Label>
                     <Select value={tipo} onValueChange={(v: PedidoTipo) => setTipo(v)}>
-                      <SelectTrigger>
+                      <SelectTrigger className={cn(tipo === "NAO_DEFINIR" && "border-red-300 bg-red-50 text-red-700")}>
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="NAO_DEFINIR">Não definir</SelectItem>
+                        <SelectItem value="NAO_DEFINIR">Não definido</SelectItem>
                         <SelectItem value="ENTREGA">Entrega</SelectItem>
                         <SelectItem value="RETIRADA">Retirada</SelectItem>
                         <SelectItem value="CONGELAR">Congelar</SelectItem>
@@ -2190,11 +2190,11 @@ export function NovoAgendamentoNovoLayout({
                       value={formaPagamento}
                       onValueChange={(v: FormaPagamento) => setFormaPagamento(v)}
                     >
-                      <SelectTrigger>
+                      <SelectTrigger className={cn(formaPagamento === "A_DEFINIR" && "border-red-300 bg-red-50 text-red-700")}>
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="A_DEFINIR">A definir</SelectItem>
+                        <SelectItem value="A_DEFINIR">Não definido</SelectItem>
                         <SelectItem value="PIX">PIX</SelectItem>
                         <SelectItem value="DINHEIRO">Dinheiro</SelectItem>
                         <SelectItem value="CREDITO">Cartão</SelectItem>
@@ -2307,6 +2307,11 @@ export function NovoAgendamentoNovoLayout({
                       <span className="font-bold text-primary">Total a pagar</span>
                       <span className="font-extrabold text-xl text-primary">R$ {currency(subtotalPedido + valorTaxaEntregaResumo)}</span>
                     </div>
+                    {(formaPagamento === "PLANO" || itens.some((item) => item.usarPlano)) && (
+                      <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs leading-relaxed text-emerald-800">
+                        Itens marcados como plano aparecem zerados porque serão abatidos do saldo do cliente. Se houver taxa de entrega ou item fora do plano, esse valor continua no total a pagar.
+                      </div>
+                    )}
                   </div>
 
                   <Button 

@@ -45,7 +45,9 @@ import {
   Package,
   Wallet,
   CheckCircle2,
-  Send
+  Send,
+  Check,
+  MessageCircle
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -65,11 +67,12 @@ import { useRelatorioPedidosDia } from "@/hooks/useRelatorioPedidosDia";
 import { useRelatorioMontadoresRotas } from "@/hooks/useRelatorioMontadoresRotas";
 import { usePreparosSelecionaveis } from "@/hooks/usePreparosSelecionaveis";
 import { useSalgados } from "@/hooks/useSalgados";
+import { usePlanosCliente } from "@/hooks/usePlanosCliente";
 type Agendamento = {
   id: string;
   numeroPedido: string;
   cliente: string;
-  tipoEntrega: "ENTREGA" | "RETIRADA" | "CONGELAR";
+  tipoEntrega: "NAO_DEFINIR" | "ENTREGA" | "RETIRADA" | "CONGELAR";
   dataEntregaCongelada?: string | null;
   faixaHorario: string;
   endereco: string;
@@ -148,6 +151,7 @@ function getWhatsappUrl(telefone: string, mensagem: string) {
 
 function getLabelPagamento(forma: string) {
   const labels: Record<string, string> = {
+    A_DEFINIR: "Não definido",
     DINHEIRO: "Dinheiro",
     CREDITO: "Cartao de credito",
     DEBITO: "Cartao de debito",
@@ -162,6 +166,23 @@ function getLabelPagamento(forma: string) {
     VOUCHER_TAXA_PIX: "Voucher taxa PIX",
   };
   return labels[forma] || forma || "-";
+}
+
+function getLabelTipoEntrega(tipo: string) {
+  const labels: Record<string, string> = {
+    NAO_DEFINIR: "Não definido",
+    ENTREGA: "Entrega",
+    RETIRADA: "Retirada",
+    CONGELAR: "Congelar",
+  };
+  return labels[tipo] || tipo || "-";
+}
+
+function moneyBr(value: number) {
+  return Number(value || 0).toLocaleString("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+  });
 }
 
 export default function Agendamentos() {
@@ -211,6 +232,13 @@ export default function Agendamentos() {
     error,
     utils,
   } = useAgendamentos();
+  const {
+    listPlanosNaoPagos,
+    marcarPlanoComoPago,
+    saving: savingPlanoCliente,
+  } = usePlanosCliente();
+  const [planosNaoPagos, setPlanosNaoPagos] = useState<any[]>([]);
+  const [loadingPlanosNaoPagos, setLoadingPlanosNaoPagos] = useState(false);
 
   const [agendamentoSelecionado, setAgendamentoSelecionado] =
     useState<Agendamento | null>(null);
@@ -225,6 +253,27 @@ export default function Agendamentos() {
   const { preparos, loading: loadingPreparos } = usePreparosSelecionaveis();
   const { salgados } = useSalgados();
   const [preparoSheetOpen, setPreparoSheetOpen] = useState(false);
+  const loadPlanosNaoPagos = async () => {
+    setLoadingPlanosNaoPagos(true);
+    try {
+      const data = await listPlanosNaoPagos();
+      setPlanosNaoPagos(data || []);
+    } catch (e) {
+      console.error(e);
+      toast({ title: "Erro ao carregar planos não pagos", variant: "destructive" });
+    } finally {
+      setLoadingPlanosNaoPagos(false);
+    }
+  };
+
+  const planosNaoPagosDoDia = useMemo(() => {
+    const selected = utils.toISODateOnly(selectedDate);
+    return planosNaoPagos.filter((plano) => {
+      if (!plano.createdAt) return false;
+      return utils.toISODateOnly(new Date(plano.createdAt)) === selected;
+    });
+  }, [planosNaoPagos, selectedDate, utils]);
+
   const agendamentosPorRota = useMemo(() => {
     const grupos = ROTAS_ENTREGA.map((rota) => ({
       ...rota,
@@ -414,6 +463,9 @@ export default function Agendamentos() {
 
     // 2. Calcula desconto baseado em pagamentos registrados (backup/consistência)
     const pagamentos = row.pedido?.pagamentos ?? row.pagamentos ?? [];
+    const valorPendentePagamentos = pagamentos
+      .filter((p: any) => p.status === "PENDENTE")
+      .reduce((acc: number, p: any) => acc + Number(p.valor || 0), 0);
     const valorDescontoPagamentos = pagamentos
       .filter((p: any) => p.forma === "PLANO" && p.status === "CONFIRMADO")
       .reduce((acc: number, p: any) => acc + Number(p.valor || 0), 0);
@@ -422,7 +474,9 @@ export default function Agendamentos() {
     const valorDescontos = Math.max(valorDescontoItens, valorDescontoPagamentos);
 
     const valorTaxa = Number(row.pedido?.valorTaxa ?? row.valorTaxa ?? 0);
-    const valorTotalFinal = Math.max(0, valorTotalOriginal - valorDescontos);
+    const valorTotalFinal = valorPendentePagamentos > 0
+      ? valorPendentePagamentos
+      : Math.max(0, valorTotalOriginal - valorDescontos);
     const usouPlano =
       itens.some((it: any) => !!it.usarPlano) ||
       pagamentos.some((p: any) => p.forma === "PLANO");
@@ -448,7 +502,10 @@ export default function Agendamentos() {
       quantidade,
       quantidadeLabel,
       formaPagamento:
-        row.pedido?.pagamentos?.[0]?.forma ?? row.formaPagamento ?? "-",
+        pagamentos.find((p: any) => p.forma !== "PLANO")?.forma ??
+        pagamentos[0]?.forma ??
+        row.formaPagamento ??
+        "-",
       entregador: row.entregador ?? "-",
       valorPedido,
       valorTaxa,
@@ -472,6 +529,7 @@ export default function Agendamentos() {
     }
 
     load();
+    loadPlanosNaoPagos();
   }, [selectedDate, getAgendamentos, utils]);
 
   function formatEndereco(e: {
@@ -734,6 +792,13 @@ export default function Agendamentos() {
           </CardContent>
         </Card>
 
+        <Tabs defaultValue="agendamentos" className="min-w-0">
+          <TabsList className="mb-3">
+            <TabsTrigger value="agendamentos">Agendamentos ({agendamentos.length})</TabsTrigger>
+            <TabsTrigger value="planos">Planos ({planosNaoPagosDoDia.length})</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="agendamentos" className="mt-0">
         <Card className="shadow-sm border-slate-100 overflow-hidden">
           <CardHeader className="bg-slate-50/50 py-4 px-6 border-b border-slate-100 flex flex-row items-center justify-between">
             <CardTitle className="text-lg font-bold text-slate-700 flex items-center gap-2">
@@ -770,7 +835,11 @@ export default function Agendamentos() {
                       {grupo.agendamentos.map((agendamento) => (
                         <div
                           key={agendamento.id}
-                          className="group relative bg-white border border-l-4 border-slate-200 rounded-2xl overflow-hidden cursor-pointer hover:border-emerald-300 hover:shadow-md transition-all duration-200"
+                          className={`group relative bg-white border border-l-4 rounded-2xl overflow-hidden cursor-pointer hover:border-emerald-300 hover:shadow-md transition-all duration-200 ${
+                            agendamento.tipoEntrega === "NAO_DEFINIR" || agendamento.formaPagamento === "A_DEFINIR"
+                              ? "border-red-300 bg-red-50/80"
+                              : "border-slate-200"
+                          }`}
                           style={{ borderLeftColor: grupo.color }}
                           onClick={() => handleShowDetalhes(agendamento)}
                         >
@@ -802,15 +871,23 @@ export default function Agendamentos() {
                             <div className="flex items-center justify-between sm:justify-end gap-3 pt-3 sm:pt-0 border-t sm:border-none border-slate-50">
                               <Badge
                                 variant={agendamento.tipoEntrega === "ENTREGA" ? "default" : "outline"}
-                                className={agendamento.tipoEntrega === "ENTREGA" ? "bg-slate-800 text-white" : "border-slate-200 text-slate-600"}
+                                className={
+                                  agendamento.tipoEntrega === "NAO_DEFINIR"
+                                    ? "border-red-300 bg-red-100 text-red-700 hover:bg-red-100"
+                                    : agendamento.tipoEntrega === "ENTREGA"
+                                      ? "bg-slate-800 text-white"
+                                      : "border-slate-200 text-slate-600"
+                                }
                               >
-                                {agendamento.tipoEntrega === "CONGELAR" ? "CONGELAR" : agendamento.tipoEntrega}
+                                {getLabelTipoEntrega(agendamento.tipoEntrega)}
                               </Badge>
 
                               <div className="flex flex-col items-end">
-                                <div className="flex items-center text-xs font-bold text-slate-700 gap-1">
+                                <div className={`flex items-center text-xs font-bold gap-1 ${
+                                  agendamento.formaPagamento === "A_DEFINIR" ? "text-red-700" : "text-slate-700"
+                                }`}>
                                   <Wallet className="h-3 w-3 text-slate-400" />
-                                  {agendamento.formaPagamento}
+                                  {getLabelPagamento(agendamento.formaPagamento)}
                                 </div>
                                 {(agendamento.valorTotalFinal ?? 0) > 0 && (
                                   <span className="text-sm font-black text-emerald-700">R$ {(agendamento.valorTotalFinal ?? 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
@@ -827,6 +904,110 @@ export default function Agendamentos() {
             </ScrollArea>
           </CardContent>
         </Card>
+          </TabsContent>
+
+          <TabsContent value="planos" className="mt-0">
+            <Card className="shadow-sm border-slate-100 overflow-hidden">
+              <CardHeader className="bg-slate-50/50 py-4 px-6 border-b border-slate-100 flex flex-row items-center justify-between">
+                <CardTitle className="text-lg font-bold text-slate-700 flex items-center gap-2">
+                  <CreditCard className="h-5 w-5 text-primary" />
+                  Planos contratados em {formatDate(selectedDate)}
+                </CardTitle>
+                <Badge variant="secondary" className="bg-white border-slate-200 text-slate-600 font-bold px-3">
+                  {planosNaoPagosDoDia.length} pendente{planosNaoPagosDoDia.length === 1 ? "" : "s"}
+                </Badge>
+              </CardHeader>
+              <CardContent className="p-0">
+                <ScrollArea className="h-[calc(100vh-320px)]">
+                  <div className="p-6 space-y-3">
+                    {loadingPlanosNaoPagos ? (
+                      <div className="flex flex-col items-center justify-center py-20 text-slate-400">
+                        <p className="font-medium">Carregando planos...</p>
+                      </div>
+                    ) : planosNaoPagosDoDia.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center py-20 text-slate-400">
+                        <CheckCircle2 className="h-12 w-12 mb-4 opacity-20" />
+                        <p className="font-medium">Nenhum plano pendente nesse dia</p>
+                        <p className="text-sm">Planos contratados e ainda não pagos aparecerão aqui.</p>
+                      </div>
+                    ) : (
+                      planosNaoPagosDoDia.map((plano) => {
+                        const nomePlano = plano.plano?.nome || "Plano";
+                        const gramas = plano.plano?.tamanho?.pesagemGramas ? ` - ${plano.plano.tamanho.pesagemGramas}g` : "";
+                        const telefone = plano.cliente?.telefone || "";
+                        const qtdTaxas = Number(plano.taxasEntregaCompradas || 0);
+                        const valorTaxaUnit = Number(plano.valorTaxaEntrega || 0);
+                        const valorTaxas = qtdTaxas * valorTaxaUnit;
+                        const valorPlano = Number(plano.plano?.valor || 0);
+                        const valorTotal = valorPlano + valorTaxas;
+                        const primeiroNome = String(plano.cliente?.nome || "").split(" ")[0] || "cliente";
+                        const msgCobranca = `Olá ${primeiroNome}! Tudo bem? O pagamento do seu plano ${nomePlano}${gramas}${valorTotal > 0 ? ` no valor de ${moneyBr(valorTotal)}` : ""} ainda não foi identificado. Assim que realizar o pagamento, por favor envie o comprovante por aqui. Obrigado(a)!`;
+                        const whatsappUrl = getWhatsappUrl(telefone, msgCobranca);
+
+                        return (
+                          <div
+                            key={plano.id}
+                            className="rounded-2xl border border-amber-200 bg-amber-50/50 p-4 sm:p-5 shadow-sm"
+                          >
+                            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                              <div className="min-w-0 space-y-2">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <span className="text-xs font-black uppercase tracking-widest text-amber-700">Plano pendente</span>
+                                  <Badge variant="outline" className="border-amber-300 bg-white text-amber-700">
+                                    {plano.createdAt ? new Date(plano.createdAt).toLocaleDateString("pt-BR") : ""}
+                                  </Badge>
+                                </div>
+                                <div>
+                                  <h3 className="text-base font-bold text-slate-800">{plano.cliente?.nome || "Cliente"}</h3>
+                                  <p className="text-sm text-slate-600">{nomePlano}{gramas}</p>
+                                </div>
+                                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-slate-500">
+                                  <span>{telefone || "Sem telefone"}</span>
+                                  <span>{Number(plano.plano?.unidades || 0)} unidades</span>
+                                  {qtdTaxas > 0 && <span>{qtdTaxas} taxa{qtdTaxas === 1 ? "" : "s"} de entrega</span>}
+                                </div>
+                              </div>
+
+                              <div className="flex flex-col items-stretch gap-2 sm:items-end">
+                                {valorTotal > 0 && (
+                                  <span className="text-right text-lg font-black text-emerald-700">{moneyBr(valorTotal)}</span>
+                                )}
+                                <div className="flex gap-2">
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    disabled={!whatsappUrl}
+                                    onClick={() => whatsappUrl && window.open(whatsappUrl, "_blank")}
+                                  >
+                                    <MessageCircle className="mr-2 h-4 w-4" />
+                                    Cobrar
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    disabled={savingPlanoCliente}
+                                    onClick={async () => {
+                                      await marcarPlanoComoPago(plano.id);
+                                      await loadPlanosNaoPagos();
+                                    }}
+                                  >
+                                    <Check className="mr-2 h-4 w-4" />
+                                    Marcar pago
+                                  </Button>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </ScrollArea>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
       </div>
 
       <Dialog open={detalhesDialogOpen} onOpenChange={setDetalhesDialogOpen}>
@@ -838,7 +1019,7 @@ export default function Agendamentos() {
                 <span className="truncate">{agendamentoSelecionado?.cliente}</span>
               </div>
               <Badge className="bg-white/20 text-white border-white/40 hover:bg-white/30 text-xs px-3 py-1">
-                {agendamentoSelecionado?.tipoEntrega}
+                {getLabelTipoEntrega(agendamentoSelecionado?.tipoEntrega || "")}
               </Badge>
             </DialogTitle>
           </DialogHeader>
@@ -890,8 +1071,15 @@ export default function Agendamentos() {
                   <div className="space-y-3">
                     <div className="flex justify-between items-center py-1">
                       <span className="text-sm text-slate-600">Forma</span>
-                      <Badge variant="outline" className="font-semibold text-slate-700">
-                        {agendamentoSelecionado?.formaPagamento}
+                      <Badge
+                        variant="outline"
+                        className={
+                          agendamentoSelecionado?.formaPagamento === "A_DEFINIR"
+                            ? "border-red-300 bg-red-50 font-semibold text-red-700"
+                            : "font-semibold text-slate-700"
+                        }
+                      >
+                        {getLabelPagamento(agendamentoSelecionado?.formaPagamento || "")}
                       </Badge>
                     </div>
                     <div className="flex justify-between items-center py-1">
