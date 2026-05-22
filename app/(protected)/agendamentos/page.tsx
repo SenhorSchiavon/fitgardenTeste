@@ -68,6 +68,7 @@ import { useRelatorioMontadoresRotas } from "@/hooks/useRelatorioMontadoresRotas
 import { usePreparosSelecionaveis } from "@/hooks/usePreparosSelecionaveis";
 import { useSalgados } from "@/hooks/useSalgados";
 import { usePlanosCliente } from "@/hooks/usePlanosCliente";
+import { useRegrasPersonalizadas } from "@/hooks/useRegrasPersonalizadas";
 type Agendamento = {
   id: string;
   numeroPedido: string;
@@ -252,6 +253,7 @@ export default function Agendamentos() {
 
   const { preparos, loading: loadingPreparos } = usePreparosSelecionaveis();
   const { salgados } = useSalgados();
+  const { regras } = useRegrasPersonalizadas();
   const [preparoSheetOpen, setPreparoSheetOpen] = useState(false);
   const loadPlanosNaoPagos = async () => {
     setLoadingPlanosNaoPagos(true);
@@ -362,6 +364,60 @@ export default function Agendamentos() {
     window.open(url, "_blank");
   };
 
+  function getPrecoUnitPorQuantidade(tamanho: any, quantidade: number) {
+    const qtd = Math.max(1, Number(quantidade || 1));
+    if (qtd >= 40 && tamanho?.valor40 != null) return Number(tamanho.valor40 || 0);
+    if (qtd >= 20 && tamanho?.valor20 != null) return Number(tamanho.valor20 || 0);
+    if (qtd >= 10 && tamanho?.valor10 != null) return Number(tamanho.valor10 || 0);
+    return Number(tamanho?.valorUnitario || 0);
+  }
+
+  function calcularValorPedidoAtual(itens: any[]) {
+    const totalMarmitas = itens
+      .filter((it) => it.tipoItem !== "SALGADO")
+      .reduce((acc, it) => acc + Math.max(1, Number(it.quantidade || 1)), 0);
+    const totalSalgados = itens
+      .filter((it) => it.tipoItem === "SALGADO")
+      .reduce((acc, it) => acc + Math.max(1, Number(it.quantidade || 1)), 0);
+    const regraSalgado = regras
+      .filter((r) => r.tipo === "VOLUME_SALGADOS" && totalSalgados >= Number(r.limite))
+      .sort((a, b) => Number(b.limite) - Number(a.limite))[0];
+    const precoSalgadoVolume = regraSalgado ? Number(regraSalgado.preco) : null;
+
+    const valores = itens.map((it) => {
+      const qtd = Math.max(1, Number(it.quantidade || 1));
+      if (it.usarPlano) return { tipoItem: it.tipoItem, valor: 0 };
+
+      if (it.tipoItem === "PADRAO") {
+        return {
+          tipoItem: it.tipoItem,
+          valor: getPrecoUnitPorQuantidade(it.tamanho, totalMarmitas || 1) * qtd,
+        };
+      }
+
+      if (it.tipoItem === "SALGADO") {
+        const precoCadastro = it.salgado?.preco ?? salgados.find((s) => Number(s.id) === Number(it.salgadoId))?.preco;
+        const unit = precoSalgadoVolume != null ? precoSalgadoVolume : Number(precoCadastro ?? 0);
+        return { tipoItem: it.tipoItem, valor: unit * qtd };
+      }
+
+      return { tipoItem: it.tipoItem, valor: Number(it.valor || 0) };
+    });
+
+    const totalBrutoMarmitas = valores
+      .filter((it) => it.tipoItem !== "SALGADO")
+      .reduce((acc, it) => acc + it.valor, 0);
+    const totalBrutoSalgados = valores
+      .filter((it) => it.tipoItem === "SALGADO")
+      .reduce((acc, it) => acc + it.valor, 0);
+    const regraVolume = regras
+      .filter((r) => r.tipo === "VOLUME_TOTAL" && totalMarmitas >= Number(r.limite))
+      .sort((a, b) => Number(b.limite) - Number(a.limite))[0];
+    const descontoVolume = regraVolume ? totalBrutoMarmitas * (Number(regraVolume.preco) / 100) : 0;
+
+    return Math.max(0, totalBrutoMarmitas - descontoVolume + totalBrutoSalgados);
+  }
+
   function mapApiToUi(row: any): Agendamento {
     const numeroPedido = `#${row.pedidoId ?? row.pedido?.id ?? row.id}`;
 
@@ -452,11 +508,11 @@ export default function Agendamentos() {
           ? `${qtdMarmitas} marmita${qtdMarmitas === 1 ? "" : "s"}`
           : `${quantidade} itens`;
 
-    const valorPedido = Number(row.pedido?.valorPedido ?? row.valorPedido ?? 0);
-    const valorTotalOriginal = Number(row.pedido?.valorTotal ?? row.valorTotal ?? 0);
-
     // 1. Calcula desconto baseado nos itens marcados como plano
     const itens = row.pedido?.itens ?? row.itens ?? [];
+    const valorPedido = calcularValorPedidoAtual(itens);
+    const valorTaxa = Number(row.pedido?.valorTaxa ?? row.valorTaxa ?? 0);
+    const valorTotalOriginal = valorPedido + valorTaxa;
     const valorDescontoItens = itens
       .filter((it: any) => it.usarPlano)
       .reduce((acc: number, it: any) => acc + Number(it.valor || 0), 0);
@@ -473,10 +529,7 @@ export default function Agendamentos() {
     // Usamos o maior valor de desconto encontrado para garantir que o plano seja aplicado
     const valorDescontos = Math.max(valorDescontoItens, valorDescontoPagamentos);
 
-    const valorTaxa = Number(row.pedido?.valorTaxa ?? row.valorTaxa ?? 0);
-    const valorTotalFinal = valorPendentePagamentos > 0
-      ? valorPendentePagamentos
-      : Math.max(0, valorTotalOriginal - valorDescontos);
+    const valorTotalFinal = Math.max(0, valorTotalOriginal);
     const usouPlano =
       itens.some((it: any) => !!it.usarPlano) ||
       pagamentos.some((p: any) => p.forma === "PLANO");
@@ -530,7 +583,7 @@ export default function Agendamentos() {
 
     load();
     loadPlanosNaoPagos();
-  }, [selectedDate, getAgendamentos, utils]);
+  }, [selectedDate, getAgendamentos, utils, regras, salgados]);
 
   function formatEndereco(e: {
     logradouro?: string | null;
