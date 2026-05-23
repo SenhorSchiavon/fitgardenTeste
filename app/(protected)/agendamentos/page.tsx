@@ -240,7 +240,6 @@ export default function Agendamentos() {
   } = usePlanosCliente();
   const [planosNaoPagos, setPlanosNaoPagos] = useState<any[]>([]);
   const [loadingPlanosNaoPagos, setLoadingPlanosNaoPagos] = useState(false);
-
   const [agendamentoSelecionado, setAgendamentoSelecionado] =
     useState<Agendamento | null>(null);
   const [detalhesDialogOpen, setDetalhesDialogOpen] = useState(false);
@@ -262,7 +261,6 @@ export default function Agendamentos() {
       setPlanosNaoPagos(data || []);
     } catch (e) {
       console.error(e);
-      toast({ title: "Erro ao carregar planos não pagos", variant: "destructive" });
     } finally {
       setLoadingPlanosNaoPagos(false);
     }
@@ -846,9 +844,8 @@ export default function Agendamentos() {
         </Card>
 
         <Tabs defaultValue="agendamentos" className="min-w-0">
-          <TabsList className="mb-3">
+          <TabsList className="hidden">
             <TabsTrigger value="agendamentos">Agendamentos ({agendamentos.length})</TabsTrigger>
-            <TabsTrigger value="planos">Planos ({planosNaoPagosDoDia.length})</TabsTrigger>
           </TabsList>
 
           <TabsContent value="agendamentos" className="mt-0">

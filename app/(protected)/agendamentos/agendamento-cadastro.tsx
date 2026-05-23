@@ -409,6 +409,15 @@ export function NovoAgendamentoNovoLayout({
   const [planoPago, setPlanoPago] = useState(false);
   const [incluirTaxaPlano, setIncluirTaxaPlano] = useState(true);
   const [quantidadeTaxasPlano, setQuantidadeTaxasPlano] = useState(1);
+  const [planosComprados, setPlanosComprados] = useState<Array<{
+    id: number;
+    nome: string;
+    resumo: string;
+    valorPlano: number;
+    valorTaxas: number;
+    valorTotal: number;
+    pago: boolean;
+  }>>([]);
 
   const [formItem, setFormItem] = useState<NovoPedidoItem>({
     id: "",
@@ -767,6 +776,9 @@ export function NovoAgendamentoNovoLayout({
       : 0;
   const valorTaxasPlanoTotal = quantidadeTaxasPlanoFinal * Number(valorTaxa || 0);
   const valorTotalPlanoCliente = valorPlanoSelecionado + valorTaxasPlanoTotal;
+  const valorPlanosNaoPagosResumo = planosComprados
+    .filter((plano) => !plano.pago)
+    .reduce((acc, plano) => acc + plano.valorTotal, 0);
 
   function getSaldoPlanoPorTamanho(tamanhoId?: string) {
     if (!tamanhoId) return 0;
@@ -1011,6 +1023,7 @@ export function NovoAgendamentoNovoLayout({
     setAvisoHorarioAutomatico("");
     setAvisoPagamentoAutomatico("");
     setItens([]);
+    setPlanosComprados([]);
     setIncluirTaxaEntrega(true);
     resetFormItem();
   }
@@ -1247,6 +1260,18 @@ export function NovoAgendamentoNovoLayout({
     if (clienteSelecionado) {
       clienteSelecionado.planos = [...(clienteSelecionado.planos || []), novoVinculo];
     }
+    setPlanosComprados((prev) => [
+      ...prev,
+      {
+        id: Number(vinculo.id),
+        nome: planoSelecionado.nome || `Plano #${planoSelecionado.id}`,
+        resumo: getPlanoCatalogoResumo(planoSelecionado),
+        valorPlano: valorPlanoSelecionado,
+        valorTaxas: valorTaxasPlanoTotal,
+        valorTotal: valorTotalPlanoCliente,
+        pago: planoPago,
+      },
+    ]);
 
     setModalPlanoOpen(false);
     setPlanoSelecionadoId("");
@@ -2283,6 +2308,32 @@ export function NovoAgendamentoNovoLayout({
                           <span>R$ {currency(subtotalPedido)}</span>
                         </div>
                       )}
+
+                      {planosComprados.length > 0 && (
+                        <div className="space-y-2 pt-1">
+                          {planosComprados.map((plano) => (
+                            <div key={plano.id} className="rounded-lg border border-emerald-200 bg-emerald-50/70 px-3 py-2">
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="min-w-0">
+                                  <div className="text-[10px] font-black uppercase tracking-widest text-emerald-700">
+                                    Compra de plano {plano.pago ? "paga" : "não paga"}
+                                  </div>
+                                  <div className="truncate text-xs font-semibold text-foreground">{plano.nome}</div>
+                                  <div className="text-[11px] text-muted-foreground">{plano.resumo}</div>
+                                </div>
+                                <div className="shrink-0 text-right font-bold text-emerald-800">
+                                  R$ {currency(plano.valorTotal)}
+                                </div>
+                              </div>
+                              {plano.valorTaxas > 0 && (
+                                <div className="mt-2 border-t border-emerald-200 pt-2 text-xs text-emerald-800">
+                                  Inclui taxas de entrega: R$ {currency(plano.valorTaxas)}
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
 
                     {tipo === "ENTREGA" && valorTaxa > 0 && (
@@ -2305,7 +2356,7 @@ export function NovoAgendamentoNovoLayout({
 
                     <div className="flex items-center justify-between text-lg">
                       <span className="font-bold text-primary">Total a pagar</span>
-                      <span className="font-extrabold text-xl text-primary">R$ {currency(subtotalPedido + valorTaxaEntregaResumo)}</span>
+                      <span className="font-extrabold text-xl text-primary">R$ {currency(subtotalPedido + valorTaxaEntregaResumo + valorPlanosNaoPagosResumo)}</span>
                     </div>
                     {(formaPagamento === "PLANO" || itens.some((item) => item.usarPlano)) && (
                       <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs leading-relaxed text-emerald-800">

@@ -36,6 +36,8 @@ import {
   CheckCircle2,
   RotateCcw,
   XCircle,
+  Check,
+  MessageCircle,
 } from "lucide-react";
 import { Header } from "@/components/header";
 import {
@@ -47,6 +49,7 @@ import {
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { usePlanosCliente } from "@/hooks/usePlanosCliente";
 
 type PedidoAberto = {
   id: string;
@@ -82,6 +85,20 @@ function toISODateOnly(date: Date) {
   return `${year}-${month}-${day}`;
 }
 
+function moneyBr(value: number) {
+  return Number(value || 0).toLocaleString("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+  });
+}
+
+function getWhatsappUrl(telefone: string, mensagem: string) {
+  const digits = String(telefone || "").replace(/\D/g, "");
+  if (!digits) return null;
+  const phone = digits.startsWith("55") ? digits : `55${digits}`;
+  return `https://wa.me/${phone}?text=${encodeURIComponent(mensagem)}`;
+}
+
 export default function PedidosAberto() {
   const {
     loading,
@@ -92,9 +109,15 @@ export default function PedidosAberto() {
     marcarPagamentoNaoPago,
     deleteAgendamento,
   } = useAgendamentos();
+  const {
+    listPlanosNaoPagos,
+    marcarPlanoComoPago,
+    saving: savingPlanoCliente,
+  } = usePlanosCliente();
 
   const [pedidosAberto, setPedidosAberto] = useState<PedidoPendenteRow[]>([]);
   const [pagamentosConciliar, setPagamentosConciliar] = useState<PedidoPendenteRow[]>([]);
+  const [planosNaoPagos, setPlanosNaoPagos] = useState<any[]>([]);
   const [dataFiltro, setDataFiltro] = useState(() => toISODateOnly(new Date()));
   const [filtroPendentes, setFiltroPendentes] = useState<"todos" | "a-definir" | "definidos">("todos");
   const [filtroConciliacao, setFiltroConciliacao] = useState<"todos" | "a-conciliar" | "conciliados">("todos");
@@ -128,13 +151,22 @@ export default function PedidosAberto() {
     return pagamentosConciliar;
   }, [filtroConciliacao, pagamentosConciliar]);
 
+  const planosNaoPagosDoDia = useMemo(() => {
+    return planosNaoPagos.filter((plano) => {
+      if (!plano.createdAt) return false;
+      return toISODateOnly(new Date(plano.createdAt)) === dataFiltro;
+    });
+  }, [planosNaoPagos, dataFiltro]);
+
   async function load(date = dataFiltro) {
-    const [resp, conciliacaoResp] = await Promise.all([
+    const [resp, conciliacaoResp, planosResp] = await Promise.all([
       getPedidosPendentes({ page: 1, pageSize: 50 }),
       getPagamentosParaConciliar({ date, page: 1, pageSize: 50 }),
+      listPlanosNaoPagos(),
     ]);
     setPedidosAberto(resp.rows || []);
     setPagamentosConciliar(conciliacaoResp.rows || []);
+    setPlanosNaoPagos(planosResp || []);
   }
 
   useEffect(() => {
@@ -335,6 +367,7 @@ export default function PedidosAberto() {
         <TabsList>
           <TabsTrigger value="pendentes">Pendentes ({pedidosAbertoFiltrados.length})</TabsTrigger>
           <TabsTrigger value="conciliacao">Pagos / Conciliacao ({pagamentosConciliarFiltrados.length})</TabsTrigger>
+          <TabsTrigger value="planos">Planos ({planosNaoPagosDoDia.length})</TabsTrigger>
         </TabsList>
 
         <TabsContent value="pendentes">
@@ -523,6 +556,75 @@ export default function PedidosAberto() {
                   {pagamentosConciliarFiltrados.length === 0 && (
                     <div className="text-center py-8 text-muted-foreground">
                       Nenhum pagamento encontrado para esse filtro
+                    </div>
+                  )}
+                </div>
+              </ScrollArea>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="planos">
+          <Card>
+            <CardHeader>
+              <CardTitle>Planos com Pagamento Pendente</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ScrollArea className="h-[calc(100vh-300px)]">
+                <div className="space-y-4">
+                  {planosNaoPagosDoDia.map((plano) => {
+                    const nomePlano = plano.plano?.nome || "Plano";
+                    const gramas = plano.plano?.tamanho?.pesagemGramas ? ` - ${plano.plano.tamanho.pesagemGramas}g` : "";
+                    const telefone = plano.cliente?.telefone || "";
+                    const qtdTaxas = Number(plano.taxasEntregaCompradas || 0);
+                    const valorTaxas = qtdTaxas * Number(plano.valorTaxaEntrega || 0);
+                    const valorTotal = Number(plano.plano?.valor || 0) + valorTaxas;
+                    const primeiroNome = String(plano.cliente?.nome || "").split(" ")[0] || "cliente";
+                    const msgCobranca = `Olá ${primeiroNome}! Tudo bem? O pagamento do seu plano ${nomePlano}${gramas}${valorTotal > 0 ? ` no valor de ${moneyBr(valorTotal)}` : ""} ainda não foi identificado. Assim que realizar o pagamento, por favor envie o comprovante por aqui. Obrigado(a)!`;
+                    const whatsappUrl = getWhatsappUrl(telefone, msgCobranca);
+
+                    return (
+                      <div key={plano.id} className="rounded-lg border border-amber-200 bg-amber-50/60 p-4">
+                        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                          <div className="min-w-0 space-y-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="font-medium">{plano.cliente?.nome || "Cliente"}</span>
+                              <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100">Plano pendente</Badge>
+                            </div>
+                            <div className="text-sm text-muted-foreground">{nomePlano}{gramas}</div>
+                            <div className="text-sm text-muted-foreground">
+                              {telefone || "Sem telefone"} • {plano.createdAt ? new Date(plano.createdAt).toLocaleDateString("pt-BR") : ""}
+                              {qtdTaxas > 0 ? ` • ${qtdTaxas} taxa${qtdTaxas === 1 ? "" : "s"} de entrega` : ""}
+                            </div>
+                          </div>
+                          <div className="flex flex-col gap-2 sm:items-end">
+                            <span className="text-lg font-black text-emerald-700">{moneyBr(valorTotal)}</span>
+                            <div className="flex gap-2">
+                              <Button variant="outline" size="sm" disabled={!whatsappUrl} onClick={() => whatsappUrl && window.open(whatsappUrl, "_blank")}>
+                                <MessageCircle className="mr-2 h-4 w-4" />
+                                Cobrar
+                              </Button>
+                              <Button
+                                size="sm"
+                                disabled={savingPlanoCliente}
+                                onClick={async () => {
+                                  await marcarPlanoComoPago(plano.id);
+                                  await load(dataFiltro);
+                                }}
+                              >
+                                <Check className="mr-2 h-4 w-4" />
+                                Marcar pago
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+
+                  {planosNaoPagosDoDia.length === 0 && (
+                    <div className="text-center py-8 text-muted-foreground">
+                      Nenhum plano pendente nessa data
                     </div>
                   )}
                 </div>
