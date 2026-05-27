@@ -393,7 +393,10 @@ export default function OpcoesPage() {
                   <SortableHead label="Nome" field="nome" sort={sort} onSort={onSort} />
                   <SortableHead label="Categoria" field="categoria" sort={sort} onSort={onSort} />
                   <TableHead>Custo por kg</TableHead>
-                  <TableHead>Custo por preparo</TableHead>
+                  <TableHead>Custo 200g</TableHead>
+                  <TableHead>Custo 300g</TableHead>
+                  <TableHead>Custo 400g</TableHead>
+                  <TableHead>Custo 500g</TableHead>
                   <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
               </TableHeader>
@@ -420,19 +423,13 @@ export default function OpcoesPage() {
                         "-"
                       )}
                     </TableCell>
-                    <TableCell>
-                      {opcao.tipo === "MARMITA" && opcao.custoPorPreparo ? (
-                        <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
-                          {(["200g", "300g", "400g", "500g"] as const).map((peso) => (
-                            <span key={peso}>
-                              <span className="font-medium">{peso}:</span> {money(opcao.custoPorPreparo?.[peso])}
-                            </span>
-                          ))}
-                        </div>
-                      ) : (
-                        "-"
-                      )}
-                    </TableCell>
+                    {(["200g", "300g", "400g", "500g"] as const).map((peso) => (
+                      <TableCell key={peso}>
+                        {opcao.tipo === "MARMITA" && opcao.custoPorPreparo
+                          ? <span className="text-xs font-medium">{money(opcao.custoPorPreparo[peso])}</span>
+                          : "-"}
+                      </TableCell>
+                    ))}
                     <TableCell className="text-right">
                       <Button
                         variant="ghost"
@@ -458,7 +455,7 @@ export default function OpcoesPage() {
                 {opcoesFiltradas.length === 0 && !isLoading && (
                   <TableRow>
                     <TableCell
-                      colSpan={7}
+                      colSpan={10}
                       className="text-center text-sm text-muted-foreground py-4"
                     >
                       Nenhuma opção cadastrada.

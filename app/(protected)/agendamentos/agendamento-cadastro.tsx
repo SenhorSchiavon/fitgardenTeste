@@ -1194,6 +1194,12 @@ export function NovoAgendamentoNovoLayout({
   }
 
   function abrirFormularioMarmita() {
+    if (tipo === "NAO_DEFINIR") {
+      toast.error("Defina o tipo do agendamento", {
+        description: "Escolha entrega, retirada ou congelar antes de adicionar marmitas.",
+      });
+      return;
+    }
     resetFormItem();
     setFormItem((prev) => ({
       ...prev,
@@ -1542,6 +1548,12 @@ export function NovoAgendamentoNovoLayout({
       });
       return;
     }
+    if (tipo === "NAO_DEFINIR" && itens.some((item) => item.tipoItem !== "SALGADO")) {
+      toast.error("Defina o tipo do agendamento", {
+        description: "Pedidos com marmitas precisam ser entrega, retirada ou congelar.",
+      });
+      return;
+    }
     if (tipo === "CONGELAR" && !dataEntregaCongelada) return;
     if (tipo === "ENTREGA" && !endereco.trim()) {
       toast.error("Pedido marcado como entrega mas sem endereço", {
@@ -1716,7 +1728,15 @@ export function NovoAgendamentoNovoLayout({
                                       const nextClienteId = currentValue === clienteId ? "" : currentValue;
                                       setClienteId(nextClienteId);
                                       setEnderecoSelecionadoId("");
-                                      if (!nextClienteId) setEndereco("");
+                                      if (!nextClienteId) {
+                                        setEndereco("");
+                                      } else if (!initialData && tipo === "NAO_DEFINIR") {
+                                        const clienteEscolhido = clientes.find((item) => item.id === nextClienteId);
+                                        const possuiEndereco =
+                                          !!clienteEscolhido?.enderecoPrincipal?.trim() ||
+                                          !!clienteEscolhido?.enderecos?.length;
+                                        if (possuiEndereco) setTipo("ENTREGA");
+                                      }
                                       setComboboxOpen(false);
                                     }}
                                   >
@@ -1914,7 +1934,7 @@ export function NovoAgendamentoNovoLayout({
                 </CardHeader>
 
                 <CardContent className="p-0">
-                  {itensComPrecoFinal.length === 0 ? (
+                  {itensComPrecoFinal.length === 0 && planosComprados.length === 0 ? (
                     <div className="p-12 text-center text-sm text-muted-foreground border-b border-dashed">
                       Nenhum item adicionado à lista.
                     </div>
@@ -2032,6 +2052,39 @@ export function NovoAgendamentoNovoLayout({
                           </div>
                         );
                       })}
+                      {planosComprados.map((plano, index) => (
+                        <div key={`plano-${plano.id}`} className="bg-emerald-50/50">
+                          <div className="border-b border-emerald-100 px-4 py-3 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="text-[10px] font-black uppercase tracking-widest text-emerald-700">
+                                  Compra de plano #{index + 1}
+                                </span>
+                                <Badge className="h-4 border-none bg-emerald-600 text-[9px] font-bold hover:bg-emerald-600">
+                                  PLANO
+                                </Badge>
+                                <Badge
+                                  variant="outline"
+                                  className={cn(
+                                    "h-4 text-[9px] font-bold",
+                                    plano.pago
+                                      ? "border-emerald-200 bg-white text-emerald-700"
+                                      : "border-amber-300 bg-amber-50 text-amber-700",
+                                  )}
+                                >
+                                  {plano.pago ? "PAGO" : "NÃO PAGO"}
+                                </Badge>
+                              </div>
+                              <div className="mt-1 text-sm font-bold text-foreground">{plano.nome}</div>
+                              <div className="text-[11px] text-muted-foreground">{plano.resumo}</div>
+                            </div>
+                            <div className="shrink-0 text-left sm:text-right">
+                              <div className="text-[9px] font-black uppercase tracking-widest text-emerald-700">Valor</div>
+                              <div className="text-sm font-extrabold text-emerald-800">R$ {currency(plano.valorTotal)}</div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   )}
 
