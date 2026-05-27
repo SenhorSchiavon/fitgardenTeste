@@ -1540,9 +1540,19 @@ export function NovoAgendamentoNovoLayout({
   }
 
   async function handleSubmit() {
-    if (!clienteId) return;
-    if (!data) return;
-    if (agendamentoDuplicado) {
+    if (!clienteId) {
+      toast.error("Cliente não selecionado", {
+        description: "Selecione um cliente antes de finalizar o agendamento.",
+      });
+      return;
+    }
+    if (!data) {
+      toast.error("Data não selecionada", {
+        description: "Escolha a data do agendamento antes de finalizar.",
+      });
+      return;
+    }
+    if (agendamentoDuplicado && !initialData) {
       toast.error(`Cliente já possui agendamento para o dia ${formatDateBR(data)}`, {
         description: "Para adicionar mais coisas, alterar o pedido existente.",
       });
@@ -1554,14 +1564,26 @@ export function NovoAgendamentoNovoLayout({
       });
       return;
     }
-    if (tipo === "CONGELAR" && !dataEntregaCongelada) return;
+    if (tipo === "CONGELAR" && !dataEntregaCongelada) {
+      toast.error("Data de entrega obrigatória", {
+        description: "Informe a data de entrega da congelada antes de finalizar.",
+      });
+      return;
+    }
     if (tipo === "ENTREGA" && !endereco.trim()) {
       toast.error("Pedido marcado como entrega mas sem endereço", {
         description: "Cadastre ou selecione um endereço do cliente antes de finalizar.",
       });
       return;
     }
-    if (itens.length === 0) return;
+    if (itens.length === 0) {
+      toast.error("Nenhum pedido adicionado", {
+        description: planosComprados.length > 0
+          ? "A compra do plano já foi vinculada, mas adicione uma marmita para criar o agendamento."
+          : "Adicione pelo menos uma marmita ou item antes de finalizar.",
+      });
+      return;
+    }
 
     const janelaEntrega = getJanelaEntregaPorDistancia(tipo === "ENTREGA" ? distanciaEntregaKm : null);
     if (tipo !== "RETIRADA" && (
@@ -2421,7 +2443,6 @@ export function NovoAgendamentoNovoLayout({
                   <Button 
                     className="w-full h-14 text-lg font-bold bg-secondary hover:bg-secondary/90 text-white shadow-xl shadow-secondary/20 transition-all active:scale-[0.98]" 
                     onClick={handleSubmit}
-                    disabled={!!agendamentoDuplicado || checandoDuplicidade}
                   >
                     <Send className="h-5 w-5 mr-2" />
                     Finalizar Agendamento
