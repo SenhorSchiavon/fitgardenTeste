@@ -8,11 +8,16 @@ export type Medida = {
 };
 
 export type PreparoTipo = "CARBOIDRATO" | "PROTEINA" | "LEGUMES" | "FEIJAO";
+export type PreparoComponenteTipo = "INGREDIENTE" | "PREPARO";
 
 export type PreparoFichaItem = {
   id: number;
-  ingredienteId: number;
-  ingredienteNome: string;
+  tipo: PreparoComponenteTipo;
+  ingredienteId: number | null;
+  ingredienteNome: string | null;
+  preparoInsumoId: number | null;
+  preparoInsumoNome: string | null;
+  preparoInsumoTipo: PreparoTipo | null;
   quantidade: number;
   medida: Medida;
   custo: number;
@@ -30,7 +35,9 @@ export type Preparo = {
 };
 
 type FichaTecnicaInput = {
-  ingredienteId: number;
+  tipo: PreparoComponenteTipo;
+  ingredienteId?: number | null;
+  preparoInsumoId?: number | null;
   quantidade: number;
   usarCruComoReferencia: boolean;
 };

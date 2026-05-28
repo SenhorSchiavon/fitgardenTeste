@@ -1,17 +1,12 @@
 "use client";
-import { ScrollArea } from "@/components/ui/scroll-area";
+
 import { useMemo, useState } from "react";
+import { Layers, Pencil, Plus, Search, Trash, Wheat } from "lucide-react";
+import { Header } from "@/components/header";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { Plus, Pencil, Trash, Search } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -21,16 +16,23 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Checkbox } from "@/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-// import {
-//   Sheet,
-//   SheetContent,
-//   SheetHeader,
-//   SheetTitle,
-//   SheetTrigger,
-// } from "@/components/ui/sheet";
-import { Header } from "@/components/header";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -41,27 +43,54 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { usePreparos, Preparo, PreparoTipo, Medida } from "@/hooks/usePreparos";
+import { SortableHead } from "@/components/ui/sorttable";
 import { useIngredientes } from "@/hooks/useIngredientes";
 import { useMedidas } from "@/hooks/useMedidas";
+import {
+  Medida,
+  Preparo,
+  PreparoComponenteTipo,
+  PreparoTipo,
+  usePreparos,
+} from "@/hooks/usePreparos";
 import { useTableSort } from "@/hooks/useTableSort";
-import { SortableHead } from "@/components/ui/sorttable";
 
-type IngredientePreparoEmEdicao = {
-  ingredienteId: number;
-  ingredienteNome: string;
+type ComponenteEmEdicao = {
+  tipo: PreparoComponenteTipo;
+  ingredienteId: number | null;
+  ingredienteNome: string | null;
+  preparoInsumoId: number | null;
+  preparoInsumoNome: string | null;
+  preparoInsumoTipo: PreparoTipo | null;
   quantidade: number;
   medida: Medida;
   custo: number;
   usarCruComoReferencia: boolean;
+};
+
+type NovoComponenteState = Omit<ComponenteEmEdicao, "medida" | "custo"> & {
+  medida: Medida | null;
+  custoUnitario: number;
+};
+
+const tiposPreparo: Array<{ value: PreparoTipo; label: string }> = [
+  { value: "CARBOIDRATO", label: "Carboidrato" },
+  { value: "PROTEINA", label: "Proteina" },
+  { value: "LEGUMES", label: "Legumes" },
+  { value: "FEIJAO", label: "Feijao" },
+];
+
+const componenteVazio: NovoComponenteState = {
+  tipo: "INGREDIENTE" as PreparoComponenteTipo,
+  ingredienteId: null,
+  ingredienteNome: null,
+  preparoInsumoId: null,
+  preparoInsumoNome: null,
+  preparoInsumoTipo: null,
+  quantidade: 0,
+  medida: null as Medida | null,
+  custoUnitario: 0,
+  usarCruComoReferencia: false,
 };
 
 export default function PreparosPage() {
@@ -73,116 +102,95 @@ export default function PreparosPage() {
     updatePreparo,
     deletePreparo,
   } = usePreparos();
-
   const { ingredientes, loading: loadingIngredientes } = useIngredientes();
-  const { medidas, isLoading: loadingMedidas, criarMedida } = useMedidas();
-  const [novaMedidaNome, setNovaMedidaNome] = useState("");
+  const { medidas, criarMedida } = useMedidas();
+
+  const [busca, setBusca] = useState("");
+  const [buscaComponente, setBuscaComponente] = useState("");
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [componentDialogOpen, setComponentDialogOpen] = useState(false);
+  const [editandoId, setEditandoId] = useState<number | null>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [novaMedidaNome, setNovaMedidaNome] = useState("");
 
   const [novoPreparo, setNovoPreparo] = useState<{
     nome: string;
     tipo: PreparoTipo;
     medidaId: string;
-    ingredientes: IngredientePreparoEmEdicao[];
+    componentes: ComponenteEmEdicao[];
   }>({
     nome: "",
     tipo: "CARBOIDRATO",
     medidaId: "",
-    ingredientes: [],
+    componentes: [],
   });
 
-  const [novoIngrediente, setNovoIngrediente] = useState<{
-    ingredienteId: number | null;
-    ingredienteNome: string;
-    medida: Medida | null;
-    quantidade: number;
-    custo: number;
-    usarCruComoReferencia: boolean;
-  }>({
-    ingredienteId: null,
-    ingredienteNome: "",
-    medida: null,
-    quantidade: 0,
-    custo: 0,
-    usarCruComoReferencia: false,
-  });
-
-  const [editandoId, setEditandoId] = useState<number | null>(null);
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [sheetOpen, setSheetOpen] = useState(false);
-  const [busca, setBusca] = useState("");
-  const [buscaIngrediente, setBuscaIngrediente] = useState("");
+  const [novoComponente, setNovoComponente] = useState(componenteVazio);
 
   const preparosFiltrados = useMemo(() => {
     const q = busca.trim().toLowerCase();
     if (!q) return preparos;
 
-    return preparos.filter((p) =>
-      [p.codigoSistema, p.nome, p.tipo, p.medida].some((v) =>
-        String(v).toLowerCase().includes(q),
+    return preparos.filter((preparo) =>
+      [preparo.codigoSistema, preparo.nome, preparo.tipo].some((value) =>
+        String(value).toLowerCase().includes(q),
       ),
     );
-  }, [preparos, busca]);
+  }, [busca, preparos]);
 
   const { sort, onSort, sortedRows } = useTableSort(preparosFiltrados);
 
-  const openDelete = (id: number) => {
-    setDeleteId(id);
-    setDeleteOpen(true);
-  };
+  const preparosDisponiveisComoInsumo = useMemo(
+    () => preparos.filter((preparo) => preparo.id !== editandoId),
+    [editandoId, preparos],
+  );
 
-  const confirmDelete = async () => {
-    if (!deleteId) return;
+  const componentesFiltrados = useMemo(() => {
+    const q = buscaComponente.trim().toLowerCase();
 
-    try {
-      await deletePreparo(deleteId);
-    } finally {
-      setDeleteOpen(false);
-      setDeleteId(null);
+    if (novoComponente.tipo === "PREPARO") {
+      if (!q) return preparosDisponiveisComoInsumo;
+      return preparosDisponiveisComoInsumo.filter((preparo) =>
+        [preparo.codigoSistema, preparo.nome, preparo.tipo].some((value) =>
+          String(value).toLowerCase().includes(q),
+        ),
+      );
     }
-  };
 
-  const ingredientesFiltrados = useMemo(() => {
-    const q = buscaIngrediente.trim().toLowerCase();
     if (!q) return ingredientes;
-
-    return ingredientes.filter((i) =>
-      [i.codigoSistema, i.nome, i.medida].some((v) =>
-        String(v).toLowerCase().includes(q),
+    return ingredientes.filter((ingrediente) =>
+      [ingrediente.codigoSistema, ingrediente.nome, ingrediente.categoriaDescricao].some((value) =>
+        String(value).toLowerCase().includes(q),
       ),
     );
-  }, [ingredientes, buscaIngrediente]);
+  }, [buscaComponente, ingredientes, novoComponente.tipo, preparosDisponiveisComoInsumo]);
+
+  const codigoSistemaAtual = useMemo(() => {
+    if (!editandoId) return "Automatico";
+    return preparos.find((p) => p.id === editandoId)?.codigoSistema ?? `PREP${String(editandoId).padStart(3, "0")}`;
+  }, [editandoId, preparos]);
+
+  const custoTotal = useMemo(
+    () => novoPreparo.componentes.reduce((total, item) => total + item.custo, 0),
+    [novoPreparo.componentes],
+  );
 
   const isLoading = loadingPreparos || loadingIngredientes;
 
-  const codigoSistemaAtual = useMemo(() => {
-    if (!editandoId) return "Automático";
-    const prep = preparos.find((p) => p.id === editandoId);
-    return prep?.codigoSistema ?? `PREP${String(editandoId).padStart(3, "0")}`;
-  }, [editandoId, preparos]);
-
-  const calcularCustoPreparo = (itens: IngredientePreparoEmEdicao[]) =>
-    itens.reduce(
-      (total, item) => total + (Number.isFinite(item.custo) ? item.custo : 0),
-      0,
-    );
+  const resetComponente = (tipo: PreparoComponenteTipo = "INGREDIENTE") => {
+    setBuscaComponente("");
+    setNovoComponente({ ...componenteVazio, tipo });
+  };
 
   const resetForm = () => {
     setNovoPreparo({
       nome: "",
       tipo: "CARBOIDRATO",
       medidaId: "",
-      ingredientes: [],
+      componentes: [],
     });
-    setNovoIngrediente({
-      ingredienteId: null,
-      ingredienteNome: "",
-      medida: null,
-      quantidade: 0,
-      custo: 0,
-      usarCruComoReferencia: false,
-    });
+    resetComponente();
     setEditandoId(null);
   };
 
@@ -196,99 +204,134 @@ export default function PreparosPage() {
       nome: preparo.nome,
       tipo: preparo.tipo,
       medidaId: String(preparo.medida?.id ?? ""),
-      ingredientes: preparo.fichaTecnica.map((ft) => ({
-        ingredienteId: ft.ingredienteId,
-        ingredienteNome: ft.ingredienteNome,
-        quantidade: ft.quantidade,
-        medida: ft.medida,
-        custo: ft.custo,
-        usarCruComoReferencia: ft.usarCruComoReferencia,
+      componentes: preparo.fichaTecnica.map((item) => ({
+        tipo: item.tipo,
+        ingredienteId: item.ingredienteId,
+        ingredienteNome: item.ingredienteNome,
+        preparoInsumoId: item.preparoInsumoId,
+        preparoInsumoNome: item.preparoInsumoNome,
+        preparoInsumoTipo: item.preparoInsumoTipo,
+        quantidade: item.quantidade,
+        medida: item.medida,
+        custo: item.custo,
+        usarCruComoReferencia: item.usarCruComoReferencia,
       })),
     });
-
     setEditandoId(preparo.id);
     setDialogOpen(true);
   };
 
-  const handleDelete = async (id: number) => {
-    await deletePreparo(id);
+  const componenteKey = (item: Pick<ComponenteEmEdicao, "tipo" | "ingredienteId" | "preparoInsumoId">) =>
+    item.tipo === "PREPARO" ? `prep-${item.preparoInsumoId}` : `ing-${item.ingredienteId}`;
+
+  const nomeComponente = (item: ComponenteEmEdicao) =>
+    item.tipo === "PREPARO" ? item.preparoInsumoNome ?? "" : item.ingredienteNome ?? "";
+
+  const selecionarIngrediente = (id: number) => {
+    const ingrediente = ingredientes.find((item) => item.id === id);
+    if (!ingrediente) return;
+
+    setNovoComponente({
+      tipo: "INGREDIENTE",
+      ingredienteId: ingrediente.id,
+      ingredienteNome: ingrediente.nome,
+      preparoInsumoId: null,
+      preparoInsumoNome: null,
+      preparoInsumoTipo: null,
+      quantidade: 0,
+      medida: ingrediente.medida,
+      custoUnitario: ingrediente.precoCusto,
+      usarCruComoReferencia: false,
+    });
   };
 
-  const handleRemoveIngrediente = (ingredienteId: number) => {
-    setNovoPreparo((p) => ({
-      ...p,
-      ingredientes: p.ingredientes.filter(
-        (i) => i.ingredienteId !== ingredienteId,
-      ),
-    }));
+  const selecionarPreparoInsumo = (id: number) => {
+    const preparo = preparosDisponiveisComoInsumo.find((item) => item.id === id);
+    if (!preparo) return;
+
+    setNovoComponente({
+      tipo: "PREPARO",
+      ingredienteId: null,
+      ingredienteNome: null,
+      preparoInsumoId: preparo.id,
+      preparoInsumoNome: preparo.nome,
+      preparoInsumoTipo: preparo.tipo,
+      quantidade: 0,
+      medida: preparo.medida,
+      custoUnitario: preparo.custoTotal,
+      usarCruComoReferencia: false,
+    });
   };
 
-  const handleAddIngrediente = () => {
-    if (!novoIngrediente.ingredienteId || !novoIngrediente.medida) return;
-    if (!novoIngrediente.quantidade || novoIngrediente.quantidade <= 0) return;
+  const handleAddComponente = () => {
+    if (!novoComponente.medida || !novoComponente.quantidade || novoComponente.quantidade <= 0) return;
 
-    const item: IngredientePreparoEmEdicao = {
-      ingredienteId: novoIngrediente.ingredienteId,
-      ingredienteNome: novoIngrediente.ingredienteNome,
-      quantidade: novoIngrediente.quantidade,
-      medida: novoIngrediente.medida,
-      custo: novoIngrediente.custo,
-      usarCruComoReferencia: novoIngrediente.usarCruComoReferencia,
+    const item: ComponenteEmEdicao = {
+      tipo: novoComponente.tipo,
+      ingredienteId: novoComponente.ingredienteId,
+      ingredienteNome: novoComponente.ingredienteNome,
+      preparoInsumoId: novoComponente.preparoInsumoId,
+      preparoInsumoNome: novoComponente.preparoInsumoNome,
+      preparoInsumoTipo: novoComponente.preparoInsumoTipo,
+      quantidade: novoComponente.quantidade,
+      medida: novoComponente.medida,
+      custo: novoComponente.quantidade * novoComponente.custoUnitario,
+      usarCruComoReferencia: novoComponente.usarCruComoReferencia,
     };
 
-    setNovoPreparo((p) => {
-      const exists = p.ingredientes.some((i) => i.ingredienteId === item.ingredienteId);
-      if (exists) {
-        return {
-          ...p,
-          ingredientes: p.ingredientes.map((i) =>
-            i.ingredienteId === item.ingredienteId ? item : i
-          ),
-        };
-      }
+    setNovoPreparo((current) => {
+      const key = componenteKey(item);
+      const exists = current.componentes.some((componente) => componenteKey(componente) === key);
+
       return {
-        ...p,
-        ingredientes: [...p.ingredientes, item],
+        ...current,
+        componentes: exists
+          ? current.componentes.map((componente) => (componenteKey(componente) === key ? item : componente))
+          : [...current.componentes, item],
       };
     });
 
-    setNovoIngrediente({
-      ingredienteId: null,
-      ingredienteNome: "",
-      medida: null,
-      quantidade: 0,
-      custo: 0,
-      usarCruComoReferencia: false,
-    });
-    setSheetOpen(false);
+    resetComponente(novoComponente.tipo);
+    setComponentDialogOpen(false);
   };
 
-  const handleEditIngrediente = (ingId: number) => {
-    const item = novoPreparo.ingredientes.find((i) => i.ingredienteId === ingId);
-    if (!item) return;
-
-    setNovoIngrediente({
+  const handleEditComponente = (item: ComponenteEmEdicao) => {
+    setNovoComponente({
+      tipo: item.tipo,
       ingredienteId: item.ingredienteId,
       ingredienteNome: item.ingredienteNome,
-      medida: item.medida,
+      preparoInsumoId: item.preparoInsumoId,
+      preparoInsumoNome: item.preparoInsumoNome,
+      preparoInsumoTipo: item.preparoInsumoTipo,
       quantidade: item.quantidade,
-      custo: item.custo,
+      medida: item.medida,
+      custoUnitario: item.quantidade > 0 ? item.custo / item.quantidade : 0,
       usarCruComoReferencia: item.usarCruComoReferencia,
     });
-    setSheetOpen(true);
+    setComponentDialogOpen(true);
+  };
+
+  const handleRemoveComponente = (item: ComponenteEmEdicao) => {
+    const key = componenteKey(item);
+    setNovoPreparo((current) => ({
+      ...current,
+      componentes: current.componentes.filter((componente) => componenteKey(componente) !== key),
+    }));
   };
 
   const handleSave = async () => {
-    if (!novoPreparo.nome.trim()) return;
+    if (!novoPreparo.nome.trim() || !novoPreparo.medidaId) return;
 
     const payload = {
       nome: novoPreparo.nome.trim(),
-      tipo: novoPreparo.tipo, // PROTEINA sem acento
+      tipo: novoPreparo.tipo,
       medidaId: Number(novoPreparo.medidaId),
-      fichaTecnica: novoPreparo.ingredientes.map((i) => ({
-        ingredienteId: i.ingredienteId,
-        quantidade: i.quantidade,
-        usarCruComoReferencia: i.usarCruComoReferencia,
+      fichaTecnica: novoPreparo.componentes.map((item) => ({
+        tipo: item.tipo,
+        ingredienteId: item.ingredienteId,
+        preparoInsumoId: item.preparoInsumoId,
+        quantidade: item.quantidade,
+        usarCruComoReferencia: item.usarCruComoReferencia,
       })),
     };
 
@@ -302,7 +345,18 @@ export default function PreparosPage() {
       setDialogOpen(false);
       resetForm();
     } catch {
-      // toast já está no hook
+      // O hook mostra o toast.
+    }
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteId) return;
+
+    try {
+      await deletePreparo(deleteId);
+    } finally {
+      setDeleteOpen(false);
+      setDeleteId(null);
     }
   };
 
@@ -310,12 +364,12 @@ export default function PreparosPage() {
     <div className="container mx-auto p-6">
       <Header
         title="Preparos"
-        subtitle="Gerencie os preparos e fichas técnicas"
+        subtitle="Gerencie fichas tecnicas com ingredientes e subpreparos"
         searchValue={busca}
         onSearchChange={setBusca}
       />
 
-      <div className="flex items-center justify-end mb-6">
+      <div className="mb-6 flex items-center justify-end">
         <Button onClick={handleNew} disabled={saving}>
           <Plus className="mr-2 h-4 w-4" /> Criar Preparo
         </Button>
@@ -327,41 +381,46 @@ export default function PreparosPage() {
         </CardHeader>
         <CardContent>
           {isLoading ? (
-            <p className="text-sm text-muted-foreground">
-              Carregando preparos...
-            </p>
+            <p className="text-sm text-muted-foreground">Carregando preparos...</p>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <SortableHead label="Cód. Sistema" field="codigoSistema" sort={sort} onSort={onSort} />
+                  <SortableHead label="Cod. Sistema" field="codigoSistema" sort={sort} onSort={onSort} />
                   <SortableHead label="Nome" field="nome" sort={sort} onSort={onSort} />
                   <SortableHead label="Tipo" field="tipo" sort={sort} onSort={onSort} />
-                  <SortableHead label="Preço de Custo por kg" field="custoTotal" sort={sort} onSort={onSort} />
-                  <TableHead className="text-right">Ações</TableHead>
+                  <SortableHead label="Custo" field="custoTotal" sort={sort} onSort={onSort} />
+                  <TableHead>Ficha</TableHead>
+                  <TableHead className="text-right">Acoes</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {sortedRows.map((preparo) => (
                   <TableRow key={preparo.id}>
                     <TableCell>{preparo.codigoSistema}</TableCell>
-                    <TableCell>{preparo.nome}</TableCell>
+                    <TableCell className="font-medium">{preparo.nome}</TableCell>
                     <TableCell>{preparo.tipo}</TableCell>
                     <TableCell>R$ {preparo.custoTotal.toFixed(2)}</TableCell>
+                    <TableCell>
+                      <div className="flex flex-wrap gap-1">
+                        <Badge variant="outline">{preparo.fichaTecnica.length} itens</Badge>
+                        {preparo.fichaTecnica.some((item) => item.tipo === "PREPARO") && (
+                          <Badge className="bg-blue-50 text-blue-700 hover:bg-blue-50">subpreparo</Badge>
+                        )}
+                      </div>
+                    </TableCell>
                     <TableCell className="text-right">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleEdit(preparo)}
-                        disabled={saving}
-                      >
+                      <Button variant="ghost" size="icon" onClick={() => handleEdit(preparo)} disabled={saving}>
                         <Pencil className="h-4 w-4" />
                       </Button>
                       <Button
                         variant="ghost"
                         size="icon"
-                        onClick={() => openDelete(preparo.id)}
                         disabled={saving}
+                        onClick={() => {
+                          setDeleteId(preparo.id);
+                          setDeleteOpen(true);
+                        }}
                       >
                         <Trash className="h-4 w-4" />
                       </Button>
@@ -369,12 +428,9 @@ export default function PreparosPage() {
                   </TableRow>
                 ))}
 
-                {preparosFiltrados.length === 0 && !isLoading && (
+                {preparosFiltrados.length === 0 && (
                   <TableRow>
-                    <TableCell
-                      colSpan={5}
-                      className="text-center text-sm text-muted-foreground py-4"
-                    >
+                    <TableCell colSpan={6} className="py-4 text-center text-sm text-muted-foreground">
                       Nenhum preparo cadastrado.
                     </TableCell>
                   </TableRow>
@@ -392,239 +448,245 @@ export default function PreparosPage() {
           if (!open) resetForm();
         }}
       >
-        <DialogContent className="max-w-3xl">
+        <DialogContent className="max-h-[92vh] max-w-5xl overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>
-              {editandoId ? "Editar Preparo" : "Novo Preparo"}
-            </DialogTitle>
+            <DialogTitle>{editandoId ? "Editar Preparo" : "Novo Preparo"}</DialogTitle>
           </DialogHeader>
 
-          <div className="space-y-4 py-2">
-            <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-5 py-2">
+            <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="nome">Nome</Label>
                 <Input
                   id="nome"
                   value={novoPreparo.nome}
-                  onChange={(e) =>
-                    setNovoPreparo((p) => ({ ...p, nome: e.target.value }))
-                  }
+                  onChange={(event) => setNovoPreparo((current) => ({ ...current, nome: event.target.value }))}
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="codigo">Cód. Sistema</Label>
+                <Label htmlFor="codigo">Cod. Sistema</Label>
                 <Input id="codigo" value={codigoSistemaAtual} disabled />
-                <p className="text-xs text-muted-foreground">
-                  Preenchimento automático (não editável)
-                </p>
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid gap-4 md:grid-cols-[1fr_1.4fr]">
               <div className="space-y-2">
-                <Label>Medida</Label>
-              <div className="flex gap-2">
-                <Select
-                  value={novoPreparo.medidaId}
-                  onValueChange={(value) =>
-                    setNovoPreparo((p) => ({ ...p, medidaId: value }))
-                  }
-                >
-                  <SelectTrigger className="border-gray-200">
-                    <SelectValue placeholder="Selecione uma medida" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {medidas.map((m) => (
-                      <SelectItem key={m.id} value={String(m.id)}>
-                        {m.nome}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-
-                <div className="flex items-center gap-1 border rounded bg-gray-50 px-2 min-w-44">
-                  <Input
-                    placeholder="Nova..."
-                    className="w-20 h-8 border-none bg-transparent shadow-none"
-                    value={novaMedidaNome}
-                    onChange={(e) => setNovaMedidaNome(e.target.value)}
-                  />
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    title="Adicionar Medida"
-                    className="h-8 w-8 text-blue-600 hover:bg-blue-100"
-                    onClick={async () => {
-                      if (!novaMedidaNome.trim()) return;
-                      try {
-                        const m = await criarMedida(novaMedidaNome.trim());
-                        setNovoPreparo((p) => ({ ...p, medidaId: String(m.id) }));
-                        setNovaMedidaNome("");
-                      } catch (e) {}
-                    }}
+                <Label>Medida do preparo</Label>
+                <div className="flex gap-2">
+                  <Select
+                    value={novoPreparo.medidaId}
+                    onValueChange={(value) => setNovoPreparo((current) => ({ ...current, medidaId: value }))}
                   >
-                    <Plus className="h-4 w-4" />
-                  </Button>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {medidas.map((medida) => (
+                        <SelectItem key={medida.id} value={String(medida.id)}>
+                          {medida.nome}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+
+                  <div className="flex min-w-40 items-center gap-1 rounded-md border bg-gray-50 px-2">
+                    <Input
+                      placeholder="Nova..."
+                      className="h-8 w-20 border-none bg-transparent shadow-none"
+                      value={novaMedidaNome}
+                      onChange={(event) => setNovaMedidaNome(event.target.value)}
+                    />
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="h-8 w-8"
+                      onClick={async () => {
+                        if (!novaMedidaNome.trim()) return;
+                        const medida = await criarMedida(novaMedidaNome.trim());
+                        setNovoPreparo((current) => ({ ...current, medidaId: String(medida.id) }));
+                        setNovaMedidaNome("");
+                      }}
+                    >
+                      <Plus className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
               </div>
-              </div>
 
               <div className="space-y-2">
-                <Label>Tipo</Label>
+                <Label>Tipo do preparo</Label>
                 <RadioGroup
                   value={novoPreparo.tipo}
-                  onValueChange={(value) =>
-                    setNovoPreparo((p) => ({
-                      ...p,
-                      tipo: value as PreparoTipo,
-                    }))
-                  }
-                  className="flex flex-wrap gap-4"
+                  onValueChange={(value) => setNovoPreparo((current) => ({ ...current, tipo: value as PreparoTipo }))}
+                  className="grid gap-2 sm:grid-cols-4"
                 >
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="CARBOIDRATO" id="carboidrato" />
-                    <Label htmlFor="carboidrato">CARBOIDRATO</Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="PROTEINA" id="proteina" />
-                    <Label htmlFor="proteina">PROTEINA</Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="LEGUMES" id="legumes" />
-                    <Label htmlFor="legumes">LEGUMES</Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="FEIJAO" id="feijao" />
-                    <Label htmlFor="feijao">FEIJÃO</Label>
-                  </div>
+                  {tiposPreparo.map((tipo) => (
+                    <Label
+                      key={tipo.value}
+                      htmlFor={tipo.value}
+                      className="flex cursor-pointer items-center gap-2 rounded-md border px-3 py-2 text-sm"
+                    >
+                      <RadioGroupItem value={tipo.value} id={tipo.value} />
+                      {tipo.label}
+                    </Label>
+                  ))}
                 </RadioGroup>
               </div>
             </div>
 
-            <div className="space-y-2 pt-4">
-              <div className="flex items-center justify-between">
-                <Label>Ficha Técnica</Label>
+            <div className="space-y-3 border-t pt-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <Label>Ficha tecnica</Label>
+                  <p className="text-sm text-muted-foreground">
+                    Misture ingredientes diretos e preparos prontos usados como insumo.
+                  </p>
+                </div>
 
-                <Dialog open={sheetOpen} onOpenChange={setSheetOpen}>
+                <Dialog
+                  open={componentDialogOpen}
+                  onOpenChange={(open) => {
+                    setComponentDialogOpen(open);
+                    if (!open) resetComponente(novoComponente.tipo);
+                  }}
+                >
                   <DialogTrigger asChild>
                     <Button size="sm" disabled={saving || loadingIngredientes}>
-                      <Plus className="mr-2 h-4 w-4" /> Adicionar Ingrediente
+                      <Plus className="mr-2 h-4 w-4" /> Adicionar item
                     </Button>
                   </DialogTrigger>
 
-                  <DialogContent className="max-w-2xl overflow-y-auto max-h-[90vh]">
+                  <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto">
                     <DialogHeader>
-                      <DialogTitle>Selecionar Ingrediente</DialogTitle>
+                      <DialogTitle>Item da ficha tecnica</DialogTitle>
                     </DialogHeader>
 
-                    <div className="py-4">
-                      <div className="relative mb-4">
+                    <div className="space-y-4 py-2">
+                      <div className="space-y-2">
+                        <Label>Tipo do item</Label>
+                        <RadioGroup
+                          value={novoComponente.tipo}
+                          onValueChange={(value) => resetComponente(value as PreparoComponenteTipo)}
+                          className="grid gap-2 sm:grid-cols-2"
+                        >
+                          <Label
+                            htmlFor="item-ingrediente"
+                            className="flex cursor-pointer items-center gap-2 rounded-md border px-3 py-2 text-sm"
+                          >
+                            <RadioGroupItem value="INGREDIENTE" id="item-ingrediente" />
+                            <Wheat className="h-4 w-4" /> Ingrediente
+                          </Label>
+                          <Label
+                            htmlFor="item-preparo"
+                            className="flex cursor-pointer items-center gap-2 rounded-md border px-3 py-2 text-sm"
+                          >
+                            <RadioGroupItem value="PREPARO" id="item-preparo" />
+                            <Layers className="h-4 w-4" /> Preparo
+                          </Label>
+                        </RadioGroup>
+                      </div>
+
+                      <div className="relative">
                         <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
                         <Input
-                          placeholder="Buscar ingrediente..."
+                          placeholder={novoComponente.tipo === "PREPARO" ? "Buscar preparo..." : "Buscar ingrediente..."}
                           className="pl-8"
-                          value={buscaIngrediente}
-                          onChange={(e) => setBuscaIngrediente(e.target.value)}
+                          value={buscaComponente}
+                          onChange={(event) => setBuscaComponente(event.target.value)}
                         />
                       </div>
 
-                      <ScrollArea className="h-[40vh] pr-2">
+                      <ScrollArea className="h-[34vh] pr-2">
                         <Table>
-                          <TableHeader className="sticky top-0 bg-background z-10">
+                          <TableHeader className="sticky top-0 z-10 bg-background">
                             <TableRow>
-                              <TableHead>Ingrediente</TableHead>
+                              <TableHead>Nome</TableHead>
                               <TableHead>Medida</TableHead>
-                              <TableHead>Ação</TableHead>
+                              <TableHead>Custo</TableHead>
+                              <TableHead className="text-right">Acao</TableHead>
                             </TableRow>
                           </TableHeader>
-
                           <TableBody>
-                            {ingredientesFiltrados.map((ingrediente) => (
-                              <TableRow key={ingrediente.id}>
-                                <TableCell>{ingrediente.nome}</TableCell>
-                                <TableCell>{ingrediente.medida?.nome}</TableCell>
-                                <TableCell>
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={() =>
-                                      setNovoIngrediente({
-                                        ingredienteId: ingrediente.id,
-                                        ingredienteNome: ingrediente.nome,
-                                        medida: ingrediente.medida,
-                                        quantidade: 0,
-                                        custo: 0,
-                                        usarCruComoReferencia: false,
-                                      })
-                                    }
-                                  >
-                                    Selecionar
-                                  </Button>
-                                </TableCell>
-                              </TableRow>
-                            ))}
+                            {novoComponente.tipo === "PREPARO"
+                              ? (componentesFiltrados as Preparo[]).map((preparo) => (
+                                  <TableRow key={preparo.id}>
+                                    <TableCell>
+                                      <div className="font-medium">{preparo.nome}</div>
+                                      <div className="text-xs text-muted-foreground">{preparo.tipo}</div>
+                                    </TableCell>
+                                    <TableCell>{preparo.medida?.nome}</TableCell>
+                                    <TableCell>R$ {preparo.custoTotal.toFixed(2)}</TableCell>
+                                    <TableCell className="text-right">
+                                      <Button size="sm" variant="outline" onClick={() => selecionarPreparoInsumo(preparo.id)}>
+                                        Selecionar
+                                      </Button>
+                                    </TableCell>
+                                  </TableRow>
+                                ))
+                              : componentesFiltrados.map((ingrediente: any) => (
+                                  <TableRow key={ingrediente.id}>
+                                    <TableCell>
+                                      <div className="font-medium">{ingrediente.nome}</div>
+                                      <div className="text-xs text-muted-foreground">{ingrediente.categoriaDescricao}</div>
+                                    </TableCell>
+                                    <TableCell>{ingrediente.medida?.nome}</TableCell>
+                                    <TableCell>R$ {ingrediente.precoCusto.toFixed(2)}</TableCell>
+                                    <TableCell className="text-right">
+                                      <Button size="sm" variant="outline" onClick={() => selecionarIngrediente(ingrediente.id)}>
+                                        Selecionar
+                                      </Button>
+                                    </TableCell>
+                                  </TableRow>
+                                ))}
                           </TableBody>
                         </Table>
                       </ScrollArea>
 
-                      {novoIngrediente.ingredienteId && (
-                        <div className="mt-4 space-y-4 border-t pt-4">
-                          <h3 className="font-medium">
-                            {novoPreparo.ingredientes.some((i) => i.ingredienteId === novoIngrediente.ingredienteId)
-                              ? "Editar "
-                              : "Adicionar "}
-                            {novoIngrediente.ingredienteNome}
-                          </h3>
+                      {novoComponente.medida && (
+                        <div className="space-y-4 border-t pt-4">
+                          <div>
+                            <p className="font-medium">
+                              {novoComponente.tipo === "PREPARO"
+                                ? novoComponente.preparoInsumoNome
+                                : novoComponente.ingredienteNome}
+                            </p>
+                            <p className="text-sm text-muted-foreground">
+                              Custo calculado: R$ {(novoComponente.quantidade * novoComponente.custoUnitario).toFixed(2)}
+                            </p>
+                          </div>
 
                           <div className="space-y-2">
-                            <Label htmlFor="quantidade">
-                              Quantidade ({novoIngrediente.medida?.nome})
-                            </Label>
+                            <Label htmlFor="quantidade">Quantidade ({novoComponente.medida.nome})</Label>
                             <Input
                               id="quantidade"
                               type="number"
-                              step="0.01"
-                              value={novoIngrediente.quantidade || ""}
-                              onChange={(e) => {
-                                const qtd = Number.parseFloat(
-                                  e.target.value || "0",
-                                );
-                                const preco =
-                                  ingredientes.find(
-                                    (i) =>
-                                      i.id === novoIngrediente.ingredienteId,
-                                  )?.precoCusto || 0;
-
-                                setNovoIngrediente((p) => ({
-                                  ...p,
-                                  quantidade: qtd,
-                                  custo: qtd * preco,
-                                }));
-                              }}
+                              step="0.001"
+                              value={novoComponente.quantidade || ""}
+                              onChange={(event) =>
+                                setNovoComponente((current) => ({
+                                  ...current,
+                                  quantidade: Number.parseFloat(event.target.value || "0"),
+                                }))
+                              }
                             />
                           </div>
 
-                          <div className="flex items-center space-x-2 pt-2 pb-2">
-                             <Checkbox
-                               id="usarCruIngrediente"
-                               checked={novoIngrediente.usarCruComoReferencia}
-                               onCheckedChange={(checked) =>
-                                 setNovoIngrediente((p) => ({ ...p, usarCruComoReferencia: !!checked }))
-                               }
-                             />
-                             <Label htmlFor="usarCruIngrediente" className="text-sm font-medium leading-none">
-                               Usar peso cru como referência
-                             </Label>
-                          </div>
+                          <Label className="flex items-center gap-2 text-sm">
+                            <Checkbox
+                              checked={novoComponente.usarCruComoReferencia}
+                              onCheckedChange={(checked) =>
+                                setNovoComponente((current) => ({
+                                  ...current,
+                                  usarCruComoReferencia: !!checked,
+                                }))
+                              }
+                            />
+                            Usar como referencia no relatorio de cru
+                          </Label>
 
-                          <Button
-                            onClick={handleAddIngrediente}
-                            className="w-full"
-                          >
-                            {novoPreparo.ingredientes.some((i) => i.ingredienteId === novoIngrediente.ingredienteId)
-                              ? "Salvar Alterações do Ingrediente"
-                              : "Adicionar à Ficha Técnica"}
+                          <Button className="w-full" onClick={handleAddComponente}>
+                            Adicionar a ficha tecnica
                           </Button>
                         </div>
                       )}
@@ -636,51 +698,48 @@ export default function PreparosPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Nome do Ingrediente</TableHead>
+                    <TableHead>Tipo</TableHead>
+                    <TableHead>Item</TableHead>
                     <TableHead>Qtde.</TableHead>
                     <TableHead>Medida</TableHead>
-                    <TableHead>Ref. Cru?</TableHead>
+                    <TableHead>Ref. cru</TableHead>
                     <TableHead>Custo</TableHead>
-                    <TableHead className="text-right">Ações</TableHead>
+                    <TableHead className="text-right">Acoes</TableHead>
                   </TableRow>
                 </TableHeader>
-
                 <TableBody>
-                  {novoPreparo.ingredientes.map((ingrediente) => (
-                    <TableRow key={ingrediente.ingredienteId}>
-                      <TableCell>{ingrediente.ingredienteNome}</TableCell>
-                      <TableCell>{ingrediente.quantidade}</TableCell>
-                      <TableCell>{ingrediente.medida?.nome}</TableCell>
-                      <TableCell>{ingrediente.usarCruComoReferencia ? "Sim" : "Não"}</TableCell>
-                      <TableCell>R$ {ingrediente.custo.toFixed(2)}</TableCell>
+                  {novoPreparo.componentes.map((item) => (
+                    <TableRow key={componenteKey(item)}>
+                      <TableCell>
+                        <Badge variant={item.tipo === "PREPARO" ? "default" : "outline"}>
+                          {item.tipo === "PREPARO" ? "Preparo" : "Ingrediente"}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <div className="font-medium">{nomeComponente(item)}</div>
+                        {item.tipo === "PREPARO" && (
+                          <div className="text-xs text-muted-foreground">{item.preparoInsumoTipo}</div>
+                        )}
+                      </TableCell>
+                      <TableCell>{item.quantidade}</TableCell>
+                      <TableCell>{item.medida?.nome}</TableCell>
+                      <TableCell>{item.usarCruComoReferencia ? "Sim" : "Nao"}</TableCell>
+                      <TableCell>R$ {item.custo.toFixed(2)}</TableCell>
                       <TableCell className="text-right">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleEditIngrediente(ingrediente.ingredienteId)}
-                        >
+                        <Button variant="ghost" size="icon" onClick={() => handleEditComponente(item)}>
                           <Pencil className="h-4 w-4" />
                         </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() =>
-                            handleRemoveIngrediente(ingrediente.ingredienteId)
-                          }
-                        >
+                        <Button variant="ghost" size="icon" onClick={() => handleRemoveComponente(item)}>
                           <Trash className="h-4 w-4" />
                         </Button>
                       </TableCell>
                     </TableRow>
                   ))}
 
-                  {novoPreparo.ingredientes.length === 0 && (
+                  {novoPreparo.componentes.length === 0 && (
                     <TableRow>
-                      <TableCell
-                        colSpan={5}
-                        className="text-center text-sm text-muted-foreground py-4"
-                      >
-                        Nenhum ingrediente adicionado.
+                      <TableCell colSpan={7} className="py-4 text-center text-sm text-muted-foreground">
+                        Nenhum item adicionado.
                       </TableCell>
                     </TableRow>
                   )}
@@ -689,21 +748,14 @@ export default function PreparosPage() {
 
               <div className="flex justify-end pt-2">
                 <div className="text-right">
-                  <p className="text-sm font-medium">Custo Total:</p>
-                  <p className="text-lg font-bold">
-                    R${" "}
-                    {calcularCustoPreparo(novoPreparo.ingredientes).toFixed(2)}
-                  </p>
+                  <p className="text-sm font-medium">Custo total</p>
+                  <p className="text-lg font-bold">R$ {custoTotal.toFixed(2)}</p>
                 </div>
               </div>
             </div>
 
-            <div className="flex justify-end space-x-2 pt-4">
-              <Button
-                variant="outline"
-                onClick={() => setDialogOpen(false)}
-                disabled={saving}
-              >
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="outline" onClick={() => setDialogOpen(false)} disabled={saving}>
                 Cancelar
               </Button>
               <Button onClick={handleSave} disabled={saving}>
@@ -713,6 +765,7 @@ export default function PreparosPage() {
           </div>
         </DialogContent>
       </Dialog>
+
       <AlertDialog
         open={deleteOpen}
         onOpenChange={(open) => {
@@ -722,27 +775,14 @@ export default function PreparosPage() {
       >
         <AlertDialogContent className="bg-white">
           <AlertDialogHeader>
-            <AlertDialogTitle className="text-gray-800">
-              Excluir preparo?
-            </AlertDialogTitle>
+            <AlertDialogTitle className="text-gray-800">Excluir preparo?</AlertDialogTitle>
             <AlertDialogDescription className="text-gray-600">
-              Essa ação não pode ser desfeita. O preparo será removido do
-              sistema.
+              Se ele estiver sendo usado como subpreparo em outra ficha tecnica, o sistema vai bloquear a exclusao.
             </AlertDialogDescription>
           </AlertDialogHeader>
-
           <AlertDialogFooter>
-            <AlertDialogCancel
-              className="border-gray-200 text-gray-700 hover:bg-gray-50"
-              disabled={saving}
-            >
-              Cancelar
-            </AlertDialogCancel>
-            <AlertDialogAction
-              onClick={confirmDelete}
-              className="bg-red-600 hover:bg-red-700 text-white"
-              disabled={saving}
-            >
+            <AlertDialogCancel disabled={saving}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete} className="bg-red-600 text-white hover:bg-red-700" disabled={saving}>
               {saving ? "Excluindo..." : "Excluir"}
             </AlertDialogAction>
           </AlertDialogFooter>
