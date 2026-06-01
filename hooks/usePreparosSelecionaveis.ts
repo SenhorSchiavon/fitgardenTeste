@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { apiFetch } from "./api";
 
-export type PreparoTipo = "CARBOIDRATO" | "PROTEINA" | "LEGUMES" | "FEIJAO";
+export type PreparoTipo = "CARBOIDRATO" | "PROTEINA" | "LEGUMES" | "FEIJAO" | "COMPLEMENTO";
 
 export type PreparoSelecionavel = {
   id: number;

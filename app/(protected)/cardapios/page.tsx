@@ -165,6 +165,7 @@ export default function CardapiosPage() {
     if (tipo === "PROTEINA") return "Proteína";
     if (tipo === "LEGUMES") return "Legumes";
     if (tipo === "FEIJAO") return "Feijao";
+    if (tipo === "COMPLEMENTO") return "Complemento";
     return tipo;
   };
 

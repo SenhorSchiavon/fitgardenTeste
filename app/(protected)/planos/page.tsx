@@ -56,6 +56,7 @@ type PlanoItemForm = {
   proteinaGramas: string;
   legumeGramas: string;
   feijaoGramas: string;
+  complementoGramas: string;
   unidades: string;
 };
 
@@ -74,12 +75,13 @@ function moneyBr(v: number) {
   return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
 
-function getPesoComponentes(item: Pick<PlanoItemForm, "carboGramas" | "proteinaGramas" | "legumeGramas" | "feijaoGramas">) {
+function getPesoComponentes(item: Pick<PlanoItemForm, "carboGramas" | "proteinaGramas" | "legumeGramas" | "feijaoGramas" | "complementoGramas">) {
   return (
     Math.max(0, Math.floor(toNumber(item.carboGramas, 0))) +
     Math.max(0, Math.floor(toNumber(item.proteinaGramas, 0))) +
     Math.max(0, Math.floor(toNumber(item.legumeGramas, 0))) +
-    Math.max(0, Math.floor(toNumber(item.feijaoGramas, 0)))
+    Math.max(0, Math.floor(toNumber(item.feijaoGramas, 0))) +
+    Math.max(0, Math.floor(toNumber(item.complementoGramas, 0)))
   );
 }
 
@@ -89,12 +91,14 @@ function getComposicaoLabel(item: {
   proteinaGramas?: number | string | null;
   legumeGramas?: number | string | null;
   feijaoGramas?: number | string | null;
+  complementoGramas?: number | string | null;
 }) {
   const partes = [
     ["Carbo", item.carboGramas],
     ["Proteína", item.proteinaGramas],
     ["Legume", item.legumeGramas],
     ["Feijão", item.feijaoGramas],
+    ["Complemento", item.complementoGramas],
   ]
     .map(([label, value]) => ({ label, value: Number(value || 0) }))
     .filter((parte) => parte.value > 0)
@@ -118,6 +122,7 @@ function novaLinhaPlano(): PlanoItemForm {
     proteinaGramas: "",
     legumeGramas: "",
     feijaoGramas: "",
+    complementoGramas: "",
     unidades: "10",
   };
 }
@@ -241,6 +246,7 @@ export default function PlanosPage() {
             proteinaGramas: item.proteinaGramas ? String(item.proteinaGramas) : "",
             legumeGramas: item.legumeGramas ? String(item.legumeGramas) : "",
             feijaoGramas: item.feijaoGramas ? String(item.feijaoGramas) : "",
+            complementoGramas: item.complementoGramas ? String(item.complementoGramas) : "",
             unidades: String(item.unidades || 1),
           }))
         : [
@@ -253,6 +259,7 @@ export default function PlanosPage() {
               proteinaGramas: "",
               legumeGramas: "",
               feijaoGramas: "",
+              complementoGramas: "",
               unidades: String(plano.unidades || 1),
             },
           ];
@@ -287,6 +294,7 @@ export default function PlanosPage() {
         proteinaGramas: item.tipo === "PERSONALIZADO" ? toNumber(item.proteinaGramas) : null,
         legumeGramas: item.tipo === "PERSONALIZADO" ? toNumber(item.legumeGramas) : null,
         feijaoGramas: item.tipo === "PERSONALIZADO" ? toNumber(item.feijaoGramas) : null,
+        complementoGramas: item.tipo === "PERSONALIZADO" ? toNumber(item.complementoGramas) : null,
         unidades: toNumber(item.unidades, 1),
       })),
     };
@@ -644,6 +652,7 @@ export default function PlanosPage() {
                                         proteinaGramas: "",
                                         legumeGramas: "",
                                         feijaoGramas: "",
+                                        complementoGramas: "",
                                       }
                                     : linha,
                                 ),
@@ -672,6 +681,7 @@ export default function PlanosPage() {
                                 ["proteinaGramas", "Proteína"],
                                 ["legumeGramas", "Legume"],
                                 ["feijaoGramas", "Feijão"],
+                                ["complementoGramas", "Complemento"],
                               ].map(([field, label]) => (
                                 <div key={field} className="space-y-1">
                                   <Label className="text-[10px] text-gray-500">{label}</Label>

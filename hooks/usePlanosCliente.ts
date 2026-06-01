@@ -21,6 +21,7 @@ export type PlanoCatalogoItem = {
   proteinaGramas?: number | null;
   legumeGramas?: number | null;
   feijaoGramas?: number | null;
+  complementoGramas?: number | null;
   unidades: number;
   valorUnitario?: number | string | null;
   valorTotal?: number | string | null;
@@ -70,6 +71,7 @@ type CreatePlanoCatalogoInput = {
     proteinaGramas?: number | null;
     legumeGramas?: number | null;
     feijaoGramas?: number | null;
+    complementoGramas?: number | null;
     unidades: number;
   }>;
 };

@@ -216,6 +216,7 @@ export default function WhatsAppPage() {
   const proteinas = preparos.filter((p) => p.tipo === "PROTEINA").map((p) => ({ id: String(p.id), nome: p.nome }));
   const legumes = preparos.filter((p) => p.tipo === "LEGUMES").map((p) => ({ id: String(p.id), nome: p.nome }));
   const feijoes = preparos.filter((p) => p.tipo === "FEIJAO").map((p) => ({ id: String(p.id), nome: p.nome }));
+  const complementos = preparos.filter((p) => p.tipo === "COMPLEMENTO").map((p) => ({ id: String(p.id), nome: p.nome }));
 
   useEffect(() => {
     if (!selectedConversationId && conversations[0]) {
@@ -1205,6 +1206,7 @@ export default function WhatsAppPage() {
         proteinas={proteinas}
         legumes={legumes}
         feijoes={feijoes}
+        complementos={complementos}
         salgados={salgados.map((s) => ({
           id: String(s.id),
           nome: s.nome,

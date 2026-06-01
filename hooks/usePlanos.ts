@@ -32,6 +32,7 @@ export type Plano = {
     proteinaGramas?: number | null;
     legumeGramas?: number | null;
     feijaoGramas?: number | null;
+    complementoGramas?: number | null;
     unidades: number;
     valorUnitario?: number | string | null;
     valorTotal?: number | string | null;
@@ -53,6 +54,7 @@ export type NovoPlanoInput = {
     proteinaGramas?: number | null;
     legumeGramas?: number | null;
     feijaoGramas?: number | null;
+    complementoGramas?: number | null;
     unidades: number;
   }>;
 };

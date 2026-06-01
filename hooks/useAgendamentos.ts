@@ -92,6 +92,7 @@ export type AgendamentoItemInput = {
   proteinaId?: number | null;
   legumeId?: number | null;
   feijaoId?: number | null;
+  complementoId?: number | null;
 
   trocaCarboId?: number | null;
   trocaProteinaId?: number | null;
@@ -103,6 +104,7 @@ export type AgendamentoItemInput = {
   proteinaGramas?: number | null;
   legumeGramas?: number | null;
   feijaoGramas?: number | null;
+  complementoGramas?: number | null;
 
   precoUnit?: number | null;
   usarPlano?: boolean;
@@ -530,6 +532,7 @@ export function useAgendamentos(options?: { baseUrl?: string }) {
             proteinaId: it.proteinaId != null ? Number(it.proteinaId) : null,
             legumeId: it.legumeId != null ? Number(it.legumeId) : null,
             feijaoId: it.feijaoId != null ? Number(it.feijaoId) : null,
+            complementoId: it.complementoId != null ? Number(it.complementoId) : null,
 
             trocaCarboId: it.trocaCarboId != null ? Number(it.trocaCarboId) : null,
             trocaProteinaId: it.trocaProteinaId != null ? Number(it.trocaProteinaId) : null,
@@ -542,6 +545,7 @@ export function useAgendamentos(options?: { baseUrl?: string }) {
             proteinaGramas: Number(it.proteinaGramas || 0),
             legumeGramas: Number(it.legumeGramas || 0),
             feijaoGramas: Number(it.feijaoGramas || 0),
+            complementoGramas: Number(it.complementoGramas || 0),
 
             precoUnit: it.precoUnit != null ? Number(it.precoUnit) : null,
             usarPlano: !!it.usarPlano,
@@ -616,6 +620,7 @@ export function useAgendamentos(options?: { baseUrl?: string }) {
             proteinaId: it.proteinaId != null && it.proteinaId !== "" ? Number(it.proteinaId) : null,
             legumeId: it.legumeId != null && it.legumeId !== "" ? Number(it.legumeId) : null,
             feijaoId: it.feijaoId != null && it.feijaoId !== "" ? Number(it.feijaoId) : null,
+            complementoId: it.complementoId != null && it.complementoId !== "" ? Number(it.complementoId) : null,
 
             trocaCarboId: it.trocaCarboId != null && it.trocaCarboId !== "" ? Number(it.trocaCarboId) : null,
             trocaProteinaId: it.trocaProteinaId != null && it.trocaProteinaId !== "" ? Number(it.trocaProteinaId) : null,
@@ -628,6 +633,7 @@ export function useAgendamentos(options?: { baseUrl?: string }) {
             proteinaGramas: Number(it.proteinaGramas || 0),
             legumeGramas: Number(it.legumeGramas || 0),
             feijaoGramas: Number(it.feijaoGramas || 0),
+            complementoGramas: Number(it.complementoGramas || 0),
 
             precoUnit: it.precoUnit != null && it.precoUnit !== "" ? Number(it.precoUnit) : null,
             usarPlano: !!it.usarPlano,

@@ -11,7 +11,7 @@ export type CardapioOpcao = {
   opcaoCategoria?: string | null;
   componentes?: Array<{
     opcaoPreparoId: number;
-    tipo: "CARBOIDRATO" | "PROTEINA" | "LEGUMES" | "FEIJAO";
+    tipo: "CARBOIDRATO" | "PROTEINA" | "LEGUMES" | "FEIJAO" | "COMPLEMENTO";
     preparoId: number;
     preparoNome?: string | null;
     porcentagem: number;

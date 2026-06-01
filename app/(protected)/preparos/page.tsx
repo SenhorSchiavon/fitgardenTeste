@@ -78,6 +78,7 @@ const tiposPreparo: Array<{ value: PreparoTipo; label: string }> = [
   { value: "PROTEINA", label: "Proteina" },
   { value: "LEGUMES", label: "Legumes" },
   { value: "FEIJAO", label: "Feijao" },
+  { value: "COMPLEMENTO", label: "Complemento" },
 ];
 
 const componenteVazio: NovoComponenteState = {

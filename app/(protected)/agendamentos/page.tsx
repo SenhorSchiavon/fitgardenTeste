@@ -118,6 +118,8 @@ type Agendamento = {
     legumeGramas?: number;
     feijao?: string;
     feijaoGramas?: number;
+    complemento?: string;
+    complementoGramas?: number;
     trocas?: string;
   }[];
   _raw?: any;
@@ -319,6 +321,7 @@ export default function Agendamentos() {
           item.proteina ? formatIngrediente(item.proteina, item.proteinaGramas) : null,
           item.legume ? formatIngrediente(item.legume, item.legumeGramas) : null,
           item.feijao ? formatIngrediente(item.feijao, item.feijaoGramas) : null,
+          item.complemento ? formatIngrediente(item.complemento, item.complementoGramas) : null,
         ].filter(Boolean);
         const descricao = detalhes.length ? detalhes.join(" + ") : item.nome;
         return `${item.quantidade} ${descricao}`.trim();
@@ -437,7 +440,8 @@ export default function Agendamentos() {
           Number(it.carboGramas || 0) +
           Number(it.proteinaGramas || 0) +
           Number(it.legumeGramas || 0) +
-          Number(it.feijaoGramas || 0);
+          Number(it.feijaoGramas || 0) +
+          Number(it.complementoGramas || 0);
         const trocas = [
           it.trocaCarbo?.nome ? `Troca Carbo: ${it.trocaCarbo.nome}` : null,
           it.trocaProteina?.nome ? `Troca Prot.: ${it.trocaProteina.nome}` : null,
@@ -482,6 +486,8 @@ export default function Agendamentos() {
           legumeGramas: Number(it.legumeGramas || 0),
           feijao: it.feijao?.nome || it.feijaoNome || "",
           feijaoGramas: Number(it.feijaoGramas || 0),
+          complemento: it.complemento?.nome || it.complementoNome || "",
+          complementoGramas: Number(it.complementoGramas || 0),
           trocas: [
             it.trocaCarbo?.nome || it.trocaCarboNome,
             it.trocaProteina?.nome || it.trocaProteinaNome,
@@ -702,6 +708,13 @@ export default function Agendamentos() {
       id: String(o.id),
       nome: o.nome,
       tipo: "FEIJAO" as const,
+    }));
+  const complementos = preparos
+    .filter((p) => p.tipo === "COMPLEMENTO")
+    .map((p) => ({
+      id: String(p.id),
+      nome: p.nome,
+      tipo: "COMPLEMENTO" as const,
     }));
   console.log("=== DEBUG CARDAPIO ATIVO ===");
   console.log("cardapioAtivo:", cardapioAtivo);
@@ -1219,12 +1232,13 @@ export default function Agendamentos() {
                           </div>
                         )}
                         
-                        {(item.carbo || item.proteina || item.legume || item.feijao) && (
+                        {(item.carbo || item.proteina || item.legume || item.feijao || item.complemento) && (
                           <div className="bg-slate-50 p-2 rounded-lg grid grid-cols-2 gap-x-4 gap-y-1 text-[11px]">
                             {item.carbo && <div className="text-slate-500">• {formatIngrediente(item.carbo, item.carboGramas)}</div>}
                             {item.proteina && <div className="text-slate-500">• {formatIngrediente(item.proteina, item.proteinaGramas)}</div>}
                             {item.legume && <div className="text-slate-500">• {formatIngrediente(item.legume, item.legumeGramas)}</div>}
                             {item.feijao && <div className="text-slate-500">• {formatIngrediente(item.feijao, item.feijaoGramas)}</div>}
+                            {item.complemento && <div className="text-slate-500">• {formatIngrediente(item.complemento, item.complementoGramas)}</div>}
                           </div>
                         )}
 
@@ -1469,6 +1483,7 @@ export default function Agendamentos() {
         proteinas={proteinas}
         legumes={legumes}
         feijoes={feijoes}
+        complementos={complementos}
         salgados={salgados.map((s) => ({
           id: String(s.id),
           nome: s.nome,
@@ -1503,6 +1518,7 @@ export default function Agendamentos() {
                 proteinaId: it.proteinaId ? Number(it.proteinaId) : null,
                 legumeId: it.legumeId ? Number(it.legumeId) : null,
                 feijaoId: it.feijaoId ? Number(it.feijaoId) : null,
+                complementoId: it.complementoId ? Number(it.complementoId) : null,
 
                 zerarLegume: !!it.zerarLegume,
                 adicionarFeijao: !!it.adicionarFeijao,
@@ -1510,6 +1526,7 @@ export default function Agendamentos() {
                 proteinaGramas: Number(it.proteinaGramas || 0),
                 legumeGramas: Number(it.legumeGramas || 0),
                 feijaoGramas: Number(it.feijaoGramas || 0),
+                complementoGramas: Number(it.complementoGramas || 0),
                 observacaoItem: it.observacaoItem ?? "",
                 precoUnit: Number(it.precoUnit ?? 0),
                 usarPlano: !!it.usarPlano,
@@ -1541,6 +1558,7 @@ export default function Agendamentos() {
                 proteinaId: it.proteinaId ? Number(it.proteinaId) : null,
                 legumeId: it.legumeId ? Number(it.legumeId) : null,
                 feijaoId: it.feijaoId ? Number(it.feijaoId) : null,
+                complementoId: it.complementoId ? Number(it.complementoId) : null,
 
                 zerarLegume: !!it.zerarLegume,
                 adicionarFeijao: !!it.adicionarFeijao,
@@ -1548,6 +1566,7 @@ export default function Agendamentos() {
                 proteinaGramas: Number(it.proteinaGramas || 0),
                 legumeGramas: Number(it.legumeGramas || 0),
                 feijaoGramas: Number(it.feijaoGramas || 0),
+                complementoGramas: Number(it.complementoGramas || 0),
                 observacaoItem: it.observacaoItem ?? "",
                 precoUnit: Number(it.precoUnit ?? 0),
                 usarPlano: !!it.usarPlano,

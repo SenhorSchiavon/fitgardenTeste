@@ -7,7 +7,7 @@ export type Medida = {
   nome: string;
 };
 
-export type PreparoTipo = "CARBOIDRATO" | "PROTEINA" | "LEGUMES" | "FEIJAO";
+export type PreparoTipo = "CARBOIDRATO" | "PROTEINA" | "LEGUMES" | "FEIJAO" | "COMPLEMENTO";
 export type PreparoComponenteTipo = "INGREDIENTE" | "PREPARO";
 
 export type PreparoFichaItem = {

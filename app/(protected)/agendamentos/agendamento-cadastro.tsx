@@ -123,7 +123,7 @@ type TamanhoOption = {
 type OpcaoCardapio = {
   id: string;
   nome: string;
-  tipo?: "PRATO" | "CARBOIDRATO" | "PROTEINA" | "LEGUME" | "FEIJAO";
+  tipo?: "PRATO" | "CARBOIDRATO" | "PROTEINA" | "LEGUME" | "FEIJAO" | "COMPLEMENTO";
 };
 
 type SalgadoOption = {
@@ -156,6 +156,8 @@ type NovoPedidoItem = {
 
   feijaoId?: string;
   feijaoNome?: string;
+  complementoId?: string;
+  complementoNome?: string;
 
   zerarLegume: boolean;
   adicionarFeijao: boolean;
@@ -176,6 +178,7 @@ type NovoPedidoItem = {
   proteinaGramas?: number;
   legumeGramas?: number;
   feijaoGramas?: number;
+  complementoGramas?: number;
   groupId?: string;
   usarPlano?: boolean;
 };
@@ -190,6 +193,7 @@ type Props = {
   proteinas: OpcaoCardapio[];
   legumes: OpcaoCardapio[];
   feijoes?: OpcaoCardapio[];
+  complementos?: OpcaoCardapio[];
   salgados?: SalgadoOption[];
   initialData?: any;
   onSubmit?: (payload: any) => Promise<void> | void;
@@ -315,12 +319,14 @@ function getPlanoPersonalizadoLabel(item: {
   proteinaGramas?: number | string | null;
   legumeGramas?: number | string | null;
   feijaoGramas?: number | string | null;
+  complementoGramas?: number | string | null;
 }) {
   const partes = [
     ["carbo", item.carboGramas],
     ["proteína", item.proteinaGramas],
     ["legume", item.legumeGramas],
     ["feijão", item.feijaoGramas],
+    ["complemento", item.complementoGramas],
   ]
     .map(([label, value]) => ({ label, value: Number(value || 0) }))
     .filter((parte) => parte.value > 0)
@@ -365,6 +371,7 @@ export function NovoAgendamentoNovoLayout({
   proteinas,
   legumes,
   feijoes = [],
+  complementos = [],
   salgados = [],
   onSubmit,
   onCreateCliente,
@@ -443,6 +450,8 @@ export function NovoAgendamentoNovoLayout({
 
     feijaoId: "",
     feijaoNome: "",
+    complementoId: "",
+    complementoNome: "",
 
     zerarLegume: false,
     adicionarFeijao: false,
@@ -462,6 +471,7 @@ export function NovoAgendamentoNovoLayout({
     proteinaGramas: 0,
     legumeGramas: 0,
     feijaoGramas: 0,
+    complementoGramas: 0,
   });
 
   const clienteSelecionado = useMemo(
@@ -589,6 +599,8 @@ export function NovoAgendamentoNovoLayout({
         legumeNome: it.legume?.nome || "",
         feijaoId: String(it.feijaoId || ""),
         feijaoNome: it.feijao?.nome || "",
+        complementoId: String(it.complementoId || ""),
+        complementoNome: it.complemento?.nome || "",
         zerarLegume: !!it.zerarLegume,
         adicionarFeijao: !!it.adicionarFeijao,
         observacaoItem: it.observacaoItem || "",
@@ -601,6 +613,7 @@ export function NovoAgendamentoNovoLayout({
         proteinaGramas: Number(it.proteinaGramas || 0),
         legumeGramas: Number(it.legumeGramas || 0),
         feijaoGramas: Number(it.feijaoGramas || 0),
+        complementoGramas: Number(it.complementoGramas || 0),
       }));
       setItens(mappedItens);
     } else if (open && !initialData) {
@@ -794,7 +807,8 @@ export function NovoAgendamentoNovoLayout({
       Number(item.carboGramas || 0) +
       Number(item.proteinaGramas || 0) +
       Number(item.legumeGramas || 0) +
-      Number(item.feijaoGramas || 0)
+      Number(item.feijaoGramas || 0) +
+      Number(item.complementoGramas || 0)
     );
   }
 
@@ -806,6 +820,7 @@ export function NovoAgendamentoNovoLayout({
         Number(item.proteinaGramas || 0),
         Number(item.legumeGramas || 0),
         Number(item.feijaoGramas || 0),
+        Number(item.complementoGramas || 0),
       ].join(":");
     }
     return `size:${item.tamanhoId || ""}`;
@@ -819,6 +834,7 @@ export function NovoAgendamentoNovoLayout({
         proteinaGramas: item.proteinaGramas,
         legumeGramas: item.legumeGramas,
         feijaoGramas: item.feijaoGramas,
+        complementoGramas: item.complementoGramas,
       });
     }
     return item.tamanhoLabel || "Tamanho desconhecido";
@@ -849,7 +865,8 @@ export function NovoAgendamentoNovoLayout({
       planoItem.carboGramas != null ||
       planoItem.proteinaGramas != null ||
       planoItem.legumeGramas != null ||
-      planoItem.feijaoGramas != null
+      planoItem.feijaoGramas != null ||
+      planoItem.complementoGramas != null
     );
   }
 
@@ -862,7 +879,8 @@ export function NovoAgendamentoNovoLayout({
       Number(planoItem.carboGramas || 0) === Number(item.carboGramas || 0) &&
       Number(planoItem.proteinaGramas || 0) === Number(item.proteinaGramas || 0) &&
       Number(planoItem.legumeGramas || 0) === Number(item.legumeGramas || 0) &&
-      Number(planoItem.feijaoGramas || 0) === Number(item.feijaoGramas || 0)
+      Number(planoItem.feijaoGramas || 0) === Number(item.feijaoGramas || 0) &&
+      Number(planoItem.complementoGramas || 0) === Number(item.complementoGramas || 0)
     );
   }
 
@@ -1048,6 +1066,8 @@ export function NovoAgendamentoNovoLayout({
       legumeNome: "",
       feijaoId: "",
       feijaoNome: "",
+      complementoId: "",
+      complementoNome: "",
       zerarLegume: false,
       adicionarFeijao: false,
       observacaoItem: "",
@@ -1065,6 +1085,7 @@ export function NovoAgendamentoNovoLayout({
       proteinaGramas: 0,
       legumeGramas: 0,
       feijaoGramas: 0,
+      complementoGramas: 0,
     });
   }
 
@@ -1085,6 +1106,8 @@ export function NovoAgendamentoNovoLayout({
       legumeNome: "",
       feijaoId: "",
       feijaoNome: "",
+      complementoId: "",
+      complementoNome: "",
       zerarLegume: false,
       adicionarFeijao: false,
       observacaoItem: "",
@@ -1099,6 +1122,7 @@ export function NovoAgendamentoNovoLayout({
       proteinaGramas: 0,
       legumeGramas: 0,
       feijaoGramas: 0,
+      complementoGramas: 0,
     }));
   }
 
@@ -1118,7 +1142,8 @@ export function NovoAgendamentoNovoLayout({
       Number(formItem.carboGramas || 0) +
       Number(formItem.proteinaGramas || 0) +
       Number(formItem.legumeGramas || 0) +
-      Number(formItem.feijaoGramas || 0)
+      Number(formItem.feijaoGramas || 0) +
+      Number(formItem.complementoGramas || 0)
     );
   }, [
     formItem.tipoItem,
@@ -1126,6 +1151,7 @@ export function NovoAgendamentoNovoLayout({
     formItem.proteinaGramas,
     formItem.legumeGramas,
     formItem.feijaoGramas,
+    formItem.complementoGramas,
   ]);
 
   useEffect(() => {
@@ -1156,7 +1182,7 @@ export function NovoAgendamentoNovoLayout({
     let finalPrice = Math.max(precoProteina, precoTotal);
 
     // Ajuste por quantidade de ingredientes
-    const tiposCount = [formItem.carboId, formItem.proteinaId, formItem.legumeId, formItem.feijaoId].filter(id => !!id).length;
+    const tiposCount = [formItem.carboId, formItem.proteinaId, formItem.legumeId, formItem.feijaoId, formItem.complementoId].filter(id => !!id).length;
     const regraAjuste = regras.find(r => r.tipo === "QUANTIDADE_INGREDIENTES" && Number(r.limite) === tiposCount);
     const ajuste = regraAjuste ? Number(regraAjuste.preco) : 0;
     
@@ -1166,7 +1192,7 @@ export function NovoAgendamentoNovoLayout({
       if (prev.precoUnit === finalPrice) return prev;
       return { ...prev, precoUnit: finalPrice };
     });
-  }, [formItem.tipoItem, formItem.carboId, formItem.proteinaId, formItem.legumeId, formItem.feijaoId, formItem.proteinaGramas, totalGramasPersonalizada, regras]);
+  }, [formItem.tipoItem, formItem.carboId, formItem.proteinaId, formItem.legumeId, formItem.feijaoId, formItem.complementoId, formItem.proteinaGramas, totalGramasPersonalizada, regras]);
 
   function abrirNovoPedido() {
     if (!clienteId) {
@@ -1301,6 +1327,7 @@ export function NovoAgendamentoNovoLayout({
         item.adicionarFeijao && item.feijaoNome
           ? `Feijão: ${item.feijaoNome} (${item.feijaoGramas || 0}g)`
           : null,
+        item.complementoNome ? `Complemento: ${item.complementoNome} (${item.complementoGramas || 0}g)` : null,
       ].filter(Boolean);
 
       return partes.join(" • ");
@@ -1625,7 +1652,7 @@ export function NovoAgendamentoNovoLayout({
     // Validação final de gramagem para personalizadas
     const itemInvalido = itensComPrecoBruto.find(it => 
       it.tipoItem === "PERSONALIZADA" && 
-      (Number(it.carboGramas || 0) + Number(it.proteinaGramas || 0) + Number(it.legumeGramas || 0) + Number(it.feijaoGramas || 0)) <= 0
+      (Number(it.carboGramas || 0) + Number(it.proteinaGramas || 0) + Number(it.legumeGramas || 0) + Number(it.feijaoGramas || 0) + Number(it.complementoGramas || 0)) <= 0
     );
 
     if (itemInvalido) {
@@ -1657,6 +1684,7 @@ export function NovoAgendamentoNovoLayout({
          proteinaGramas: Number(it.proteinaGramas || 0),
          legumeGramas: Number(it.legumeGramas || 0),
          feijaoGramas: Number(it.feijaoGramas || 0),
+         complementoGramas: Number(it.complementoGramas || 0),
          usarPlano: !!it.usarPlano
       })),
     };
@@ -3198,6 +3226,62 @@ export function NovoAgendamentoNovoLayout({
                           />
                         </div>
                       </div>
+
+                      <div className="grid grid-cols-[minmax(0,1fr)_120px] gap-3">
+                        <div className="space-y-2">
+                          <Label>Complemento</Label>
+                          <Select
+                            value={formItem.complementoId || "none"}
+                            onValueChange={(v) => {
+                              if (v === "none") {
+                                setFormItem((prev) => ({
+                                  ...prev,
+                                  complementoId: "",
+                                  complementoNome: "",
+                                  complementoGramas: 0,
+                                }));
+                                return;
+                              }
+                              const item = complementos.find((o) => o.id === v);
+                              setFormItem((prev) => ({
+                                ...prev,
+                                complementoId: v,
+                                complementoNome: item?.nome || "",
+                              }));
+                            }}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Selecione" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="none">Nenhum</SelectItem>
+                              {complementos.map((item) => (
+                                <SelectItem key={item.id} value={item.id}>
+                                  {item.nome}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label>Gramas</Label>
+                          <Input
+                            type="number"
+                            min={0}
+                            step="1"
+                            value={formItem.complementoGramas || 0}
+                            onChange={(e) =>
+                              setFormItem((prev) => ({
+                                ...prev,
+                                complementoGramas: Number(e.target.value || 0),
+                              }))
+                            }
+                            placeholder="0"
+                            disabled={!formItem.complementoId}
+                          />
+                        </div>
+                      </div>
                     </div>
 
                     <div className="rounded-lg border p-3 text-sm">
@@ -3281,6 +3365,7 @@ export function NovoAgendamentoNovoLayout({
                               it.proteinaNome && it.proteinaGramas ? `${it.proteinaNome} ${it.proteinaGramas}g` : null,
                               it.legumeNome && it.legumeGramas && !it.zerarLegume ? `${it.legumeNome} ${it.legumeGramas}g` : null,
                               it.feijaoNome && it.feijaoGramas && it.adicionarFeijao ? `${it.feijaoNome} ${it.feijaoGramas}g` : null,
+                              it.complementoNome && it.complementoGramas ? `${it.complementoNome} ${it.complementoGramas}g` : null,
                             ].filter(Boolean);
                             if (partes.length === 0) return null;
                             return (

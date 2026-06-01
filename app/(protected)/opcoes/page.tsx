@@ -176,6 +176,7 @@ export default function OpcoesPage() {
       PROTEINA: preparos.filter((p) => p.tipo === "PROTEINA"),
       LEGUMES: preparos.filter((p) => p.tipo === "LEGUMES"),
       FEIJAO: preparos.filter((p) => p.tipo === "FEIJAO"),
+      COMPLEMENTO: preparos.filter((p) => p.tipo === "COMPLEMENTO"),
     } as const;
   }, [preparos]);
 
@@ -730,6 +731,49 @@ export default function OpcoesPage() {
                         </div>
                       </SheetContent>
                     </Sheet>
+
+                    {(["FEIJAO", "COMPLEMENTO"] as const).map((tipo) => (
+                      <Sheet
+                        key={tipo}
+                        open={sheetOpen === tipo}
+                        onOpenChange={(open) => setSheetOpen(open ? tipo : null)}
+                      >
+                        <SheetTrigger asChild>
+                          <Button size="sm" variant="outline" disabled={saving || loadingPreparos}>
+                            + {tipo === "FEIJAO" ? "Feijao" : "Complemento"}
+                          </Button>
+                        </SheetTrigger>
+                        <SheetContent>
+                          <SheetHeader>
+                            <SheetTitle>
+                              Adicionar {tipo === "FEIJAO" ? "Feijao" : "Complemento"}
+                            </SheetTitle>
+                          </SheetHeader>
+                          <div className="py-4">
+                            <Table>
+                              <TableHeader>
+                                <TableRow>
+                                  <TableHead>Nome</TableHead>
+                                  <TableHead className="text-right">Acao</TableHead>
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody>
+                                {preparosPorTipo[tipo].map((preparo) => (
+                                  <TableRow key={preparo.id}>
+                                    <TableCell>{preparo.nome}</TableCell>
+                                    <TableCell className="text-right">
+                                      <Button size="sm" variant="outline" onClick={() => handleAddComponente(tipo, preparo)}>
+                                        Adicionar
+                                      </Button>
+                                    </TableCell>
+                                  </TableRow>
+                                ))}
+                              </TableBody>
+                            </Table>
+                          </div>
+                        </SheetContent>
+                      </Sheet>
+                    ))}
                   </div>
 
                   <div className="space-y-3">
@@ -758,7 +802,9 @@ export default function OpcoesPage() {
                                     ? "Proteína"
                                     : c.tipo === "FEIJAO"
                                       ? "Feijao"
-                                      : "Legumes"}
+                                      : c.tipo === "COMPLEMENTO"
+                                        ? "Complemento"
+                                        : "Legumes"}
                               </p>
                             </div>
 
