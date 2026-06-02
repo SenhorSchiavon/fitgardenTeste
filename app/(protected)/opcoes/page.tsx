@@ -82,6 +82,14 @@ type NovaOpcaoForm = {
 
 const formatCodigoOpcao = (id: number) => `OPC${String(id).padStart(3, "0")}`;
 
+const componenteLabels: Record<ComponenteTipo, string> = {
+  CARBOIDRATO: "Carboidrato",
+  PROTEINA: "Proteina",
+  LEGUMES: "Legumes",
+  FEIJAO: "Feijao",
+  COMPLEMENTO: "Complemento",
+};
+
 function toComponenteDraft(c: OpcaoComponente, idx: number): ComponenteDraft {
   return {
     id: `${c.tipo}-${c.preparoId}-${idx}`,
@@ -120,6 +128,7 @@ export default function OpcoesPage() {
   const [sheetOpen, setSheetOpen] = useState<ComponenteTipo | null>(null);
   const [erroSoma, setErroSoma] = useState(false);
   const [busca, setBusca] = useState("");
+  const [buscaPreparo, setBuscaPreparo] = useState("");
 
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<{
@@ -144,6 +153,7 @@ export default function OpcoesPage() {
     setEditandoId(null);
     setErroSoma(false);
     setSheetOpen(null);
+    setBuscaPreparo("");
   };
 
   const opcoesFiltradas = useMemo(() => {
@@ -179,6 +189,17 @@ export default function OpcoesPage() {
       COMPLEMENTO: preparos.filter((p) => p.tipo === "COMPLEMENTO"),
     } as const;
   }, [preparos]);
+
+  const preparosFiltrados = useMemo(() => {
+    if (!sheetOpen) return [];
+
+    const q = buscaPreparo.trim().toLocaleLowerCase("pt-BR");
+    if (!q) return preparosPorTipo[sheetOpen];
+
+    return preparosPorTipo[sheetOpen].filter((preparo) =>
+      preparo.nome.toLocaleLowerCase("pt-BR").includes(q),
+    );
+  }, [buscaPreparo, preparosPorTipo, sheetOpen]);
 
   const handleNew = () => {
     resetForm();
@@ -273,6 +294,12 @@ export default function OpcoesPage() {
 
     setErroSoma(false);
     setSheetOpen(null);
+    setBuscaPreparo("");
+  };
+
+  const handleSheetOpenChange = (tipo: ComponenteTipo, open: boolean) => {
+    setSheetOpen(open ? tipo : null);
+    setBuscaPreparo("");
   };
 
   const handleRemoveComponente = (draftId: string) => {
@@ -581,9 +608,7 @@ export default function OpcoesPage() {
                   <div className="flex flex-wrap gap-2">
                     <Sheet
                       open={sheetOpen === "CARBOIDRATO"}
-                      onOpenChange={(open) =>
-                        setSheetOpen(open ? "CARBOIDRATO" : null)
-                      }
+                      onOpenChange={(open) => handleSheetOpenChange("CARBOIDRATO", open)}
                     >
                       <SheetTrigger asChild>
                         <Button
@@ -598,7 +623,13 @@ export default function OpcoesPage() {
                         <SheetHeader>
                           <SheetTitle>Adicionar Carboidrato</SheetTitle>
                         </SheetHeader>
-                        <div className="py-4">
+                        <div className="space-y-4 py-4">
+                          <Input
+                            value={buscaPreparo}
+                            onChange={(event) => setBuscaPreparo(event.target.value)}
+                            placeholder="Pesquisar carboidrato..."
+                          />
+                          <div className="max-h-[calc(100vh-10rem)] overflow-y-auto rounded-md border">
                           <Table>
                             <TableHeader>
                               <TableRow>
@@ -607,7 +638,7 @@ export default function OpcoesPage() {
                               </TableRow>
                             </TableHeader>
                             <TableBody>
-                              {preparosPorTipo.CARBOIDRATO.map((preparo) => (
+                              {preparosFiltrados.map((preparo) => (
                                 <TableRow key={preparo.id}>
                                   <TableCell>{preparo.nome}</TableCell>
                                   <TableCell className="text-right">
@@ -626,17 +657,23 @@ export default function OpcoesPage() {
                                   </TableCell>
                                 </TableRow>
                               ))}
+                              {preparosFiltrados.length === 0 ? (
+                                <TableRow>
+                                  <TableCell colSpan={2} className="py-6 text-center text-sm text-muted-foreground">
+                                    Nenhum preparo encontrado.
+                                  </TableCell>
+                                </TableRow>
+                              ) : null}
                             </TableBody>
                           </Table>
+                          </div>
                         </div>
                       </SheetContent>
                     </Sheet>
 
                     <Sheet
                       open={sheetOpen === "PROTEINA"}
-                      onOpenChange={(open) =>
-                        setSheetOpen(open ? "PROTEINA" : null)
-                      }
+                      onOpenChange={(open) => handleSheetOpenChange("PROTEINA", open)}
                     >
                       <SheetTrigger asChild>
                         <Button
@@ -651,7 +688,13 @@ export default function OpcoesPage() {
                         <SheetHeader>
                           <SheetTitle>Adicionar Proteína</SheetTitle>
                         </SheetHeader>
-                        <div className="py-4">
+                        <div className="space-y-4 py-4">
+                          <Input
+                            value={buscaPreparo}
+                            onChange={(event) => setBuscaPreparo(event.target.value)}
+                            placeholder="Pesquisar proteina..."
+                          />
+                          <div className="max-h-[calc(100vh-10rem)] overflow-y-auto rounded-md border">
                           <Table>
                             <TableHeader>
                               <TableRow>
@@ -660,7 +703,7 @@ export default function OpcoesPage() {
                               </TableRow>
                             </TableHeader>
                             <TableBody>
-                              {preparosPorTipo.PROTEINA.map((preparo) => (
+                              {preparosFiltrados.map((preparo) => (
                                 <TableRow key={preparo.id}>
                                   <TableCell>{preparo.nome}</TableCell>
                                   <TableCell className="text-right">
@@ -676,17 +719,23 @@ export default function OpcoesPage() {
                                   </TableCell>
                                 </TableRow>
                               ))}
+                              {preparosFiltrados.length === 0 ? (
+                                <TableRow>
+                                  <TableCell colSpan={2} className="py-6 text-center text-sm text-muted-foreground">
+                                    Nenhum preparo encontrado.
+                                  </TableCell>
+                                </TableRow>
+                              ) : null}
                             </TableBody>
                           </Table>
+                          </div>
                         </div>
                       </SheetContent>
                     </Sheet>
 
                     <Sheet
                       open={sheetOpen === "LEGUMES"}
-                      onOpenChange={(open) =>
-                        setSheetOpen(open ? "LEGUMES" : null)
-                      }
+                      onOpenChange={(open) => handleSheetOpenChange("LEGUMES", open)}
                     >
                       <SheetTrigger asChild>
                         <Button
@@ -701,7 +750,13 @@ export default function OpcoesPage() {
                         <SheetHeader>
                           <SheetTitle>Adicionar Legumes</SheetTitle>
                         </SheetHeader>
-                        <div className="py-4">
+                        <div className="space-y-4 py-4">
+                          <Input
+                            value={buscaPreparo}
+                            onChange={(event) => setBuscaPreparo(event.target.value)}
+                            placeholder="Pesquisar legumes..."
+                          />
+                          <div className="max-h-[calc(100vh-10rem)] overflow-y-auto rounded-md border">
                           <Table>
                             <TableHeader>
                               <TableRow>
@@ -710,7 +765,7 @@ export default function OpcoesPage() {
                               </TableRow>
                             </TableHeader>
                             <TableBody>
-                              {preparosPorTipo.LEGUMES.map((preparo) => (
+                              {preparosFiltrados.map((preparo) => (
                                 <TableRow key={preparo.id}>
                                   <TableCell>{preparo.nome}</TableCell>
                                   <TableCell className="text-right">
@@ -726,8 +781,16 @@ export default function OpcoesPage() {
                                   </TableCell>
                                 </TableRow>
                               ))}
+                              {preparosFiltrados.length === 0 ? (
+                                <TableRow>
+                                  <TableCell colSpan={2} className="py-6 text-center text-sm text-muted-foreground">
+                                    Nenhum preparo encontrado.
+                                  </TableCell>
+                                </TableRow>
+                              ) : null}
                             </TableBody>
                           </Table>
+                          </div>
                         </div>
                       </SheetContent>
                     </Sheet>
@@ -736,7 +799,7 @@ export default function OpcoesPage() {
                       <Sheet
                         key={tipo}
                         open={sheetOpen === tipo}
-                        onOpenChange={(open) => setSheetOpen(open ? tipo : null)}
+                        onOpenChange={(open) => handleSheetOpenChange(tipo, open)}
                       >
                         <SheetTrigger asChild>
                           <Button size="sm" variant="outline" disabled={saving || loadingPreparos}>
@@ -749,7 +812,13 @@ export default function OpcoesPage() {
                               Adicionar {tipo === "FEIJAO" ? "Feijao" : "Complemento"}
                             </SheetTitle>
                           </SheetHeader>
-                          <div className="py-4">
+                          <div className="space-y-4 py-4">
+                            <Input
+                              value={buscaPreparo}
+                              onChange={(event) => setBuscaPreparo(event.target.value)}
+                              placeholder={`Pesquisar ${tipo === "FEIJAO" ? "feijao" : "complemento"}...`}
+                            />
+                            <div className="max-h-[calc(100vh-10rem)] overflow-y-auto rounded-md border">
                             <Table>
                               <TableHeader>
                                 <TableRow>
@@ -758,7 +827,7 @@ export default function OpcoesPage() {
                                 </TableRow>
                               </TableHeader>
                               <TableBody>
-                                {preparosPorTipo[tipo].map((preparo) => (
+                                {preparosFiltrados.map((preparo) => (
                                   <TableRow key={preparo.id}>
                                     <TableCell>{preparo.nome}</TableCell>
                                     <TableCell className="text-right">
@@ -768,8 +837,16 @@ export default function OpcoesPage() {
                                     </TableCell>
                                   </TableRow>
                                 ))}
+                                {preparosFiltrados.length === 0 ? (
+                                  <TableRow>
+                                    <TableCell colSpan={2} className="py-6 text-center text-sm text-muted-foreground">
+                                      Nenhum preparo encontrado.
+                                    </TableCell>
+                                  </TableRow>
+                                ) : null}
                               </TableBody>
                             </Table>
+                            </div>
                           </div>
                         </SheetContent>
                       </Sheet>
