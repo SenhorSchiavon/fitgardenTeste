@@ -158,6 +158,25 @@ export default function PedidosAberto() {
     });
   }, [planosNaoPagos, dataFiltro]);
 
+  const planosPendentesPedidoSelecionado = useMemo(() => {
+    if (!pedidoSelecionado?.clienteId) return [];
+    return planosNaoPagos.filter(
+      (plano) => Number(plano.clienteId) === Number(pedidoSelecionado.clienteId),
+    );
+  }, [pedidoSelecionado, planosNaoPagos]);
+
+  const valorPlanosPendentesPedidoSelecionado = useMemo(() => {
+    return planosPendentesPedidoSelecionado.reduce((total, plano) => {
+      const qtdTaxas = Number(plano.taxasEntregaCompradas || 0);
+      const valorTaxas = qtdTaxas * Number(plano.valorTaxaEntrega || 0);
+      return total + Number(plano.plano?.valor || 0) + valorTaxas;
+    }, 0);
+  }, [planosPendentesPedidoSelecionado]);
+
+  const valorPedidoSelecionado = Number(
+    pedidoSelecionado?.valorTotalFinal ?? pedidoSelecionado?.valorTotal ?? 0,
+  );
+
   async function load(date = dataFiltro) {
     const [resp, conciliacaoResp, planosResp] = await Promise.all([
       getPedidosPendentes({ page: 1, pageSize: 50 }),
@@ -242,13 +261,10 @@ export default function PedidosAberto() {
     await finalizarPagamento(pedidoSelecionado.agendamentoId, {
       formaPagamento: formaPagamentoFinal,
       senhaAutorizacao: senhaAutorizacaoPagamento.trim() || undefined,
+      planoClienteIds: planosPendentesPedidoSelecionado.map((plano) => Number(plano.id)),
     });
 
-    setPedidosAberto((prev) =>
-      prev.filter((p) => p.agendamentoId !== pedidoSelecionado.agendamentoId),
-    );
-    const conciliacaoResp = await getPagamentosParaConciliar({ date: dataFiltro, page: 1, pageSize: 50 });
-    setPagamentosConciliar(conciliacaoResp.rows || []);
+    await load(dataFiltro);
     setPagamentoDialogOpen(false);
     setDetalhesDialogOpen(false);
     toast.success("Pagamento finalizado");
@@ -811,10 +827,31 @@ export default function PedidosAberto() {
             )}
 
             <div className="space-y-2">
-              <Label>Valor Total</Label>
+              <Label>Resumo da cobrança</Label>
+              <div className="space-y-2 rounded-md border bg-muted/30 p-3 text-sm">
+                <div className="flex items-center justify-between">
+                  <span>Pedido e taxa pendente</span>
+                  <span className="font-semibold">{moneyBr(valorPedidoSelecionado)}</span>
+                </div>
+                {planosPendentesPedidoSelecionado.map((plano) => {
+                  const qtdTaxas = Number(plano.taxasEntregaCompradas || 0);
+                  const valorTaxas = qtdTaxas * Number(plano.valorTaxaEntrega || 0);
+                  const valorPlano = Number(plano.plano?.valor || 0) + valorTaxas;
+                  return (
+                    <div key={plano.id} className="flex items-center justify-between text-amber-800">
+                      <span>{plano.plano?.nome || "Plano"} pendente</span>
+                      <span className="font-semibold">{moneyBr(valorPlano)}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Total a receber</Label>
               <div className="text-2xl font-bold">
                 {pedidoSelecionado
-                  ? `R$ ${Number(pedidoSelecionado.valorTotalFinal ?? pedidoSelecionado.valorTotal).toFixed(2)}`
+                  ? moneyBr(valorPedidoSelecionado + valorPlanosPendentesPedidoSelecionado)
                   : "-"}
               </div>
             </div>

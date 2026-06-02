@@ -296,6 +296,14 @@ export default function Agendamentos() {
     return grupos;
   }, [agendamentos]);
 
+  const totalMarmitasAgendadas = useMemo(() => {
+    return agendamentos.reduce((total, agendamento) => {
+      return total + agendamento.itens
+        .filter((item) => item.tipoItem !== "SALGADO")
+        .reduce((subtotal, item) => subtotal + Number(item.quantidade || 0), 0);
+    }, 0);
+  }, [agendamentos]);
+
   const handleShowDetalhes = (agendamento: Agendamento) => {
     setAgendamentoSelecionado(agendamento);
     setDetalhesDialogOpen(true);
@@ -751,6 +759,7 @@ export default function Agendamentos() {
           <div>
             <h2 className="text-lg font-bold text-slate-800 leading-tight">{formatDate(selectedDate)}</h2>
             <p className="text-xs text-slate-500 font-medium">{agendamentos.length} agendamentos programados</p>
+            <p className="text-xs text-slate-500 font-medium">{totalMarmitasAgendadas} marmitas agendadas</p>
           </div>
         </div>
 

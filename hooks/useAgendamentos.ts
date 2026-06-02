@@ -23,6 +23,7 @@ export type PedidoPendenteRow = {
   numeroPedido: string;
 
   cliente: string;
+  clienteId?: number;
   telefone: string;
 
   tipoEntrega: "NAO_DEFINIR" | "ENTREGA" | "RETIRADA" | "CONGELAR";
@@ -61,6 +62,7 @@ export type EstimarTaxaResponse = {
 export type FinalizarPagamentoInput = {
   formaPagamento: Exclude<FormaPagamento, "PLANO" | "A_DEFINIR">;
   senhaAutorizacao?: string;
+  planoClienteIds?: number[];
 };
 export type FormaPagamento =
   | "A_DEFINIR"
@@ -398,6 +400,7 @@ export function useAgendamentos(options?: { baseUrl?: string }) {
           body: JSON.stringify({
             formaPagamento: payload.formaPagamento,
             senhaAutorizacao: payload.senhaAutorizacao,
+            planoClienteIds: payload.planoClienteIds,
           }),
         });
       } catch (e: any) {

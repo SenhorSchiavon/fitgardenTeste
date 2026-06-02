@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { MapPin, Tag, Trash, X } from "lucide-react";
 import { DialogClose } from "@radix-ui/react-dialog";
 import { apiFetch } from "@/hooks/api";
@@ -16,6 +17,18 @@ import "leaflet/dist/leaflet.css";
 const MapContainer = dynamic(() => import("react-leaflet").then((m) => m.MapContainer), { ssr: false });
 const TileLayer = dynamic(() => import("react-leaflet").then((m) => m.TileLayer), { ssr: false });
 const CircleMarker = dynamic(() => import("react-leaflet").then((m) => m.CircleMarker), { ssr: false });
+
+const CIDADES_PR = ["LONDRINA", "CAMBÉ", "ROLÂNDIA", "ARAPONGAS", "IBIPORA", "MARINGÁ"];
+
+function normalizarCidadePermitida(cidade?: string | null) {
+  const busca = String(cidade || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toUpperCase();
+  return CIDADES_PR.find(
+    (item) => item.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase() === busca,
+  ) || "";
+}
 
 type ClientePayload = {
   nome: string;
@@ -229,7 +242,7 @@ export function ClienteFormDialog({
     nome: "",
     telefone: "",
     cep: "",
-    uf: "",
+    uf: "PR",
     cidade: "",
     bairro: "",
     logradouro: "",
@@ -288,8 +301,8 @@ export function ClienteFormDialog({
       nome: initialValue?.nome ?? "",
       telefone: initialValue?.telefone ?? "",
       cep: initialValue?.cep ?? "",
-      uf: initialValue?.uf ?? "",
-      cidade: initialValue?.cidade ?? "",
+      uf: "PR",
+      cidade: normalizarCidadePermitida(initialValue?.cidade),
       bairro: initialValue?.bairro ?? "",
       logradouro: initialValue?.logradouro ?? "",
       numero: initialValue?.numero ?? "",
@@ -299,7 +312,7 @@ export function ClienteFormDialog({
       apelidoPrincipal: initialValue?.apelidoPrincipal ?? "",
       secundarioCep: initialValue?.secundarioCep ?? "",
       secundarioUf: initialValue?.secundarioUf ?? "",
-      secundarioCidade: initialValue?.secundarioCidade ?? "",
+      secundarioCidade: normalizarCidadePermitida(initialValue?.secundarioCidade),
       secundarioBairro: initialValue?.secundarioBairro ?? "",
       secundarioLogradouro: initialValue?.secundarioLogradouro ?? "",
       secundarioNumero: initialValue?.secundarioNumero ?? "",
@@ -403,8 +416,8 @@ export function ClienteFormDialog({
       setForm((p) => ({
         ...p,
         cep: data.cep,
-        uf: data.uf || p.uf,
-        cidade: data.cidade || p.cidade,
+        uf: "PR",
+        cidade: normalizarCidadePermitida(data.cidade) || p.cidade,
         bairro: data.bairro || p.bairro,
         logradouro: data.logradouro || p.logradouro,
         latitude: null,
@@ -435,7 +448,7 @@ export function ClienteFormDialog({
           ? await buscarCepViaCep(form.secundarioCep || "")
           : await buscarCepPorEnderecoViaCep({
               cep: form.secundarioCep,
-              uf: form.secundarioUf,
+              uf: "PR",
               cidade: form.secundarioCidade,
               bairro: form.secundarioBairro,
               logradouro: form.secundarioLogradouro,
@@ -444,8 +457,8 @@ export function ClienteFormDialog({
       setForm((p) => ({
         ...p,
         secundarioCep: data.cep,
-        secundarioUf: data.uf || p.secundarioUf,
-        secundarioCidade: data.cidade || p.secundarioCidade,
+        secundarioUf: "PR",
+        secundarioCidade: normalizarCidadePermitida(data.cidade) || p.secundarioCidade,
         secundarioBairro: data.bairro || p.secundarioBairro,
         secundarioLogradouro: data.logradouro || p.secundarioLogradouro,
         secundarioLatitude: null,
@@ -517,7 +530,7 @@ export function ClienteFormDialog({
           principal: true,
           apelido: form.apelidoPrincipal?.trim() || "Casa",
           cep: form.cep?.trim() ? onlyDigits(form.cep) : null,
-          uf: form.uf?.trim() || null,
+          uf: "PR",
           cidade: form.cidade?.trim() || null,
           bairro: form.bairro?.trim() || null,
           logradouro: form.logradouro?.trim() || null,
@@ -537,7 +550,7 @@ export function ClienteFormDialog({
               principal: false,
               apelido: form.apelidoSecundario?.trim() || "Trabalho",
               cep: form.secundarioCep?.trim() ? onlyDigits(form.secundarioCep) : null,
-              uf: form.secundarioUf?.trim() || null,
+              uf: "PR",
               cidade: form.secundarioCidade?.trim() || null,
               bairro: form.secundarioBairro?.trim() || null,
               logradouro: form.secundarioLogradouro?.trim() || null,
@@ -632,10 +645,8 @@ export function ClienteFormDialog({
                 <Label htmlFor="uf">UF</Label>
                 <Input
                   id="uf"
-                  value={form.uf || ""}
-                  onChange={(e) => setForm((p) => ({ ...p, uf: e.target.value.toUpperCase() }))}
-                  disabled={saving}
-                  placeholder="PR"
+                  value="PR"
+                  disabled
                 />
               </div>
 
@@ -665,12 +676,14 @@ export function ClienteFormDialog({
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="cidade">Cidade</Label>
-                <Input
-                  id="cidade"
-                  value={form.cidade || ""}
-                  onChange={(e) => setForm((p) => ({ ...p, cidade: e.target.value }))}
-                  disabled={saving}
-                />
+                <Select value={form.cidade || ""} onValueChange={(cidade) => setForm((p) => ({ ...p, cidade }))} disabled={saving}>
+                  <SelectTrigger id="cidade">
+                    <SelectValue placeholder="Selecione a cidade" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {CIDADES_PR.map((cidade) => <SelectItem key={cidade} value={cidade}>{cidade}</SelectItem>)}
+                  </SelectContent>
+                </Select>
               </div>
 
               <div className="space-y-2">
@@ -795,7 +808,7 @@ export function ClienteFormDialog({
               </div>
               <div className="space-y-2">
                 <Label htmlFor="secundarioUf">UF</Label>
-                <Input id="secundarioUf" value={form.secundarioUf || ""} onChange={(e) => setForm((p) => ({ ...p, secundarioUf: e.target.value.toUpperCase() }))} disabled={saving} placeholder="PR" />
+                <Input id="secundarioUf" value="PR" disabled />
               </div>
               <div className="flex gap-2">
                 <Button type="button" variant="secondary" onClick={handleBuscarCepSecundario} disabled={saving || buscandoCepSecundario}>
@@ -818,7 +831,14 @@ export function ClienteFormDialog({
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="secundarioCidade">Cidade</Label>
-                <Input id="secundarioCidade" value={form.secundarioCidade || ""} onChange={(e) => setForm((p) => ({ ...p, secundarioCidade: e.target.value }))} disabled={saving} />
+                <Select value={form.secundarioCidade || ""} onValueChange={(secundarioCidade) => setForm((p) => ({ ...p, secundarioCidade }))} disabled={saving}>
+                  <SelectTrigger id="secundarioCidade">
+                    <SelectValue placeholder="Selecione a cidade" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {CIDADES_PR.map((cidade) => <SelectItem key={cidade} value={cidade}>{cidade}</SelectItem>)}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="secundarioBairro">Bairro</Label>

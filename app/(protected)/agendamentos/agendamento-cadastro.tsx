@@ -234,7 +234,7 @@ function gerarHorarios30({ start, end }: { start: string; end: string }) {
 function getJanelaEntregaPorDistancia(distanciaKm: number | null) {
   if (distanciaKm == null) return { start: "13:00", end: "20:30" };
   return distanciaKm < 3
-    ? { start: "13:00", end: "15:00" }
+    ? { start: "13:00", end: "20:30" }
     : { start: "15:00", end: "20:30" };
 }
 
