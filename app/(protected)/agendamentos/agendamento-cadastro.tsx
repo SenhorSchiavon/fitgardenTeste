@@ -54,6 +54,7 @@ import {
   Pencil,
   Cookie,
   Package,
+  Search,
 } from "lucide-react";
 
 import { useRegrasPersonalizadas } from "@/hooks/useRegrasPersonalizadas";
@@ -264,6 +265,14 @@ function currency(value: number) {
   return Number(value || 0).toFixed(2);
 }
 
+function normalizarBusca(value: string) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+}
+
 type EnderecoClienteOption = NonNullable<ClienteOption["enderecos"]>[number];
 
 function formatEnderecoCliente(e?: EnderecoClienteOption | null) {
@@ -410,6 +419,8 @@ export function NovoAgendamentoNovoLayout({
   const [modalEscolhaPedidoOpen, setModalEscolhaPedidoOpen] = useState(false);
   const [modalPlanoOpen, setModalPlanoOpen] = useState(false);
   const [modalTrocasOpen, setModalTrocasOpen] = useState(false);
+  const [buscaMarmita, setBuscaMarmita] = useState("");
+  const [filtroCatalogo, setFiltroCatalogo] = useState<"TODAS" | "PEDIDO">("TODAS");
   const [itens, setItens] = useState<NovoPedidoItem[]>([]);
   const [planosCatalogo, setPlanosCatalogo] = useState<PlanoCatalogo[]>([]);
   const [planoSelecionadoId, setPlanoSelecionadoId] = useState("");
@@ -773,6 +784,32 @@ export function NovoAgendamentoNovoLayout({
     () => itens.filter((item) => (item.groupId || "") === currentGroupId),
     [itens, currentGroupId]
   );
+
+  const quantidadeCatalogoPorOpcao = useMemo(() => {
+    return itensDoGrupoAtual.reduce<Record<string, number>>((acc, item) => {
+      if (
+        item.tipoItem !== "PADRAO" ||
+        !item.opcaoId ||
+        item.trocaCarboId ||
+        item.trocaProteinaId ||
+        item.trocaLegumeId ||
+        item.zerarLegume ||
+        item.adicionarFeijao
+      ) return acc;
+      acc[item.opcaoId] = (acc[item.opcaoId] || 0) + Number(item.quantidade || 0);
+      return acc;
+    }, {});
+  }, [itensDoGrupoAtual]);
+
+  const opcoesPadraoFiltradas = useMemo(() => {
+    const termos = normalizarBusca(buscaMarmita).split(/\s+/).filter(Boolean);
+
+    return opcoesPadrao.filter((opcao) => {
+      if (filtroCatalogo === "PEDIDO" && !quantidadeCatalogoPorOpcao[opcao.id]) return false;
+      const nome = normalizarBusca(opcao.nome);
+      return termos.every((termo) => nome.includes(termo));
+    });
+  }, [buscaMarmita, filtroCatalogo, opcoesPadrao, quantidadeCatalogoPorOpcao]);
 
   const hasItensNoGrupoAtual = itensDoGrupoAtual.length > 0;
 
@@ -1227,6 +1264,8 @@ export function NovoAgendamentoNovoLayout({
       return;
     }
     resetFormItem();
+    setBuscaMarmita("");
+    setFiltroCatalogo("TODAS");
     setFormItem((prev) => ({
       ...prev,
       tipoItem: "PADRAO",
@@ -1564,6 +1603,128 @@ export function NovoAgendamentoNovoLayout({
         };
       })
     );
+  }
+
+  function setItemQty(id: string, quantidade: number) {
+    const qtd = Math.max(1, Math.floor(Number(quantidade || 1)));
+    setItens((prev) =>
+      prev.map((item) => {
+        if (item.id !== id) return item;
+        const nextItem = { ...item, quantidade: qtd };
+        if (qtd > Number(item.quantidade || 0) && !canUsePlanoForItem(nextItem)) {
+          toast.error("Plano não encontrado", {
+            description: "O cliente não tem saldo compatível para essa quantidade.",
+          });
+          return item;
+        }
+        return nextItem;
+      }),
+    );
+  }
+
+  function ajustarQuantidadeMarmitaCatalogo(opcao: OpcaoCardapio, delta: number) {
+    const tamanho = tamanhos.find((item) => item.id === formItem.tamanhoId);
+    if (!tamanho) {
+      toast.error("Escolha o tamanho primeiro", {
+        description: "O catálogo usa o tamanho selecionado para adicionar as marmitas.",
+      });
+      return;
+    }
+
+    if (!formItem.destinatarioNome.trim()) {
+      toast.error("Informe o nome da etiqueta", {
+        description: "Preencha o destinatário antes de montar o pedido.",
+      });
+      return;
+    }
+
+    const itemExistente = itens.find(
+      (item) =>
+        item.groupId === currentGroupId &&
+        item.tipoItem === "PADRAO" &&
+        item.opcaoId === opcao.id &&
+        item.tamanhoId === formItem.tamanhoId &&
+        !item.trocaCarboId &&
+        !item.trocaProteinaId &&
+        !item.trocaLegumeId &&
+        !item.zerarLegume &&
+        !item.adicionarFeijao,
+    );
+
+    if (itemExistente) {
+      if (delta < 0 && Number(itemExistente.quantidade || 0) <= 1) {
+        removeItem(itemExistente.id);
+        return;
+      }
+      changeItemQty(itemExistente.id, delta);
+      return;
+    }
+
+    if (delta < 0) return;
+
+    const novo: NovoPedidoItem = {
+      ...formItem,
+      id: uid(),
+      groupId: currentGroupId,
+      tipoItem: "PADRAO",
+      opcaoId: opcao.id,
+      opcaoNome: opcao.nome,
+      quantidade: 1,
+      tamanhoLabel: tamanho.nome,
+      precoUnit: getPrecoUnitPorQuantidade(tamanho, totalMarmitas + 1),
+      observacaoItem: "",
+      trocaCarboId: "",
+      trocaCarboNome: "",
+      trocaProteinaId: "",
+      trocaProteinaNome: "",
+      trocaLegumeId: "",
+      trocaLegumeNome: "",
+      zerarLegume: false,
+      adicionarFeijao: false,
+    };
+
+    if (!canUsePlanoForItem(novo)) {
+      toast.error("Plano não encontrado", {
+        description: "O cliente não tem saldo compatível com este tamanho.",
+      });
+      return;
+    }
+
+    setItens((prev) => [...prev, novo]);
+  }
+
+  function abrirTrocasParaOpcao(opcao: OpcaoCardapio) {
+    const tamanho = tamanhos.find((item) => item.id === formItem.tamanhoId);
+    if (!tamanho) {
+      toast.error("Escolha o tamanho primeiro", {
+        description: "Selecione o tamanho antes de configurar uma substituição.",
+      });
+      return;
+    }
+
+    setFormItem((prev) => ({
+      ...prev,
+      id: "",
+      tipoItem: "PADRAO",
+      opcaoId: opcao.id,
+      opcaoNome: opcao.nome,
+      quantidade: 1,
+      tamanhoLabel: tamanho.nome,
+      trocaCarboId: "",
+      trocaCarboNome: "",
+      trocaProteinaId: "",
+      trocaProteinaNome: "",
+      trocaLegumeId: "",
+      trocaLegumeNome: "",
+      zerarLegume: false,
+      adicionarFeijao: false,
+    }));
+    setModalTrocasOpen(true);
+  }
+
+  function adicionarMarmitaComTrocas() {
+    setModalTrocasOpen(false);
+    addPedidoNaLista(false);
   }
 
   async function handleSubmit() {
@@ -2900,101 +3061,110 @@ export function NovoAgendamentoNovoLayout({
                     )}
                   </div>
                 ) : formItem.tipoItem === "PADRAO" ? (
-                  <div className="space-y-4">
-                    <div className="space-y-1.5">
-                      <Label className="text-xs text-muted-foreground">Opção do cardápio</Label>
-                      <div className="grid grid-cols-1 md:grid-cols-[minmax(220px,1fr)_150px_220px_auto] gap-2 items-center">
-                        <Select
-                          value={formItem.opcaoId}
-                          onValueChange={(v) => {
-                            const opcao = opcoesPadrao.find((o) => o.id === v);
-                            setFormItem((prev) => ({
-                              ...prev,
-                              opcaoId: v,
-                              opcaoNome: opcao?.nome || "",
-                            }));
-                          }}
-                        >
-                          <SelectTrigger className="h-9 text-sm min-w-0">
-                            <SelectValue placeholder="Selecione a marmita" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {opcoesPadrao.map((opcao) => (
-                              <SelectItem key={opcao.id} value={opcao.id}>
-                                {opcao.nome}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <div className="grid grid-cols-[32px_minmax(0,1fr)_32px] gap-1">
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="icon"
-                            className="h-9 w-8"
-                            onClick={() =>
-                              setFormItem((prev) => ({
-                                ...prev,
-                                quantidade: Math.max(1, Number(prev.quantidade || 1) - 1),
-                              }))
-                            }
-                          >
-                            <Minus className="h-4 w-4" />
-                          </Button>
-                          <Input
-                            type="number"
-                            min={1}
-                            className="h-9 text-center"
-                            value={formItem.quantidade}
-                            onChange={(e) =>
-                              setFormItem((prev) => ({
-                                ...prev,
-                                quantidade: Math.max(1, Number(e.target.value || 1)),
-                              }))
-                            }
-                          />
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="icon"
-                            className="h-9 w-8"
-                            onClick={() =>
-                              setFormItem((prev) => ({
-                                ...prev,
-                                quantidade: Number(prev.quantidade || 1) + 1,
-                              }))
-                            }
-                          >
-                            <Plus className="h-4 w-4" />
-                          </Button>
-                        </div>
+                  <div className="space-y-4 rounded-2xl border border-emerald-100 bg-emerald-50/30 p-4">
+                    <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+                      <div>
+                        <Label className="text-base font-bold text-slate-800">Monte as marmitas</Label>
+                        <p className="text-xs text-muted-foreground">
+                          Pesquise e ajuste as quantidades. O pedido atualiza na hora.
+                        </p>
+                      </div>
+                      <div className="flex gap-2">
                         <Button
                           type="button"
-                          variant="outline"
                           size="sm"
-                          className="h-9 border-dashed text-muted-foreground font-normal bg-muted/30"
-                          onClick={() => setModalTrocasOpen(true)}
+                          variant={filtroCatalogo === "TODAS" ? "default" : "outline"}
+                          onClick={() => setFiltroCatalogo("TODAS")}
                         >
-                          Fazer substituições na marmita
+                          Todas
                         </Button>
                         <Button
                           type="button"
                           size="sm"
-                          onClick={() => addPedidoNaLista(false)}
-                          className="shrink-0 h-9 text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
+                          variant={filtroCatalogo === "PEDIDO" ? "default" : "outline"}
+                          onClick={() => setFiltroCatalogo("PEDIDO")}
                         >
-                          Adicionar e continuar
+                          No pedido
+                          <Badge variant="secondary" className="ml-2">
+                            {Object.values(quantidadeCatalogoPorOpcao).reduce((acc, quantidade) => acc + quantidade, 0)}
+                          </Badge>
                         </Button>
                       </div>
                     </div>
 
-                    <div>
-                      
-                      {(formItem.trocaCarboId || formItem.trocaProteinaId || formItem.trocaLegumeId || formItem.zerarLegume || formItem.adicionarFeijao) ? (
-                         <div className="mt-3 text-xs text-muted-foreground bg-muted/40 p-3 rounded-md border border-border/50">
-                           <span className="font-semibold text-foreground">Trocas ativas:</span> {getResumoEscolhas(formItem)}
-                         </div>
-                      ) : null}
+                    <div className="relative">
+                      <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                      <Input
+                        value={buscaMarmita}
+                        onChange={(event) => setBuscaMarmita(event.target.value)}
+                        placeholder="Buscar marmita por nome. Ex.: arroz integral frango"
+                        className="h-11 bg-white pl-10"
+                      />
+                    </div>
+
+                    <div className="max-h-[42vh] space-y-2 overflow-y-auto pr-1 custom-scrollbar">
+                      {opcoesPadraoFiltradas.map((opcao) => {
+                        const quantidade = quantidadeCatalogoPorOpcao[opcao.id] || 0;
+                        return (
+                          <div
+                            key={opcao.id}
+                            className={cn(
+                              "flex items-center gap-3 rounded-xl border bg-white p-3 transition-colors",
+                              quantidade > 0 ? "border-emerald-300 bg-emerald-50/60" : "border-slate-200 hover:border-emerald-200",
+                            )}
+                          >
+                            <div className="min-w-0 flex-1">
+                              <div className="truncate text-sm font-semibold text-slate-800">{opcao.nome}</div>
+                              <div className="mt-0.5 text-[11px] text-muted-foreground">
+                                {quantidade > 0 ? `${quantidade} no pedido` : "Ainda não adicionada"}
+                              </div>
+                            </div>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="ghost"
+                              className="h-9 px-2 text-xs text-muted-foreground hover:text-primary"
+                              onClick={() => abrirTrocasParaOpcao(opcao)}
+                              title="Adicionar com substituições"
+                            >
+                              <Pencil className="h-3.5 w-3.5 sm:mr-1" />
+                              <span className="hidden sm:inline">Com troca</span>
+                            </Button>
+                            <div className="grid grid-cols-[36px_44px_36px] items-center gap-1">
+                              <Button
+                                type="button"
+                                size="icon"
+                                variant="outline"
+                                className="h-9 w-9"
+                                disabled={quantidade === 0}
+                                onClick={() => ajustarQuantidadeMarmitaCatalogo(opcao, -1)}
+                              >
+                                <Minus className="h-4 w-4" />
+                              </Button>
+                              <div className="text-center text-base font-extrabold tabular-nums text-emerald-700">{quantidade}</div>
+                              <Button
+                                type="button"
+                                size="icon"
+                                className="h-9 w-9 bg-emerald-600 text-white hover:bg-emerald-700"
+                                onClick={() => ajustarQuantidadeMarmitaCatalogo(opcao, 1)}
+                              >
+                                <Plus className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                      {opcoesPadraoFiltradas.length === 0 && (
+                        <div className="rounded-xl border border-dashed bg-white p-8 text-center text-sm text-muted-foreground">
+                          Nenhuma marmita encontrada com essa busca.
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex items-center justify-between gap-3 rounded-xl border border-dashed bg-white/70 p-3">
+                      <p className="text-xs text-muted-foreground">
+                        Para exceções, use <strong>Com troca</strong> na linha da marmita desejada.
+                      </p>
                     </div>
                   </div>
                 ) : (
@@ -3359,6 +3529,43 @@ export function NovoAgendamentoNovoLayout({
                             )}
                           </div>
 
+                          <div className="mt-2 flex items-center gap-1">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="icon"
+                              className="h-7 w-7"
+                              onClick={() => Number(it.quantidade || 0) <= 1 ? removeItem(it.id) : changeItemQty(it.id, -1)}
+                            >
+                              <Minus className="h-3 w-3" />
+                            </Button>
+                            <Input
+                              type="number"
+                              min={1}
+                              value={it.quantidade}
+                              onChange={(event) => setItemQty(it.id, Number(event.target.value || 1))}
+                              className="h-7 w-12 px-1 text-center text-xs font-bold"
+                            />
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="icon"
+                              className="h-7 w-7"
+                              onClick={() => changeItemQty(it.id, 1)}
+                            >
+                              <Plus className="h-3 w-3" />
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="ml-auto h-7 w-7 text-muted-foreground hover:text-destructive"
+                              onClick={() => removeItem(it.id)}
+                            >
+                              <Trash className="h-3 w-3" />
+                            </Button>
+                          </div>
+
                           {it.tipoItem === "PERSONALIZADA" && (() => {
                             const partes = [
                               it.carboNome && it.carboGramas ? `${it.carboNome} ${it.carboGramas}g` : null,
@@ -3432,8 +3639,19 @@ export function NovoAgendamentoNovoLayout({
                 </Button>
               </>
             )}
-            <Button type="button" onClick={() => addPedidoNaLista(true)} className="rounded-xl shadow-lg">
-              Salvar
+            <Button
+              type="button"
+              onClick={() => {
+                if (formItem.tipoItem === "PADRAO" && !formItem.id) {
+                  setModalNovoPedidoOpen(false);
+                  resetFormItem();
+                  return;
+                }
+                addPedidoNaLista(true);
+              }}
+              className="rounded-xl shadow-lg"
+            >
+              {formItem.tipoItem === "PADRAO" && !formItem.id ? "Concluir montagem" : "Salvar"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -3617,8 +3835,8 @@ export function NovoAgendamentoNovoLayout({
           </div>
 
           <DialogFooter className="mt-6">
-            <Button type="button" onClick={() => setModalTrocasOpen(false)}>
-              Confirmar Substituições
+            <Button type="button" onClick={adicionarMarmitaComTrocas}>
+              Adicionar marmita com substituições
             </Button>
           </DialogFooter>
         </DialogContent>
