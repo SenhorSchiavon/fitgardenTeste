@@ -211,7 +211,11 @@ export default function WhatsAppPage() {
     new Date(selectedConversation.lockExpiresAt).getTime() > Date.now();
   const lockedByMe = lockActive && Number(selectedConversation?.lockedByUserId) === Number(currentUser?.id);
   const canSend = !lockActive || lockedByMe || currentUser?.isAdmin;
-  const opcoesPadrao = opcoes.map((o) => ({ id: String(o.id), nome: o.nome }));
+  const opcoesPadrao = opcoes.map((o) => ({
+    id: String(o.id),
+    nome: o.nome,
+    categoria: o.categoria ?? null,
+  }));
   const carboidratos = preparos.filter((p) => p.tipo === "CARBOIDRATO").map((p) => ({ id: String(p.id), nome: p.nome }));
   const proteinas = preparos.filter((p) => p.tipo === "PROTEINA").map((p) => ({ id: String(p.id), nome: p.nome }));
   const legumes = preparos.filter((p) => p.tipo === "LEGUMES").map((p) => ({ id: String(p.id), nome: p.nome }));

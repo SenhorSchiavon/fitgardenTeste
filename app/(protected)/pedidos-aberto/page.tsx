@@ -267,7 +267,7 @@ export default function PedidosAberto() {
 
   const handleDesconciliarPagamento = async (pedido: PedidoPendenteRow) => {
     if (!pedido.pagamentoId) {
-      toast.error("Pagamento nÃ£o encontrado para conciliaÃ§Ã£o");
+      toast.error("Pagamento não encontrado para conciliação");
       return;
     }
 
@@ -278,13 +278,13 @@ export default function PedidosAberto() {
 
   const handleMarcarNaoPago = async (pedido: PedidoPendenteRow) => {
     if (!pedido.pagamentoId) {
-      toast.error("Pagamento nÃ£o encontrado");
+      toast.error("Pagamento não encontrado");
       return;
     }
 
     await marcarPagamentoNaoPago(pedido.pagamentoId);
     await load(dataFiltro);
-    toast.success("Pagamento marcado como nÃ£o pago");
+    toast.success("Pagamento marcado como não pago");
   };
 
   const formatDate = (dateString: string) => {
@@ -306,13 +306,13 @@ export default function PedidosAberto() {
   };
 
   const formatFormaPagamento = (forma?: string | null) => {
-    if (forma === "A_DEFINIR") return "NÃ£o definido";
-    if (forma === "CREDITO") return "CartÃ£o";
+    if (forma === "A_DEFINIR") return "Não definido";
+    if (forma === "CREDITO") return "Cartão";
     if (forma === "DINHEIRO") return "Dinheiro";
     if (forma === "PIX") return "PIX";
     if (forma === "PLANO") return "Plano";
     if (forma === "TROCA") return "Troca";
-    if (forma === "BONIFICACAO") return "BonificaÃ§Ã£o";
+    if (forma === "BONIFICACAO") return "Bonificação";
     return forma || "-";
   };
 
@@ -366,7 +366,7 @@ export default function PedidosAberto() {
       <Tabs defaultValue="pendentes" className="space-y-4">
         <TabsList>
           <TabsTrigger value="pendentes">Pendentes ({pedidosAbertoFiltrados.length})</TabsTrigger>
-          <TabsTrigger value="conciliacao">Pagos / Conciliacao ({pagamentosConciliarFiltrados.length})</TabsTrigger>
+          <TabsTrigger value="conciliacao">Pagos / Conciliação ({pagamentosConciliarFiltrados.length})</TabsTrigger>
           <TabsTrigger value="planos">Planos ({planosNaoPagosDoDia.length})</TabsTrigger>
         </TabsList>
 
@@ -384,7 +384,7 @@ export default function PedidosAberto() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="todos">Todos</SelectItem>
-                <SelectItem value="a-definir">NÃ£o definido</SelectItem>
+                <SelectItem value="a-definir">Não definido</SelectItem>
                 <SelectItem value="definidos">Já definidos</SelectItem>
               </SelectContent>
             </Select>
@@ -430,7 +430,7 @@ export default function PedidosAberto() {
                     </div>
                     <div className="flex items-center gap-2">
                       {pedido.formaPagamento === "A_DEFINIR" ? (
-                        <Badge className="bg-red-100 text-red-700 hover:bg-red-100">Pagamento nÃ£o definido</Badge>
+                        <Badge className="bg-red-100 text-red-700 hover:bg-red-100">Pagamento não definido</Badge>
                       ) : (
                         <Badge variant="destructive">Pagamento Pendente</Badge>
                       )}

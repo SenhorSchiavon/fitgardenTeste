@@ -675,6 +675,7 @@ export default function Agendamentos() {
   const opcoesPadrao = (opcoes ?? []).map((o: any) => ({
     id: String(o.id),
     nome: o.nome,
+    categoria: o.categoria ?? null,
   }));
   const carboidratos = preparos
     .filter((p) => p.tipo === "CARBOIDRATO")

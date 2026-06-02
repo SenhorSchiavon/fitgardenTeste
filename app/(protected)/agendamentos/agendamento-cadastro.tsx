@@ -55,6 +55,7 @@ import {
   Cookie,
   Package,
   Search,
+  X,
 } from "lucide-react";
 
 import { useRegrasPersonalizadas } from "@/hooks/useRegrasPersonalizadas";
@@ -125,6 +126,7 @@ type OpcaoCardapio = {
   id: string;
   nome: string;
   tipo?: "PRATO" | "CARBOIDRATO" | "PROTEINA" | "LEGUME" | "FEIJAO" | "COMPLEMENTO";
+  categoria?: string | null;
 };
 
 type SalgadoOption = {
@@ -421,6 +423,7 @@ export function NovoAgendamentoNovoLayout({
   const [modalTrocasOpen, setModalTrocasOpen] = useState(false);
   const [buscaMarmita, setBuscaMarmita] = useState("");
   const [filtroCatalogo, setFiltroCatalogo] = useState<"TODAS" | "PEDIDO">("TODAS");
+  const [categoriaCatalogo, setCategoriaCatalogo] = useState("TODAS");
   const [itens, setItens] = useState<NovoPedidoItem[]>([]);
   const [planosCatalogo, setPlanosCatalogo] = useState<PlanoCatalogo[]>([]);
   const [planoSelecionadoId, setPlanoSelecionadoId] = useState("");
@@ -801,15 +804,26 @@ export function NovoAgendamentoNovoLayout({
     }, {});
   }, [itensDoGrupoAtual]);
 
+  const categoriasCatalogo = useMemo(() => {
+    const categorias = new Map<string, string>();
+    opcoesPadrao.forEach((opcao) => {
+      const label = String(opcao.categoria || "").trim();
+      if (!label) return;
+      categorias.set(normalizarBusca(label), label);
+    });
+    return Array.from(categorias.entries()).map(([value, label]) => ({ value, label }));
+  }, [opcoesPadrao]);
+
   const opcoesPadraoFiltradas = useMemo(() => {
     const termos = normalizarBusca(buscaMarmita).split(/\s+/).filter(Boolean);
 
     return opcoesPadrao.filter((opcao) => {
       if (filtroCatalogo === "PEDIDO" && !quantidadeCatalogoPorOpcao[opcao.id]) return false;
+      if (categoriaCatalogo !== "TODAS" && normalizarBusca(opcao.categoria || "") !== categoriaCatalogo) return false;
       const nome = normalizarBusca(opcao.nome);
       return termos.every((termo) => nome.includes(termo));
     });
-  }, [buscaMarmita, filtroCatalogo, opcoesPadrao, quantidadeCatalogoPorOpcao]);
+  }, [buscaMarmita, categoriaCatalogo, filtroCatalogo, opcoesPadrao, quantidadeCatalogoPorOpcao]);
 
   const hasItensNoGrupoAtual = itensDoGrupoAtual.length > 0;
 
@@ -1266,6 +1280,7 @@ export function NovoAgendamentoNovoLayout({
     resetFormItem();
     setBuscaMarmita("");
     setFiltroCatalogo("TODAS");
+    setCategoriaCatalogo("TODAS");
     setFormItem((prev) => ({
       ...prev,
       tipoItem: "PADRAO",
@@ -3098,54 +3113,90 @@ export function NovoAgendamentoNovoLayout({
                         value={buscaMarmita}
                         onChange={(event) => setBuscaMarmita(event.target.value)}
                         placeholder="Buscar marmita por nome. Ex.: arroz integral frango"
-                        className="h-11 bg-white pl-10"
+                        className="h-11 bg-white pl-10 pr-10"
                       />
+                      {buscaMarmita && (
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="ghost"
+                          className="absolute right-1.5 top-1/2 h-8 w-8 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                          onClick={() => setBuscaMarmita("")}
+                          title="Limpar busca"
+                          aria-label="Limpar busca"
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      )}
                     </div>
 
-                    <div className="max-h-[42vh] space-y-2 overflow-y-auto pr-1 custom-scrollbar">
+                    <div className="flex flex-wrap gap-1.5">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant={categoriaCatalogo === "TODAS" ? "default" : "outline"}
+                        className="h-7 rounded-full px-3 text-xs"
+                        onClick={() => setCategoriaCatalogo("TODAS")}
+                      >
+                        Todas categorias
+                      </Button>
+                      {categoriasCatalogo.map((categoria) => (
+                        <Button
+                          key={categoria.value}
+                          type="button"
+                          size="sm"
+                          variant={categoriaCatalogo === categoria.value ? "default" : "outline"}
+                          className="h-7 rounded-full px-3 text-xs"
+                          onClick={() => setCategoriaCatalogo(categoria.value)}
+                        >
+                          {categoria.label}
+                        </Button>
+                      ))}
+                    </div>
+
+                    <div className="max-h-[42vh] space-y-1 overflow-y-auto pr-1 custom-scrollbar">
                       {opcoesPadraoFiltradas.map((opcao) => {
                         const quantidade = quantidadeCatalogoPorOpcao[opcao.id] || 0;
                         return (
                           <div
                             key={opcao.id}
                             className={cn(
-                              "flex items-center gap-3 rounded-xl border bg-white p-3 transition-colors",
+                              "flex items-center gap-2 rounded-lg border bg-white px-3 py-2 transition-colors",
                               quantidade > 0 ? "border-emerald-300 bg-emerald-50/60" : "border-slate-200 hover:border-emerald-200",
                             )}
                           >
                             <div className="min-w-0 flex-1">
                               <div className="truncate text-sm font-semibold text-slate-800">{opcao.nome}</div>
-                              <div className="mt-0.5 text-[11px] text-muted-foreground">
+                              <div className="text-[10px] text-muted-foreground">
                                 {quantidade > 0 ? `${quantidade} no pedido` : "Ainda não adicionada"}
                               </div>
                             </div>
                             <Button
                               type="button"
-                              size="sm"
+                              size="icon"
                               variant="ghost"
-                              className="h-9 px-2 text-xs text-muted-foreground hover:text-primary"
+                              className="h-7 w-7 text-muted-foreground hover:text-primary"
                               onClick={() => abrirTrocasParaOpcao(opcao)}
                               title="Adicionar com substituições"
                             >
-                              <Pencil className="h-3.5 w-3.5 sm:mr-1" />
-                              <span className="hidden sm:inline">Com troca</span>
+                              <Pencil className="h-3.5 w-3.5" />
                             </Button>
-                            <div className="grid grid-cols-[36px_44px_36px] items-center gap-1">
+                            <div className="grid grid-cols-[30px_36px_30px] items-center gap-1">
                               <Button
                                 type="button"
                                 size="icon"
                                 variant="outline"
-                                className="h-9 w-9"
+                                className="h-7 w-7"
                                 disabled={quantidade === 0}
                                 onClick={() => ajustarQuantidadeMarmitaCatalogo(opcao, -1)}
                               >
                                 <Minus className="h-4 w-4" />
                               </Button>
-                              <div className="text-center text-base font-extrabold tabular-nums text-emerald-700">{quantidade}</div>
+                              <div className="text-center text-sm font-extrabold tabular-nums text-emerald-700">{quantidade}</div>
                               <Button
                                 type="button"
                                 size="icon"
-                                className="h-9 w-9 bg-emerald-600 text-white hover:bg-emerald-700"
+                                className="h-7 w-7 bg-emerald-600 text-white hover:bg-emerald-700"
                                 onClick={() => ajustarQuantidadeMarmitaCatalogo(opcao, 1)}
                               >
                                 <Plus className="h-4 w-4" />
@@ -3163,7 +3214,7 @@ export function NovoAgendamentoNovoLayout({
 
                     <div className="flex items-center justify-between gap-3 rounded-xl border border-dashed bg-white/70 p-3">
                       <p className="text-xs text-muted-foreground">
-                        Para exceções, use <strong>Com troca</strong> na linha da marmita desejada.
+                        Para exceções, use o ícone de lápis na linha da marmita desejada.
                       </p>
                     </div>
                   </div>
