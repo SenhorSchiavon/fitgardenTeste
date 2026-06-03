@@ -139,6 +139,13 @@ function horarioInicioEmMinutos(faixaHorario: string) {
   return h * 60 + m;
 }
 
+function horarioFimEmMinutos(faixaHorario: string) {
+  const fim = String(faixaHorario || "").split("-")[1] || "";
+  const [h, m] = fim.split(":").map(Number);
+  if (!Number.isFinite(h) || !Number.isFinite(m)) return Number.MAX_SAFE_INTEGER;
+  return h * 60 + m;
+}
+
 function getRotaAgendamento(agendamento: Agendamento) {
   const inicio = horarioInicioEmMinutos(agendamento.faixaHorario);
   if (inicio == null) return null;
@@ -169,6 +176,15 @@ function getLabelPagamento(forma: string) {
     VOUCHER_TAXA_PIX: "Voucher taxa PIX",
   };
   return labels[forma] || forma || "-";
+}
+
+function ordenarAgendamentosRota(rows: Agendamento[]) {
+  return [...rows].sort((a, b) => {
+    const prioridadeTipo = (agendamento: Agendamento) => agendamento.tipoEntrega === "RETIRADA" ? 0 : 1;
+    const diffTipo = prioridadeTipo(a) - prioridadeTipo(b);
+    if (diffTipo !== 0) return diffTipo;
+    return horarioFimEmMinutos(a.faixaHorario) - horarioFimEmMinutos(b.faixaHorario);
+  });
 }
 
 function getLabelTipoEntrega(tipo: string) {
@@ -279,9 +295,11 @@ export default function Agendamentos() {
   const agendamentosPorRota = useMemo(() => {
     const grupos = ROTAS_ENTREGA.map((rota) => ({
       ...rota,
-      agendamentos: agendamentos.filter((agendamento) => getRotaAgendamento(agendamento)?.id === rota.id),
+      agendamentos: ordenarAgendamentosRota(
+        agendamentos.filter((agendamento) => getRotaAgendamento(agendamento)?.id === rota.id),
+      ),
     })).filter((grupo) => grupo.agendamentos.length > 0);
-    const semRota = agendamentos.filter((agendamento) => !getRotaAgendamento(agendamento));
+    const semRota = ordenarAgendamentosRota(agendamentos.filter((agendamento) => !getRotaAgendamento(agendamento)));
     if (semRota.length > 0) {
       grupos.push({
         id: 0,

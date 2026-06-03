@@ -1182,6 +1182,17 @@ export function NovoAgendamentoNovoLayout({
       ...prev,
       id: "",
       quantidade: 1,
+      carboId: "",
+      carboNome: "",
+      proteinaId: "",
+      proteinaNome: "",
+      legumeId: "",
+      legumeNome: "",
+      feijaoId: "",
+      feijaoNome: "",
+      complementoId: "",
+      complementoNome: "",
+      adicionarFeijao: false,
       observacaoItem: "",
     }));
   }
@@ -1270,6 +1281,16 @@ export function NovoAgendamentoNovoLayout({
     setModalEscolhaPedidoOpen(true);
   }
 
+  function abrirNovoItemNoGrupo(itemReferencia: NovoPedidoItem) {
+    setCurrentGroupId(itemReferencia.groupId || itemReferencia.id);
+    resetFormItem();
+    setFormItem((prev) => ({
+      ...prev,
+      destinatarioNome: getDestinatarioItem(itemReferencia),
+    }));
+    setModalEscolhaPedidoOpen(true);
+  }
+
   function abrirFormularioMarmita() {
     if (tipo === "NAO_DEFINIR") {
       toast.error("Defina o tipo do agendamento", {
@@ -1284,7 +1305,9 @@ export function NovoAgendamentoNovoLayout({
     setFormItem((prev) => ({
       ...prev,
       tipoItem: "PADRAO",
-      destinatarioNome: clienteSelecionado?.nome || "",
+      destinatarioNome: itensDoGrupoAtual[0]
+        ? getDestinatarioItem(itensDoGrupoAtual[0])
+        : clienteSelecionado?.nome || "",
     }));
     setModalEscolhaPedidoOpen(false);
     setModalNovoPedidoOpen(true);
@@ -1292,7 +1315,11 @@ export function NovoAgendamentoNovoLayout({
 
   function abrirFormularioSalgado() {
     resetFormItem();
-    setFormItem((prev) => ({ ...prev, tipoItem: "SALGADO" }));
+    setFormItem((prev) => ({
+      ...prev,
+      tipoItem: "SALGADO",
+      destinatarioNome: itensDoGrupoAtual[0] ? getDestinatarioItem(itensDoGrupoAtual[0]) : "",
+    }));
     setModalEscolhaPedidoOpen(false);
     setModalNovoPedidoOpen(true);
   }
@@ -1432,6 +1459,109 @@ export function NovoAgendamentoNovoLayout({
       item.zerarLegume ? "Sem legume" : null,
       item.adicionarFeijao ? "Com feijão" : null,
     ].filter(Boolean).join(" • ");
+  }
+
+  function renderIngredientePersonalizada({
+    label,
+    items,
+    idKey,
+    nomeKey,
+    gramasKey,
+    optional = false,
+  }: {
+    label: string;
+    items: Array<{ id: string; nome: string }>;
+    idKey: keyof NovoPedidoItem;
+    nomeKey: keyof NovoPedidoItem;
+    gramasKey: keyof NovoPedidoItem;
+    optional?: boolean;
+  }) {
+    const selectedId = String(formItem[idKey] || "");
+    const selectedName = String(formItem[nomeKey] || "");
+    const clearSelection = () => {
+      setFormItem((prev) => ({
+        ...prev,
+        [idKey]: "",
+        [nomeKey]: "",
+        [gramasKey]: 0,
+        ...(idKey === "feijaoId" ? { adicionarFeijao: false } : {}),
+      }));
+    };
+
+    return (
+      <div className="grid grid-cols-[minmax(0,1fr)_120px] gap-3">
+        <div className="space-y-2">
+          <Label>{label}</Label>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                type="button"
+                variant="outline"
+                className="h-11 w-full justify-between bg-white text-left font-normal"
+              >
+                <span className={cn("truncate", !selectedName && "text-muted-foreground")}>
+                  {selectedName || `Buscar ${label.toLowerCase()}`}
+                </span>
+                <Search className="ml-2 h-4 w-4 shrink-0 text-muted-foreground" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-[320px] p-0" align="start">
+              <Command>
+                <CommandInput placeholder={`Pesquisar ${label.toLowerCase()}...`} />
+                <CommandList>
+                  <CommandEmpty>Nenhum ingrediente encontrado.</CommandEmpty>
+                  <CommandGroup>
+                    {optional && (
+                      <CommandItem value={`nenhum-${label}`} onSelect={clearSelection}>
+                        Nenhum
+                      </CommandItem>
+                    )}
+                    {items.map((item) => (
+                      <CommandItem
+                        key={item.id}
+                        value={item.nome}
+                        onSelect={() => {
+                          setFormItem((prev) => ({
+                            ...prev,
+                            [idKey]: item.id,
+                            [nomeKey]: item.nome,
+                            ...(idKey === "feijaoId" ? { adicionarFeijao: true } : {}),
+                          }));
+                        }}
+                      >
+                        <Check className={cn("mr-2 h-4 w-4", selectedId === item.id ? "opacity-100" : "opacity-0")} />
+                        {item.nome}
+                      </CommandItem>
+                    ))}
+                  </CommandGroup>
+                </CommandList>
+              </Command>
+            </PopoverContent>
+          </Popover>
+        </div>
+
+        <div className="space-y-2">
+          <Label>Gramas</Label>
+          <Input
+            type="number"
+            min={0}
+            step="1"
+            value={Number(formItem[gramasKey] || 0)}
+            onChange={(e) =>
+              setFormItem((prev) => ({
+                ...prev,
+                [gramasKey]: Number(e.target.value || 0),
+                ...(idKey === "feijaoId"
+                  ? { adicionarFeijao: Number(e.target.value || 0) > 0 || !!prev.feijaoId }
+                  : {}),
+              }))
+            }
+            placeholder="0"
+            disabled={!selectedId}
+          />
+        </div>
+      </div>
+    );
   }
 
   function addPedidoNaLista(fechar = true, options?: { manterPesagens?: boolean }) {
@@ -2203,9 +2333,21 @@ export function NovoAgendamentoNovoLayout({
                                   </Badge>
                                 </div>
                               </div>
-                              <div className="shrink-0 text-left sm:text-right">
-                                <div className="text-[9px] font-black uppercase tracking-widest text-primary/60">Subtotal</div>
-                                <div className="text-sm font-extrabold text-primary">R$ {currency(subtotalG)}</div>
+                              <div className="shrink-0 flex items-center gap-3">
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-8 rounded-full px-3 text-xs"
+                                  onClick={() => abrirNovoItemNoGrupo(itemReferencia)}
+                                >
+                                  <Plus className="mr-1 h-3.5 w-3.5" />
+                                  Adicionar aqui
+                                </Button>
+                                <div className="text-left sm:text-right">
+                                  <div className="text-[9px] font-black uppercase tracking-widest text-primary/60">Subtotal</div>
+                                  <div className="text-sm font-extrabold text-primary">R$ {currency(subtotalG)}</div>
+                                </div>
                               </div>
                             </div>
 
@@ -3221,288 +3363,43 @@ export function NovoAgendamentoNovoLayout({
                 ) : (
                   <div className="space-y-4">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="grid grid-cols-[minmax(0,1fr)_120px] gap-3">
-                        <div className="space-y-2">
-                          <Label>Carboidrato</Label>
-                          <Select
-                            value={formItem.carboId || "none"}
-                            onValueChange={(v) => {
-                              if (v === "none") {
-                                setFormItem((prev) => ({
-                                  ...prev,
-                                  carboId: "",
-                                  carboNome: "",
-                                  carboGramas: 0,
-                                }));
-                                return;
-                              }
-                              const item = carboidratos.find((o) => o.id === v);
-                              setFormItem((prev) => ({
-                                ...prev,
-                                carboId: v,
-                                carboNome: item?.nome || "",
-                              }));
-                            }}
-                          >
-                            <SelectTrigger>
-                              <SelectValue placeholder="Selecione" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="none">Nenhum</SelectItem>
-                              {carboidratos.map((item) => (
-                                <SelectItem key={item.id} value={item.id}>
-                                  {item.nome}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-
-                        <div className="space-y-2">
-                          <Label>Gramas</Label>
-                          <Input
-                            type="number"
-                            min={0}
-                            step="1"
-                            value={formItem.carboGramas || 0}
-                            onChange={(e) =>
-                              setFormItem((prev) => ({
-                                ...prev,
-                                carboGramas: Number(e.target.value || 0),
-                              }))
-                            }
-                            placeholder="0"
-                            disabled={!formItem.carboId}
-                          />
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-[minmax(0,1fr)_120px] gap-3">
-                        <div className="space-y-2">
-                          <Label>Proteína</Label>
-                          <Select
-                            value={formItem.proteinaId || "none"}
-                            onValueChange={(v) => {
-                              if (v === "none") {
-                                setFormItem((prev) => ({
-                                  ...prev,
-                                  proteinaId: "",
-                                  proteinaNome: "",
-                                  proteinaGramas: 0,
-                                }));
-                                return;
-                              }
-                              const item = proteinas.find((o) => o.id === v);
-                              setFormItem((prev) => ({
-                                ...prev,
-                                proteinaId: v,
-                                proteinaNome: item?.nome || "",
-                              }));
-                            }}
-                          >
-                            <SelectTrigger>
-                              <SelectValue placeholder="Selecione" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="none">Nenhum</SelectItem>
-                              {proteinas.map((item) => (
-                                <SelectItem key={item.id} value={item.id}>
-                                  {item.nome}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-
-                        <div className="space-y-2">
-                          <Label>Gramas</Label>
-                          <Input
-                            type="number"
-                            min={0}
-                            step="1"
-                            value={formItem.proteinaGramas || 0}
-                            onChange={(e) =>
-                              setFormItem((prev) => ({
-                                ...prev,
-                                proteinaGramas: Number(e.target.value || 0),
-                              }))
-                            }
-                            placeholder="0"
-                            disabled={!formItem.proteinaId}
-                          />
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-[minmax(0,1fr)_120px] gap-3">
-                        <div className="space-y-2">
-                          <Label>Legume</Label>
-                          <Select
-                            value={formItem.legumeId || "none"}
-                            onValueChange={(v) => {
-                              if (v === "none") {
-                                setFormItem((prev) => ({
-                                  ...prev,
-                                  legumeId: "",
-                                  legumeNome: "",
-                                  legumeGramas: 0,
-                                }));
-                                return;
-                              }
-                              const item = legumes.find((o) => o.id === v);
-                              setFormItem((prev) => ({
-                                ...prev,
-                                legumeId: v,
-                                legumeNome: item?.nome || "",
-                              }));
-                            }}
-                          >
-                            <SelectTrigger>
-                              <SelectValue placeholder="Selecione" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="none">Nenhum</SelectItem>
-                              {legumes.map((item) => (
-                                <SelectItem key={item.id} value={item.id}>
-                                  {item.nome}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-
-                        <div className="space-y-2">
-                          <Label>Gramas</Label>
-                          <Input
-                            type="number"
-                            min={0}
-                            step="1"
-                            value={formItem.legumeGramas || 0}
-                            onChange={(e) =>
-                              setFormItem((prev) => ({
-                                ...prev,
-                                legumeGramas: Number(e.target.value || 0),
-                              }))
-                            }
-                            placeholder="0"
-                            disabled={!formItem.legumeId}
-                          />
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-[minmax(0,1fr)_120px] gap-3">
-                        <div className="space-y-2">
-                          <Label>Feijão (opcional)</Label>
-                          <Select
-                            value={formItem.feijaoId || "none"}
-                            onValueChange={(v) => {
-                              if (v === "none") {
-                                setFormItem((prev) => ({
-                                  ...prev,
-                                  feijaoId: "",
-                                  feijaoNome: "",
-                                  feijaoGramas: 0,
-                                  adicionarFeijao: false,
-                                }));
-                                return;
-                              }
-                              const item = feijoes.find((o) => o.id === v);
-                              setFormItem((prev) => ({
-                                ...prev,
-                                feijaoId: v,
-                                feijaoNome: item?.nome || "",
-                                adicionarFeijao: true,
-                              }));
-                            }}
-                          >
-                            <SelectTrigger>
-                              <SelectValue placeholder="Selecione" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="none">Nenhum</SelectItem>
-                              {feijoes.map((item) => (
-                                <SelectItem key={item.id} value={item.id}>
-                                  {item.nome}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-
-                        <div className="space-y-2">
-                          <Label>Gramas</Label>
-                          <Input
-                            type="number"
-                            min={0}
-                            step="1"
-                            value={formItem.feijaoGramas || 0}
-                            onChange={(e) =>
-                              setFormItem((prev) => ({
-                                ...prev,
-                                feijaoGramas: Number(e.target.value || 0),
-                                adicionarFeijao: Number(e.target.value || 0) > 0 || !!prev.feijaoId,
-                              }))
-                            }
-                            placeholder="0"
-                            disabled={!formItem.feijaoId}
-                          />
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-[minmax(0,1fr)_120px] gap-3">
-                        <div className="space-y-2">
-                          <Label>Complemento</Label>
-                          <Select
-                            value={formItem.complementoId || "none"}
-                            onValueChange={(v) => {
-                              if (v === "none") {
-                                setFormItem((prev) => ({
-                                  ...prev,
-                                  complementoId: "",
-                                  complementoNome: "",
-                                  complementoGramas: 0,
-                                }));
-                                return;
-                              }
-                              const item = complementos.find((o) => o.id === v);
-                              setFormItem((prev) => ({
-                                ...prev,
-                                complementoId: v,
-                                complementoNome: item?.nome || "",
-                              }));
-                            }}
-                          >
-                            <SelectTrigger>
-                              <SelectValue placeholder="Selecione" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="none">Nenhum</SelectItem>
-                              {complementos.map((item) => (
-                                <SelectItem key={item.id} value={item.id}>
-                                  {item.nome}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-
-                        <div className="space-y-2">
-                          <Label>Gramas</Label>
-                          <Input
-                            type="number"
-                            min={0}
-                            step="1"
-                            value={formItem.complementoGramas || 0}
-                            onChange={(e) =>
-                              setFormItem((prev) => ({
-                                ...prev,
-                                complementoGramas: Number(e.target.value || 0),
-                              }))
-                            }
-                            placeholder="0"
-                            disabled={!formItem.complementoId}
-                          />
-                        </div>
-                      </div>
+                      {renderIngredientePersonalizada({
+                        label: "Carboidrato",
+                        items: carboidratos,
+                        idKey: "carboId",
+                        nomeKey: "carboNome",
+                        gramasKey: "carboGramas",
+                      })}
+                      {renderIngredientePersonalizada({
+                        label: "Proteína",
+                        items: proteinas,
+                        idKey: "proteinaId",
+                        nomeKey: "proteinaNome",
+                        gramasKey: "proteinaGramas",
+                      })}
+                      {renderIngredientePersonalizada({
+                        label: "Legume",
+                        items: legumes,
+                        idKey: "legumeId",
+                        nomeKey: "legumeNome",
+                        gramasKey: "legumeGramas",
+                      })}
+                      {renderIngredientePersonalizada({
+                        label: "Feijão",
+                        items: feijoes,
+                        idKey: "feijaoId",
+                        nomeKey: "feijaoNome",
+                        gramasKey: "feijaoGramas",
+                        optional: true,
+                      })}
+                      {renderIngredientePersonalizada({
+                        label: "Complemento",
+                        items: complementos,
+                        idKey: "complementoId",
+                        nomeKey: "complementoNome",
+                        gramasKey: "complementoGramas",
+                        optional: true,
+                      })}
                     </div>
 
                     <div className="rounded-lg border p-3 text-sm">
@@ -3552,8 +3449,12 @@ export function NovoAgendamentoNovoLayout({
                 {itensDoGrupoAtual.length > 0 ? (
                   <div className="rounded-2xl border border-emerald-100 bg-emerald-50/50 p-4 shadow-sm flex flex-col max-h-[60vh]">
                     <div className="text-[10px] font-extrabold uppercase tracking-widest text-emerald-700 mb-4 flex items-center justify-between">
-                      <span>Itens no Pedido</span>
-                      <Badge className="bg-emerald-600 hover:bg-emerald-700">{itensDoGrupoAtual.length}</Badge>
+                      <span>Total de marmitas no pedido</span>
+                      <Badge className="bg-emerald-600 hover:bg-emerald-700">
+                        {itensDoGrupoAtual
+                          .filter((item) => item.tipoItem !== "SALGADO")
+                          .reduce((total, item) => total + Number(item.quantidade || 0), 0)}
+                      </Badge>
                     </div>
                     
                     <div className="space-y-2 overflow-y-auto pr-2 custom-scrollbar flex-1">

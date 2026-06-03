@@ -129,9 +129,9 @@ function novaLinhaPlano(): PlanoItemForm {
 
 function valorPlanoPorQuantidade(tamanho: any, quantidade: number) {
   const qtd = Math.max(1, Math.floor(Number(quantidade || 1)));
-  if (qtd >= 40 && tamanho.valor40 != null) return Number(tamanho.valor40 || 0);
-  if (qtd >= 20 && tamanho.valor20 != null) return Number(tamanho.valor20 || 0);
-  if (qtd >= 10 && tamanho.valor10 != null) return Number(tamanho.valor10 || 0);
+  if (qtd >= 40 && tamanho.valor40 != null) return Number(tamanho.valor40 || 0) * qtd;
+  if (qtd >= 20 && tamanho.valor20 != null) return Number(tamanho.valor20 || 0) * qtd;
+  if (qtd >= 10 && tamanho.valor10 != null) return Number(tamanho.valor10 || 0) * qtd;
   return Number(tamanho.valorUnitario || 0) * qtd;
 }
 

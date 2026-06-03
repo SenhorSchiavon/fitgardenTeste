@@ -101,6 +101,10 @@ function currency(value: number) {
   return Number(value || 0).toFixed(2).replace(".", ",");
 }
 
+function upper(value?: string | null) {
+  return String(value || "").toUpperCase();
+}
+
 function getApiUrl() {
   const base = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3333";
   return base.replace(/\/+$/, "");
@@ -298,25 +302,25 @@ export function ClienteFormDialog({
 
     setForm((prev) => ({
       ...prev,
-      nome: initialValue?.nome ?? "",
+      nome: upper(initialValue?.nome),
       telefone: initialValue?.telefone ?? "",
       cep: initialValue?.cep ?? "",
       uf: "PR",
       cidade: normalizarCidadePermitida(initialValue?.cidade),
-      bairro: initialValue?.bairro ?? "",
-      logradouro: initialValue?.logradouro ?? "",
-      numero: initialValue?.numero ?? "",
-      complemento: initialValue?.complemento ?? "",
+      bairro: upper(initialValue?.bairro),
+      logradouro: upper(initialValue?.logradouro),
+      numero: upper(initialValue?.numero),
+      complemento: upper(initialValue?.complemento),
       latitude: initialValue?.latitude ?? null,
       longitude: initialValue?.longitude ?? null,
       apelidoPrincipal: initialValue?.apelidoPrincipal ?? "",
       secundarioCep: initialValue?.secundarioCep ?? "",
       secundarioUf: initialValue?.secundarioUf ?? "",
       secundarioCidade: normalizarCidadePermitida(initialValue?.secundarioCidade),
-      secundarioBairro: initialValue?.secundarioBairro ?? "",
-      secundarioLogradouro: initialValue?.secundarioLogradouro ?? "",
-      secundarioNumero: initialValue?.secundarioNumero ?? "",
-      secundarioComplemento: initialValue?.secundarioComplemento ?? "",
+      secundarioBairro: upper(initialValue?.secundarioBairro),
+      secundarioLogradouro: upper(initialValue?.secundarioLogradouro),
+      secundarioNumero: upper(initialValue?.secundarioNumero),
+      secundarioComplemento: upper(initialValue?.secundarioComplemento),
       secundarioLatitude: initialValue?.secundarioLatitude ?? null,
       secundarioLongitude: initialValue?.secundarioLongitude ?? null,
       apelidoSecundario: initialValue?.apelidoSecundario ?? "",
@@ -437,6 +441,52 @@ export function ClienteFormDialog({
     }
   };
 
+  const handleLocalizarEndereco = async () => {
+    setAvisoCep(null);
+    setErroLocalizacao(null);
+    setBuscandoCep(true);
+    setLocalizando(true);
+    try {
+      const cepClean = onlyDigits(form.cep || "");
+      const data =
+        cepClean.length === 8
+          ? await buscarCepViaCep(form.cep || "")
+          : await buscarCepPorEnderecoViaCep(form);
+
+      const next = {
+        cep: data.cep,
+        uf: "PR",
+        cidade: normalizarCidadePermitida(data.cidade) || form.cidade,
+        bairro: upper(data.bairro || form.bairro),
+        logradouro: upper(data.logradouro || form.logradouro),
+      };
+
+      const ruaNum = [next.logradouro, form.numero].filter(Boolean).join(", ");
+      const cidadeUf = [next.cidade, next.uf].filter(Boolean).join(" - ");
+      const endereco = [ruaNum, next.bairro, cidadeUf, next.cep, "Brasil"].filter(Boolean).join(", ");
+      const geo = await geocodeNominatimComFallback(endereco);
+
+      setForm((p) => ({
+        ...p,
+        ...next,
+        latitude: geo.lat,
+        longitude: geo.lon,
+      }));
+      setTaxaEntrega(null);
+      setErroTaxaEntrega(null);
+
+      const totalCeps = "total" in data ? Number(data.total || 0) : 0;
+      if (totalCeps > 1) {
+        setAvisoCep(`Encontrei ${totalCeps} CEPs possíveis e preenchi o mais compatível.`);
+      }
+    } catch (e: any) {
+      setErroLocalizacao(e?.message || "Não foi possível localizar o endereço.");
+    } finally {
+      setBuscandoCep(false);
+      setLocalizando(false);
+    }
+  };
+
   const handleBuscarCepSecundario = async () => {
     setAvisoCepSecundario(null);
     setErroLocalizacaoSecundario(null);
@@ -478,6 +528,58 @@ export function ClienteFormDialog({
     }
   };
 
+  const handleLocalizarEnderecoSecundario = async () => {
+    setAvisoCepSecundario(null);
+    setErroLocalizacaoSecundario(null);
+    setBuscandoCepSecundario(true);
+    setLocalizandoSecundario(true);
+    try {
+      const cepClean = onlyDigits(form.secundarioCep || "");
+      const data =
+        cepClean.length === 8
+          ? await buscarCepViaCep(form.secundarioCep || "")
+          : await buscarCepPorEnderecoViaCep({
+              cep: form.secundarioCep,
+              uf: "PR",
+              cidade: form.secundarioCidade,
+              bairro: form.secundarioBairro,
+              logradouro: form.secundarioLogradouro,
+            });
+
+      const next = {
+        secundarioCep: data.cep,
+        secundarioUf: "PR",
+        secundarioCidade: normalizarCidadePermitida(data.cidade) || form.secundarioCidade,
+        secundarioBairro: upper(data.bairro || form.secundarioBairro),
+        secundarioLogradouro: upper(data.logradouro || form.secundarioLogradouro),
+      };
+
+      const ruaNum = [next.secundarioLogradouro, form.secundarioNumero].filter(Boolean).join(", ");
+      const cidadeUf = [next.secundarioCidade, next.secundarioUf].filter(Boolean).join(" - ");
+      const endereco = [ruaNum, next.secundarioBairro, cidadeUf, next.secundarioCep, "Brasil"].filter(Boolean).join(", ");
+      const geo = await geocodeNominatimComFallback(endereco);
+
+      setForm((p) => ({
+        ...p,
+        ...next,
+        secundarioLatitude: geo.lat,
+        secundarioLongitude: geo.lon,
+      }));
+      setTaxaEntregaSecundario(null);
+      setErroTaxaEntregaSecundario(null);
+
+      const totalCeps = "total" in data ? Number(data.total || 0) : 0;
+      if (totalCeps > 1) {
+        setAvisoCepSecundario(`Encontrei ${totalCeps} CEPs possíveis e preenchi o mais compatível.`);
+      }
+    } catch (e: any) {
+      setErroLocalizacaoSecundario(e?.message || "Não foi possível localizar o endereço secundário.");
+    } finally {
+      setBuscandoCepSecundario(false);
+      setLocalizandoSecundario(false);
+    }
+  };
+
   const handleLocalizarNoMapa = async () => {
     setErroLocalizacao(null);
     setLocalizando(true);
@@ -516,10 +618,26 @@ export function ClienteFormDialog({
   };
 
   const handleSave = async () => {
-    const nome = String(form.nome || "").trim();
+    const nome = upper(form.nome).trim();
     const telefone = String(form.telefone || "").trim();
     if (!nome) return;
     if (!telefone) return;
+    if (!coordsOk) {
+      setErroLocalizacao("Localize o endereço antes de salvar.");
+      return;
+    }
+
+    const temEnderecoSecundario =
+      !!form.secundarioCep?.trim() ||
+      !!form.secundarioCidade?.trim() ||
+      !!form.secundarioBairro?.trim() ||
+      !!form.secundarioLogradouro?.trim() ||
+      !!form.secundarioNumero?.trim() ||
+      !!form.secundarioComplemento?.trim();
+    if (temEnderecoSecundario && !coordsSecundarioOk) {
+      setErroLocalizacaoSecundario("Localize o endereço secundário antes de salvar.");
+      return;
+    }
 
     const payload: ClientePayload = {
       nome,
@@ -528,34 +646,28 @@ export function ClienteFormDialog({
       enderecos: [
         {
           principal: true,
-          apelido: form.apelidoPrincipal?.trim() || "Casa",
+          apelido: upper(form.apelidoPrincipal).trim() || "CASA",
           cep: form.cep?.trim() ? onlyDigits(form.cep) : null,
           uf: "PR",
           cidade: form.cidade?.trim() || null,
-          bairro: form.bairro?.trim() || null,
-          logradouro: form.logradouro?.trim() || null,
-          numero: form.numero?.trim() || null,
-          complemento: form.complemento?.trim() || null,
+          bairro: upper(form.bairro).trim() || null,
+          logradouro: upper(form.logradouro).trim() || null,
+          numero: upper(form.numero).trim() || null,
+          complemento: upper(form.complemento).trim() || null,
           latitude: typeof form.latitude === "number" ? form.latitude : null,
           longitude: typeof form.longitude === "number" ? form.longitude : null,
         },
-        ...(form.secundarioCep?.trim() ||
-        form.secundarioUf?.trim() ||
-        form.secundarioCidade?.trim() ||
-        form.secundarioBairro?.trim() ||
-        form.secundarioLogradouro?.trim() ||
-        form.secundarioNumero?.trim() ||
-        form.secundarioComplemento?.trim()
+        ...(temEnderecoSecundario
           ? [{
               principal: false,
-              apelido: form.apelidoSecundario?.trim() || "Trabalho",
+              apelido: upper(form.apelidoSecundario).trim() || "TRABALHO",
               cep: form.secundarioCep?.trim() ? onlyDigits(form.secundarioCep) : null,
               uf: "PR",
               cidade: form.secundarioCidade?.trim() || null,
-              bairro: form.secundarioBairro?.trim() || null,
-              logradouro: form.secundarioLogradouro?.trim() || null,
-              numero: form.secundarioNumero?.trim() || null,
-              complemento: form.secundarioComplemento?.trim() || null,
+              bairro: upper(form.secundarioBairro).trim() || null,
+              logradouro: upper(form.secundarioLogradouro).trim() || null,
+              numero: upper(form.secundarioNumero).trim() || null,
+              complemento: upper(form.secundarioComplemento).trim() || null,
               latitude: typeof form.secundarioLatitude === "number" ? form.secundarioLatitude : null,
               longitude: typeof form.secundarioLongitude === "number" ? form.secundarioLongitude : null,
             }]
@@ -595,7 +707,7 @@ export function ClienteFormDialog({
                 <Input
                   id="nome"
                   value={form.nome}
-                  onChange={(e) => setForm((p) => ({ ...p, nome: e.target.value }))}
+                  onChange={(e) => setForm((p) => ({ ...p, nome: upper(e.target.value) }))}
                   disabled={saving}
                 />
               </div>
@@ -623,7 +735,7 @@ export function ClienteFormDialog({
               <Input
                 id="apelidoPrincipal"
                 value={form.apelidoPrincipal || ""}
-                onChange={(e) => setForm((p) => ({ ...p, apelidoPrincipal: e.target.value }))}
+                onChange={(e) => setForm((p) => ({ ...p, apelidoPrincipal: upper(e.target.value) }))}
                 disabled={saving}
                 placeholder="Casa"
               />
@@ -650,19 +762,15 @@ export function ClienteFormDialog({
                 />
               </div>
 
-              <div className="flex gap-2">
-                <Button type="button" variant="secondary" onClick={handleBuscarCep} disabled={saving || buscandoCep}>
-                  {buscandoCep ? "Buscando..." : "Buscar CEP"}
-                </Button>
-
+              <div className="flex">
                 <Button
                   type="button"
                   variant="secondary"
-                  onClick={handleLocalizarNoMapa}
-                  disabled={saving || localizando}
+                  onClick={handleLocalizarEndereco}
+                  disabled={saving || buscandoCep || localizando}
                 >
                   <MapPin className="mr-2 h-4 w-4" />
-                  {localizando ? "Localizando..." : "Localizar"}
+                  {buscandoCep || localizando ? "Localizando..." : "Localizar Endereço"}
                 </Button>
               </div>
             </div>
@@ -691,7 +799,7 @@ export function ClienteFormDialog({
                 <Input
                   id="bairro"
                   value={form.bairro || ""}
-                  onChange={(e) => setForm((p) => ({ ...p, bairro: e.target.value }))}
+                  onChange={(e) => setForm((p) => ({ ...p, bairro: upper(e.target.value) }))}
                   disabled={saving}
                 />
               </div>
@@ -703,7 +811,7 @@ export function ClienteFormDialog({
                 <Input
                   id="logradouro"
                   value={form.logradouro || ""}
-                  onChange={(e) => setForm((p) => ({ ...p, logradouro: e.target.value }))}
+                  onChange={(e) => setForm((p) => ({ ...p, logradouro: upper(e.target.value) }))}
                   disabled={saving}
                 />
               </div>
@@ -713,7 +821,7 @@ export function ClienteFormDialog({
                 <Input
                   id="numero"
                   value={form.numero || ""}
-                  onChange={(e) => setForm((p) => ({ ...p, numero: e.target.value }))}
+                  onChange={(e) => setForm((p) => ({ ...p, numero: upper(e.target.value) }))}
                   disabled={saving}
                 />
               </div>
@@ -724,7 +832,7 @@ export function ClienteFormDialog({
               <Input
                 id="complemento"
                 value={form.complemento || ""}
-                onChange={(e) => setForm((p) => ({ ...p, complemento: e.target.value }))}
+                onChange={(e) => setForm((p) => ({ ...p, complemento: upper(e.target.value) }))}
                 disabled={saving}
               />
             </div>
@@ -755,7 +863,7 @@ export function ClienteFormDialog({
               <div className="p-3 border-b text-sm text-muted-foreground">
                 {coordsOk
                   ? `Localização aproximada: ${form.latitude?.toFixed(5)}, ${form.longitude?.toFixed(5)}`
-                  : "Sem localização ainda. Use “Localizar” para gerar uma posição aproximada."}
+                  : "Sem localização ainda. Use Localizar Endereço antes de salvar."}
               </div>
 
               <div className="h-[280px]">
@@ -795,7 +903,7 @@ export function ClienteFormDialog({
               <Input
                 id="apelidoSecundario"
                 value={form.apelidoSecundario || ""}
-                onChange={(e) => setForm((p) => ({ ...p, apelidoSecundario: e.target.value }))}
+                onChange={(e) => setForm((p) => ({ ...p, apelidoSecundario: upper(e.target.value) }))}
                 disabled={saving}
                 placeholder="Trabalho"
               />
@@ -810,14 +918,10 @@ export function ClienteFormDialog({
                 <Label htmlFor="secundarioUf">UF</Label>
                 <Input id="secundarioUf" value="PR" disabled />
               </div>
-              <div className="flex gap-2">
-                <Button type="button" variant="secondary" onClick={handleBuscarCepSecundario} disabled={saving || buscandoCepSecundario}>
-                  {buscandoCepSecundario ? "Buscando..." : "Buscar CEP"}
-                </Button>
-
-                <Button type="button" variant="secondary" onClick={handleLocalizarSecundarioNoMapa} disabled={saving || localizandoSecundario}>
+              <div className="flex">
+                <Button type="button" variant="secondary" onClick={handleLocalizarEnderecoSecundario} disabled={saving || buscandoCepSecundario || localizandoSecundario}>
                   <MapPin className="mr-2 h-4 w-4" />
-                  {localizandoSecundario ? "Localizando..." : "Localizar"}
+                  {buscandoCepSecundario || localizandoSecundario ? "Localizando..." : "Localizar Endereço"}
                 </Button>
               </div>
             </div>
@@ -842,25 +946,25 @@ export function ClienteFormDialog({
               </div>
               <div className="space-y-2">
                 <Label htmlFor="secundarioBairro">Bairro</Label>
-                <Input id="secundarioBairro" value={form.secundarioBairro || ""} onChange={(e) => setForm((p) => ({ ...p, secundarioBairro: e.target.value }))} disabled={saving} />
+                <Input id="secundarioBairro" value={form.secundarioBairro || ""} onChange={(e) => setForm((p) => ({ ...p, secundarioBairro: upper(e.target.value) }))} disabled={saving} />
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="secundarioComplemento">Complemento</Label>
-                <Input id="secundarioComplemento" value={form.secundarioComplemento || ""} onChange={(e) => setForm((p) => ({ ...p, secundarioComplemento: e.target.value }))} disabled={saving} />
+                <Input id="secundarioComplemento" value={form.secundarioComplemento || ""} onChange={(e) => setForm((p) => ({ ...p, secundarioComplemento: upper(e.target.value) }))} disabled={saving} />
               </div>
             </div>
 
             <div className="grid grid-cols-3 gap-4">
               <div className="space-y-2 col-span-2">
                 <Label htmlFor="secundarioLogradouro">Rua</Label>
-                <Input id="secundarioLogradouro" value={form.secundarioLogradouro || ""} onChange={(e) => setForm((p) => ({ ...p, secundarioLogradouro: e.target.value }))} disabled={saving} />
+                <Input id="secundarioLogradouro" value={form.secundarioLogradouro || ""} onChange={(e) => setForm((p) => ({ ...p, secundarioLogradouro: upper(e.target.value) }))} disabled={saving} />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="secundarioNumero">Número</Label>
-                <Input id="secundarioNumero" value={form.secundarioNumero || ""} onChange={(e) => setForm((p) => ({ ...p, secundarioNumero: e.target.value }))} disabled={saving} />
+                <Input id="secundarioNumero" value={form.secundarioNumero || ""} onChange={(e) => setForm((p) => ({ ...p, secundarioNumero: upper(e.target.value) }))} disabled={saving} />
               </div>
             </div>
 
@@ -890,7 +994,7 @@ export function ClienteFormDialog({
               <div className="p-3 border-b text-sm text-muted-foreground">
                 {coordsSecundarioOk
                   ? `Localização aproximada: ${form.secundarioLatitude?.toFixed(5)}, ${form.secundarioLongitude?.toFixed(5)}`
-                  : "Sem localização ainda. Use Localizar para gerar uma posição aproximada."}
+                  : "Sem localização ainda. Use Localizar Endereço antes de salvar."}
               </div>
 
               <div className="h-[280px]">
@@ -971,7 +1075,7 @@ export function ClienteFormDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
             Cancelar
           </Button>
-          <Button onClick={handleSave} disabled={saving}>
+          <Button onClick={handleSave} disabled={saving || !coordsOk}>
             {saving ? "Salvando..." : "Salvar"}
           </Button>
         </div>

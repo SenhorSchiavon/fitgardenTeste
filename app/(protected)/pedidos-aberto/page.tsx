@@ -442,6 +442,12 @@ export default function PedidosAberto() {
                         <span>{formatDate(pedido.data)}</span>
                         <span className="mx-2">•</span>
                         <span>{pedido.quantidade} itens</span>
+                        <span className="mx-2">•</span>
+                        <span>{formatFormaPagamento(pedido.formaPagamento)}</span>
+                        <span className="mx-2">•</span>
+                        <span className="font-semibold text-emerald-700">
+                          {moneyBr(Number(pedido.valorTotalFinal ?? pedido.valorTotal))}
+                        </span>
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
