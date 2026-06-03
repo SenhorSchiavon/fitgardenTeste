@@ -173,6 +173,7 @@ export default function PedidosAberto() {
     }, 0);
   }, [planosPendentesPedidoSelecionado]);
 
+  const valorTotalPedidoSelecionado = Number(pedidoSelecionado?.valorTotal ?? 0);
   const valorPedidoSelecionado = Number(
     pedidoSelecionado?.valorTotalFinal ?? pedidoSelecionado?.valorTotal ?? 0,
   );
@@ -446,8 +447,16 @@ export default function PedidosAberto() {
                         <span>{formatFormaPagamento(pedido.formaPagamento)}</span>
                         <span className="mx-2">•</span>
                         <span className="font-semibold text-emerald-700">
-                          {moneyBr(Number(pedido.valorTotalFinal ?? pedido.valorTotal))}
+                          Total: {moneyBr(Number(pedido.valorTotal ?? 0))}
                         </span>
+                        {Number(pedido.valorTotalFinal ?? pedido.valorTotal ?? 0) !== Number(pedido.valorTotal ?? 0) && (
+                          <>
+                            <span className="mx-2">•</span>
+                            <span className="font-semibold text-amber-700">
+                              Pendente: {moneyBr(Number(pedido.valorTotalFinal ?? 0))}
+                            </span>
+                          </>
+                        )}
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
@@ -539,8 +548,13 @@ export default function PedidosAberto() {
                       <div className="text-right">
                         <div className="text-sm text-muted-foreground">Valor</div>
                         <div className="text-lg font-bold">
-                          R$ {Number(pedido.valorTotalFinal ?? pedido.valorTotal).toFixed(2)}
+                          {moneyBr(Number(pedido.valorTotal ?? 0))}
                         </div>
+                        {Number(pedido.valorTotalFinal ?? pedido.valorTotal ?? 0) !== Number(pedido.valorTotal ?? 0) && (
+                          <div className="text-xs font-semibold text-amber-700">
+                            Pendente: {moneyBr(Number(pedido.valorTotalFinal ?? 0))}
+                          </div>
+                        )}
                       </div>
 
                       <div className="flex flex-wrap justify-end gap-2">
@@ -722,7 +736,7 @@ export default function PedidosAberto() {
                       variant={pedidoSelecionado?.formaPagamento === "A_DEFINIR" ? "outline" : "destructive"}
                       className={pedidoSelecionado?.formaPagamento === "A_DEFINIR" ? "border-red-300 bg-red-50 text-red-700" : undefined}
                     >
-                      {pedidoSelecionado?.formaPagamento === "A_DEFINIR" ? "Não definido" : "Pendente"}
+                      {formatFormaPagamento(pedidoSelecionado?.formaPagamento)}
                     </Badge>
                   </div>
                 </div>
@@ -835,6 +849,10 @@ export default function PedidosAberto() {
             <div className="space-y-2">
               <Label>Resumo da cobrança</Label>
               <div className="space-y-2 rounded-md border bg-muted/30 p-3 text-sm">
+                <div className="flex items-center justify-between">
+                  <span>Total do pedido</span>
+                  <span className="font-semibold">{moneyBr(valorTotalPedidoSelecionado)}</span>
+                </div>
                 <div className="flex items-center justify-between">
                   <span>Pedido e taxa pendente</span>
                   <span className="font-semibold">{moneyBr(valorPedidoSelecionado)}</span>

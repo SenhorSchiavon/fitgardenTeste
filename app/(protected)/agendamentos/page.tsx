@@ -147,9 +147,16 @@ function horarioFimEmMinutos(faixaHorario: string) {
 }
 
 function getRotaAgendamento(agendamento: Agendamento) {
+  if (agendamento.tipoEntrega === "CONGELAR") return null;
   const inicio = horarioInicioEmMinutos(agendamento.faixaHorario);
   if (inicio == null) return null;
-  return ROTAS_ENTREGA.find((rota) => inicio >= rota.start && inicio < rota.end) || null;
+  const rota = ROTAS_ENTREGA.find((item) => inicio >= item.start && inicio < item.end);
+  if (rota) return rota;
+  if (agendamento.tipoEntrega === "RETIRADA") {
+    if (inicio < ROTAS_ENTREGA[0].start) return ROTAS_ENTREGA[0];
+    return ROTAS_ENTREGA[ROTAS_ENTREGA.length - 1];
+  }
+  return null;
 }
 
 function getWhatsappUrl(telefone: string, mensagem: string) {
@@ -185,6 +192,30 @@ function ordenarAgendamentosRota(rows: Agendamento[]) {
     if (diffTipo !== 0) return diffTipo;
     return horarioFimEmMinutos(a.faixaHorario) - horarioFimEmMinutos(b.faixaHorario);
   });
+}
+
+function montarDadosEdicaoAgendamento(agendamento: Agendamento) {
+  const raw = agendamento._raw || {};
+  const pedido = raw.pedido || {};
+  return {
+    ...raw,
+    clienteId: pedido.clienteId ?? raw.clienteId,
+    pedido: {
+      ...pedido,
+      clienteId: pedido.clienteId ?? raw.clienteId,
+      itens: pedido.itens ?? raw.itens ?? [],
+    },
+    tipoEntrega: agendamento.tipoEntrega,
+    tipo: agendamento.tipoEntrega,
+    data: raw.data ?? agendamento.data,
+    dataEntregaCongelada: raw.dataEntregaCongelada ?? agendamento.dataEntregaCongelada ?? null,
+    faixaHorario: agendamento.faixaHorario,
+    endereco: raw.endereco ?? agendamento.endereco,
+    regiao: raw.regiao ?? agendamento.zona ?? null,
+    observacoes: pedido.observacoes ?? agendamento.observacoes ?? "",
+    formaPagamento: agendamento.formaPagamento || "A_DEFINIR",
+    itens: pedido.itens ?? raw.itens ?? [],
+  };
 }
 
 function getLabelTipoEntrega(tipo: string) {
@@ -299,7 +330,9 @@ export default function Agendamentos() {
         agendamentos.filter((agendamento) => getRotaAgendamento(agendamento)?.id === rota.id),
       ),
     })).filter((grupo) => grupo.agendamentos.length > 0);
-    const semRota = ordenarAgendamentosRota(agendamentos.filter((agendamento) => !getRotaAgendamento(agendamento)));
+    const semRota = ordenarAgendamentosRota(
+      agendamentos.filter((agendamento) => agendamento.tipoEntrega !== "CONGELAR" && !getRotaAgendamento(agendamento)),
+    );
     if (semRota.length > 0) {
       grupos.push({
         id: 0,
@@ -1315,7 +1348,7 @@ export default function Agendamentos() {
                   if (!agendamentoSelecionado) return;
                   setModoEdicao(true);
                   setAgendamentoEditandoId(Number(agendamentoSelecionado.id));
-                  setDadosEdicao(agendamentoSelecionado._raw);
+                  setDadosEdicao(montarDadosEdicaoAgendamento(agendamentoSelecionado));
                   setDetalhesDialogOpen(false);
                   setCadastroOpen(true);
                 }}
