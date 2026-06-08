@@ -14,7 +14,7 @@ export function useRelatorioMontadoresRotas() {
   const [downloading, setDownloading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const downloadXlsx = useCallback(async (params: { data: string }) => {
+  const abrirCupomElgin = useCallback(async (params: { data: string }) => {
     const dataStr = String(params.data || "").trim();
 
     if (!validarDataISO(dataStr)) {
@@ -27,33 +27,29 @@ export function useRelatorioMontadoresRotas() {
 
     try {
       const qs = new URLSearchParams({ data: dataStr });
-      const res = await apiFetch(`${RESOURCE}/montadores-rotas/xlsx?${qs.toString()}`, {
+      const res = await apiFetch(`${RESOURCE}/montadores-rotas/elgin?${qs.toString()}`, {
         method: "GET",
       });
 
       if (!res.ok) {
         const json = await res.json().catch(() => null);
-        throw new Error(json?.message || "Erro ao gerar XLSX");
+        throw new Error(json?.message || "Erro ao gerar cupom Elgin");
       }
 
-      const blob = await res.blob();
+      const html = await res.text();
+      const blob = new Blob([html], { type: "text/html;charset=utf-8" });
       const url = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `relatorio-montadores-rotas-${dataStr}.xlsx`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      window.URL.revokeObjectURL(url);
+      window.open(url, "_blank", "noopener,noreferrer");
+      setTimeout(() => window.URL.revokeObjectURL(url), 60_000);
 
       return true;
     } catch (e: any) {
-      setError(e?.message || "Erro ao gerar XLSX");
+      setError(e?.message || "Erro ao gerar cupom Elgin");
       return false;
     } finally {
       setDownloading(false);
     }
   }, []);
 
-  return { downloading, error, downloadXlsx };
+  return { downloading, error, abrirCupomElgin };
 }
