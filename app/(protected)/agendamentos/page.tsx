@@ -851,7 +851,7 @@ export default function Agendamentos() {
               >
                 <FileDown className="h-4 w-4 text-emerald-600" />
                 <div className="flex flex-col">
-                  <span className="font-medium text-sm">Produção Elgin i9</span>
+                  <span className="font-medium text-sm">Rotas de Montagem</span>
                   <span className="text-[10px] text-slate-500">Cupom por rota</span>
                 </div>
               </DropdownMenuItem>
