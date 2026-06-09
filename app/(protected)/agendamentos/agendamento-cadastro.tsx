@@ -1928,9 +1928,9 @@ export function NovoAgendamentoNovoLayout({
       });
       return;
     }
-    if (!initialData && isPastLocalDay(data)) {
+    if (isPastLocalDay(data)) {
       toast.error("Data inválida", {
-        description: "Não é possível criar agendamento para uma data anterior a hoje.",
+        description: "Não é possível finalizar agendamento para uma data anterior a hoje.",
       });
       return;
     }
@@ -2532,7 +2532,7 @@ export function NovoAgendamentoNovoLayout({
                         mode="single"
                         selected={data}
                         onSelect={setData}
-                        disabled={(day) => !initialData && isPastLocalDay(day)}
+                        disabled={(day) => isPastLocalDay(day)}
                         locale={ptBR}
                       />
                     </div>

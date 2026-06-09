@@ -1580,6 +1580,9 @@ export default function Agendamentos() {
                 legumeId: it.legumeId ? Number(it.legumeId) : null,
                 feijaoId: it.feijaoId ? Number(it.feijaoId) : null,
                 complementoId: it.complementoId ? Number(it.complementoId) : null,
+                trocaCarboId: it.trocaCarboId ? Number(it.trocaCarboId) : null,
+                trocaProteinaId: it.trocaProteinaId ? Number(it.trocaProteinaId) : null,
+                trocaLegumeId: it.trocaLegumeId ? Number(it.trocaLegumeId) : null,
 
                 zerarLegume: !!it.zerarLegume,
                 adicionarFeijao: !!it.adicionarFeijao,
@@ -1620,6 +1623,9 @@ export default function Agendamentos() {
                 legumeId: it.legumeId ? Number(it.legumeId) : null,
                 feijaoId: it.feijaoId ? Number(it.feijaoId) : null,
                 complementoId: it.complementoId ? Number(it.complementoId) : null,
+                trocaCarboId: it.trocaCarboId ? Number(it.trocaCarboId) : null,
+                trocaProteinaId: it.trocaProteinaId ? Number(it.trocaProteinaId) : null,
+                trocaLegumeId: it.trocaLegumeId ? Number(it.trocaLegumeId) : null,
 
                 zerarLegume: !!it.zerarLegume,
                 adicionarFeijao: !!it.adicionarFeijao,
