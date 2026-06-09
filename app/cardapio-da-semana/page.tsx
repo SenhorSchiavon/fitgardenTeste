@@ -76,14 +76,12 @@ function categoryStyle(category: string) {
 function montarMensagem({
   nome,
   observacoes,
-  tamanhoSelecionado,
   personalizada,
   opcoes,
-  quantities,
+  itensPedido,
 }: {
   nome: string;
   observacoes: string;
-  tamanhoSelecionado: string;
   personalizada: {
     ativo: boolean;
     carboNome: string;
@@ -96,11 +94,11 @@ function montarMensagem({
     legumeGramas: string;
   };
   opcoes: OpcaoPublica[];
-  quantities: Record<string, number>;
+  itensPedido: Record<string, { quantidade: number; tamanho: string }>;
 }) {
   const escolhidas = opcoes
-    .filter((opcao) => Number(quantities[opcao.id] || 0) > 0)
-    .map((opcao) => `${quantities[opcao.id]}x ${opcao.nome} (${tamanhoSelecionado})`);
+    .filter((opcao) => Number(itensPedido[opcao.id]?.quantidade || 0) > 0)
+    .map((opcao) => `${itensPedido[opcao.id].quantidade}x ${opcao.nome} (${itensPedido[opcao.id].tamanho})`);
 
   const linhasPersonalizada = personalizada.ativo
     ? [
@@ -118,7 +116,6 @@ function montarMensagem({
     "Ola! Quero fazer meu pedido da Fit Garden:",
     "",
     `Nome: ${nome || "-"}`,
-    `Tamanho: ${tamanhoSelecionado}`,
     "",
     "Marmitas:",
     ...escolhidas,
@@ -134,10 +131,10 @@ export default function CardapioDaSemanaPage() {
   const [cardapio, setCardapio] = useState<CardapioPublico | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [quantities, setQuantities] = useState<Record<string, number>>({});
+  const [itensPedido, setItensPedido] = useState<Record<string, { quantidade: number; tamanho: string }>>({});
   const [nome, setNome] = useState("");
   const [observacoes, setObservacoes] = useState("");
-  const [tamanhoSelecionado, setTamanhoSelecionado] = useState<(typeof TAMANHOS)[number]>("200g");
+  const [personalizadaAtiva, setPersonalizadaAtiva] = useState(false);
   const [personalizada, setPersonalizada] = useState({
     carboId: "",
     proteinaId: "",
@@ -150,7 +147,6 @@ export default function CardapioDaSemanaPage() {
   });
 
   const whatsappNumber = cleanPhone(process.env.NEXT_PUBLIC_WHATSAPP_PEDIDOS_NUMERO);
-  const personalizadaAtiva = tamanhoSelecionado === "PERSONALIZADO";
 
   useEffect(() => {
     let alive = true;
@@ -179,8 +175,8 @@ export default function CardapioDaSemanaPage() {
   const opcoes = cardapio?.opcoes || [];
   const preparos = cardapio?.preparos || [];
   const total = useMemo(() => {
-    return Object.values(quantities).reduce((acc, qtd) => acc + Number(qtd || 0), 0) + (personalizadaAtiva ? 1 : 0);
-  }, [quantities, personalizadaAtiva]);
+    return Object.values(itensPedido).reduce((acc, item) => acc + Number(item.quantidade || 0), 0) + (personalizadaAtiva ? 1 : 0);
+  }, [itensPedido, personalizadaAtiva]);
 
   const preparosPorTipo = useMemo(() => {
     return {
@@ -213,11 +209,28 @@ export default function CardapioDaSemanaPage() {
 
   const getPreparoNome = (id: string) => preparos.find((preparo) => preparo.id === id)?.nome || "";
 
+  function getItemPedido(id: string) {
+    return itensPedido[id] || { quantidade: 0, tamanho: "200g" };
+  }
+
   function changeQuantity(id: string, delta: number) {
-    setQuantities((prev) => ({
-      ...prev,
-      [id]: Math.max(0, Number(prev[id] || 0) + delta),
-    }));
+    setItensPedido((prev) => {
+      const atual = prev[id] || { quantidade: 0, tamanho: "200g" };
+      return {
+        ...prev,
+        [id]: { ...atual, quantidade: Math.max(0, Number(atual.quantidade || 0) + delta) },
+      };
+    });
+  }
+
+  function changeTamanhoItem(id: string, tamanho: string) {
+    setItensPedido((prev) => {
+      const atual = prev[id] || { quantidade: 0, tamanho: "200g" };
+      return {
+        ...prev,
+        [id]: { ...atual, tamanho },
+      };
+    });
   }
 
   function enviarPedido() {
@@ -227,7 +240,6 @@ export default function CardapioDaSemanaPage() {
     const text = montarMensagem({
       nome,
       observacoes,
-      tamanhoSelecionado,
       personalizada: {
         ativo: personalizadaAtiva,
         carboNome: getPreparoNome(personalizada.carboId),
@@ -240,7 +252,7 @@ export default function CardapioDaSemanaPage() {
         legumeGramas: personalizada.legumeGramas,
       },
       opcoes,
-      quantities,
+      itensPedido,
     });
 
     window.open(`https://wa.me/${whatsappNumber}?text=${encodeURIComponent(text)}`, "_blank");
@@ -295,7 +307,7 @@ export default function CardapioDaSemanaPage() {
               Cardapio da Semana
             </h1>
             <p className="mt-2 text-sm font-medium text-[#47625d] sm:text-base">
-              Monte seu pedido escolhendo as opcoes, o tamanho e as quantidades desejadas.
+              Monte seu pedido escolhendo o tamanho e a quantidade de cada marmita.
             </p>
           </div>
 
@@ -308,7 +320,7 @@ export default function CardapioDaSemanaPage() {
           <div className="mb-2 text-xs font-black uppercase tracking-widest text-[#14332f]">E muito facil pedir:</div>
           <div className="grid gap-3 sm:grid-cols-3">
             {[
-              { icon: CheckCircle2, text: "Escolha o tamanho da marmita." },
+              { icon: CheckCircle2, text: "Escolha o tamanho em cada marmita." },
               { icon: ClipboardList, text: "Informe as quantidades ou monte personalizada." },
               { icon: Send, text: "Digite nome, observacao e envie." },
             ].map((step, index) => {
@@ -339,23 +351,17 @@ export default function CardapioDaSemanaPage() {
         {!loading && !error && (
           <>
             <section className="mt-6 rounded-2xl border bg-white p-4 shadow-sm">
-              <Label className="text-base font-black uppercase text-[#14332f]">Tamanho</Label>
-              <div className="mt-3 grid gap-2 sm:grid-cols-5">
-                {TAMANHOS.map((tamanho) => (
-                  <button
-                    key={tamanho}
-                    type="button"
-                    onClick={() => setTamanhoSelecionado(tamanho)}
-                    className={cn(
-                      "h-12 rounded-xl border text-sm font-black transition",
-                      tamanhoSelecionado === tamanho
-                        ? "border-[#14332f] bg-[#14332f] text-white"
-                        : "border-[#e3d8c8] bg-[#fffdf8] text-[#14332f] hover:bg-[#f6e4d8]",
-                    )}
-                  >
-                    {tamanho}
-                  </button>
-                ))}
+              <Label className="text-base font-black uppercase text-[#14332f]">Personalizada</Label>
+              <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+                <p className="text-sm font-medium text-[#60746f]">Monte uma marmita com ingredientes e pesagens informadas por voce.</p>
+                <Button
+                  type="button"
+                  variant={personalizadaAtiva ? "default" : "outline"}
+                  className={cn(personalizadaAtiva && "bg-[#14332f] hover:bg-[#0f2825]")}
+                  onClick={() => setPersonalizadaAtiva((prev) => !prev)}
+                >
+                  {personalizadaAtiva ? "Remover personalizada" : "Adicionar personalizada"}
+                </Button>
               </div>
             </section>
 
@@ -380,44 +386,57 @@ export default function CardapioDaSemanaPage() {
               </section>
             )}
 
-            {!personalizadaAtiva && (
-              <section className="mt-6 grid gap-4 lg:grid-cols-2">
-                {grupos.map((grupo) => {
-                  const style = categoryStyle(grupo.categoria);
-                  const Icon = style.icon;
-                  return (
-                    <Card key={grupo.categoria} className={cn("overflow-hidden rounded-2xl border bg-white shadow-sm", style.border)}>
-                      <div className={cn("flex items-center gap-3 border-b px-4 py-3", style.bg, style.border)}>
-                        <Icon className={cn("h-6 w-6", style.color)} />
-                        <h2 className={cn("text-lg font-black uppercase tracking-tight", style.color)}>{grupo.categoria}</h2>
-                      </div>
-                      <div className="divide-y">
-                        {grupo.items.map((opcao, index) => {
-                          const qty = Number(quantities[opcao.id] || 0);
-                          return (
-                            <div key={opcao.id} className="grid grid-cols-[34px_minmax(0,1fr)_110px] items-center gap-2 px-3 py-2.5 sm:grid-cols-[42px_minmax(0,1fr)_120px] sm:px-4">
-                              <Badge variant="secondary" className="h-7 justify-center rounded-lg bg-[#f6e4d8] font-black text-[#b85b36]">
-                                {index + 1}
-                              </Badge>
-                              <div className="min-w-0 text-sm font-semibold leading-snug text-[#253f3a]">{opcao.nome}</div>
-                              <div className="grid grid-cols-[34px_34px_34px] justify-end overflow-hidden rounded-lg border bg-white sm:grid-cols-[38px_38px_38px]">
-                                <div className="grid place-items-center text-sm font-black tabular-nums text-[#14332f]">{qty}</div>
-                                <button type="button" className="grid place-items-center border-l text-[#14332f] transition hover:bg-[#f6e4d8]" onClick={() => changeQuantity(opcao.id, -1)}>
-                                  <Minus className="h-4 w-4" />
-                                </button>
-                                <button type="button" className="grid place-items-center border-l text-[#14332f] transition hover:bg-[#dceee5]" onClick={() => changeQuantity(opcao.id, 1)}>
-                                  <Plus className="h-4 w-4" />
-                                </button>
-                              </div>
+            <section className="mt-6 grid gap-4 lg:grid-cols-2">
+              {grupos.map((grupo) => {
+                const style = categoryStyle(grupo.categoria);
+                const Icon = style.icon;
+                return (
+                  <Card key={grupo.categoria} className={cn("overflow-hidden rounded-2xl border bg-white shadow-sm", style.border)}>
+                    <div className={cn("flex items-center gap-3 border-b px-4 py-3", style.bg, style.border)}>
+                      <Icon className={cn("h-6 w-6", style.color)} />
+                      <h2 className={cn("text-lg font-black uppercase tracking-tight", style.color)}>{grupo.categoria}</h2>
+                    </div>
+                    <div className="divide-y">
+                      {grupo.items.map((opcao, index) => {
+                        const item = getItemPedido(opcao.id);
+                        return (
+                          <div key={opcao.id} className="grid gap-2 px-3 py-2.5 sm:grid-cols-[42px_minmax(0,1fr)_100px_120px] sm:items-center sm:px-4">
+                            <Badge variant="secondary" className="h-7 w-fit justify-center rounded-lg bg-[#f6e4d8] font-black text-[#b85b36] sm:w-auto">
+                              {index + 1}
+                            </Badge>
+                            <div className="min-w-0 text-sm font-semibold leading-snug text-[#253f3a]">{opcao.nome}</div>
+                            {item.quantidade > 0 ? (
+                              <select
+                                value={item.tamanho}
+                                onChange={(event) => changeTamanhoItem(opcao.id, event.target.value)}
+                                className="h-9 rounded-lg border bg-white px-2 text-xs font-bold text-[#14332f]"
+                              >
+                                {TAMANHOS.filter((tamanho) => tamanho !== "PERSONALIZADO").map((tamanho) => (
+                                  <option key={tamanho} value={tamanho}>
+                                    {tamanho}
+                                  </option>
+                                ))}
+                              </select>
+                            ) : (
+                              <div className="hidden sm:block" />
+                            )}
+                            <div className="grid grid-cols-[34px_34px_34px] justify-end overflow-hidden rounded-lg border bg-white sm:grid-cols-[38px_38px_38px]">
+                              <div className="grid place-items-center text-sm font-black tabular-nums text-[#14332f]">{item.quantidade}</div>
+                              <button type="button" className="grid place-items-center border-l text-[#14332f] transition hover:bg-[#f6e4d8]" onClick={() => changeQuantity(opcao.id, -1)}>
+                                <Minus className="h-4 w-4" />
+                              </button>
+                              <button type="button" className="grid place-items-center border-l text-[#14332f] transition hover:bg-[#dceee5]" onClick={() => changeQuantity(opcao.id, 1)}>
+                                <Plus className="h-4 w-4" />
+                              </button>
                             </div>
-                          );
-                        })}
-                      </div>
-                    </Card>
-                  );
-                })}
-              </section>
-            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </Card>
+                );
+              })}
+            </section>
 
             <section className="sticky bottom-3 z-10 mt-6 rounded-2xl border bg-white/95 p-4 shadow-xl backdrop-blur">
               <div className="flex items-center justify-center gap-3 text-xl font-black uppercase tracking-wide text-[#14332f]">
