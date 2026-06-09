@@ -365,6 +365,15 @@ function toISODateOnlyLocal(date?: Date | null) {
   return `${year}-${month}-${day}`;
 }
 
+function startOfLocalDay(date: Date) {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+}
+
+function isPastLocalDay(date?: Date | null) {
+  if (!date) return false;
+  return startOfLocalDay(date) < startOfLocalDay(new Date());
+}
+
 function formatDateBR(date?: Date | string | null) {
   if (!date) return "-";
   const d = typeof date === "string" ? new Date(date) : date;
@@ -621,8 +630,11 @@ export function NovoAgendamentoNovoLayout({
         precoUnit: Number(it.valor || it.precoUnit || 0) / Math.max(1, Number(it.quantidade || 1)),
         usarPlano: !!it.usarPlano,
         trocaCarboId: String(it.trocaCarboId || ""),
+        trocaCarboNome: it.trocaCarbo?.nome || it.trocaCarboNome || "",
         trocaProteinaId: String(it.trocaProteinaId || ""),
+        trocaProteinaNome: it.trocaProteina?.nome || it.trocaProteinaNome || "",
         trocaLegumeId: String(it.trocaLegumeId || ""),
+        trocaLegumeNome: it.trocaLegume?.nome || it.trocaLegumeNome || "",
         carboGramas: Number(it.carboGramas || 0),
         proteinaGramas: Number(it.proteinaGramas || 0),
         legumeGramas: Number(it.legumeGramas || 0),
@@ -979,13 +991,14 @@ export function NovoAgendamentoNovoLayout({
       if (!tamanho) return item;
 
       const precoFaixa = getPrecoUnitPorQuantidade(tamanho, totalMarmitas || 1);
+      const adicionalTrocas = item.tipoItem === "PADRAO" ? contarTrocasItem(item) * 2 : 0;
 
       return {
         ...item,
         precoUnit:
           item.tipoItem === "PERSONALIZADA"
             ? item.precoUnit
-            : Number(precoFaixa || 0),
+            : Number(precoFaixa || 0) + adicionalTrocas,
       };
     });
   }, [itens, tamanhos, totalMarmitas, totalSalgados, regras]);
@@ -994,7 +1007,7 @@ export function NovoAgendamentoNovoLayout({
     return itensComPrecoBruto.map((item) => {
       if (!item.usarPlano) return item;
       if (!canUsePlanoForItem(item)) return item;
-      return { ...item, precoUnit: 0 };
+      return { ...item, precoUnit: item.tipoItem === "PADRAO" ? contarTrocasItem(item) * 2 : 0 };
     });
   }, [itensComPrecoBruto, clienteSelecionado]);
 
@@ -1069,6 +1082,7 @@ export function NovoAgendamentoNovoLayout({
         label: `Pedido #${index + 1}`,
         nome: itemReferencia ? getDestinatarioItem(itemReferencia) : "-",
         subtotal: subtotalMarmitas - descontoGrupo + subtotalSalgados,
+        temTroca: grupo.some((item) => itemTemTroca(item)),
       };
     });
   }, [itensComPrecoFinal, regras, clienteSelecionado]);
@@ -1427,6 +1441,18 @@ export function NovoAgendamentoNovoLayout({
     ].filter(Boolean);
 
     return extras.join(" • ");
+  }
+
+  function contarTrocasItem(item: NovoPedidoItem) {
+    return [
+      item.trocaCarboId,
+      item.trocaProteinaId,
+      item.trocaLegumeId && !item.zerarLegume ? item.trocaLegumeId : "",
+    ].filter(Boolean).length;
+  }
+
+  function itemTemTroca(item: NovoPedidoItem) {
+    return contarTrocasItem(item) > 0 || !!item.zerarLegume || !!item.adicionarFeijao;
   }
 
   function editarItem(item: NovoPedidoItem) {
@@ -1847,22 +1873,27 @@ export function NovoAgendamentoNovoLayout({
       return;
     }
 
+    const editandoMesmaOpcao =
+      !!formItem.id &&
+      formItem.tipoItem === "PADRAO" &&
+      String(formItem.opcaoId || "") === String(opcao.id);
+
     setFormItem((prev) => ({
       ...prev,
-      id: "",
+      id: editandoMesmaOpcao ? prev.id : "",
       tipoItem: "PADRAO",
       opcaoId: opcao.id,
       opcaoNome: opcao.nome,
-      quantidade: 1,
+      quantidade: editandoMesmaOpcao ? prev.quantidade : 1,
       tamanhoLabel: tamanho.nome,
-      trocaCarboId: "",
-      trocaCarboNome: "",
-      trocaProteinaId: "",
-      trocaProteinaNome: "",
-      trocaLegumeId: "",
-      trocaLegumeNome: "",
-      zerarLegume: false,
-      adicionarFeijao: false,
+      trocaCarboId: editandoMesmaOpcao ? prev.trocaCarboId : "",
+      trocaCarboNome: editandoMesmaOpcao ? prev.trocaCarboNome : "",
+      trocaProteinaId: editandoMesmaOpcao ? prev.trocaProteinaId : "",
+      trocaProteinaNome: editandoMesmaOpcao ? prev.trocaProteinaNome : "",
+      trocaLegumeId: editandoMesmaOpcao ? prev.trocaLegumeId : "",
+      trocaLegumeNome: editandoMesmaOpcao ? prev.trocaLegumeNome : "",
+      zerarLegume: editandoMesmaOpcao ? prev.zerarLegume : false,
+      adicionarFeijao: editandoMesmaOpcao ? prev.adicionarFeijao : false,
     }));
     setModalTrocasOpen(true);
   }
@@ -1882,6 +1913,12 @@ export function NovoAgendamentoNovoLayout({
     if (!data) {
       toast.error("Data não selecionada", {
         description: "Escolha a data do agendamento antes de finalizar.",
+      });
+      return;
+    }
+    if (!initialData && isPastLocalDay(data)) {
+      toast.error("Data inválida", {
+        description: "Não é possível criar agendamento para uma data anterior a hoje.",
       });
       return;
     }
@@ -2483,6 +2520,7 @@ export function NovoAgendamentoNovoLayout({
                         mode="single"
                         selected={data}
                         onSelect={setData}
+                        disabled={(day) => !initialData && isPastLocalDay(day)}
                         locale={ptBR}
                       />
                     </div>
@@ -2701,6 +2739,11 @@ export function NovoAgendamentoNovoLayout({
                                     <div className="truncate text-xs font-semibold text-foreground">
                                       {pedido.nome}
                                     </div>
+                                    {pedido.temTroca && (
+                                      <div className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-amber-700">
+                                        Troca requisitada
+                                      </div>
+                                    )}
                                   </div>
                                   <div className="shrink-0 text-right font-bold text-foreground">
                                     R$ {currency(pedido.subtotal)}
@@ -3473,6 +3516,9 @@ export function NovoAgendamentoNovoLayout({
                             {it.tipoItem === "SALGADO" && (
                               <Badge variant="outline" className="h-4 px-1 text-[8px] border-slate-200 bg-slate-50 text-slate-600 font-black shrink-0">SALGADO</Badge>
                             )}
+                            {itemTemTroca(it) && (
+                              <Badge variant="outline" className="h-4 px-1 text-[8px] border-amber-200 bg-amber-50 text-amber-700 font-black shrink-0">TROCA</Badge>
+                            )}
                           </div>
 
                           <div className="flex items-center gap-1.5 flex-wrap">
@@ -3529,6 +3575,23 @@ export function NovoAgendamentoNovoLayout({
                             if (partes.length === 0) return null;
                             return (
                               <div className="text-[10px] text-slate-500 leading-relaxed mt-0.5">
+                                {partes.map((p, i) => (
+                                  <span key={i}>{p}{i < partes.length - 1 && <br />}</span>
+                                ))}
+                              </div>
+                            );
+                          })()}
+
+                          {it.tipoItem === "PADRAO" && itemTemTroca(it) && (() => {
+                            const partes = [
+                              it.trocaCarboNome ? `Troca carbo: ${it.trocaCarboNome}` : null,
+                              it.trocaProteinaNome ? `Troca proteína: ${it.trocaProteinaNome}` : null,
+                              !it.zerarLegume && it.trocaLegumeNome ? `Troca legume: ${it.trocaLegumeNome}` : null,
+                              it.zerarLegume ? "Sem legume" : null,
+                              it.adicionarFeijao ? "Com feijão" : null,
+                            ].filter(Boolean);
+                            return (
+                              <div className="text-[10px] text-amber-700 leading-relaxed mt-0.5">
                                 {partes.map((p, i) => (
                                   <span key={i}>{p}{i < partes.length - 1 && <br />}</span>
                                 ))}
@@ -3788,7 +3851,7 @@ export function NovoAgendamentoNovoLayout({
 
           <DialogFooter className="mt-6">
             <Button type="button" onClick={adicionarMarmitaComTrocas}>
-              Adicionar marmita com substituições
+              {formItem.id ? "Salvar substituições" : "Adicionar marmita com substituições"}
             </Button>
           </DialogFooter>
         </DialogContent>
