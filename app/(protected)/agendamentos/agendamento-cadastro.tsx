@@ -816,6 +816,14 @@ export function NovoAgendamentoNovoLayout({
     }, {});
   }, [itensDoGrupoAtual]);
 
+  const quantidadeCatalogoIncluindoEdicaoPorOpcao = useMemo(() => {
+    return itensDoGrupoAtual.reduce<Record<string, number>>((acc, item) => {
+      if (item.tipoItem !== "PADRAO" || !item.opcaoId || item.tamanhoId !== formItem.tamanhoId) return acc;
+      acc[item.opcaoId] = (acc[item.opcaoId] || 0) + Number(item.quantidade || 0);
+      return acc;
+    }, {});
+  }, [itensDoGrupoAtual, formItem.tamanhoId]);
+
   const categoriasCatalogo = useMemo(() => {
     const categorias = new Map<string, string>();
     opcoesPadrao.forEach((opcao) => {
@@ -827,15 +835,16 @@ export function NovoAgendamentoNovoLayout({
   }, [opcoesPadrao]);
 
   const opcoesPadraoFiltradas = useMemo(() => {
+    const quantidadesFiltro = formItem.id ? quantidadeCatalogoIncluindoEdicaoPorOpcao : quantidadeCatalogoPorOpcao;
     const termos = normalizarBusca(buscaMarmita).split(/\s+/).filter(Boolean);
 
     return opcoesPadrao.filter((opcao) => {
-      if (filtroCatalogo === "PEDIDO" && !quantidadeCatalogoPorOpcao[opcao.id]) return false;
+      if (filtroCatalogo === "PEDIDO" && !quantidadesFiltro[opcao.id]) return false;
       if (categoriaCatalogo !== "TODAS" && normalizarBusca(opcao.categoria || "") !== categoriaCatalogo) return false;
       const nome = normalizarBusca(opcao.nome);
       return termos.every((termo) => nome.includes(termo));
     });
-  }, [buscaMarmita, categoriaCatalogo, filtroCatalogo, opcoesPadrao, quantidadeCatalogoPorOpcao]);
+  }, [buscaMarmita, categoriaCatalogo, filtroCatalogo, opcoesPadrao, quantidadeCatalogoPorOpcao, quantidadeCatalogoIncluindoEdicaoPorOpcao, formItem.id]);
 
   const hasItensNoGrupoAtual = itensDoGrupoAtual.length > 0;
 
@@ -1458,6 +1467,9 @@ export function NovoAgendamentoNovoLayout({
   function editarItem(item: NovoPedidoItem) {
     setFormItem({ ...item });
     setCurrentGroupId(item.groupId || "");
+    setBuscaMarmita("");
+    setFiltroCatalogo("PEDIDO");
+    setCategoriaCatalogo("TODAS");
     setModalNovoPedidoOpen(true);
   }
 
@@ -2061,7 +2073,7 @@ export function NovoAgendamentoNovoLayout({
                   <div className="absolute bottom-0 right-0 w-1/2 h-1/2 border-l border-t border-white/30"></div>
                 </div>
               </div>
-              Novo Agendamento
+              {initialData ? "Editar Agendamento" : "Novo Agendamento"}
             </DialogTitle>
           </DialogHeader>
 
@@ -3286,7 +3298,7 @@ export function NovoAgendamentoNovoLayout({
                         >
                           No pedido
                           <Badge variant="secondary" className="ml-2">
-                            {Object.values(quantidadeCatalogoPorOpcao).reduce((acc, quantidade) => acc + quantidade, 0)}
+                            {Object.values(formItem.id ? quantidadeCatalogoIncluindoEdicaoPorOpcao : quantidadeCatalogoPorOpcao).reduce((acc, quantidade) => acc + quantidade, 0)}
                           </Badge>
                         </Button>
                       </div>
@@ -3341,19 +3353,26 @@ export function NovoAgendamentoNovoLayout({
 
                     <div className="max-h-[42vh] space-y-1 overflow-y-auto pr-1 custom-scrollbar">
                       {opcoesPadraoFiltradas.map((opcao) => {
-                        const quantidade = quantidadeCatalogoPorOpcao[opcao.id] || 0;
+                        const quantidade = formItem.id
+                          ? quantidadeCatalogoIncluindoEdicaoPorOpcao[opcao.id] || 0
+                          : quantidadeCatalogoPorOpcao[opcao.id] || 0;
+                        const editandoEstaOpcao = !!formItem.id && String(formItem.opcaoId || "") === String(opcao.id);
                         return (
                           <div
                             key={opcao.id}
                             className={cn(
                               "flex items-center gap-2 rounded-lg border bg-white px-3 py-2 transition-colors",
-                              quantidade > 0 ? "border-emerald-300 bg-emerald-50/60" : "border-slate-200 hover:border-emerald-200",
+                              quantidade > 0 || editandoEstaOpcao ? "border-emerald-300 bg-emerald-50/60" : "border-slate-200 hover:border-emerald-200",
                             )}
                           >
                             <div className="min-w-0 flex-1">
                               <div className="truncate text-sm font-semibold text-slate-800">{opcao.nome}</div>
                               <div className="text-[10px] text-muted-foreground">
-                                {quantidade > 0 ? `${quantidade} no pedido` : "Ainda não adicionada"}
+                                {editandoEstaOpcao && itemTemTroca(formItem)
+                                  ? `${quantidade || formItem.quantidade} no pedido com troca`
+                                  : quantidade > 0
+                                    ? `${quantidade} no pedido`
+                                    : "Ainda não adicionada"}
                               </div>
                             </div>
                             <Button
@@ -3372,7 +3391,7 @@ export function NovoAgendamentoNovoLayout({
                                 size="icon"
                                 variant="outline"
                                 className="h-7 w-7"
-                                disabled={quantidade === 0}
+                                disabled={!!formItem.id || quantidade === 0}
                                 onClick={() => ajustarQuantidadeMarmitaCatalogo(opcao, -1)}
                               >
                                 <Minus className="h-4 w-4" />
@@ -3382,6 +3401,7 @@ export function NovoAgendamentoNovoLayout({
                                 type="button"
                                 size="icon"
                                 className="h-7 w-7 bg-emerald-600 text-white hover:bg-emerald-700"
+                                disabled={!!formItem.id}
                                 onClick={() => ajustarQuantidadeMarmitaCatalogo(opcao, 1)}
                               >
                                 <Plus className="h-4 w-4" />
