@@ -432,6 +432,16 @@ export default function Agendamentos() {
     return Number(tamanho?.valorUnitario || 0);
   }
 
+  function contarTrocasItem(it: any) {
+    return [
+      it.trocaCarboId ?? it.trocaCarbo?.id ?? it.trocaCarboNome,
+      it.trocaProteinaId ?? it.trocaProteina?.id ?? it.trocaProteinaNome,
+      (it.trocaLegumeId ?? it.trocaLegume?.id ?? it.trocaLegumeNome) && !it.zerarLegume
+        ? it.trocaLegumeId ?? it.trocaLegume?.id ?? it.trocaLegumeNome
+        : null,
+    ].filter(Boolean).length;
+  }
+
   function calcularValorPedidoAtual(itens: any[]) {
     const totalMarmitas = itens
       .filter((it) => it.tipoItem !== "SALGADO")
@@ -446,12 +456,14 @@ export default function Agendamentos() {
 
     const valores = itens.map((it) => {
       const qtd = Math.max(1, Number(it.quantidade || 1));
-      if (it.usarPlano) return { tipoItem: it.tipoItem, valor: 0 };
+      const adicionalTrocas = it.tipoItem === "PADRAO" ? contarTrocasItem(it) * 2 : 0;
+      if (it.usarPlano) return { tipoItem: it.tipoItem, valor: adicionalTrocas * qtd };
 
       if (it.tipoItem === "PADRAO") {
+        const unitBase = getPrecoUnitPorQuantidade(it.tamanho, totalMarmitas || 1) || Number(it.valor || 0) / qtd;
         return {
           tipoItem: it.tipoItem,
-          valor: getPrecoUnitPorQuantidade(it.tamanho, totalMarmitas || 1) * qtd,
+          valor: (unitBase + adicionalTrocas) * qtd,
         };
       }
 
