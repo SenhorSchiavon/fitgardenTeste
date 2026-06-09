@@ -14,7 +14,7 @@ export function useRelatorioPedidosDia() {
   const [downloading, setDownloading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const downloadPdf = useCallback(async (params: { data: string }) => {
+  const downloadDocx = useCallback(async (params: { data: string }) => {
     const dataStr = String(params.data || "").trim();
 
     if (!validarDataISO(dataStr)) {
@@ -28,13 +28,13 @@ export function useRelatorioPedidosDia() {
     try {
       const qs = new URLSearchParams({ data: dataStr });
 
-      const res = await apiFetch(`${RESOURCE}/pedidos/pdf?${qs.toString()}`, {
+      const res = await apiFetch(`${RESOURCE}/pedidos/docx?${qs.toString()}`, {
         method: "GET",
       });
 
       if (!res.ok) {
         const json = await res.json().catch(() => null);
-        throw new Error(json?.message || "Erro ao gerar PDF");
+        throw new Error(json?.message || "Erro ao gerar DOCX");
       }
 
       const blob = await res.blob();
@@ -42,7 +42,7 @@ export function useRelatorioPedidosDia() {
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `relatorio-pedidos-${dataStr}.pdf`;
+      a.download = `relatorio-pedidos-${dataStr}.docx`;
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -50,12 +50,12 @@ export function useRelatorioPedidosDia() {
 
       return true;
     } catch (e: any) {
-      setError(e?.message || "Erro ao gerar PDF");
+      setError(e?.message || "Erro ao gerar DOCX");
       return false;
     } finally {
       setDownloading(false);
     }
   }, []);
 
-  return { downloading, error, downloadPdf };
+  return { downloading, error, downloadDocx };
 }

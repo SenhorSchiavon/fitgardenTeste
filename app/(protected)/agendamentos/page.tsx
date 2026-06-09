@@ -258,7 +258,7 @@ export default function Agendamentos() {
   } = useRelatorioPreparosDia();
 
   const {
-    downloadPdf: downloadPedidosPdf,
+    downloadDocx: downloadPedidosDocx,
     downloading: downloadingPedidos,
     error: errorPedidosDocx,
   } = useRelatorioPedidosDia();
@@ -829,14 +829,14 @@ export default function Agendamentos() {
                 className="rounded-lg cursor-pointer gap-2 py-2.5"
                 onClick={() => {
                   const dateISO = utils.toISODateOnly(selectedDate);
-                  downloadPedidosPdf({ data: dateISO });
+                  downloadPedidosDocx({ data: dateISO });
                 }}
                 disabled={downloadingPedidos}
               >
                 <FileText className="h-4 w-4 text-blue-500" />
                 <div className="flex flex-col">
                   <span className="font-medium text-sm">Relatório de Pedidos</span>
-                  <span className="text-[10px] text-slate-500">Documento PDF</span>
+                  <span className="text-[10px] text-slate-500">Documento DOCX</span>
                 </div>
               </DropdownMenuItem>
 
@@ -852,7 +852,7 @@ export default function Agendamentos() {
                 <FileDown className="h-4 w-4 text-emerald-600" />
                 <div className="flex flex-col">
                   <span className="font-medium text-sm">Rotas de Montagem</span>
-                  <span className="text-[10px] text-slate-500">Cupom por rota</span>
+                  <span className="text-[10px] text-slate-500">Imprimir por estação</span>
                 </div>
               </DropdownMenuItem>
 
