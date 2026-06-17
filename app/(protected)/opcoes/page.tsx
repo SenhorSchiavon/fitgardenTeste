@@ -530,14 +530,14 @@ export default function OpcoesPage() {
           if (!open) resetForm();
         }}
       >
-        <DialogContent className="max-w-3xl">
-          <DialogHeader>
+        <DialogContent className="flex max-h-[90vh] max-w-3xl flex-col overflow-hidden">
+          <DialogHeader className="shrink-0">
             <DialogTitle>
               {editandoId ? "Editar Opção" : "Nova Opção"}
             </DialogTitle>
           </DialogHeader>
 
-          <div className="space-y-4 py-2">
+          <div className="flex-1 space-y-4 overflow-y-auto py-2 pr-2">
             <div className="space-y-2">
               <Label>Tipo</Label>
               <RadioGroup
