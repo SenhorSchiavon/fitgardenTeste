@@ -277,6 +277,17 @@ export function ClienteFormDialog({
     );
   }, [form.latitude, form.longitude]);
 
+  const temEnderecoPrincipal = useMemo(() => {
+    return (
+      !!form.cep?.trim() ||
+      !!form.cidade?.trim() ||
+      !!form.bairro?.trim() ||
+      !!form.logradouro?.trim() ||
+      !!form.numero?.trim() ||
+      !!form.complemento?.trim()
+    );
+  }, [form.cep, form.cidade, form.bairro, form.logradouro, form.numero, form.complemento]);
+
   const coordsSecundarioOk = useMemo(() => {
     return (
       typeof form.secundarioLatitude === "number" &&
@@ -622,7 +633,7 @@ export function ClienteFormDialog({
     const telefone = String(form.telefone || "").trim();
     if (!nome) return;
     if (!telefone) return;
-    if (!coordsOk) {
+    if (temEnderecoPrincipal && !coordsOk) {
       setErroLocalizacao("Localize o endereço antes de salvar.");
       return;
     }
@@ -646,7 +657,7 @@ export function ClienteFormDialog({
       enderecos: [
         {
           principal: true,
-          apelido: upper(form.apelidoPrincipal).trim() || "CASA",
+          apelido: temEnderecoPrincipal ? (upper(form.apelidoPrincipal).trim() || "CASA") : null,
           cep: form.cep?.trim() ? onlyDigits(form.cep) : null,
           uf: "PR",
           cidade: form.cidade?.trim() || null,
@@ -654,8 +665,8 @@ export function ClienteFormDialog({
           logradouro: upper(form.logradouro).trim() || null,
           numero: upper(form.numero).trim() || null,
           complemento: upper(form.complemento).trim() || null,
-          latitude: typeof form.latitude === "number" ? form.latitude : null,
-          longitude: typeof form.longitude === "number" ? form.longitude : null,
+          latitude: temEnderecoPrincipal && typeof form.latitude === "number" ? form.latitude : null,
+          longitude: temEnderecoPrincipal && typeof form.longitude === "number" ? form.longitude : null,
         },
         ...(temEnderecoSecundario
           ? [{
@@ -1075,7 +1086,7 @@ export function ClienteFormDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
             Cancelar
           </Button>
-          <Button onClick={handleSave} disabled={saving || !coordsOk}>
+          <Button onClick={handleSave} disabled={saving || (temEnderecoPrincipal && !coordsOk)}>
             {saving ? "Salvando..." : "Salvar"}
           </Button>
         </div>

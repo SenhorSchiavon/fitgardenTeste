@@ -65,6 +65,7 @@ import { PlanoCatalogo, usePlanosCliente } from "@/hooks/usePlanosCliente";
 import { ClienteFormDialog } from "@/components/clientes/ClienteFormDialog";
 
 type PedidoTipo = "NAO_DEFINIR" | "ENTREGA" | "RETIRADA" | "CONGELAR";
+type CongelarSubtipo = "ENTREGA" | "RETIRADA";
 type FormaPagamento =
   | "A_DEFINIR"
   | "DINHEIRO"
@@ -233,9 +234,13 @@ function gerarHorarios30({ start, end }: { start: string; end: string }) {
 
 function getJanelaEntregaPorDistancia(distanciaKm: number | null) {
   if (distanciaKm == null) return { start: "13:00", end: "20:30" };
-  return distanciaKm < 3
+  return distanciaKm <= 3.5
     ? { start: "13:00", end: "20:30" }
     : { start: "15:00", end: "20:30" };
+}
+
+function isSabado(date?: Date | null) {
+  return !!date && date.getDay() === 6;
 }
 
 function ajustarHorarioNaJanela(
@@ -415,6 +420,7 @@ export function NovoAgendamentoNovoLayout({
   const [tipo, setTipo] = useState<PedidoTipo>("NAO_DEFINIR");
   const [data, setData] = useState<Date | undefined>(() => getDefaultAgendamentoDate());
   const [dataEntregaCongelada, setDataEntregaCongelada] = useState<Date | undefined>(() => getDefaultAgendamentoDate());
+  const [congelarSubtipo, setCongelarSubtipo] = useState<CongelarSubtipo>("RETIRADA");
   const [horario, setHorario] = useState<HorarioIntervalo>({
     inicio: "13:00",
     fim: "14:00",
@@ -423,6 +429,7 @@ export function NovoAgendamentoNovoLayout({
   const [enderecoSelecionadoId, setEnderecoSelecionadoId] = useState("");
   const [observacoesPedido, setObservacoesPedido] = useState("");
   const [formaPagamento, setFormaPagamento] = useState<FormaPagamento>("A_DEFINIR");
+  const [formaPagamentoTaxaVoucher, setFormaPagamentoTaxaVoucher] = useState<FormaPagamento>("A_DEFINIR");
   const [voucherCodigo, setVoucherCodigo] = useState("");
 
   const [currentGroupId, setCurrentGroupId] = useState("");
@@ -545,13 +552,15 @@ export function NovoAgendamentoNovoLayout({
   }, [clienteSelecionado]);
 
   const horarios = useMemo(
-    () =>
-      gerarHorarios30(
+    () => {
+      if (isSabado(data)) return gerarHorarios30({ start: "09:30", end: "12:30" });
+      return gerarHorarios30(
         tipo === "RETIRADA"
           ? { start: "12:30", end: "18:00" }
           : getJanelaEntregaPorDistancia(tipo === "ENTREGA" ? distanciaEntregaKm : null),
-      ),
-    [tipo, distanciaEntregaKm]
+      );
+    },
+    [tipo, distanciaEntregaKm, data]
   );
 
   const horariosFimDisponiveis = useMemo(() => {
@@ -564,7 +573,7 @@ export function NovoAgendamentoNovoLayout({
     if (!horarios.length) return;
     if (tipo === "RETIRADA") {
       if (!horarios.includes(horario.inicio)) {
-        setHorario({ inicio: "12:30", fim: "12:30" });
+        setHorario({ inicio: horarios[0], fim: horarios[0] });
       } else if (horario.fim !== horario.inicio) {
         setHorario((prev) => ({ ...prev, fim: prev.inicio }));
       }
@@ -592,6 +601,7 @@ export function NovoAgendamentoNovoLayout({
       setTipo(initialData.tipoEntrega || initialData.tipo || "NAO_DEFINIR");
       setData(initialData.data ? new Date(initialData.data) : getDefaultAgendamentoDate());
       setDataEntregaCongelada(initialData.dataEntregaCongelada ? new Date(initialData.dataEntregaCongelada) : getDefaultAgendamentoDate());
+      setCongelarSubtipo(initialData.congelarSubtipo === "ENTREGA" ? "ENTREGA" : "RETIRADA");
       
       const faixa = initialData.faixaHorario || "13:00-14:00";
       const [inicio, fim] = faixa.includes("-") ? faixa.split("-") : [faixa, "14:00"];
@@ -599,7 +609,15 @@ export function NovoAgendamentoNovoLayout({
       
       setEndereco(initialData.endereco || "");
       setObservacoesPedido(initialData.observacoes || "");
-      setFormaPagamento(initialData.formaPagamento || "A_DEFINIR");
+      const formaInicial = initialData.formaPagamento || "A_DEFINIR";
+      setFormaPagamento(isVoucherForma(formaInicial) ? "VOUCHER" : formaInicial);
+      setFormaPagamentoTaxaVoucher(
+        formaInicial === "VOUCHER_TAXA_DINHEIRO" ||
+        formaInicial === "VOUCHER_TAXA_CARTAO" ||
+        formaInicial === "VOUCHER_TAXA_PIX"
+          ? formaInicial
+          : "A_DEFINIR",
+      );
       setVoucherCodigo(initialData.voucherCodigo || "");
       
       const rawItens = initialData.itens || initialData.pedido?.itens || [];
@@ -719,7 +737,7 @@ export function NovoAgendamentoNovoLayout({
           const [inicio, fim] = ultimo.faixaHorario.split("-");
           const ajustado = ajustarHorarioNaJanela(
             { inicio: inicio || "13:00", fim: fim || "14:00" },
-            getJanelaEntregaPorDistancia(tipo === "ENTREGA" ? distanciaEntregaKm : null),
+            isSabado(data) ? { start: "09:30", end: "12:30" } : getJanelaEntregaPorDistancia(tipo === "ENTREGA" ? distanciaEntregaKm : null),
           );
           setHorario(ajustado);
           setAvisoHorarioAutomatico(`Horário puxado automaticamente do último pedido: ${ajustado.inicio}-${ajustado.fim}.`);
@@ -737,7 +755,7 @@ export function NovoAgendamentoNovoLayout({
     return () => {
       ativo = false;
     };
-  }, [open, clienteId, initialData, getUltimoAgendamentoCliente, tipo, distanciaEntregaKm]);
+  }, [open, clienteId, initialData, getUltimoAgendamentoCliente, tipo, distanciaEntregaKm, data]);
 
   useEffect(() => {
     let ativo = true;
@@ -1105,10 +1123,12 @@ export function NovoAgendamentoNovoLayout({
     setTipo("NAO_DEFINIR");
     setData(getDefaultAgendamentoDate());
     setDataEntregaCongelada(getDefaultAgendamentoDate());
+    setCongelarSubtipo("RETIRADA");
     setHorario({ inicio: "13:00", fim: "14:00" });
     setEndereco("");
     setObservacoesPedido("");
     setFormaPagamento("A_DEFINIR");
+    setFormaPagamentoTaxaVoucher("A_DEFINIR");
     setVoucherCodigo("");
     setDistanciaEntregaKm(null);
     setEnderecoSelecionadoId("");
@@ -1952,6 +1972,12 @@ export function NovoAgendamentoNovoLayout({
       });
       return;
     }
+    if (tipo === "CONGELAR" && !congelarSubtipo) {
+      toast.error("Tipo da congelada obrigatório", {
+        description: "Informe se a congelada será entrega ou retirada.",
+      });
+      return;
+    }
     if (tipo === "ENTREGA" && !endereco.trim()) {
       toast.error("Pedido marcado como entrega mas sem endereço", {
         description: "Cadastre ou selecione um endereço do cliente antes de finalizar.",
@@ -1967,7 +1993,7 @@ export function NovoAgendamentoNovoLayout({
       return;
     }
 
-    const janelaEntrega = getJanelaEntregaPorDistancia(tipo === "ENTREGA" ? distanciaEntregaKm : null);
+    const janelaEntrega = isSabado(data) ? { start: "09:30", end: "12:30" } : getJanelaEntregaPorDistancia(tipo === "ENTREGA" ? distanciaEntregaKm : null);
     if (tipo !== "RETIRADA" && (
       toMin(horario.inicio) < toMin(janelaEntrega.start) ||
       toMin(horario.fim) > toMin(janelaEntrega.end) ||
@@ -1979,7 +2005,12 @@ export function NovoAgendamentoNovoLayout({
       return;
     }
 
-    if (formaPagamento === "PLANO" && !itens.some((it) => it.usarPlano)) {
+    const formaPagamentoPayload: FormaPagamento =
+      formaPagamento === "VOUCHER" && formaPagamentoTaxaVoucher !== "A_DEFINIR"
+        ? formaPagamentoTaxaVoucher
+        : formaPagamento;
+
+    if (formaPagamentoPayload === "PLANO" && !itens.some((it) => it.usarPlano)) {
       toast.error("Plano não selecionado", {
         description: "Forma de pagamento Plano precisa ter um plano vinculado ao pedido.",
       });
@@ -1987,7 +2018,7 @@ export function NovoAgendamentoNovoLayout({
     }
 
     let senhaAutorizacao: string | undefined;
-    if (formaPagamento === "TROCA" || formaPagamento === "BONIFICACAO") {
+    if (formaPagamentoPayload === "TROCA" || formaPagamentoPayload === "BONIFICACAO") {
       senhaAutorizacao = window.prompt("Informe a senha de administrador para autorizar troca/bonificação:") || "";
       if (!senhaAutorizacao.trim()) {
         toast.error("Senha obrigatória", {
@@ -1997,7 +2028,7 @@ export function NovoAgendamentoNovoLayout({
       }
     }
 
-    if (isVoucherForma(formaPagamento) && !voucherCodigo.trim()) {
+    if (isVoucherForma(formaPagamentoPayload) && !voucherCodigo.trim()) {
       toast.error("Voucher obrigatório", {
         description: "Digite o código do voucher para finalizar este agendamento.",
       });
@@ -2024,14 +2055,15 @@ export function NovoAgendamentoNovoLayout({
       dataEntregaCongelada: tipo === "CONGELAR" && dataEntregaCongelada
         ? (dataEntregaCongelada instanceof Date ? dataEntregaCongelada.toISOString() : dataEntregaCongelada)
         : null,
+      congelarSubtipo: tipo === "CONGELAR" ? congelarSubtipo : null,
       faixaHorario: tipo === "RETIRADA" ? horario.inicio : `${horario.inicio}-${horario.fim}`,
       endereco: tipo === "ENTREGA" ? endereco : tipo,
       entregaLatitude: tipo === "ENTREGA" && enderecoSelecionado?.latitude != null ? Number(enderecoSelecionado.latitude) : undefined,
       entregaLongitude: tipo === "ENTREGA" && enderecoSelecionado?.longitude != null ? Number(enderecoSelecionado.longitude) : undefined,
       observacoes: observacoesPedido,
-      formaPagamento: formaPagamento,
+      formaPagamento: formaPagamentoPayload,
       senhaAutorizacao,
-      voucherCodigo: isVoucherForma(formaPagamento) ? voucherCodigo.trim() : undefined,
+      voucherCodigo: isVoucherForma(formaPagamentoPayload) ? voucherCodigo.trim() : undefined,
       ...(tipo === "ENTREGA" && incluirTaxaEntrega && valorTaxa > 0 ? { valorTaxa } : {}),
       itens: itensComPrecoBruto.map(it => ({
          ...it,
@@ -2567,6 +2599,21 @@ export function NovoAgendamentoNovoLayout({
                     </Select>
                   </div>
 
+                  {tipo === "CONGELAR" && (
+                    <div className="space-y-2">
+                      <Label>Congelada para</Label>
+                      <Select value={congelarSubtipo} onValueChange={(v: CongelarSubtipo) => setCongelarSubtipo(v)}>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="RETIRADA">Retirada</SelectItem>
+                          <SelectItem value="ENTREGA">Entrega</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+
                   <div className={tipo === "RETIRADA" ? "grid grid-cols-1 gap-3" : "grid grid-cols-2 gap-3"}>
                     <div className="space-y-2">
                       <Label>{tipo === "RETIRADA" ? "Horário" : "Início"}</Label>
@@ -2672,7 +2719,7 @@ export function NovoAgendamentoNovoLayout({
                     </div>
                   ) : tipo === "CONGELAR" ? (
                     <div className="rounded-lg border p-3 text-sm text-muted-foreground">
-                      Pedido marcado para congelar. A entrega da congelada usa a data selecionada acima.
+                      Pedido marcado para congelar. O subtipo acima informa se depois será entrega ou retirada.
                     </div>
                   ) : (
                     <div className="rounded-lg border p-3 text-sm text-muted-foreground">
@@ -2708,14 +2755,33 @@ export function NovoAgendamentoNovoLayout({
                   </div>
 
                   {isVoucherForma(formaPagamento) && (
-                    <div className="space-y-2">
-                      <Label htmlFor="voucherCodigo">Código do voucher</Label>
-                      <Input
-                        id="voucherCodigo"
-                        value={voucherCodigo}
-                        onChange={(e) => setVoucherCodigo(e.target.value)}
-                        placeholder="Digite o voucher"
-                      />
+                    <div className="space-y-3 rounded-lg border border-emerald-100 bg-emerald-50/40 p-3">
+                      <div className="space-y-2">
+                        <Label htmlFor="voucherCodigo">Código do voucher</Label>
+                        <Input
+                          id="voucherCodigo"
+                          value={voucherCodigo}
+                          onChange={(e) => setVoucherCodigo(e.target.value)}
+                          placeholder="Digite o voucher"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Forma de pagamento da taxa</Label>
+                        <Select
+                          value={formaPagamentoTaxaVoucher}
+                          onValueChange={(v: FormaPagamento) => setFormaPagamentoTaxaVoucher(v)}
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="A_DEFINIR">Não definido</SelectItem>
+                            <SelectItem value="VOUCHER_TAXA_PIX">PIX</SelectItem>
+                            <SelectItem value="VOUCHER_TAXA_DINHEIRO">Dinheiro</SelectItem>
+                            <SelectItem value="VOUCHER_TAXA_CARTAO">Cartão</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
                     </div>
                   )}
 

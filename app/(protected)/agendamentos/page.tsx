@@ -74,6 +74,7 @@ type Agendamento = {
   numeroPedido: string;
   cliente: string;
   tipoEntrega: "NAO_DEFINIR" | "ENTREGA" | "RETIRADA" | "CONGELAR";
+  congelarSubtipo?: "ENTREGA" | "RETIRADA" | null;
   dataEntregaCongelada?: string | null;
   faixaHorario: string;
   endereco: string;
@@ -209,6 +210,7 @@ function montarDadosEdicaoAgendamento(agendamento: Agendamento) {
     tipo: agendamento.tipoEntrega,
     data: raw.data ?? agendamento.data,
     dataEntregaCongelada: raw.dataEntregaCongelada ?? agendamento.dataEntregaCongelada ?? null,
+    congelarSubtipo: raw.congelarSubtipo ?? agendamento.congelarSubtipo ?? null,
     faixaHorario: agendamento.faixaHorario,
     endereco: raw.endereco ?? agendamento.endereco,
     regiao: raw.regiao ?? agendamento.zona ?? null,
@@ -624,6 +626,7 @@ export default function Agendamentos() {
       telefone: row.pedido?.cliente?.telefone ?? row.cliente?.telefone ?? "-",
       tipoEntrega: row.pedido?.tipo ?? row.tipo ?? "ENTREGA",
       dataEntregaCongelada: row.dataEntregaCongelada ?? null,
+      congelarSubtipo: row.congelarSubtipo ?? null,
       faixaHorario: row.faixaHorario,
       endereco: row.endereco ?? "-",
       zona: zonaMap[row.regiao] ?? "CENTRO",
@@ -983,7 +986,10 @@ export default function Agendamentos() {
                             <div className="flex-1 space-y-2">
                               <div className="flex items-center gap-3">
                                 <span className="text-xs font-black text-slate-400 uppercase tracking-widest">{agendamento.numeroPedido}</span>
-                                <h3 className="text-base font-bold text-slate-800 group-hover:text-emerald-700 transition-colors">{agendamento.cliente}</h3>
+                                <h3 className="text-base font-bold text-slate-800 group-hover:text-emerald-700 transition-colors">
+                                  {agendamento.cliente}
+                                  {agendamento.telefone && agendamento.telefone !== "-" ? ` - ${agendamento.telefone}` : ""}
+                                </h3>
                               </div>
 
                               <div className="flex flex-wrap items-center gap-y-2 gap-x-4">

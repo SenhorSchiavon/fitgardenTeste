@@ -76,6 +76,7 @@ type ComponenteDraft = {
 type NovaOpcaoForm = {
   tipo: OpcaoTipo;
   nome: string;
+  descricaoPublica: string;
   categoriaId: number | null;
   componentes: ComponenteDraft[];
 };
@@ -139,6 +140,7 @@ export default function OpcoesPage() {
   const [novaOpcao, setNovaOpcao] = useState<NovaOpcaoForm>({
     tipo: "MARMITA",
     nome: "",
+    descricaoPublica: "",
     categoriaId: null,
     componentes: [],
   });
@@ -147,6 +149,7 @@ export default function OpcoesPage() {
     setNovaOpcao({
       tipo: "MARMITA",
       nome: "",
+      descricaoPublica: "",
       categoriaId: null,
       componentes: [],
     });
@@ -216,6 +219,7 @@ export default function OpcoesPage() {
     setNovaOpcao({
       tipo: opcao.tipo,
       nome: opcao.nome,
+      descricaoPublica: opcao.descricaoPublica || "",
       categoriaId: opcao.categoriaId ?? null,
       componentes: (opcao.componentes || []).map(toComponenteDraft),
     });
@@ -357,6 +361,7 @@ export default function OpcoesPage() {
         ? {
             tipo: "MARMITA" as const,
             nome: novaOpcao.nome.trim(),
+            descricaoPublica: novaOpcao.descricaoPublica.trim() || null,
             categoriaId: novaOpcao.categoriaId,
             componentes: novaOpcao.componentes.map((c) => ({
               tipo: c.tipo,
@@ -368,6 +373,7 @@ export default function OpcoesPage() {
         : {
             tipo: "OUTROS" as const,
             nome: novaOpcao.nome.trim(),
+            descricaoPublica: novaOpcao.descricaoPublica.trim() || null,
             categoriaId: null,
             componentes: [],
           };
@@ -569,6 +575,21 @@ export default function OpcoesPage() {
                   Preenchimento automático (não editável)
                 </p>
               </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="descricaoPublica">Descrição</Label>
+              <Input
+                id="descricaoPublica"
+                value={novaOpcao.descricaoPublica}
+                placeholder="Ex.: frango desfiado, arroz branco e legumes"
+                onChange={(e) =>
+                  setNovaOpcao((p) => ({ ...p, descricaoPublica: e.target.value }))
+                }
+              />
+              <p className="text-xs text-muted-foreground">
+                Aparece somente no formulário público do cardápio da semana.
+              </p>
             </div>
 
             {novaOpcao.tipo === "MARMITA" && (

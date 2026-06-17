@@ -13,6 +13,7 @@ export type RegiaoEntrega =
   | "IBIPORA";
 
 export type PedidoTipo = "NAO_DEFINIR" | "ENTREGA" | "RETIRADA" | "CONGELAR";
+export type CongelarSubtipo = "ENTREGA" | "RETIRADA";
 
 export type PedidoStatus = "ABERTO" | "PAGO" | "CANCELADO";
 export type PedidoPendenteRow = {
@@ -27,6 +28,7 @@ export type PedidoPendenteRow = {
   telefone: string;
 
   tipoEntrega: "NAO_DEFINIR" | "ENTREGA" | "RETIRADA" | "CONGELAR";
+  congelarSubtipo?: CongelarSubtipo | null;
   faixaHorario: string;
 
   endereco: string;
@@ -117,6 +119,7 @@ export type CreateAgendamentoInput = {
   tipo: PedidoTipo;
   data: Date | string;
   dataEntregaCongelada?: Date | string | null;
+  congelarSubtipo?: CongelarSubtipo | null;
   faixaHorario: string;
   endereco?: string;
   entregaLatitude?: number | null;
@@ -133,6 +136,7 @@ export type UpdateAgendamentoInput = Partial<{
   tipo: PedidoTipo;
   data: Date | string;
   dataEntregaCongelada: Date | string | null;
+  congelarSubtipo: CongelarSubtipo | null;
   faixaHorario: string;
   endereco: string;
   entregaLatitude: number | null;
@@ -511,6 +515,7 @@ export function useAgendamentos(options?: { baseUrl?: string }) {
             payload.dataEntregaCongelada instanceof Date
               ? payload.dataEntregaCongelada.toISOString()
               : payload.dataEntregaCongelada || undefined,
+          congelarSubtipo: payload.tipo === "CONGELAR" ? payload.congelarSubtipo || undefined : undefined,
           faixaHorario: payload.faixaHorario,
           endereco: payload.endereco,
           entregaLatitude: payload.entregaLatitude,

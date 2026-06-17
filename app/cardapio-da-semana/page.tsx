@@ -15,6 +15,7 @@ type OpcaoPublica = {
   id: string;
   nome: string;
   categoria: string;
+  descricao?: string | null;
   ordem?: number;
 };
 
@@ -76,14 +77,16 @@ function categoryStyle(category: string) {
 function montarMensagem({
   nome,
   observacoes,
+  telefone,
   personalizada,
   opcoes,
   itensPedido,
+  tamanhoSelecionado,
 }: {
   nome: string;
   observacoes: string;
+  telefone: string;
   personalizada: {
-    ativo: boolean;
     carboNome: string;
     proteinaNome: string;
     feijaoNome: string;
@@ -94,15 +97,16 @@ function montarMensagem({
     legumeGramas: string;
   };
   opcoes: OpcaoPublica[];
-  itensPedido: Record<string, { quantidade: number; tamanho: string }>;
+  itensPedido: Record<string, number>;
+  tamanhoSelecionado: string;
 }) {
   const escolhidas = opcoes
-    .filter((opcao) => Number(itensPedido[opcao.id]?.quantidade || 0) > 0)
-    .map((opcao) => `${itensPedido[opcao.id].quantidade}x ${opcao.nome} (${itensPedido[opcao.id].tamanho})`);
+    .filter((opcao) => Number(itensPedido[opcao.id] || 0) > 0)
+    .map((opcao) => `${itensPedido[opcao.id]}x ${opcao.nome} (${tamanhoSelecionado})`);
 
-  const linhasPersonalizada = personalizada.ativo
+  const linhasPersonalizada = tamanhoSelecionado === "PERSONALIZADO"
     ? [
-        "1x PERSONALIZADA",
+        "Pesagem personalizada do pedido:",
         `- Carbo: ${personalizada.carboNome || "-"} ${personalizada.carboGramas || "-"}g`,
         `- Proteina: ${personalizada.proteinaNome || "-"} ${personalizada.proteinaGramas || "-"}g`,
         `- Feijao: ${personalizada.feijaoNome || "-"} ${personalizada.feijaoGramas || "-"}g`,
@@ -110,12 +114,14 @@ function montarMensagem({
       ]
     : [];
 
-  const total = escolhidas.reduce((acc, linha) => acc + Number(linha.split("x")[0] || 0), 0) + (personalizada.ativo ? 1 : 0);
+  const total = escolhidas.reduce((acc, linha) => acc + Number(linha.split("x")[0] || 0), 0);
 
   return [
     "Ola! Quero fazer meu pedido da Fit Garden:",
     "",
     `Nome: ${nome || "-"}`,
+    `Telefone: ${telefone || "-"}`,
+    `Tamanho do pedido: ${tamanhoSelecionado}`,
     "",
     "Marmitas:",
     ...escolhidas,
@@ -131,10 +137,11 @@ export default function CardapioDaSemanaPage() {
   const [cardapio, setCardapio] = useState<CardapioPublico | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [itensPedido, setItensPedido] = useState<Record<string, { quantidade: number; tamanho: string }>>({});
+  const [itensPedido, setItensPedido] = useState<Record<string, number>>({});
+  const [tamanhoSelecionado, setTamanhoSelecionado] = useState<(typeof TAMANHOS)[number]>("200g");
   const [nome, setNome] = useState("");
+  const [telefone, setTelefone] = useState("");
   const [observacoes, setObservacoes] = useState("");
-  const [personalizadaAtiva, setPersonalizadaAtiva] = useState(false);
   const [personalizada, setPersonalizada] = useState({
     carboId: "",
     proteinaId: "",
@@ -175,8 +182,8 @@ export default function CardapioDaSemanaPage() {
   const opcoes = cardapio?.opcoes || [];
   const preparos = cardapio?.preparos || [];
   const total = useMemo(() => {
-    return Object.values(itensPedido).reduce((acc, item) => acc + Number(item.quantidade || 0), 0) + (personalizadaAtiva ? 1 : 0);
-  }, [itensPedido, personalizadaAtiva]);
+    return Object.values(itensPedido).reduce((acc, quantidade) => acc + Number(quantidade || 0), 0);
+  }, [itensPedido]);
 
   const preparosPorTipo = useMemo(() => {
     return {
@@ -210,25 +217,15 @@ export default function CardapioDaSemanaPage() {
   const getPreparoNome = (id: string) => preparos.find((preparo) => preparo.id === id)?.nome || "";
 
   function getItemPedido(id: string) {
-    return itensPedido[id] || { quantidade: 0, tamanho: "200g" };
+    return itensPedido[id] || 0;
   }
 
   function changeQuantity(id: string, delta: number) {
     setItensPedido((prev) => {
-      const atual = prev[id] || { quantidade: 0, tamanho: "200g" };
+      const atual = Number(prev[id] || 0);
       return {
         ...prev,
-        [id]: { ...atual, quantidade: Math.max(0, Number(atual.quantidade || 0) + delta) },
-      };
-    });
-  }
-
-  function changeTamanhoItem(id: string, tamanho: string) {
-    setItensPedido((prev) => {
-      const atual = prev[id] || { quantidade: 0, tamanho: "200g" };
-      return {
-        ...prev,
-        [id]: { ...atual, tamanho },
+        [id]: Math.max(0, atual + delta),
       };
     });
   }
@@ -240,8 +237,8 @@ export default function CardapioDaSemanaPage() {
     const text = montarMensagem({
       nome,
       observacoes,
+      telefone,
       personalizada: {
-        ativo: personalizadaAtiva,
         carboNome: getPreparoNome(personalizada.carboId),
         proteinaNome: getPreparoNome(personalizada.proteinaId),
         feijaoNome: getPreparoNome(personalizada.feijaoId),
@@ -253,6 +250,7 @@ export default function CardapioDaSemanaPage() {
       },
       opcoes,
       itensPedido,
+      tamanhoSelecionado,
     });
 
     window.open(`https://wa.me/${whatsappNumber}?text=${encodeURIComponent(text)}`, "_blank");
@@ -320,9 +318,9 @@ export default function CardapioDaSemanaPage() {
           <div className="mb-2 text-xs font-black uppercase tracking-widest text-[#14332f]">E muito facil pedir:</div>
           <div className="grid gap-3 sm:grid-cols-3">
             {[
-              { icon: CheckCircle2, text: "Escolha o tamanho em cada marmita." },
-              { icon: ClipboardList, text: "Informe as quantidades ou monte personalizada." },
-              { icon: Send, text: "Digite nome, observacao e envie." },
+              { icon: CheckCircle2, text: "Escolha um tamanho para o pedido todo." },
+              { icon: ClipboardList, text: "Informe as quantidades de cada marmita." },
+              { icon: Send, text: "Digite nome, telefone e envie." },
             ].map((step, index) => {
               const Icon = step.icon;
               return (
@@ -351,40 +349,45 @@ export default function CardapioDaSemanaPage() {
         {!loading && !error && (
           <>
             <section className="mt-6 rounded-2xl border bg-white p-4 shadow-sm">
-              <Label className="text-base font-black uppercase text-[#14332f]">Personalizada</Label>
-              <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-                <p className="text-sm font-medium text-[#60746f]">Monte uma marmita com ingredientes e pesagens informadas por voce.</p>
-                <Button
-                  type="button"
-                  variant={personalizadaAtiva ? "default" : "outline"}
-                  className={cn(personalizadaAtiva && "bg-[#14332f] hover:bg-[#0f2825]")}
-                  onClick={() => setPersonalizadaAtiva((prev) => !prev)}
-                >
-                  {personalizadaAtiva ? "Remover personalizada" : "Adicionar personalizada"}
-                </Button>
+              <div className="grid gap-4 lg:grid-cols-[260px_1fr] lg:items-start">
+                <div className="space-y-2">
+                  <Label className="text-base font-black uppercase text-[#14332f]">Tamanho do pedido</Label>
+                  <select
+                    value={tamanhoSelecionado}
+                    onChange={(event) => setTamanhoSelecionado(event.target.value as (typeof TAMANHOS)[number])}
+                    className="h-11 w-full rounded-xl border border-[#d8cbbd] bg-[#fffdf8] px-3 text-sm font-black text-[#14332f]"
+                  >
+                    {TAMANHOS.map((tamanho) => (
+                      <option key={tamanho} value={tamanho}>
+                        {tamanho}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-xs font-medium text-[#60746f]">Todas as marmitas do pedido usam esse tamanho.</p>
+                </div>
+
+                {tamanhoSelecionado === "PERSONALIZADO" && (
+                  <div className="rounded-2xl border border-[#e9d8c8] bg-[#fff7f2] p-4">
+                    <h2 className="text-sm font-black uppercase tracking-wide text-[#b85b36]">Pesagem personalizada</h2>
+                    <p className="mt-1 text-sm font-medium text-[#60746f]">
+                      Informe a composição que vale para todas as marmitas selecionadas.
+                    </p>
+                    <div className="mt-4 grid gap-4 md:grid-cols-2">
+                      {renderPreparoSelect("Carbo", personalizada.carboId, "carboId", preparosPorTipo.carboidratos)}
+                      {renderPreparoSelect("Proteina", personalizada.proteinaId, "proteinaId", preparosPorTipo.proteinas)}
+                      {renderPreparoSelect("Feijao", personalizada.feijaoId, "feijaoId", preparosPorTipo.feijoes)}
+                      {renderPreparoSelect("Legumes", personalizada.legumeId, "legumeId", preparosPorTipo.legumes)}
+                    </div>
+                    <div className="mt-4 grid gap-4 md:grid-cols-4">
+                      {renderGramasInput("Carbo", "carboGramas")}
+                      {renderGramasInput("Proteina", "proteinaGramas")}
+                      {renderGramasInput("Feijao", "feijaoGramas")}
+                      {renderGramasInput("Legumes", "legumeGramas")}
+                    </div>
+                  </div>
+                )}
               </div>
             </section>
-
-            {personalizadaAtiva && (
-              <section className="mt-5 rounded-2xl border bg-white p-4 shadow-sm">
-                <h2 className="text-lg font-black uppercase text-[#14332f]">Personalizada</h2>
-                <p className="mt-1 text-sm font-medium text-[#60746f]">
-                  Escolha os ingredientes e informe as pesagens desejadas.
-                </p>
-                <div className="mt-4 grid gap-4 md:grid-cols-2">
-                  {renderPreparoSelect("Carbo", personalizada.carboId, "carboId", preparosPorTipo.carboidratos)}
-                  {renderPreparoSelect("Proteina", personalizada.proteinaId, "proteinaId", preparosPorTipo.proteinas)}
-                  {renderPreparoSelect("Feijao", personalizada.feijaoId, "feijaoId", preparosPorTipo.feijoes)}
-                  {renderPreparoSelect("Legumes", personalizada.legumeId, "legumeId", preparosPorTipo.legumes)}
-                </div>
-                <div className="mt-4 grid gap-4 md:grid-cols-4">
-                  {renderGramasInput("Gramas do carbo", "carboGramas")}
-                  {renderGramasInput("Gramas da proteina", "proteinaGramas")}
-                  {renderGramasInput("Gramas do feijao", "feijaoGramas")}
-                  {renderGramasInput("Gramas dos legumes", "legumeGramas")}
-                </div>
-              </section>
-            )}
 
             <section className="mt-6 grid gap-4 lg:grid-cols-2">
               {grupos.map((grupo) => {
@@ -398,30 +401,20 @@ export default function CardapioDaSemanaPage() {
                     </div>
                     <div className="divide-y">
                       {grupo.items.map((opcao, index) => {
-                        const item = getItemPedido(opcao.id);
+                        const quantidade = getItemPedido(opcao.id);
                         return (
-                          <div key={opcao.id} className="grid gap-2 px-3 py-2.5 sm:grid-cols-[42px_minmax(0,1fr)_100px_120px] sm:items-center sm:px-4">
+                          <div key={opcao.id} className="grid gap-2 px-3 py-2.5 sm:grid-cols-[42px_minmax(0,1fr)_120px] sm:items-center sm:px-4">
                             <Badge variant="secondary" className="h-7 w-fit justify-center rounded-lg bg-[#f6e4d8] font-black text-[#b85b36] sm:w-auto">
                               {index + 1}
                             </Badge>
-                            <div className="min-w-0 text-sm font-semibold leading-snug text-[#253f3a]">{opcao.nome}</div>
-                            {item.quantidade > 0 ? (
-                              <select
-                                value={item.tamanho}
-                                onChange={(event) => changeTamanhoItem(opcao.id, event.target.value)}
-                                className="h-9 rounded-lg border bg-white px-2 text-xs font-bold text-[#14332f]"
-                              >
-                                {TAMANHOS.filter((tamanho) => tamanho !== "PERSONALIZADO").map((tamanho) => (
-                                  <option key={tamanho} value={tamanho}>
-                                    {tamanho}
-                                  </option>
-                                ))}
-                              </select>
-                            ) : (
-                              <div className="hidden sm:block" />
-                            )}
+                            <div className="min-w-0">
+                              <div className="text-sm font-semibold leading-snug text-[#253f3a]">{opcao.nome}</div>
+                              {opcao.descricao?.trim() ? (
+                                <p className="mt-1 text-xs font-medium leading-snug text-[#60746f]">{opcao.descricao}</p>
+                              ) : null}
+                            </div>
                             <div className="grid grid-cols-[34px_34px_34px] justify-end overflow-hidden rounded-lg border bg-white sm:grid-cols-[38px_38px_38px]">
-                              <div className="grid place-items-center text-sm font-black tabular-nums text-[#14332f]">{item.quantidade}</div>
+                              <div className="grid place-items-center text-sm font-black tabular-nums text-[#14332f]">{quantidade}</div>
                               <button type="button" className="grid place-items-center border-l text-[#14332f] transition hover:bg-[#f6e4d8]" onClick={() => changeQuantity(opcao.id, -1)}>
                                 <Minus className="h-4 w-4" />
                               </button>
@@ -457,6 +450,12 @@ export default function CardapioDaSemanaPage() {
                   <Input value={nome} onChange={(event) => setNome(event.target.value)} placeholder="Digite seu nome" />
                 </div>
                 <div className="space-y-2">
+                  <Label>Telefone</Label>
+                  <Input value={telefone} onChange={(event) => setTelefone(event.target.value)} placeholder="Digite seu telefone" />
+                </div>
+              </div>
+              <div className="mt-4 grid gap-4 md:grid-cols-1">
+                <div className="space-y-2">
                   <Label>Observacoes opcional</Label>
                   <Textarea
                     value={observacoes}
@@ -479,7 +478,7 @@ export default function CardapioDaSemanaPage() {
                   size="lg"
                   className="h-14 w-full max-w-xl rounded-xl bg-[#c24f2f] text-base font-black uppercase tracking-wide text-white shadow-lg shadow-[#c24f2f]/25 hover:bg-[#a94329] sm:text-xl"
                   onClick={enviarPedido}
-                  disabled={!total || !whatsappNumber}
+                  disabled={!total || !nome.trim() || !telefone.trim() || !whatsappNumber}
                 >
                   <Send className="mr-3 h-5 w-5" />
                   Enviar meu pedido

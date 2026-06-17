@@ -21,6 +21,7 @@ export type Opcao = {
   id: number;
   tipo: OpcaoTipo;
   nome: string;
+  descricaoPublica?: string | null;
   categoriaId: number | null;
   categoriaDescricao: string | null;
   custoPorPreparo?: Record<"1kg" | "200g" | "300g" | "400g" | "500g", number>;
@@ -31,6 +32,7 @@ export type Opcao = {
 type NovaOpcaoInput = {
   tipo: OpcaoTipo;
   nome: string;
+  descricaoPublica?: string | null;
   categoriaId?: number | null;
   componentes?: Array<{
     tipo: ComponenteTipo;
