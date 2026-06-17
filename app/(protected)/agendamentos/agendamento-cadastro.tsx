@@ -136,9 +136,15 @@ type SalgadoOption = {
   preco: number;
 };
 
+type CongeladaOption = {
+  id: string;
+  nome: string;
+  quantidade: number;
+};
+
 type NovoPedidoItem = {
   id: string;
-  tipoItem: "PADRAO" | "PERSONALIZADA" | "SALGADO";
+  tipoItem: "PADRAO" | "PERSONALIZADA" | "SALGADO" | "CONGELADA";
   destinatarioNome: string;
   tamanhoId: string;
   tamanhoLabel: string;
@@ -148,6 +154,8 @@ type NovoPedidoItem = {
   opcaoNome?: string;
   salgadoId?: string;
   salgadoNome?: string;
+  congeladaId?: string;
+  congeladaNome?: string;
 
   carboId?: string;
   carboNome?: string;
@@ -199,6 +207,7 @@ type Props = {
   feijoes?: OpcaoCardapio[];
   complementos?: OpcaoCardapio[];
   salgados?: SalgadoOption[];
+  congeladas?: CongeladaOption[];
   initialData?: any;
   onSubmit?: (payload: any) => Promise<void> | void;
   onCreateCliente?: (payload: any) => Promise<any> | any;
@@ -398,6 +407,7 @@ export function NovoAgendamentoNovoLayout({
   feijoes = [],
   complementos = [],
   salgados = [],
+  congeladas = [],
   onSubmit,
   onCreateCliente,
   onUpdateCliente,
@@ -468,6 +478,8 @@ export function NovoAgendamentoNovoLayout({
     opcaoNome: "",
     salgadoId: "",
     salgadoNome: "",
+    congeladaId: "",
+    congeladaNome: "",
 
     carboId: "",
     carboNome: "",
@@ -623,7 +635,7 @@ export function NovoAgendamentoNovoLayout({
       const rawItens = initialData.itens || initialData.pedido?.itens || [];
       const mappedItens: NovoPedidoItem[] = rawItens.map((it: any) => ({
         id: it.id ? String(it.id) : uid(),
-        tipoItem: it.tipoItem || (it.opcaoId || it.opcao ? "PADRAO" : "PERSONALIZADA"),
+        tipoItem: it.tipoItem || (it.congeladaId || it.congelada ? "CONGELADA" : it.salgadoId || it.salgado ? "SALGADO" : it.opcaoId || it.opcao ? "PADRAO" : "PERSONALIZADA"),
         destinatarioNome: it.destinatarioNome || "",
         tamanhoId: String(it.tamanhoId || ""),
         tamanhoLabel: it.tamanho?.pesagemGramas ? `${it.tamanho.pesagemGramas}g` : (it.tamanhoLabel || ""),
@@ -632,6 +644,8 @@ export function NovoAgendamentoNovoLayout({
         opcaoNome: it.opcao?.nome || it.nome || "",
         salgadoId: String(it.salgadoId || ""),
         salgadoNome: it.salgado?.nome || "",
+        congeladaId: String(it.congeladaId || ""),
+        congeladaNome: it.congelada?.nome || it.congeladaNome || "",
         carboId: String(it.carboId || ""),
         carboNome: it.carbo?.nome || "",
         proteinaId: String(it.proteinaId || ""),
@@ -799,7 +813,7 @@ export function NovoAgendamentoNovoLayout({
   }, [open, clienteId, data, initialData, getAgendamentos]);
 
   const totalMarmitas = useMemo(
-    () => itens.filter((item) => item.tipoItem !== "SALGADO").reduce((acc, item) => acc + Number(item.quantidade || 0), 0),
+    () => itens.filter((item) => item.tipoItem === "PADRAO" || item.tipoItem === "PERSONALIZADA").reduce((acc, item) => acc + Number(item.quantidade || 0), 0),
     [itens]
   );
 
@@ -996,7 +1010,7 @@ export function NovoAgendamentoNovoLayout({
   }
 
   function canUsePlanoForItem(item: NovoPedidoItem) {
-    if (!item.usarPlano || item.tipoItem === "SALGADO") return true;
+    if (!item.usarPlano || item.tipoItem === "SALGADO" || item.tipoItem === "CONGELADA") return true;
     return (clienteSelecionado?.planos || []).some((plano: any) => planoClienteTemItemCompativel(plano, item));
   }
 
@@ -1040,7 +1054,7 @@ export function NovoAgendamentoNovoLayout({
 
   const subtotalPedido = useMemo(() => {
     const totalBrutoMarmitas = itensComPrecoFinal
-      .filter((item) => item.tipoItem !== "SALGADO")
+      .filter((item) => item.tipoItem === "PADRAO" || item.tipoItem === "PERSONALIZADA")
       .reduce(
       (acc, item) => acc + Number(item.precoUnit || 0) * Number(item.quantidade || 0),
       0
@@ -1053,7 +1067,7 @@ export function NovoAgendamentoNovoLayout({
       );
 
     const totalMarmitas = itensComPrecoFinal
-      .filter((item) => item.tipoItem !== "SALGADO")
+      .filter((item) => item.tipoItem === "PADRAO" || item.tipoItem === "PERSONALIZADA")
       .reduce((acc, it) => acc + it.quantidade, 0);
 
     // Desconto por volume total
@@ -1080,11 +1094,11 @@ export function NovoAgendamentoNovoLayout({
     );
 
     const totalBrutoMarmitas = itensComPrecoFinal
-      .filter((item) => item.tipoItem !== "SALGADO")
+      .filter((item) => item.tipoItem === "PADRAO" || item.tipoItem === "PERSONALIZADA")
       .reduce((acc, item) => acc + Number(item.precoUnit || 0) * Number(item.quantidade || 0), 0);
 
     const totalMarmitasResumo = itensComPrecoFinal
-      .filter((item) => item.tipoItem !== "SALGADO")
+      .filter((item) => item.tipoItem === "PADRAO" || item.tipoItem === "PERSONALIZADA")
       .reduce((acc, item) => acc + Number(item.quantidade || 0), 0);
 
     const regraVolume = regras
@@ -1095,7 +1109,7 @@ export function NovoAgendamentoNovoLayout({
 
     return grupos.map((grupo, index) => {
       const subtotalMarmitas = grupo
-        .filter((item) => item.tipoItem !== "SALGADO")
+        .filter((item) => item.tipoItem === "PADRAO" || item.tipoItem === "PERSONALIZADA")
         .reduce((acc, item) => acc + Number(item.precoUnit || 0) * Number(item.quantidade || 0), 0);
       const subtotalSalgados = grupo
         .filter((item) => item.tipoItem === "SALGADO")
@@ -1152,6 +1166,8 @@ export function NovoAgendamentoNovoLayout({
       opcaoNome: "",
       salgadoId: "",
       salgadoNome: "",
+      congeladaId: "",
+      congeladaNome: "",
       carboId: "",
       carboNome: "",
       proteinaId: "",
@@ -1367,6 +1383,17 @@ export function NovoAgendamentoNovoLayout({
     setModalNovoPedidoOpen(true);
   }
 
+  function abrirFormularioCongelada() {
+    resetFormItem();
+    setFormItem((prev) => ({
+      ...prev,
+      tipoItem: "CONGELADA",
+      destinatarioNome: itensDoGrupoAtual[0] ? getDestinatarioItem(itensDoGrupoAtual[0]) : "",
+    }));
+    setModalEscolhaPedidoOpen(false);
+    setModalNovoPedidoOpen(true);
+  }
+
   async function abrirModalPlano() {
     if (!clienteId) {
       toast.error("Cliente não selecionado", { description: "Selecione um cliente antes de vincular um plano." });
@@ -1440,6 +1467,9 @@ export function NovoAgendamentoNovoLayout({
     if (item.tipoItem === "SALGADO") {
       return item.salgadoNome || "Salgado";
     }
+    if (item.tipoItem === "CONGELADA") {
+      return item.congeladaNome || "Congelada";
+    }
 
     if (item.tipoItem === "PERSONALIZADA") {
       const partes = [
@@ -1495,6 +1525,7 @@ export function NovoAgendamentoNovoLayout({
 
   function getNomeItem(item: NovoPedidoItem) {
     if (item.tipoItem === "SALGADO") return item.salgadoNome || "Salgado";
+    if (item.tipoItem === "CONGELADA") return item.congeladaNome || "Congelada";
     if (item.tipoItem === "PERSONALIZADA") return "Personalizada";
     return item.opcaoNome || "Marmita padrão";
   }
@@ -1506,6 +1537,7 @@ export function NovoAgendamentoNovoLayout({
   function getDetalheListaItem(item: NovoPedidoItem) {
     if (item.tipoItem === "PERSONALIZADA") return getResumoEscolhas(item);
     if (item.tipoItem === "SALGADO") return "";
+    if (item.tipoItem === "CONGELADA") return "Abate do estoque de congeladas";
 
     const formatTroca = (nome: string) => `${nome} (+ R$ 2,00 Troca)`;
     return [
@@ -1629,7 +1661,7 @@ export function NovoAgendamentoNovoLayout({
       return;
     }
 
-    if (formItem.tipoItem !== "SALGADO" && !formItem.destinatarioNome.trim()) {
+    if (formItem.tipoItem !== "SALGADO" && formItem.tipoItem !== "CONGELADA" && !formItem.destinatarioNome.trim()) {
       toast.error("Nome não informado", { description: "Informe o nome para a etiqueta antes de adicionar a marmita." });
       return;
     }
@@ -1641,6 +1673,7 @@ export function NovoAgendamentoNovoLayout({
 
     const tamanho = tamanhos.find((t) => t.id === formItem.tamanhoId);
     const salgado = salgados.find((s) => s.id === formItem.salgadoId);
+    const congelada = congeladas.find((c) => c.id === formItem.congeladaId);
     const isEdit = !!formItem.id;
 
     if (formItem.tipoItem === "SALGADO") {
@@ -1680,6 +1713,56 @@ export function NovoAgendamentoNovoLayout({
         if (options?.manterPesagens) resetFormItemMantendoPesagens();
         else resetFormItemPartial();
         setFormItem((prev) => ({ ...prev, tipoItem: "SALGADO" }));
+      }
+      return;
+    }
+
+    if (formItem.tipoItem === "CONGELADA") {
+      if (!congelada) {
+        toast.error("Congelada não selecionada", { description: "Selecione uma marmita congelada antes de adicionar." });
+        return;
+      }
+      const quantidadeAtualNoPedido = isEdit
+        ? Number(itens.find((item) => item.id === formItem.id && item.congeladaId === congelada.id)?.quantidade || 0)
+        : 0;
+      const estoqueDisponivel = Number(congelada.quantidade || 0) + quantidadeAtualNoPedido;
+      if (Number(formItem.quantidade || 0) > estoqueDisponivel) {
+        toast.error("Estoque insuficiente", { description: `Disponível em estoque: ${estoqueDisponivel}.` });
+        return;
+      }
+
+      const novo: NovoPedidoItem = {
+        ...formItem,
+        id: isEdit ? formItem.id : uid(),
+        groupId: currentGroupId,
+        congeladaId: congelada.id,
+        congeladaNome: congelada.nome,
+        opcaoId: "",
+        opcaoNome: "",
+        salgadoId: "",
+        salgadoNome: "",
+        tamanhoId: "",
+        tamanhoLabel: "Congelada",
+        precoUnit: 0,
+        usarPlano: false,
+      };
+
+      if (isEdit) {
+        setItens((prev) => prev.map((it) => (it.id === formItem.id ? novo : it)));
+      } else {
+        setItens((prev) => [...prev, novo]);
+      }
+
+      toast.success(isEdit ? "Congelada atualizada" : "Congelada adicionada", {
+        description: `${novo.quantidade}x ${novo.congeladaNome}`,
+      });
+
+      if (fechar) {
+        setModalNovoPedidoOpen(false);
+        resetFormItem();
+      } else {
+        resetFormItemPartial();
+        setFormItem((prev) => ({ ...prev, tipoItem: "CONGELADA" }));
       }
       return;
     }
@@ -1960,7 +2043,7 @@ export function NovoAgendamentoNovoLayout({
       });
       return;
     }
-    if (tipo === "NAO_DEFINIR" && itens.some((item) => item.tipoItem !== "SALGADO")) {
+    if (tipo === "NAO_DEFINIR" && itens.some((item) => item.tipoItem !== "SALGADO" && item.tipoItem !== "CONGELADA")) {
       toast.error("Defina o tipo do agendamento", {
         description: "Pedidos com marmitas precisam ser entrega, retirada ou congelar.",
       });
@@ -2451,6 +2534,9 @@ export function NovoAgendamentoNovoLayout({
                                         </span>
                                         {item.tipoItem === "SALGADO" && (
                                           <Badge variant="outline" className="h-4 text-[9px] border-slate-200 bg-slate-50 text-slate-600 font-bold">SALGADO</Badge>
+                                        )}
+                                        {item.tipoItem === "CONGELADA" && (
+                                          <Badge variant="outline" className="h-4 text-[9px] border-sky-200 bg-sky-50 text-sky-700 font-bold">CONGELADA</Badge>
                                         )}
                                       </div>
 
@@ -2963,6 +3049,23 @@ export function NovoAgendamentoNovoLayout({
               </div>
             </Button>
 
+            <Button
+              type="button"
+              variant="outline"
+              className="h-auto justify-start gap-3 rounded-xl border-sky-200 p-4 text-left hover:bg-sky-50"
+              onClick={abrirFormularioCongelada}
+            >
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-sky-600 text-white">
+                <Package className="h-5 w-5" />
+              </div>
+              <div>
+                <div className="font-bold text-primary">Congelada</div>
+                <div className="text-xs font-normal text-muted-foreground">
+                  Abater do estoque de congeladas ({congeladas.reduce((acc, item) => acc + Number(item.quantidade || 0), 0)} disponíveis).
+                </div>
+              </div>
+            </Button>
+
             {podeAdicionarPlano && (
               <Button
                 type="button"
@@ -3134,6 +3237,8 @@ export function NovoAgendamentoNovoLayout({
                 ? "Editar item"
                 : formItem.tipoItem === "SALGADO"
                   ? "Adicionar Salgado ao Pedido"
+                  : formItem.tipoItem === "CONGELADA"
+                    ? "Adicionar Congelada ao Pedido"
                   : "Adicionar Marmita ao Pedido"}
             </DialogTitle>
           </DialogHeader>
@@ -3192,6 +3297,33 @@ export function NovoAgendamentoNovoLayout({
                             {salgados.map((salgado) => (
                               <SelectItem key={salgado.id} value={salgado.id}>
                                 {salgado.nome} - R$ {currency(salgado.preco)}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    ) : formItem.tipoItem === "CONGELADA" ? (
+                      <div className="space-y-2">
+                        <Label>Congelada</Label>
+                        <Select
+                          value={formItem.congeladaId || ""}
+                          onValueChange={(v) => {
+                            const congelada = congeladas.find((c) => c.id === v);
+                            setFormItem((prev) => ({
+                              ...prev,
+                              congeladaId: v,
+                              congeladaNome: congelada?.nome || "",
+                              precoUnit: 0,
+                            }));
+                          }}
+                        >
+                          <SelectTrigger className="bg-background border-muted-foreground/20 h-11">
+                            <SelectValue placeholder="Selecione a congelada" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {congeladas.map((congelada) => (
+                              <SelectItem key={congelada.id} value={congelada.id}>
+                                {congelada.nome} - estoque {congelada.quantidade}
                               </SelectItem>
                             ))}
                           </SelectContent>
@@ -3296,7 +3428,7 @@ export function NovoAgendamentoNovoLayout({
                   </div>
                   
                   {(() => {
-                    if (formItem.tipoItem === "SALGADO") return null;
+                    if (formItem.tipoItem === "SALGADO" || formItem.tipoItem === "CONGELADA") return null;
                     const temPlanoCompativel = clienteSelecionado?.planos?.some((p: any) =>
                       planoClienteTemItemCompativel(p, formItem),
                     );
@@ -3337,6 +3469,15 @@ export function NovoAgendamentoNovoLayout({
                     {formItem.salgadoId && (
                       <span className="ml-1">Preço unitário: R$ {currency(formItem.precoUnit)}.</span>
                     )}
+                  </div>
+                ) : formItem.tipoItem === "CONGELADA" ? (
+                  <div className="rounded-xl border border-sky-200 bg-sky-50 p-4 text-sm text-sky-900">
+                    <span className="font-semibold">Congelada selecionada:</span>{" "}
+                    {formItem.congeladaNome || "Escolha uma congelada acima"}.
+                    {formItem.congeladaId && (() => {
+                      const estoque = congeladas.find((c) => c.id === formItem.congeladaId)?.quantidade ?? 0;
+                      return <span className="ml-1">Estoque disponível: {estoque}.</span>;
+                    })()}
                   </div>
                 ) : formItem.tipoItem === "PADRAO" ? (
                   <div className="space-y-4 rounded-2xl border border-emerald-100 bg-emerald-50/30 p-4">
@@ -3601,6 +3742,9 @@ export function NovoAgendamentoNovoLayout({
                             )}
                             {it.tipoItem === "SALGADO" && (
                               <Badge variant="outline" className="h-4 px-1 text-[8px] border-slate-200 bg-slate-50 text-slate-600 font-black shrink-0">SALGADO</Badge>
+                            )}
+                            {it.tipoItem === "CONGELADA" && (
+                              <Badge variant="outline" className="h-4 px-1 text-[8px] border-sky-200 bg-sky-50 text-sky-700 font-black shrink-0">CONGELADA</Badge>
                             )}
                             {itemTemTroca(it) && (
                               <Badge variant="outline" className="h-4 px-1 text-[8px] border-amber-200 bg-amber-50 text-amber-700 font-black shrink-0">TROCA</Badge>

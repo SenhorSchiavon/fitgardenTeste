@@ -82,9 +82,10 @@ export type FormaPagamento =
   | "BONIFICACAO";
 
 export type AgendamentoItemInput = {
-  tipoItem: "PADRAO" | "PERSONALIZADA" | "SALGADO";
+  tipoItem: "PADRAO" | "PERSONALIZADA" | "SALGADO" | "CONGELADA";
   tamanhoId?: number | string | null;
   salgadoId?: number | string | null;
+  congeladaId?: number | string | null;
   quantidade: number;
 
   destinatarioNome?: string;
@@ -526,9 +527,10 @@ export function useAgendamentos(options?: { baseUrl?: string }) {
           senhaAutorizacao: payload.senhaAutorizacao,
           voucherCodigo: payload.voucherCodigo?.trim() || undefined,
           itens: (payload.itens || []).map((it) => ({
-            tipoItem: it.tipoItem === "PERSONALIZADA" ? "PERSONALIZADA" : it.tipoItem === "SALGADO" ? "SALGADO" : "PADRAO",
+            tipoItem: it.tipoItem === "PERSONALIZADA" ? "PERSONALIZADA" : it.tipoItem === "SALGADO" ? "SALGADO" : it.tipoItem === "CONGELADA" ? "CONGELADA" : "PADRAO",
             tamanhoId: it.tamanhoId != null && it.tamanhoId !== "" ? Number(it.tamanhoId) : null,
             salgadoId: it.salgadoId != null && it.salgadoId !== "" ? Number(it.salgadoId) : null,
+            congeladaId: it.congeladaId != null && it.congeladaId !== "" ? Number(it.congeladaId) : null,
             quantidade: Number(it.quantidade),
 
             destinatarioNome: it.destinatarioNome?.trim() || undefined,
@@ -614,9 +616,10 @@ export function useAgendamentos(options?: { baseUrl?: string }) {
 
         if (Array.isArray(body.itens)) {
           body.itens = body.itens.map((it: any) => ({
-            tipoItem: it.tipoItem === "PERSONALIZADA" ? "PERSONALIZADA" : it.tipoItem === "SALGADO" ? "SALGADO" : "PADRAO",
+            tipoItem: it.tipoItem === "PERSONALIZADA" ? "PERSONALIZADA" : it.tipoItem === "SALGADO" ? "SALGADO" : it.tipoItem === "CONGELADA" ? "CONGELADA" : "PADRAO",
             tamanhoId: it.tamanhoId != null && it.tamanhoId !== "" ? Number(it.tamanhoId) : null,
             salgadoId: it.salgadoId != null && it.salgadoId !== "" ? Number(it.salgadoId) : null,
+            congeladaId: it.congeladaId != null && it.congeladaId !== "" ? Number(it.congeladaId) : null,
             quantidade: Number(it.quantidade),
 
             destinatarioNome: it.destinatarioNome?.trim() || undefined,

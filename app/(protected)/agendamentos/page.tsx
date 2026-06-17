@@ -67,6 +67,7 @@ import { useRelatorioPedidosDia } from "@/hooks/useRelatorioPedidosDia";
 import { useRelatorioMontadoresRotas } from "@/hooks/useRelatorioMontadoresRotas";
 import { usePreparosSelecionaveis } from "@/hooks/usePreparosSelecionaveis";
 import { useSalgados } from "@/hooks/useSalgados";
+import { useCongeladas } from "@/hooks/useCongeladas";
 import { usePlanosCliente } from "@/hooks/usePlanosCliente";
 import { useRegrasPersonalizadas } from "@/hooks/useRegrasPersonalizadas";
 type Agendamento = {
@@ -303,6 +304,7 @@ export default function Agendamentos() {
 
   const { preparos, loading: loadingPreparos } = usePreparosSelecionaveis();
   const { salgados } = useSalgados();
+  const { congeladas } = useCongeladas();
   const { regras } = useRegrasPersonalizadas();
   const [preparoSheetOpen, setPreparoSheetOpen] = useState(false);
   const loadPlanosNaoPagos = async () => {
@@ -508,6 +510,7 @@ export default function Agendamentos() {
     const itensUi =
       (row.pedido?.itens ?? row.itens ?? []).map((it: any) => {
         const isSalgado = it.tipoItem === "SALGADO";
+        const isCongelada = it.tipoItem === "CONGELADA";
         const isPersonalizada = it.tipoItem === "PERSONALIZADA";
         const totalPersonalizadaGramas =
           Number(it.carboGramas || 0) +
@@ -527,16 +530,22 @@ export default function Agendamentos() {
           id: String(it.id),
           tipoItem: it.tipoItem,
           salgadoId: it.salgadoId != null ? String(it.salgadoId) : undefined,
+          congeladaId: it.congeladaId != null ? String(it.congeladaId) : undefined,
           nome:
+            it.congelada?.nome ??
+            it.congeladaNome ??
             it.salgado?.nome ??
             (it.salgadoId != null
               ? salgados.find((s) => String(s.id) === String(it.salgadoId))?.nome
               : undefined) ??
             it.opcao?.nome ??
             (isPersonalizada ? "Personalizada" : undefined) ??
+            (isCongelada ? "Congelada" : undefined) ??
             it.nome ??
             "-",
-          tamanho: isSalgado
+          tamanho: isCongelada
+            ? "Congelada"
+            : isSalgado
             ? "Salgado"
             : isPersonalizada
             ? it.tamanho?.pesagemGramas
@@ -1568,6 +1577,11 @@ export default function Agendamentos() {
           nome: s.nome,
           preco: Number(s.preco || 0),
         }))}
+        congeladas={congeladas.map((c) => ({
+          id: String(c.id),
+          nome: c.nome,
+          quantidade: Number(c.quantidade || 0),
+        }))}
         initialData={dadosEdicao}
         savingCliente={savingClientes}
         onCreateCliente={createCliente}
@@ -1590,6 +1604,7 @@ export default function Agendamentos() {
                 destinatarioNome: it.destinatarioNome,
                 tamanhoId: it.tamanhoId ? Number(it.tamanhoId) : null,
                 salgadoId: it.salgadoId ? Number(it.salgadoId) : null,
+                congeladaId: it.congeladaId ? Number(it.congeladaId) : null,
                 quantidade: Number(it.quantidade),
 
                 opcaoId: it.opcaoId ? Number(it.opcaoId) : null,
@@ -1633,6 +1648,7 @@ export default function Agendamentos() {
                 destinatarioNome: it.destinatarioNome,
                 tamanhoId: it.tamanhoId ? Number(it.tamanhoId) : null,
                 salgadoId: it.salgadoId ? Number(it.salgadoId) : null,
+                congeladaId: it.congeladaId ? Number(it.congeladaId) : null,
                 quantidade: Number(it.quantidade),
 
                 opcaoId: it.opcaoId ? Number(it.opcaoId) : null,
