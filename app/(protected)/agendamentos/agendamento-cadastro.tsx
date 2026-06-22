@@ -870,12 +870,14 @@ export function NovoAgendamentoNovoLayout({
     const quantidadesFiltro = formItem.id ? quantidadeCatalogoIncluindoEdicaoPorOpcao : quantidadeCatalogoPorOpcao;
     const termos = normalizarBusca(buscaMarmita).split(/\s+/).filter(Boolean);
 
-    return opcoesPadrao.filter((opcao) => {
-      if (filtroCatalogo === "PEDIDO" && !quantidadesFiltro[opcao.id]) return false;
-      if (categoriaCatalogo !== "TODAS" && normalizarBusca(opcao.categoria || "") !== categoriaCatalogo) return false;
-      const nome = normalizarBusca(opcao.nome);
-      return termos.every((termo) => nome.includes(termo));
-    });
+    return opcoesPadrao
+      .filter((opcao) => {
+        if (filtroCatalogo === "PEDIDO" && !quantidadesFiltro[opcao.id]) return false;
+        if (categoriaCatalogo !== "TODAS" && normalizarBusca(opcao.categoria || "") !== categoriaCatalogo) return false;
+        const nome = normalizarBusca(opcao.nome);
+        return termos.every((termo) => nome.includes(termo));
+      })
+      .sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR", { sensitivity: "base" }));
   }, [buscaMarmita, categoriaCatalogo, filtroCatalogo, opcoesPadrao, quantidadeCatalogoPorOpcao, quantidadeCatalogoIncluindoEdicaoPorOpcao, formItem.id]);
 
   const hasItensNoGrupoAtual = itensDoGrupoAtual.length > 0;
