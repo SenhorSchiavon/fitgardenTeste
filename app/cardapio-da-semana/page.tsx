@@ -19,18 +19,11 @@ type OpcaoPublica = {
   ordem?: number;
 };
 
-type PreparoPublico = {
-  id: string;
-  nome: string;
-  tipo: "CARBOIDRATO" | "PROTEINA" | "FEIJAO" | "LEGUMES";
-};
-
 type CardapioPublico = {
   id: number;
   nome: string;
   codigo: string;
   opcoes: OpcaoPublica[];
-  preparos?: PreparoPublico[];
 };
 
 const CATEGORY_ORDER = ["DELETADO", "FIT", "LOW CARB", "SOPAS E CALDOS", "SOPAS", "VEGETARIANA", "VEGETARIANO", "OUTROS"];
@@ -87,10 +80,6 @@ function montarMensagem({
   observacoes: string;
   telefone: string;
   personalizada: {
-    carboNome: string;
-    proteinaNome: string;
-    feijaoNome: string;
-    legumeNome: string;
     carboGramas: string;
     proteinaGramas: string;
     feijaoGramas: string;
@@ -102,34 +91,33 @@ function montarMensagem({
 }) {
   const escolhidas = opcoes
     .filter((opcao) => Number(itensPedido[opcao.id] || 0) > 0)
-    .map((opcao) => `${itensPedido[opcao.id]}x ${opcao.nome} (${tamanhoSelecionado})`);
+    .map((opcao) => `${itensPedido[opcao.id]}x ${opcao.nome}`);
 
   const linhasPersonalizada = tamanhoSelecionado === "PERSONALIZADO"
     ? [
         "Pesagem personalizada do pedido:",
-        `- Carbo: ${personalizada.carboNome || "-"} ${personalizada.carboGramas || "-"}g`,
-        `- Proteina: ${personalizada.proteinaNome || "-"} ${personalizada.proteinaGramas || "-"}g`,
-        `- Feijao: ${personalizada.feijaoNome || "-"} ${personalizada.feijaoGramas || "-"}g`,
-        `- Legumes: ${personalizada.legumeNome || "-"} ${personalizada.legumeGramas || "-"}g`,
+        `- Carbo: ${personalizada.carboGramas || "-"}g`,
+        `- Proteina: ${personalizada.proteinaGramas || "-"}g`,
+        `- Feijao: ${personalizada.feijaoGramas || "-"}g`,
+        `- Legumes: ${personalizada.legumeGramas || "-"}g`,
       ]
     : [];
 
   const total = escolhidas.reduce((acc, linha) => acc + Number(linha.split("x")[0] || 0), 0);
 
   return [
-    "Ola! Quero fazer meu pedido da Fit Garden:",
+    "PEDIDO:",
     "",
     `Nome: ${nome || "-"}`,
     `Telefone: ${telefone || "-"}`,
     `Tamanho do pedido: ${tamanhoSelecionado}`,
+    ...linhasPersonalizada,
+    observacoes.trim() ? `Observacoes: ${observacoes.trim()}` : null,
     "",
     "Marmitas:",
     ...escolhidas,
-    ...linhasPersonalizada,
     "",
     `Total de marmitas: ${total}`,
-    observacoes.trim() ? "" : null,
-    observacoes.trim() ? `Observacoes: ${observacoes.trim()}` : null,
   ].filter(Boolean).join("\n");
 }
 
@@ -143,10 +131,6 @@ export default function CardapioDaSemanaPage() {
   const [telefone, setTelefone] = useState("");
   const [observacoes, setObservacoes] = useState("");
   const [personalizada, setPersonalizada] = useState({
-    carboId: "",
-    proteinaId: "",
-    feijaoId: "",
-    legumeId: "",
     carboGramas: "",
     proteinaGramas: "",
     feijaoGramas: "",
@@ -180,19 +164,9 @@ export default function CardapioDaSemanaPage() {
   }, []);
 
   const opcoes = cardapio?.opcoes || [];
-  const preparos = cardapio?.preparos || [];
   const total = useMemo(() => {
     return Object.values(itensPedido).reduce((acc, quantidade) => acc + Number(quantidade || 0), 0);
   }, [itensPedido]);
-
-  const preparosPorTipo = useMemo(() => {
-    return {
-      carboidratos: preparos.filter((preparo) => preparo.tipo === "CARBOIDRATO"),
-      proteinas: preparos.filter((preparo) => preparo.tipo === "PROTEINA"),
-      feijoes: preparos.filter((preparo) => preparo.tipo === "FEIJAO"),
-      legumes: preparos.filter((preparo) => preparo.tipo === "LEGUMES"),
-    };
-  }, [preparos]);
 
   const grupos = useMemo(() => {
     const map = new Map<string, OpcaoPublica[]>();
@@ -213,8 +187,6 @@ export default function CardapioDaSemanaPage() {
         return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
       });
   }, [opcoes]);
-
-  const getPreparoNome = (id: string) => preparos.find((preparo) => preparo.id === id)?.nome || "";
 
   function getItemPedido(id: string) {
     return itensPedido[id] || 0;
@@ -239,10 +211,6 @@ export default function CardapioDaSemanaPage() {
       observacoes,
       telefone,
       personalizada: {
-        carboNome: getPreparoNome(personalizada.carboId),
-        proteinaNome: getPreparoNome(personalizada.proteinaId),
-        feijaoNome: getPreparoNome(personalizada.feijaoId),
-        legumeNome: getPreparoNome(personalizada.legumeId),
         carboGramas: personalizada.carboGramas,
         proteinaGramas: personalizada.proteinaGramas,
         feijaoGramas: personalizada.feijaoGramas,
@@ -254,26 +222,6 @@ export default function CardapioDaSemanaPage() {
     });
 
     window.open(`https://wa.me/${whatsappNumber}?text=${encodeURIComponent(text)}`, "_blank");
-  }
-
-  function renderPreparoSelect(label: string, value: string, keyName: "carboId" | "proteinaId" | "feijaoId" | "legumeId", items: PreparoPublico[]) {
-    return (
-      <div className="space-y-2">
-        <Label>{label}</Label>
-        <select
-          value={value}
-          onChange={(event) => setPersonalizada((prev) => ({ ...prev, [keyName]: event.target.value }))}
-          className="h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-        >
-          <option value="">Selecione</option>
-          {items.map((item) => (
-            <option key={item.id} value={item.id}>
-              {item.nome}
-            </option>
-          ))}
-        </select>
-      </div>
-    );
   }
 
   function renderGramasInput(label: string, keyName: "carboGramas" | "proteinaGramas" | "feijaoGramas" | "legumeGramas") {
@@ -368,17 +316,8 @@ export default function CardapioDaSemanaPage() {
 
                 {tamanhoSelecionado === "PERSONALIZADO" && (
                   <div className="rounded-2xl border border-[#e9d8c8] bg-[#fff7f2] p-4">
-                    <h2 className="text-sm font-black uppercase tracking-wide text-[#b85b36]">Pesagem personalizada</h2>
-                    <p className="mt-1 text-sm font-medium text-[#60746f]">
-                      Informe a composição que vale para todas as marmitas selecionadas.
-                    </p>
-                    <div className="mt-4 grid gap-4 md:grid-cols-2">
-                      {renderPreparoSelect("Carbo", personalizada.carboId, "carboId", preparosPorTipo.carboidratos)}
-                      {renderPreparoSelect("Proteina", personalizada.proteinaId, "proteinaId", preparosPorTipo.proteinas)}
-                      {renderPreparoSelect("Feijao", personalizada.feijaoId, "feijaoId", preparosPorTipo.feijoes)}
-                      {renderPreparoSelect("Legumes", personalizada.legumeId, "legumeId", preparosPorTipo.legumes)}
-                    </div>
-                    <div className="mt-4 grid gap-4 md:grid-cols-4">
+                    <h2 className="text-sm font-black uppercase tracking-wide text-[#b85b36]">Personalizado</h2>
+                    <div className="mt-3 grid gap-4 md:grid-cols-4">
                       {renderGramasInput("Carbo", "carboGramas")}
                       {renderGramasInput("Proteina", "proteinaGramas")}
                       {renderGramasInput("Feijao", "feijaoGramas")}
@@ -386,6 +325,15 @@ export default function CardapioDaSemanaPage() {
                     </div>
                   </div>
                 )}
+              </div>
+              <div className="mt-4 space-y-2">
+                <Label>Observacoes opcional</Label>
+                <Textarea
+                  value={observacoes}
+                  onChange={(event) => setObservacoes(event.target.value)}
+                  placeholder="Alguma observacao?"
+                  className="min-h-10 resize-none"
+                />
               </div>
             </section>
 
@@ -454,18 +402,6 @@ export default function CardapioDaSemanaPage() {
                   <Input value={telefone} onChange={(event) => setTelefone(event.target.value)} placeholder="Digite seu telefone" />
                 </div>
               </div>
-              <div className="mt-4 grid gap-4 md:grid-cols-1">
-                <div className="space-y-2">
-                  <Label>Observacoes opcional</Label>
-                  <Textarea
-                    value={observacoes}
-                    onChange={(event) => setObservacoes(event.target.value)}
-                    placeholder="Alguma observacao sobre seu pedido?"
-                    className="min-h-10 resize-none"
-                  />
-                </div>
-              </div>
-
               {!whatsappNumber && (
                 <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm font-semibold text-amber-800">
                   Configure o numero em NEXT_PUBLIC_WHATSAPP_PEDIDOS_NUMERO para ativar o envio pelo WhatsApp.

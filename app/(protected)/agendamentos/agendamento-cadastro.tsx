@@ -454,6 +454,8 @@ export function NovoAgendamentoNovoLayout({
   const [planosCatalogo, setPlanosCatalogo] = useState<PlanoCatalogo[]>([]);
   const [planoSelecionadoId, setPlanoSelecionadoId] = useState("");
   const [planoPago, setPlanoPago] = useState(false);
+  const [planoJaConsumido, setPlanoJaConsumido] = useState(false);
+  const [quantidadeConsumidaPlano, setQuantidadeConsumidaPlano] = useState(0);
   const [incluirTaxaPlano, setIncluirTaxaPlano] = useState(true);
   const [quantidadeTaxasPlano, setQuantidadeTaxasPlano] = useState(1);
   const [planosComprados, setPlanosComprados] = useState<Array<{
@@ -1416,6 +1418,8 @@ export function NovoAgendamentoNovoLayout({
     setModalPlanoOpen(true);
     setPlanoSelecionadoId("");
     setPlanoPago(false);
+    setPlanoJaConsumido(false);
+    setQuantidadeConsumidaPlano(0);
     setIncluirTaxaPlano(true);
     setQuantidadeTaxasPlano(1);
 
@@ -1436,9 +1440,26 @@ export function NovoAgendamentoNovoLayout({
       return;
     }
 
+    const quantidadeConsumida = planoJaConsumido
+      ? Math.min(unidadesPlanoSelecionado, Math.max(0, Math.floor(Number(quantidadeConsumidaPlano || 0))))
+      : 0;
+    let senhaAutorizacao: string | undefined;
+
+    if (quantidadeConsumida > 0) {
+      senhaAutorizacao = window.prompt("Informe a senha de administrador para cadastrar plano já consumido:") || "";
+      if (!senhaAutorizacao.trim()) {
+        toast.error("Senha obrigatória", {
+          description: "Plano já consumido precisa de autorização.",
+        });
+        return;
+      }
+    }
+
     const vinculo = await vincularPlano(Number(clienteId), Number(planoSelecionado.id), planoPago, {
       quantidadeTaxasEntrega: quantidadeTaxasPlanoFinal,
       valorTaxaEntrega: quantidadeTaxasPlanoFinal > 0 ? Number(valorTaxa || 0) : 0,
+      quantidadeConsumida,
+      senhaAutorizacao,
     });
     const novoVinculo = { ...vinculo, plano: planoSelecionado };
 
@@ -1461,6 +1482,8 @@ export function NovoAgendamentoNovoLayout({
     setModalPlanoOpen(false);
     setPlanoSelecionadoId("");
     setPlanoPago(false);
+    setPlanoJaConsumido(false);
+    setQuantidadeConsumidaPlano(0);
     setIncluirTaxaPlano(true);
     setQuantidadeTaxasPlano(1);
   }
@@ -3106,7 +3129,11 @@ export function NovoAgendamentoNovoLayout({
               <Label>Plano cadastrado</Label>
               <Select
                 value={planoSelecionadoId}
-                onValueChange={setPlanoSelecionadoId}
+                onValueChange={(value) => {
+                  setPlanoSelecionadoId(value);
+                  setPlanoJaConsumido(false);
+                  setQuantidadeConsumidaPlano(0);
+                }}
                 disabled={savingPlano || !clienteSelecionado || planosCatalogo.length === 0}
               >
                 <SelectTrigger>
@@ -3154,6 +3181,56 @@ export function NovoAgendamentoNovoLayout({
                 onCheckedChange={(v) => setPlanoPago(!!v)}
                 disabled={savingPlano}
               />
+            </div>
+
+            <div className="rounded-xl border border-border/70 p-3 space-y-3">
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <Label htmlFor="planoJaConsumido" className="text-sm font-semibold cursor-pointer">
+                    Já teve consumo?
+                  </Label>
+                  <p className="text-xs text-muted-foreground">Use para migrar plano antigo com saldo parcial.</p>
+                </div>
+                <Checkbox
+                  id="planoJaConsumido"
+                  checked={planoJaConsumido}
+                  onCheckedChange={(v) => {
+                    setPlanoJaConsumido(!!v);
+                    if (!v) setQuantidadeConsumidaPlano(0);
+                  }}
+                  disabled={savingPlano || !planoSelecionado}
+                />
+              </div>
+
+              {planoJaConsumido && (
+                <div className="grid grid-cols-1 sm:grid-cols-[160px_1fr] gap-3 items-end">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="quantidadeConsumidaPlano" className="text-xs text-muted-foreground">
+                      Consumidas
+                    </Label>
+                    <Input
+                      id="quantidadeConsumidaPlano"
+                      type="number"
+                      min={0}
+                      max={unidadesPlanoSelecionado}
+                      step={1}
+                      value={quantidadeConsumidaPlano}
+                      onChange={(e) =>
+                        setQuantidadeConsumidaPlano(
+                          Math.min(unidadesPlanoSelecionado, Math.max(0, Math.floor(Number(e.target.value || 0)))),
+                        )
+                      }
+                      disabled={savingPlano || !planoSelecionado}
+                    />
+                  </div>
+                  <div className="rounded-lg bg-amber-50 border border-amber-100 px-3 py-2 text-sm">
+                    <div className="text-xs text-amber-700 font-semibold">Saldo inicial</div>
+                    <div className="font-bold text-primary">
+                      {Math.max(0, unidadesPlanoSelecionado - Number(quantidadeConsumidaPlano || 0))} de {unidadesPlanoSelecionado} marmitas
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
             {tipo === "ENTREGA" && valorTaxa > 0 && (

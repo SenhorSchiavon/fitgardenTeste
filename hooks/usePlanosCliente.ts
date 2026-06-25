@@ -148,7 +148,12 @@ export function usePlanosCliente() {
       clienteId: number,
       planoId: number,
       pago: boolean = false,
-      extras?: { quantidadeTaxasEntrega?: number; valorTaxaEntrega?: number },
+      extras?: {
+        quantidadeTaxasEntrega?: number;
+        valorTaxaEntrega?: number;
+        quantidadeConsumida?: number;
+        senhaAutorizacao?: string;
+      },
     ) => {
       setSaving(true);
       try {
@@ -160,6 +165,8 @@ export function usePlanosCliente() {
             pago,
             quantidadeTaxasEntrega: Math.max(0, Math.floor(Number(extras?.quantidadeTaxasEntrega || 0))),
             valorTaxaEntrega: Math.max(0, Number(extras?.valorTaxaEntrega || 0)),
+            quantidadeConsumida: Math.max(0, Math.floor(Number(extras?.quantidadeConsumida || 0))),
+            senhaAutorizacao: extras?.senhaAutorizacao,
           }),
         });
 
