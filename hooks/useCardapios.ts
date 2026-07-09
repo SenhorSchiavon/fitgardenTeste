@@ -27,6 +27,8 @@ export type Cardapio = {
   codigo: string;
   nome: string;
   ativo: boolean;
+  whatsappPrincipal?: string | null;
+  whatsappAlternativo?: string | null;
   imagens?: Array<{
     id: number;
     nome: string;
@@ -52,6 +54,8 @@ export type NovoCardapioInput = {
   codigo: string;
   nome: string;
   ativo?: boolean;
+  whatsappPrincipal?: string | null;
+  whatsappAlternativo?: string | null;
   opcoes?: CardapioOpcaoInput[];
 };
 

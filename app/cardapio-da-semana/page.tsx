@@ -23,6 +23,8 @@ type CardapioPublico = {
   id: number;
   nome: string;
   codigo: string;
+  whatsappNumber?: string | null;
+  destinoWhatsApp?: "principal" | "alternativo";
   opcoes: OpcaoPublica[];
 };
 
@@ -74,6 +76,7 @@ function montarMensagem({
   personalizada,
   opcoes,
   itensPedido,
+  feijaoOpcional,
   tamanhoSelecionado,
 }: {
   nome: string;
@@ -87,11 +90,16 @@ function montarMensagem({
   };
   opcoes: OpcaoPublica[];
   itensPedido: Record<string, number>;
+  feijaoOpcional: Record<string, boolean>;
   tamanhoSelecionado: string;
 }) {
   const escolhidas = opcoes
     .filter((opcao) => Number(itensPedido[opcao.id] || 0) > 0)
-    .map((opcao) => `${itensPedido[opcao.id]}x ${opcao.nome}`);
+    .map((opcao) => {
+      const quantidade = Number(itensPedido[opcao.id] || 0);
+      const adicionalFeijao = feijaoOpcional[opcao.id] ? " + feijao opcional (+R$2/unidade)" : "";
+      return `${quantidade}x ${opcao.nome}${adicionalFeijao}`;
+    });
 
   const linhasPersonalizada = tamanhoSelecionado === "PERSONALIZADO"
     ? [
@@ -104,6 +112,9 @@ function montarMensagem({
     : [];
 
   const total = escolhidas.reduce((acc, linha) => acc + Number(linha.split("x")[0] || 0), 0);
+  const totalFeijao = opcoes.reduce((acc, opcao) => (
+    acc + (feijaoOpcional[opcao.id] ? Number(itensPedido[opcao.id] || 0) : 0)
+  ), 0);
 
   return [
     "PEDIDO:",
@@ -116,6 +127,7 @@ function montarMensagem({
     "",
     "Marmitas:",
     ...escolhidas,
+    totalFeijao ? `Adicional de feijao: ${totalFeijao} unidade(s) (+R$2 cada)` : null,
     "",
     `Total de marmitas: ${total}`,
   ].filter(Boolean).join("\n");
@@ -126,6 +138,7 @@ export default function CardapioDaSemanaPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [itensPedido, setItensPedido] = useState<Record<string, number>>({});
+  const [feijaoOpcional, setFeijaoOpcional] = useState<Record<string, boolean>>({});
   const [tamanhoSelecionado, setTamanhoSelecionado] = useState<(typeof TAMANHOS)[number]>("200g");
   const [nome, setNome] = useState("");
   const [telefone, setTelefone] = useState("");
@@ -137,7 +150,7 @@ export default function CardapioDaSemanaPage() {
     legumeGramas: "",
   });
 
-  const whatsappNumber = cleanPhone(process.env.NEXT_PUBLIC_WHATSAPP_PEDIDOS_NUMERO);
+  const whatsappNumber = cleanPhone(cardapio?.whatsappNumber || process.env.NEXT_PUBLIC_WHATSAPP_PEDIDOS_NUMERO);
 
   useEffect(() => {
     let alive = true;
@@ -146,7 +159,9 @@ export default function CardapioDaSemanaPage() {
       try {
         setLoading(true);
         setError("");
-        const res = await fetch(apiUrl("/public/cardapio-semana"), { cache: "no-store" });
+        const destino = new URLSearchParams(window.location.search).get("destino");
+        const path = destino === "alternativo" ? "/public/cardapio-semana?destino=alternativo" : "/public/cardapio-semana";
+        const res = await fetch(apiUrl(path), { cache: "no-store" });
         const data = await res.json().catch(() => null);
         if (!res.ok) throw new Error(data?.message || "Nao foi possivel carregar o cardapio.");
         if (alive) setCardapio(data);
@@ -167,6 +182,11 @@ export default function CardapioDaSemanaPage() {
   const total = useMemo(() => {
     return Object.values(itensPedido).reduce((acc, quantidade) => acc + Number(quantidade || 0), 0);
   }, [itensPedido]);
+  const totalFeijaoOpcional = useMemo(() => {
+    return opcoes.reduce((acc, opcao) => (
+      acc + (feijaoOpcional[opcao.id] ? Number(itensPedido[opcao.id] || 0) : 0)
+    ), 0);
+  }, [feijaoOpcional, itensPedido, opcoes]);
 
   const grupos = useMemo(() => {
     const map = new Map<string, OpcaoPublica[]>();
@@ -195,11 +215,20 @@ export default function CardapioDaSemanaPage() {
   function changeQuantity(id: string, delta: number) {
     setItensPedido((prev) => {
       const atual = Number(prev[id] || 0);
+      const proximo = Math.max(0, atual + delta);
+      if (proximo === 0) {
+        setFeijaoOpcional((feijaoPrev) => ({ ...feijaoPrev, [id]: false }));
+      }
       return {
         ...prev,
-        [id]: Math.max(0, atual + delta),
+        [id]: proximo,
       };
     });
+  }
+
+  function toggleFeijaoOpcional(id: string, checked: boolean) {
+    if (!getItemPedido(id)) return;
+    setFeijaoOpcional((prev) => ({ ...prev, [id]: checked }));
   }
 
   function enviarPedido() {
@@ -218,6 +247,7 @@ export default function CardapioDaSemanaPage() {
       },
       opcoes,
       itensPedido,
+      feijaoOpcional,
       tamanhoSelecionado,
     });
 
@@ -370,6 +400,17 @@ export default function CardapioDaSemanaPage() {
                                 <Plus className="h-4 w-4" />
                               </button>
                             </div>
+                            {quantidade > 0 ? (
+                              <label className="flex items-center gap-2 rounded-lg bg-[#fff7f2] px-3 py-2 text-xs font-bold text-[#b85b36] sm:col-start-2 sm:col-span-2">
+                                <input
+                                  type="checkbox"
+                                  checked={!!feijaoOpcional[opcao.id]}
+                                  onChange={(event) => toggleFeijaoOpcional(opcao.id, event.target.checked)}
+                                  className="h-4 w-4 accent-[#b85b36]"
+                                />
+                                Adicionar feijao opcional nesta marmita (+R$2 por unidade)
+                              </label>
+                            ) : null}
                           </div>
                         );
                       })}
@@ -385,6 +426,11 @@ export default function CardapioDaSemanaPage() {
                 Total de marmitas:
                 <span className="text-3xl text-[#b85b36]">{total}</span>
               </div>
+              {totalFeijaoOpcional ? (
+                <p className="mt-1 text-center text-sm font-bold text-[#b85b36]">
+                  Feijao opcional: {totalFeijaoOpcional} unidade(s) (+R$2 cada)
+                </p>
+              ) : null}
             </section>
 
             <section className="mt-5 rounded-2xl border bg-white p-4 shadow-sm">
