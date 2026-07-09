@@ -40,8 +40,6 @@ type NovoCardapioForm = {
   codigo: string;
   nome: string;
   ativo: boolean;
-  whatsappPrincipal: string;
-  whatsappAlternativo: string;
   opcoesIds: number[];
   montadores: Record<string, string>;
 };
@@ -84,8 +82,6 @@ export default function CardapiosPage() {
     codigo: "",
     nome: "",
     ativo: false,
-    whatsappPrincipal: "",
-    whatsappAlternativo: "",
     opcoesIds: [],
     montadores: {},
   });
@@ -125,8 +121,6 @@ export default function CardapiosPage() {
       codigo: "",
       nome: "",
       ativo: false,
-      whatsappPrincipal: "",
-      whatsappAlternativo: "",
       opcoesIds: [],
       montadores: {},
     });
@@ -152,8 +146,6 @@ export default function CardapiosPage() {
       codigo: cardapio.codigo,
       nome: cardapio.nome,
       ativo: cardapio.ativo,
-      whatsappPrincipal: "",
-      whatsappAlternativo: "",
       opcoesIds: (cardapio.opcoes || []).filter((x) => x.ativo).map((x) => x.opcaoId),
       montadores: montadoresForm,
     });
@@ -300,6 +292,16 @@ export default function CardapiosPage() {
       />
 
       <div className="flex items-center justify-end gap-2 mb-6">
+        <Button variant="outline" asChild>
+          <a href={publicFormLink()} target="_blank" rel="noreferrer">
+            Principal <ExternalLink className="h-4 w-4" />
+          </a>
+        </Button>
+        <Button variant="outline" asChild>
+          <a href={publicFormLink("alternativo")} target="_blank" rel="noreferrer">
+            Alternativo <ExternalLink className="h-4 w-4" />
+          </a>
+        </Button>
         <Button variant="outline" onClick={openTelefonesDialog} disabled={saving}>
           <Phone className="mr-2 h-4 w-4" /> Telefones
         </Button>
@@ -322,7 +324,6 @@ export default function CardapiosPage() {
                 <TableRow>
                   <SortableHead label="Código" field="codigo" sort={sort} onSort={onSort} />
                   <SortableHead label="Nome" field="nome" sort={sort} onSort={onSort} />
-                  <TableHead>Formulário</TableHead>
                   <TableHead>Imagens</TableHead>
                   <SortableHead label="Ativo" field="ativo" sort={sort} onSort={onSort} />
                   <div className="flex items-center justify-center gap-2">
@@ -335,16 +336,6 @@ export default function CardapiosPage() {
                   <TableRow key={cardapio.id}>
                     <TableCell>{cardapio.codigo}</TableCell>
                     <TableCell>{cardapio.nome}</TableCell>
-                    <TableCell>
-                      <div className="flex flex-col gap-1 text-xs">
-                        <a className="inline-flex items-center gap-1 font-medium text-emerald-700 hover:underline" href={publicFormLink()} target="_blank" rel="noreferrer">
-                          Principal <ExternalLink className="h-3 w-3" />
-                        </a>
-                        <a className="inline-flex items-center gap-1 font-medium text-orange-700 hover:underline" href={publicFormLink("alternativo")} target="_blank" rel="noreferrer">
-                          Alternativo <ExternalLink className="h-3 w-3" />
-                        </a>
-                      </div>
-                    </TableCell>
                     <TableCell>
                       <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-800">
                         <ImageIcon className="h-3 w-3" />
@@ -387,7 +378,7 @@ export default function CardapiosPage() {
 
                 {cardapiosFiltrados.length === 0 && !isLoading && (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center text-sm text-muted-foreground py-4">
+                    <TableCell colSpan={5} className="text-center text-sm text-muted-foreground py-4">
                       Nenhum cardápio cadastrado.
                     </TableCell>
                   </TableRow>
@@ -432,32 +423,6 @@ export default function CardapiosPage() {
                   disabled={saving}
                 />
                 <p className="text-xs text-muted-foreground">Código para ordenação dos cardápios</p>
-              </div>
-            </div>
-
-            <div className="hidden">
-              <div className="space-y-2">
-                <Label htmlFor="whatsappPrincipal">WhatsApp principal</Label>
-                <Input
-                  id="whatsappPrincipal"
-                  value={form.whatsappPrincipal}
-                  onChange={(e) => setForm((p) => ({ ...p, whatsappPrincipal: e.target.value }))}
-                  placeholder="Ex: 43999999999"
-                  disabled={saving}
-                />
-                <p className="text-xs text-muted-foreground">Usado no link principal do cardápio da semana.</p>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="whatsappAlternativo">WhatsApp alternativo</Label>
-                <Input
-                  id="whatsappAlternativo"
-                  value={form.whatsappAlternativo}
-                  onChange={(e) => setForm((p) => ({ ...p, whatsappAlternativo: e.target.value }))}
-                  placeholder="Ex: 43999999999"
-                  disabled={saving}
-                />
-                <p className="text-xs text-muted-foreground">Usado em /cardapio-da-semana?destino=alternativo.</p>
               </div>
             </div>
 
