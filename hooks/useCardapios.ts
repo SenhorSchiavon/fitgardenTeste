@@ -27,8 +27,6 @@ export type Cardapio = {
   codigo: string;
   nome: string;
   ativo: boolean;
-  whatsappPrincipal?: string | null;
-  whatsappAlternativo?: string | null;
   imagens?: Array<{
     id: number;
     nome: string;
@@ -54,9 +52,12 @@ export type NovoCardapioInput = {
   codigo: string;
   nome: string;
   ativo?: boolean;
-  whatsappPrincipal?: string | null;
-  whatsappAlternativo?: string | null;
   opcoes?: CardapioOpcaoInput[];
+};
+
+export type CardapioTelefones = {
+  principal: string;
+  alternativo: string;
 };
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3333";
@@ -316,6 +317,47 @@ export function useCardapios() {
     }
   }
 
+  async function fetchTelefones() {
+    const res = await apiFetch(`${RESOURCE}/telefones`, {
+      method: "GET",
+      headers: { "Content-Type": "application/json" },
+    });
+
+    if (!res.ok) {
+      const msg = await safeReadMessage(res);
+      throw new Error(msg || "Falha ao carregar telefones do cardápio");
+    }
+
+    return (await res.json()) as CardapioTelefones;
+  }
+
+  async function saveTelefones(input: CardapioTelefones) {
+    try {
+      setSaving(true);
+      const res = await apiFetch(`${RESOURCE}/telefones`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(input),
+      });
+
+      if (!res.ok) {
+        const msg = await safeReadMessage(res);
+        throw new Error(msg || "Falha ao salvar telefones do cardápio");
+      }
+
+      const data = (await res.json()) as CardapioTelefones;
+      toast.success("Telefones do cardápio atualizados");
+      return data;
+    } catch (err) {
+      toast.error("Erro ao salvar telefones", {
+        description: err instanceof Error ? err.message : "Tente novamente.",
+      });
+      throw err;
+    } finally {
+      setSaving(false);
+    }
+  }
+
   return {
     cardapios,
     loading,
@@ -328,6 +370,8 @@ export function useCardapios() {
     setCardapioAtivo,
     uploadCardapioImagem,
     deleteCardapioImagem,
+    fetchTelefones,
+    saveTelefones,
   };
 }
 

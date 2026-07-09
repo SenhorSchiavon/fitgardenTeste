@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Pencil, Trash, Check, Power, ImageIcon, Upload, ExternalLink } from "lucide-react";
+import { Plus, Pencil, Trash, Check, Power, ImageIcon, Upload, ExternalLink, Phone } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -66,12 +66,15 @@ export default function CardapiosPage() {
     uploadCardapioImagem,
     deleteCardapioImagem,
     fetchCardapios,
+    fetchTelefones,
+    saveTelefones,
   } = useCardapios();
 
   const { opcoes, loading: loadingOpcoes } = useOpcoes();
   const { montadores, isLoading: loadingMontadores } = useMontadores();
 
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [telefonesDialogOpen, setTelefonesDialogOpen] = useState(false);
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
 
   const [editandoId, setEditandoId] = useState<number | null>(null);
@@ -86,6 +89,8 @@ export default function CardapiosPage() {
     opcoesIds: [],
     montadores: {},
   });
+  const [telefonesForm, setTelefonesForm] = useState({ principal: "", alternativo: "" });
+  const [loadingTelefones, setLoadingTelefones] = useState(false);
 
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<{ id: number; nome: string } | null>(null);
@@ -147,8 +152,8 @@ export default function CardapiosPage() {
       codigo: cardapio.codigo,
       nome: cardapio.nome,
       ativo: cardapio.ativo,
-      whatsappPrincipal: cardapio.whatsappPrincipal || "",
-      whatsappAlternativo: cardapio.whatsappAlternativo || "",
+      whatsappPrincipal: "",
+      whatsappAlternativo: "",
       opcoesIds: (cardapio.opcoes || []).filter((x) => x.ativo).map((x) => x.opcaoId),
       montadores: montadoresForm,
     });
@@ -213,8 +218,6 @@ export default function CardapiosPage() {
       codigo: form.codigo.trim(),
       nome: form.nome.trim(),
       ativo: !!form.ativo,
-      whatsappPrincipal: form.whatsappPrincipal.trim() || null,
-      whatsappAlternativo: form.whatsappAlternativo.trim() || null,
       opcoes: opcoesPayload,
     };
 
@@ -267,6 +270,26 @@ export default function CardapiosPage() {
     return destino === "alternativo" ? `${base}?destino=alternativo` : base;
   };
 
+  const openTelefonesDialog = async () => {
+    setTelefonesDialogOpen(true);
+    setLoadingTelefones(true);
+    try {
+      const data = await fetchTelefones();
+      setTelefonesForm({
+        principal: data.principal || "",
+        alternativo: data.alternativo || "",
+      });
+    } finally {
+      setLoadingTelefones(false);
+    }
+  };
+
+  const handleSaveTelefones = async () => {
+    const data = await saveTelefones(telefonesForm);
+    setTelefonesForm(data);
+    setTelefonesDialogOpen(false);
+  };
+
   return (
     <div className="container mx-auto p-6">
       <Header
@@ -276,7 +299,10 @@ export default function CardapiosPage() {
         onSearchChange={setBusca}
       />
 
-      <div className="flex items-center justify-end mb-6">
+      <div className="flex items-center justify-end gap-2 mb-6">
+        <Button variant="outline" onClick={openTelefonesDialog} disabled={saving}>
+          <Phone className="mr-2 h-4 w-4" /> Telefones
+        </Button>
         <Button onClick={handleNew} disabled={saving || isLoading}>
           <Plus className="mr-2 h-4 w-4" /> Criar Cardápio
         </Button>
@@ -296,7 +322,7 @@ export default function CardapiosPage() {
                 <TableRow>
                   <SortableHead label="Código" field="codigo" sort={sort} onSort={onSort} />
                   <SortableHead label="Nome" field="nome" sort={sort} onSort={onSort} />
-                  <TableHead>WhatsApp</TableHead>
+                  <TableHead>Formulário</TableHead>
                   <TableHead>Imagens</TableHead>
                   <SortableHead label="Ativo" field="ativo" sort={sort} onSort={onSort} />
                   <div className="flex items-center justify-center gap-2">
@@ -314,11 +340,9 @@ export default function CardapiosPage() {
                         <a className="inline-flex items-center gap-1 font-medium text-emerald-700 hover:underline" href={publicFormLink()} target="_blank" rel="noreferrer">
                           Principal <ExternalLink className="h-3 w-3" />
                         </a>
-                        <span className="text-muted-foreground">{cardapio.whatsappPrincipal || "env"}</span>
                         <a className="inline-flex items-center gap-1 font-medium text-orange-700 hover:underline" href={publicFormLink("alternativo")} target="_blank" rel="noreferrer">
                           Alternativo <ExternalLink className="h-3 w-3" />
                         </a>
-                        <span className="text-muted-foreground">{cardapio.whatsappAlternativo || "-"}</span>
                       </div>
                     </TableCell>
                     <TableCell>
@@ -411,7 +435,7 @@ export default function CardapiosPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 gap-4 border-t pt-4 md:grid-cols-2">
+            <div className="hidden">
               <div className="space-y-2">
                 <Label htmlFor="whatsappPrincipal">WhatsApp principal</Label>
                 <Input
@@ -601,6 +625,49 @@ export default function CardapiosPage() {
               </Button>
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={telefonesDialogOpen} onOpenChange={setTelefonesDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Telefones do formulário de cardápio</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label htmlFor="telefone-principal">WhatsApp principal</Label>
+              <Input
+                id="telefone-principal"
+                value={telefonesForm.principal}
+                onChange={(e) => setTelefonesForm((p) => ({ ...p, principal: e.target.value }))}
+                placeholder="Ex: 43999999999"
+                disabled={saving || loadingTelefones}
+              />
+              <p className="text-xs text-muted-foreground">Usado em /cardapio-da-semana.</p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="telefone-alternativo">WhatsApp alternativo</Label>
+              <Input
+                id="telefone-alternativo"
+                value={telefonesForm.alternativo}
+                onChange={(e) => setTelefonesForm((p) => ({ ...p, alternativo: e.target.value }))}
+                placeholder="Ex: 43999999999"
+                disabled={saving || loadingTelefones}
+              />
+              <p className="text-xs text-muted-foreground">Usado em /cardapio-da-semana?destino=alternativo.</p>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setTelefonesDialogOpen(false)} disabled={saving}>
+              Cancelar
+            </Button>
+            <Button onClick={handleSaveTelefones} disabled={saving || loadingTelefones}>
+              {saving ? "Salvando..." : "Salvar telefones"}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 

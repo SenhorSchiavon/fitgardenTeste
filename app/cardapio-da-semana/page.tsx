@@ -150,7 +150,10 @@ export default function CardapioDaSemanaPage() {
     legumeGramas: "",
   });
 
-  const whatsappNumber = cleanPhone(cardapio?.whatsappNumber || process.env.NEXT_PUBLIC_WHATSAPP_PEDIDOS_NUMERO);
+  const whatsappNumber = cleanPhone(
+    cardapio?.whatsappNumber ||
+      (cardapio?.destinoWhatsApp === "alternativo" ? "" : process.env.NEXT_PUBLIC_WHATSAPP_PEDIDOS_NUMERO),
+  );
 
   useEffect(() => {
     let alive = true;
