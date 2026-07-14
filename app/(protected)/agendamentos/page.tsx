@@ -1037,16 +1037,37 @@ export default function Agendamentos() {
               Agendamentos para {formatDate(selectedDate)}
             </CardTitle>
             <div className="flex items-center gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                disabled={agendamentos.length === 0}
-                onClick={() => abrirImpressaoPedidos(agendamentosPorRota.flatMap((grupo) => grupo.agendamentos))}
-              >
-                <Printer className="mr-2 h-4 w-4" />
-                Imprimir por rota
-              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={agendamentosPorRota.length === 0}
+                  >
+                    <Printer className="mr-2 h-4 w-4" />
+                    Imprimir por rota
+                    <ChevronDown className="ml-2 h-3 w-3 opacity-50" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56 rounded-xl p-2">
+                  {agendamentosPorRota.map((grupo) => (
+                    <DropdownMenuItem
+                      key={grupo.id}
+                      className="cursor-pointer rounded-lg py-2.5"
+                      onClick={() => abrirImpressaoPedidos(grupo.agendamentos)}
+                    >
+                      <Printer className="mr-2 h-4 w-4 text-slate-500" />
+                      <div className="flex flex-1 items-center justify-between gap-3">
+                        <span className="font-medium">{grupo.label}</span>
+                        <span className="text-xs text-slate-400">
+                          {grupo.agendamentos.length} pedido{grupo.agendamentos.length === 1 ? "" : "s"}
+                        </span>
+                      </div>
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
               <Badge variant="secondary" className="bg-white border-slate-200 text-slate-600 font-bold px-3">
                 {agendamentos.length} pedidos
               </Badge>
