@@ -47,7 +47,8 @@ import {
   CheckCircle2,
   Send,
   Check,
-  MessageCircle
+  MessageCircle,
+  Printer
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -76,6 +77,7 @@ type Agendamento = {
   cliente: string;
   tipoEntrega: "NAO_DEFINIR" | "ENTREGA" | "RETIRADA" | "CONGELAR";
   congelarSubtipo?: "ENTREGA" | "RETIRADA" | null;
+  data?: string;
   dataEntregaCongelada?: string | null;
   faixaHorario: string;
   endereco: string;
@@ -101,6 +103,7 @@ type Agendamento = {
   valorTotalFinal?: number;
   usouPlano?: boolean;
   saldoMarmitasAposPedido?: number | null;
+  planosAtivos?: { tamanho: string; saldo: number }[];
 
   itens: {
     id?: string;
@@ -238,6 +241,15 @@ function moneyBr(value: number) {
   });
 }
 
+function escaparHtml(value: unknown) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
 export default function Agendamentos() {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [cadastroOpen, setCadastroOpen] = useState(false);
@@ -371,48 +383,106 @@ export default function Agendamentos() {
   };
 
   const montarMensagemConfirmacao = (agendamento: Agendamento) => {
-    const tipoHorario =
-      agendamento.tipoEntrega === "RETIRADA"
-        ? "Retirada"
-        : agendamento.tipoEntrega === "CONGELAR"
-          ? "Congelamento"
-          : "Entrega";
-    const itens = agendamento.itens
-      .map((item) => {
-        const detalhes = [
-          item.carbo ? formatIngrediente(item.carbo, item.carboGramas) : null,
-          item.proteina ? formatIngrediente(item.proteina, item.proteinaGramas) : null,
-          item.legume ? formatIngrediente(item.legume, item.legumeGramas) : null,
-          item.feijao ? formatIngrediente(item.feijao, item.feijaoGramas) : null,
-          item.complemento ? formatIngrediente(item.complemento, item.complementoGramas) : null,
-        ].filter(Boolean);
-        const descricao = detalhes.length ? detalhes.join(" + ") : item.nome;
-        return `${item.quantidade} ${descricao}`.trim();
-      })
+    const grupos = new Map<string, string[]>();
+    agendamento.itens.forEach((item) => {
+      const detalhes = [item.carbo, item.proteina, item.legume, item.feijao, item.complemento].filter(Boolean);
+      const descricao = detalhes.length ? detalhes.join(" + ") : item.nome;
+      const grupo = [item.tamanho || "Itens", item.destinatarioNome].filter(Boolean).join(" - ");
+      const linhas = grupos.get(grupo) || [];
+      linhas.push(`    ${item.quantidade}x ${descricao}`.toUpperCase());
+      grupos.set(grupo, linhas);
+    });
+    const itens = Array.from(grupos.entries())
+      .flatMap(([grupo, linhas]) => [grupo, ...linhas])
       .join("\n");
-    const tamanho = agendamento.itens.find((item) => item.tipoItem !== "SALGADO" && item.tamanho)?.tamanho;
+    const planos = agendamento.planosAtivos || [];
     const linhas = [
-      `Oi, ${agendamento.cliente}! Seu pedido esta confirmado.`,
+      `🔔 Pedido Confirmado ${agendamento.numeroPedido}`,
       "",
-      `Horario estimado: ${tipoHorario} ${agendamento.faixaHorario}`,
-      agendamento.tipoEntrega === "ENTREGA"
-        ? `Endereco: ${agendamento.endereco}`
-        : `Local: ${agendamento.endereco}`,
-      `Pagamento: ${getLabelPagamento(agendamento.formaPagamento)}`,
-      tamanho ? `Tamanho: ${tamanho}` : null,
+      `Cliente: ${agendamento.cliente.toUpperCase()}`,
+      `Telefone: ${agendamento.telefone}`,
+      `Tipo: ${getLabelTipoEntrega(agendamento.tipoEntrega).toUpperCase()}`,
+      agendamento.tipoEntrega === "ENTREGA" ? `Endereço: ${agendamento.endereco.toUpperCase()}` : null,
       "",
-      "Resumo do pedido:",
+      "Itens",
       itens,
       "",
-      `Total de unidades no pedido: ${agendamento.quantidadeLabel || `${agendamento.quantidade} itens`}`,
-      agendamento.usouPlano && agendamento.saldoMarmitasAposPedido != null
-        ? `Quantidade de marmitas apos esse pedido: ${agendamento.saldoMarmitasAposPedido}`
-        : null,
+      `Subtotal: ${moneyBr(agendamento.valorPedido || 0)}`,
+      `Taxa de Entrega: ${moneyBr(agendamento.valorTaxa || 0)}`,
+      `Total: ${moneyBr(agendamento.valorTotalFinal ?? agendamento.valorTotal ?? 0)}`,
       "",
-      "Qualquer ajuste, e so me chamar por aqui.",
+      `Forma de Pagamento: ${getLabelPagamento(agendamento.formaPagamento)}`,
+      ...(planos.length
+        ? ["", "PLANOS ATIVOS - SALDO RESTANTE:", ...planos.map((plano) => `${plano.saldo} unidades - ${plano.tamanho}`)]
+        : []),
     ];
 
     return linhas.filter((linha) => linha !== null && linha !== undefined).join("\n");
+  };
+
+  const copiarResumoPedido = async (agendamento: Agendamento) => {
+    const resumo = montarMensagemConfirmacao(agendamento);
+    try {
+      await navigator.clipboard.writeText(resumo);
+      toast({ title: "Resumo copiado", description: "O resumo do pedido está pronto para enviar ao cliente." });
+    } catch {
+      const area = document.createElement("textarea");
+      area.value = resumo;
+      area.style.position = "fixed";
+      area.style.opacity = "0";
+      document.body.appendChild(area);
+      area.select();
+      const copiou = document.execCommand("copy");
+      area.remove();
+      toast({
+        title: copiou ? "Resumo copiado" : "Não foi possível copiar o resumo",
+        description: copiou ? "O resumo do pedido está pronto para enviar ao cliente." : "Use o botão do WhatsApp para enviar.",
+        variant: copiou ? undefined : "destructive",
+      });
+    }
+  };
+
+  const abrirImpressaoPedidos = (pedidos: Agendamento[]) => {
+    const janela = window.open("", "_blank");
+    if (!janela) {
+      toast({ title: "Pop-up bloqueado", description: "Permita pop-ups para imprimir os cupons.", variant: "destructive" });
+      return;
+    }
+    const cupons = pedidos.map((pedido) => {
+      const rota = getRotaAgendamento(pedido)?.label || "SEM ROTA";
+      const itens = pedido.itens.map((item) => {
+        const descricao = [item.carbo, item.proteina, item.legume, item.feijao, item.complemento].filter(Boolean).join(" + ") || item.nome;
+        const destinatario = item.destinatarioNome ? ` - ${item.destinatarioNome}` : "";
+        return `<div class="item">${escaparHtml(`${item.quantidade}x ${descricao}${destinatario}`.toUpperCase())}</div>`;
+      }).join("");
+      const observacoesItens = pedido.itens.map((item) => item.observacaoItem).filter(Boolean).join(" / ");
+      const observacao = [pedido.observacoes, observacoesItens].filter(Boolean).join(" / ");
+      const tamanhos = Array.from(new Set(pedido.itens.map((item) => item.tamanho).filter(Boolean))).join(" / ");
+      return `<section class="cupom">
+        <header><strong>FIT GARDEN COMIDAS SAUDÁVEIS</strong><br>AV URUGUAI, 1020 - LONDRINA/PR<br>CNPJ: 37.864.396/0001-25<br>TEL: (43) 3324-4706 - WHATS: (43) 99696-1573<br>AGRADECEMOS SUA PREFERÊNCIA!<br>DATA: ${escaparHtml(formatDate(selectedDate))}</header>
+        <div class="rota">${escaparHtml(rota)}</div>
+        <h1>CONFERÊNCIA DO PEDIDO ${escaparHtml(pedido.numeroPedido)}</h1>
+        ${observacao ? `<p><b>OBSERVAÇÃO:</b> ${escaparHtml(observacao)}</p>` : ""}
+        ${itens}
+        <h1>DADOS DO CLIENTE</h1>
+        <p><b>CLIENTE:</b> ${escaparHtml(pedido.cliente.toUpperCase())}</p>
+        <p><b>HORÁRIO ESTIMADO:</b> ${escaparHtml(`${getLabelTipoEntrega(pedido.tipoEntrega)} ${pedido.faixaHorario}`.toUpperCase())}</p>
+        <p><b>ENDEREÇO / TELEFONE:</b> ${escaparHtml(`${pedido.endereco} / ${pedido.telefone}`)}</p>
+        <p><b>CONFERÊNCIA PAGAMENTO:</b> ${escaparHtml(getLabelPagamento(pedido.formaPagamento).toUpperCase())}</p>
+        <p><b>TAMANHO DAS MARMITAS (G):</b> ${escaparHtml(tamanhos)}</p>
+      </section>`;
+    }).join("");
+    janela.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Cupons Fit Garden</title><style>
+      @page { size: 80mm auto; margin: 3mm; } * { box-sizing: border-box; }
+      body { margin: 0; color: #000; font-family: Arial, sans-serif; font-size: 11px; }
+      .cupom { width: 74mm; padding: 1mm 0 4mm; break-after: page; page-break-after: always; }
+      .cupom:last-child { break-after: auto; page-break-after: auto; }
+      header { text-align: center; line-height: 1.45; margin-bottom: 4mm; }
+      .rota { text-align: center; font-size: 12px; font-weight: 700; margin-bottom: 2mm; }
+      h1 { margin: 3mm 0 2mm; padding: 1mm 0; text-align: center; font-size: 13px; border-top: 1px solid #000; border-bottom: 1px solid #000; }
+      p { margin: 1.5mm 0; line-height: 1.35; } .item { margin: 1.8mm 0; font-size: 12px; line-height: 1.25; }
+    </style></head><body>${cupons}<script>window.addEventListener('load',()=>setTimeout(()=>window.print(),150));<\/script></body></html>`);
+    janela.document.close();
   };
 
   const handleEnviarConfirmacao = (agendamento: Agendamento) => {
@@ -620,6 +690,18 @@ export default function Agendamentos() {
       itens.some((it: any) => !!it.usarPlano) ||
       pagamentos.some((p: any) => p.forma === "PLANO");
     const planosCliente = row.pedido?.cliente?.planos ?? row.cliente?.planos ?? [];
+    const saldosPorTamanho = new Map<string, number>();
+    planosCliente.forEach((plano: any) => {
+      (plano.itens || []).forEach((saldo: any) => {
+        const gramas = saldo.planoItem?.tamanho?.pesagemGramas ?? saldo.planoItem?.pesoPersonalizadoGramas;
+        if (!gramas || Number(saldo.saldoUnidades || 0) <= 0) return;
+        const tamanho = `${gramas}g`;
+        saldosPorTamanho.set(tamanho, (saldosPorTamanho.get(tamanho) || 0) + Number(saldo.saldoUnidades || 0));
+      });
+    });
+    const planosAtivos = Array.from(saldosPorTamanho.entries())
+      .map(([tamanho, saldo]) => ({ tamanho, saldo }))
+      .sort((a, b) => Number(a.tamanho.replace(/\D/g, "")) - Number(b.tamanho.replace(/\D/g, "")));
     const saldoMarmitasAposPedido = usouPlano
       ? planosCliente.length > 0
         ? planosCliente.reduce((acc: number, plano: any) => acc + Number(plano.saldoUnidades || 0), 0)
@@ -654,6 +736,7 @@ export default function Agendamentos() {
       valorTotalFinal,
       usouPlano,
       saldoMarmitasAposPedido,
+      planosAtivos,
       observacoes: row.pedido?.observacoes ?? row.observacoes ?? undefined,
       itens: itensUi,
       _raw: row,
@@ -953,9 +1036,21 @@ export default function Agendamentos() {
               <CalendarIcon className="h-5 w-5 text-primary" />
               Agendamentos para {formatDate(selectedDate)}
             </CardTitle>
-            <Badge variant="secondary" className="bg-white border-slate-200 text-slate-600 font-bold px-3">
-              {agendamentos.length} pedidos
-            </Badge>
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={agendamentos.length === 0}
+                onClick={() => abrirImpressaoPedidos(agendamentosPorRota.flatMap((grupo) => grupo.agendamentos))}
+              >
+                <Printer className="mr-2 h-4 w-4" />
+                Imprimir por rota
+              </Button>
+              <Badge variant="secondary" className="bg-white border-slate-200 text-slate-600 font-bold px-3">
+                {agendamentos.length} pedidos
+              </Badge>
+            </div>
           </CardHeader>
           <CardContent className="p-0">
             <ScrollArea className="h-[calc(100vh-320px)]">
@@ -1020,6 +1115,32 @@ export default function Agendamentos() {
                             </div>
 
                             <div className="flex items-center justify-between sm:justify-end gap-3 pt-3 sm:pt-0 border-t sm:border-none border-slate-50">
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="icon"
+                                className="h-9 w-9 border-emerald-200 text-emerald-700 hover:bg-emerald-50"
+                                title="Enviar resumo pelo WhatsApp"
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  handleEnviarConfirmacao(agendamento);
+                                }}
+                              >
+                                <MessageCircle className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="icon"
+                                className="h-9 w-9 border-slate-200 text-slate-700 hover:bg-slate-50"
+                                title="Imprimir cupom"
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  abrirImpressaoPedidos([agendamento]);
+                                }}
+                              >
+                                <Printer className="h-4 w-4" />
+                              </Button>
                               <Badge
                                 variant={agendamento.tipoEntrega === "ENTREGA" ? "default" : "outline"}
                                 className={
@@ -1587,6 +1708,7 @@ export default function Agendamentos() {
         onCreateCliente={createCliente}
         onUpdateCliente={updateCliente}
         onSubmit={async (payload) => {
+          let pedidoCriadoId: number | null = null;
           if (modoEdicao && agendamentoEditandoId) {
             await updateAgendamento(agendamentoEditandoId, {
               tipo: payload.tipo,
@@ -1630,7 +1752,7 @@ export default function Agendamentos() {
               })),
             });
           } else {
-            await createAgendamento({
+            const criado = await createAgendamento({
               clienteId: Number(payload.clienteId),
               tipo: payload.tipo,
               data: payload.data,
@@ -1673,11 +1795,28 @@ export default function Agendamentos() {
                 usarPlano: !!it.usarPlano,
               })),
             });
+            pedidoCriadoId = Number(criado.pedidoId);
           }
 
           const date = utils.toISODateOnly(selectedDate);
           const res = await getAgendamentos({ date, page: 1, pageSize: 200 });
-          setAgendamentos((res.rows || []).map(mapApiToUi));
+          const agendamentosAtualizados = (res.rows || []).map(mapApiToUi);
+          setAgendamentos(agendamentosAtualizados);
+
+          if (pedidoCriadoId != null) {
+            const novoPedido = agendamentosAtualizados.find(
+              (agendamento) => agendamento.numeroPedido === `#${pedidoCriadoId}`,
+            );
+            if (novoPedido) {
+              await copiarResumoPedido(novoPedido);
+            } else {
+              toast({
+                title: "Pedido criado",
+                description: "O pedido foi salvo, mas não foi possível copiar o resumo automaticamente.",
+                variant: "destructive",
+              });
+            }
+          }
 
           setCadastroOpen(false);
         }}
