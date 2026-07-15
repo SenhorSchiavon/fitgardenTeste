@@ -139,6 +139,7 @@ type SalgadoOption = {
 type CongeladaOption = {
   id: string;
   nome: string;
+  tamanhoGramas: 200 | 300 | 400;
   quantidade: number;
 };
 
@@ -640,7 +641,11 @@ export function NovoAgendamentoNovoLayout({
         tipoItem: it.tipoItem || (it.congeladaId || it.congelada ? "CONGELADA" : it.salgadoId || it.salgado ? "SALGADO" : it.opcaoId || it.opcao ? "PADRAO" : "PERSONALIZADA"),
         destinatarioNome: it.destinatarioNome || "",
         tamanhoId: String(it.tamanhoId || ""),
-        tamanhoLabel: it.tamanho?.pesagemGramas ? `${it.tamanho.pesagemGramas}g` : (it.tamanhoLabel || ""),
+        tamanhoLabel: it.congelada?.tamanhoGramas
+          ? `${it.congelada.tamanhoGramas}g`
+          : it.tamanho?.pesagemGramas
+            ? `${it.tamanho.pesagemGramas}g`
+            : (it.tamanhoLabel || ""),
         quantidade: it.quantidade || 1,
         opcaoId: String(it.opcaoId || ""),
         opcaoNome: it.opcao?.nome || it.nome || "",
@@ -1767,7 +1772,7 @@ export function NovoAgendamentoNovoLayout({
         salgadoId: "",
         salgadoNome: "",
         tamanhoId: "",
-        tamanhoLabel: "Congelada",
+        tamanhoLabel: `${congelada.tamanhoGramas}g`,
         precoUnit: 0,
         usarPlano: false,
       };
@@ -1779,7 +1784,7 @@ export function NovoAgendamentoNovoLayout({
       }
 
       toast.success(isEdit ? "Congelada atualizada" : "Congelada adicionada", {
-        description: `${novo.quantidade}x ${novo.congeladaNome}`,
+        description: `${novo.quantidade}x ${novo.congeladaNome} - ${novo.tamanhoLabel}`,
       });
 
       if (fechar) {
@@ -3402,7 +3407,7 @@ export function NovoAgendamentoNovoLayout({
                           <SelectContent>
                             {congeladas.map((congelada) => (
                               <SelectItem key={congelada.id} value={congelada.id}>
-                                {congelada.nome} - estoque {congelada.quantidade}
+                                {congelada.tamanhoGramas}g - {congelada.nome} - estoque {congelada.quantidade}
                               </SelectItem>
                             ))}
                           </SelectContent>

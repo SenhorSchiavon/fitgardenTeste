@@ -26,9 +26,12 @@ import { Congelada, CongeladaMovimentoTipo, useCongeladas } from "@/hooks/useCon
 
 type FormState = {
   nome: string;
+  tamanhoGramas: "200" | "300" | "400";
   quantidade: string;
   observacao: string;
 };
+
+const TAMANHOS_CONGELADAS = [200, 300, 400] as const;
 
 type MovimentoState = {
   item: Congelada | null;
@@ -69,7 +72,7 @@ export default function CongeladasPage() {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [editandoId, setEditandoId] = useState<number | null>(null);
-  const [form, setForm] = useState<FormState>({ nome: "", quantidade: "0", observacao: "" });
+  const [form, setForm] = useState<FormState>({ nome: "", tamanhoGramas: "300", quantidade: "0", observacao: "" });
   const [movimento, setMovimento] = useState<MovimentoState>({
     item: null,
     tipo: "ENTRADA",
@@ -81,9 +84,17 @@ export default function CongeladasPage() {
     const q = busca.trim().toLowerCase();
     if (!q) return congeladas;
     return congeladas.filter((item) =>
-      [String(item.id), item.nome, String(item.quantidade)].some((v) => v.toLowerCase().includes(q)),
+      [String(item.id), item.nome, `${item.tamanhoGramas}g`, String(item.quantidade)].some((v) => v.toLowerCase().includes(q)),
     );
   }, [congeladas, busca]);
+
+  const listasPorTamanho = useMemo(
+    () => TAMANHOS_CONGELADAS.map((tamanho) => ({
+      tamanho,
+      itens: filtradas.filter((item) => item.tamanhoGramas === tamanho),
+    })),
+    [filtradas],
+  );
 
   const totalEstoque = useMemo(
     () => congeladas.reduce((total, item) => total + item.quantidade, 0),
@@ -96,7 +107,7 @@ export default function CongeladasPage() {
   );
 
   const resetForm = () => {
-    setForm({ nome: "", quantidade: "0", observacao: "" });
+    setForm({ nome: "", tamanhoGramas: "300", quantidade: "0", observacao: "" });
     setEditandoId(null);
   };
 
@@ -107,7 +118,7 @@ export default function CongeladasPage() {
 
   const handleEdit = (item: Congelada) => {
     setEditandoId(item.id);
-    setForm({ nome: item.nome, quantidade: String(item.quantidade), observacao: "" });
+    setForm({ nome: item.nome, tamanhoGramas: String(item.tamanhoGramas) as FormState["tamanhoGramas"], quantidade: String(item.quantidade), observacao: "" });
     setFormOpen(true);
   };
 
@@ -123,8 +134,9 @@ export default function CongeladasPage() {
       return;
     }
 
-    if (editandoId) await updateCongelada(editandoId, { nome: form.nome });
-    else await createCongelada({ nome: form.nome, quantidade, observacao: form.observacao });
+    const tamanhoGramas = Number(form.tamanhoGramas) as 200 | 300 | 400;
+    if (editandoId) await updateCongelada(editandoId, { nome: form.nome, tamanhoGramas });
+    else await createCongelada({ nome: form.nome, tamanhoGramas, quantidade, observacao: form.observacao });
 
     setFormOpen(false);
     resetForm();
@@ -209,107 +221,81 @@ export default function CongeladasPage() {
         </Button>
       </div>
 
-      <Card className="border-gray-200 bg-white">
-        <CardHeader>
-          <CardTitle className="text-gray-800">Estoque de Congeladas</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {loading ? (
-            <p className="text-sm text-gray-500">Carregando congeladas...</p>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow className="bg-gray-50 hover:bg-gray-50">
-                  <TableHead className="w-20 text-gray-700">Cod.</TableHead>
-                  <TableHead className="text-gray-700">Marmita</TableHead>
-                  <TableHead className="w-32 text-center text-gray-700">Estoque</TableHead>
-                  <TableHead className="text-gray-700">Ultimo movimento</TableHead>
-                  <TableHead className="w-72 text-right text-gray-700">Acoes</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filtradas.map((item) => {
-                  const ultimo = item.movimentos?.[0];
-                  return (
-                    <TableRow key={item.id} className="border-b border-gray-100 hover:bg-gray-50">
-                      <TableCell className="font-medium text-gray-700">{item.id}</TableCell>
-                      <TableCell className="text-gray-800">
-                        <div className="font-medium">{item.nome}</div>
-                        {item.quantidade <= 3 && (
-                          <div className="mt-1 text-xs font-medium text-amber-700">Estoque baixo</div>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-center">
-                        <span className="inline-flex min-w-16 justify-center rounded-md bg-gray-100 px-3 py-1 text-lg font-bold text-gray-900">
-                          {item.quantidade}
-                        </span>
-                      </TableCell>
-                      <TableCell className="text-sm text-gray-600">
-                        {ultimo ? (
-                          <div>
-                            <span className="font-medium">{movimentoLabel(ultimo.tipo)}</span>
-                            <span> de {ultimo.quantidade} un. em {formatDate(ultimo.createdAt)}</span>
-                          </div>
-                        ) : (
-                          "Sem movimentacoes"
-                        )}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Button
-                          size="sm"
-                          className="mr-2 bg-emerald-600 text-white hover:bg-emerald-700"
-                          onClick={() => openMovimento(item, "ENTRADA")}
-                          disabled={saving}
-                        >
-                          <Plus className="h-4 w-4" /> Adicionar
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="mr-2 border-red-200 text-red-700 hover:bg-red-50"
-                          onClick={() => openMovimento(item, "SAIDA")}
-                          disabled={saving || item.quantidade === 0}
-                        >
-                          <Minus className="h-4 w-4" /> Remover
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="text-gray-500 hover:bg-blue-50 hover:text-blue-600"
-                          onClick={() => handleEdit(item)}
-                          disabled={saving}
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="text-gray-500 hover:bg-red-50 hover:text-red-600"
-                          onClick={() => {
-                            setDeleteId(item.id);
-                            setDeleteOpen(true);
-                          }}
-                          disabled={saving}
-                        >
-                          <Trash className="h-4 w-4" />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-
-                {filtradas.length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={5} className="py-6 text-center text-sm text-gray-500">
-                      Nenhuma marmita congelada cadastrada.
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
+        {listasPorTamanho.map(({ tamanho, itens }) => (
+          <Card key={tamanho} className="min-w-0 border-gray-200 bg-white">
+            <CardHeader className="border-b border-gray-100 pb-4">
+              <div className="flex items-center justify-between gap-3">
+                <CardTitle className="text-gray-800">Congeladas {tamanho}g</CardTitle>
+                <Badge variant="secondary">{itens.reduce((total, item) => total + item.quantidade, 0)} un.</Badge>
+              </div>
+            </CardHeader>
+            <CardContent className="p-0">
+              {loading ? (
+                <p className="p-5 text-sm text-gray-500">Carregando congeladas...</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-gray-50 hover:bg-gray-50">
+                        <TableHead className="text-gray-700">Marmita</TableHead>
+                        <TableHead className="w-24 text-center text-gray-700">Estoque</TableHead>
+                        <TableHead className="w-44 text-right text-gray-700">Ações</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {itens.map((item) => {
+                        const ultimo = item.movimentos?.[0];
+                        return (
+                          <TableRow key={item.id} className="border-b border-gray-100 hover:bg-gray-50">
+                            <TableCell className="text-gray-800">
+                              <div className="font-medium">{item.nome}</div>
+                              <div className="mt-1 text-xs text-gray-500">
+                                {ultimo ? `${movimentoLabel(ultimo.tipo)} de ${ultimo.quantidade} un. em ${formatDate(ultimo.createdAt)}` : "Sem movimentações"}
+                              </div>
+                              {item.quantidade <= 3 && (
+                                <div className="mt-1 text-xs font-medium text-amber-700">Estoque baixo</div>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-center">
+                              <span className="inline-flex min-w-12 justify-center rounded-md bg-gray-100 px-2 py-1 text-lg font-bold text-gray-900">
+                                {item.quantidade}
+                              </span>
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <div className="flex items-center justify-end gap-1">
+                                <Button size="icon" title="Adicionar" className="h-8 w-8 bg-emerald-600 text-white hover:bg-emerald-700" onClick={() => openMovimento(item, "ENTRADA")} disabled={saving}>
+                                  <Plus className="h-4 w-4" />
+                                </Button>
+                                <Button size="icon" title="Remover" variant="outline" className="h-8 w-8 border-red-200 text-red-700 hover:bg-red-50" onClick={() => openMovimento(item, "SAIDA")} disabled={saving || item.quantidade === 0}>
+                                  <Minus className="h-4 w-4" />
+                                </Button>
+                                <Button variant="ghost" size="icon" title="Editar" className="h-8 w-8 text-gray-500 hover:bg-blue-50 hover:text-blue-600" onClick={() => handleEdit(item)} disabled={saving}>
+                                  <Pencil className="h-4 w-4" />
+                                </Button>
+                                <Button variant="ghost" size="icon" title="Excluir" className="h-8 w-8 text-gray-500 hover:bg-red-50 hover:text-red-600" onClick={() => { setDeleteId(item.id); setDeleteOpen(true); }} disabled={saving}>
+                                  <Trash className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                      {itens.length === 0 && (
+                        <TableRow>
+                          <TableCell colSpan={3} className="py-8 text-center text-sm text-gray-500">
+                            Nenhuma congelada de {tamanho}g cadastrada.
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        ))}
+      </div>
 
       <Dialog
         open={formOpen}
@@ -326,13 +312,29 @@ export default function CongeladasPage() {
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-2">
+              <Label className="text-gray-700">Tamanho da marmita</Label>
+              <div className="grid grid-cols-3 gap-2">
+                {TAMANHOS_CONGELADAS.map((tamanho) => (
+                  <Button
+                    key={tamanho}
+                    type="button"
+                    variant={form.tamanhoGramas === String(tamanho) ? "default" : "outline"}
+                    className={form.tamanhoGramas === String(tamanho) ? "bg-blue-600 text-white hover:bg-blue-700" : "border-gray-200"}
+                    onClick={() => setForm((prev) => ({ ...prev, tamanhoGramas: String(tamanho) as FormState["tamanhoGramas"] }))}
+                  >
+                    {tamanho}g
+                  </Button>
+                ))}
+              </div>
+            </div>
+            <div className="space-y-2">
               <Label htmlFor="nome" className="text-gray-700">Nome da marmita</Label>
               <Input
                 id="nome"
                 value={form.nome}
                 onChange={(e) => setForm((prev) => ({ ...prev, nome: e.target.value }))}
                 className="border-gray-200"
-                placeholder="Ex.: Frango com legumes 300g"
+                placeholder="Ex.: Frango com legumes"
               />
             </div>
             {!editandoId && (
@@ -393,6 +395,7 @@ export default function CongeladasPage() {
           <div className="space-y-4 py-2">
             <div className="rounded-md border border-gray-200 bg-gray-50 p-3 text-sm text-gray-700">
               <span className="font-medium">{movimento.item?.nome}</span>
+              <Badge variant="outline" className="ml-2">{movimento.item?.tamanhoGramas}g</Badge>
               <span className="ml-2 text-gray-500">Estoque atual: {movimento.item?.quantidade ?? 0}</span>
             </div>
             <div className="space-y-2">

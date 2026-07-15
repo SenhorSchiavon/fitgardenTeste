@@ -62,7 +62,7 @@ import { useOpcoesDoCardapio } from "@/hooks/useOpcoesDoCardapio";
 import { useClientes } from "@/hooks/useClientes";
 import { useAgendamentos } from "@/hooks/useAgendamentos";
 import { useCardapios } from "@/hooks/useCardapios";
-import { toast } from "@/components/ui/use-toast";
+import { toast as sonnerToast } from "sonner";
 import { useRelatorioPreparosDia } from "@/hooks/useRelatorioPreparosDia";
 import { useRelatorioPedidosDia } from "@/hooks/useRelatorioPedidosDia";
 import { useRelatorioMontadoresRotas } from "@/hooks/useRelatorioMontadoresRotas";
@@ -239,6 +239,21 @@ function moneyBr(value: number) {
     style: "currency",
     currency: "BRL",
   });
+}
+
+function toast({
+  title,
+  description,
+  variant,
+}: {
+  title: string;
+  description?: string;
+  variant?: "destructive";
+}) {
+  if (variant === "destructive") {
+    return sonnerToast.error(title, { description });
+  }
+  return sonnerToast.success(title, { description });
 }
 
 function escaparHtml(value: unknown) {
@@ -495,6 +510,7 @@ export default function Agendamentos() {
       });
       return;
     }
+    void copiarResumoPedido(agendamento);
     window.open(url, "_blank");
   };
 
@@ -614,7 +630,9 @@ export default function Agendamentos() {
             it.nome ??
             "-",
           tamanho: isCongelada
-            ? "Congelada"
+            ? it.congelada?.tamanhoGramas
+              ? `${it.congelada.tamanhoGramas}g`
+              : "Congelada"
             : isSalgado
             ? "Salgado"
             : isPersonalizada
@@ -1722,6 +1740,7 @@ export default function Agendamentos() {
         congeladas={congeladas.map((c) => ({
           id: String(c.id),
           nome: c.nome,
+          tamanhoGramas: c.tamanhoGramas,
           quantidade: Number(c.quantidade || 0),
         }))}
         initialData={dadosEdicao}

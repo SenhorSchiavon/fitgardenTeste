@@ -20,6 +20,7 @@ export type CongeladaMovimento = {
 export type Congelada = {
   id: number;
   nome: string;
+  tamanhoGramas: 200 | 300 | 400;
   quantidade: number;
   ativo: boolean;
   movimentos?: CongeladaMovimento[];
@@ -27,6 +28,7 @@ export type Congelada = {
 
 export type NovaCongeladaInput = {
   nome: string;
+  tamanhoGramas: 200 | 300 | 400;
   quantidade?: number;
   observacao?: string;
 };
@@ -42,6 +44,7 @@ function toInteger(value: any) {
 function normalizeCongelada(congelada: any): Congelada {
   return {
     ...congelada,
+    tamanhoGramas: Number(congelada.tamanhoGramas || 300) as 200 | 300 | 400,
     quantidade: toInteger(congelada.quantidade),
     movimentos: (congelada.movimentos || []).map((m: any) => ({
       ...m,
@@ -101,6 +104,7 @@ export function useCongeladas() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           nome: input.nome.trim(),
+          tamanhoGramas: input.tamanhoGramas,
           quantidade: toInteger(input.quantidade),
           observacao: input.observacao?.trim() || undefined,
         }),
@@ -108,7 +112,7 @@ export function useCongeladas() {
 
       if (!res.ok) throw new Error(await parseError(res, "Falha ao criar congelada"));
       const created = normalizeCongelada(await res.json());
-      setCongeladas((prev) => [...prev, created].sort((a, b) => a.nome.localeCompare(b.nome)));
+      setCongeladas((prev) => [...prev, created].sort((a, b) => a.tamanhoGramas - b.tamanhoGramas || a.nome.localeCompare(b.nome)));
       toast.success("Marmita congelada criada");
       return created;
     } catch (err: any) {
@@ -120,13 +124,13 @@ export function useCongeladas() {
     }
   }
 
-  async function updateCongelada(id: number, input: { nome: string }) {
+  async function updateCongelada(id: number, input: { nome: string; tamanhoGramas: 200 | 300 | 400 }) {
     setSaving(true);
     try {
       const res = await apiFetch(`${RESOURCE}/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ nome: input.nome.trim() }),
+        body: JSON.stringify({ nome: input.nome.trim(), tamanhoGramas: input.tamanhoGramas }),
       });
 
       if (!res.ok) throw new Error(await parseError(res, "Falha ao atualizar congelada"));
