@@ -28,7 +28,6 @@ type CardapioPublico = {
   opcoes: OpcaoPublica[];
 };
 
-const CATEGORY_ORDER = ["FIT", "ARROZ PADRAO", "PURE PADRAO", "LOW CARB", "VEGETARIANA", "VEGETARIANO", "SOPAS E CALDOS", "SOPAS", "OUTROS", "DELETADO"];
 const TAMANHOS = ["200g", "300g", "400g", "500g", "PERSONALIZADO"] as const;
 
 function apiUrl(path: string) {
@@ -53,11 +52,22 @@ function cleanPhone(value?: string | null) {
 function categoryLabel(category: string) {
   const normalized = normalize(category);
   if (!normalized || normalized === "OUTROS" || normalized === "DELETADO") return "FIT - MONTE SUA MARMITA";
-  if (normalized === "ARROZ PADRAO") return "ARROZ PADRÃO";
-  if (normalized === "PURE PADRAO") return "PURÊ PADRÃO";
+  if (normalized.includes("ARROZ")) return "ARROZ PADRÃO";
+  if (normalized.includes("PURE")) return "PURÊ PADRÃO";
   if (normalized.includes("SOPA")) return "SOPAS E CALDOS";
   if (normalized === "VEGETARIANA" || normalized === "VEGETARIANO") return "VEGETARIANA";
   return category.toUpperCase();
+}
+
+function categoryOrder(category: string) {
+  const normalized = normalize(category);
+  if (normalized.startsWith("FIT")) return 0;
+  if (normalized.includes("ARROZ")) return 1;
+  if (normalized.includes("PURE")) return 2;
+  if (normalized.includes("LOW")) return 3;
+  if (normalized.includes("VEGET")) return 4;
+  if (normalized.includes("SOPA") || normalized.includes("CALDO")) return 5;
+  return 99;
 }
 
 function categoryStyle(category: string) {
@@ -207,9 +217,7 @@ export default function CardapioDaSemanaPage() {
         items: items.sort((a, b) => Number(a.ordem || 0) - Number(b.ordem || 0) || a.nome.localeCompare(b.nome)),
       }))
       .sort((a, b) => {
-        const ia = CATEGORY_ORDER.findIndex((item) => normalize(a.categoria).includes(normalize(item)));
-        const ib = CATEGORY_ORDER.findIndex((item) => normalize(b.categoria).includes(normalize(item)));
-        return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
+        return categoryOrder(a.categoria) - categoryOrder(b.categoria);
       });
   }, [opcoes]);
 
