@@ -28,7 +28,7 @@ type CardapioPublico = {
   opcoes: OpcaoPublica[];
 };
 
-const CATEGORY_ORDER = ["DELETADO", "FIT", "LOW CARB", "SOPAS E CALDOS", "SOPAS", "VEGETARIANA", "VEGETARIANO", "OUTROS"];
+const CATEGORY_ORDER = ["FIT", "ARROZ PADRAO", "PURE PADRAO", "LOW CARB", "VEGETARIANA", "VEGETARIANO", "SOPAS E CALDOS", "SOPAS", "OUTROS", "DELETADO"];
 const TAMANHOS = ["200g", "300g", "400g", "500g", "PERSONALIZADO"] as const;
 
 function apiUrl(path: string) {
@@ -53,8 +53,10 @@ function cleanPhone(value?: string | null) {
 function categoryLabel(category: string) {
   const normalized = normalize(category);
   if (!normalized || normalized === "OUTROS" || normalized === "DELETADO") return "FIT - MONTE SUA MARMITA";
+  if (normalized === "ARROZ PADRAO") return "ARROZ PADRÃO";
+  if (normalized === "PURE PADRAO") return "PURÊ PADRÃO";
   if (normalized.includes("SOPA")) return "SOPAS E CALDOS";
-  if (normalized === "VEGETARIANA" || normalized === "VEGETARIANO") return "VEGETARIANO";
+  if (normalized === "VEGETARIANA" || normalized === "VEGETARIANO") return "VEGETARIANA";
   return category.toUpperCase();
 }
 
@@ -97,7 +99,7 @@ function montarMensagem({
     .filter((opcao) => Number(itensPedido[opcao.id] || 0) > 0)
     .map((opcao) => {
       const quantidade = Number(itensPedido[opcao.id] || 0);
-      const adicionalFeijao = feijaoOpcional[opcao.id] ? " + feijao opcional (+R$2/unidade)" : "";
+      const adicionalFeijao = feijaoOpcional[opcao.id] ? " + feijão opcional (+R$2/unidade)" : "";
       return `${quantidade}x ${opcao.nome}${adicionalFeijao}`;
     });
 
@@ -105,8 +107,8 @@ function montarMensagem({
     ? [
         "Pesagem personalizada do pedido:",
         `- Carbo: ${personalizada.carboGramas || "-"}g`,
-        `- Proteina: ${personalizada.proteinaGramas || "-"}g`,
-        `- Feijao: ${personalizada.feijaoGramas || "-"}g`,
+        `- Proteína: ${personalizada.proteinaGramas || "-"}g`,
+        `- Feijão: ${personalizada.feijaoGramas || "-"}g`,
         `- Legumes: ${personalizada.legumeGramas || "-"}g`,
       ]
     : [];
@@ -123,11 +125,11 @@ function montarMensagem({
     `Telefone: ${telefone || "-"}`,
     `Tamanho do pedido: ${tamanhoSelecionado}`,
     ...linhasPersonalizada,
-    observacoes.trim() ? `Observacoes: ${observacoes.trim()}` : null,
+    observacoes.trim() ? `Observação: ${observacoes.trim()}` : null,
     "",
     "Marmitas:",
     ...escolhidas,
-    totalFeijao ? `Adicional de feijao: ${totalFeijao} unidade(s) (+R$2 cada)` : null,
+    totalFeijao ? `Adicional de feijão: ${totalFeijao} unidade(s) (+R$2 cada)` : null,
     "",
     `Total de marmitas: ${total}`,
   ].filter(Boolean).join("\n");
@@ -166,10 +168,10 @@ export default function CardapioDaSemanaPage() {
         const path = destino === "alternativo" ? "/public/cardapio-semana?destino=alternativo" : "/public/cardapio-semana";
         const res = await fetch(apiUrl(path), { cache: "no-store" });
         const data = await res.json().catch(() => null);
-        if (!res.ok) throw new Error(data?.message || "Nao foi possivel carregar o cardapio.");
+        if (!res.ok) throw new Error(data?.message || "Não foi possível carregar o cardápio.");
         if (alive) setCardapio(data);
       } catch (e: any) {
-        if (alive) setError(e?.message || "Erro ao carregar cardapio.");
+        if (alive) setError(e?.message || "Erro ao carregar cardápio.");
       } finally {
         if (alive) setLoading(false);
       }
@@ -281,9 +283,9 @@ export default function CardapioDaSemanaPage() {
           </div>
 
           <div className="text-center sm:text-left">
-            <p className="text-xs font-black uppercase tracking-[0.28em] text-[#b85b36]">Marmitas saudaveis</p>
+            <p className="text-xs font-black uppercase tracking-[0.28em] text-[#b85b36]">Marmitas saudáveis</p>
             <h1 className="mt-1 text-3xl font-black uppercase tracking-tight text-[#14332f] sm:text-5xl">
-              Cardapio da Semana
+              Cardápio da Semana
             </h1>
             <p className="mt-2 text-sm font-medium text-[#47625d] sm:text-base">
               Monte seu pedido escolhendo o tamanho e a quantidade de cada marmita.
@@ -291,12 +293,14 @@ export default function CardapioDaSemanaPage() {
           </div>
 
           <div className="hidden justify-center sm:flex">
-            <div className="h-28 w-28 rounded-[28px] border-4 border-white bg-[radial-gradient(circle_at_30%_30%,#f3c59f,#bb5b36_55%,#14332f)] shadow-xl" />
+            <div className="flex h-28 w-28 items-center justify-center rounded-[28px] border-4 border-white bg-white p-2 shadow-xl">
+              <img src="/brand/fitgarden-vertical.png" alt="Fit Garden" className="h-full w-full object-contain" />
+            </div>
           </div>
         </header>
 
         <section className="mt-6 rounded-2xl border-4 border-[#14332f] bg-white p-3 shadow-sm">
-          <div className="mb-2 text-xs font-black uppercase tracking-widest text-[#14332f]">E muito facil pedir:</div>
+          <div className="mb-2 text-xs font-black uppercase tracking-widest text-[#14332f]">É muito fácil pedir:</div>
           <div className="grid gap-3 sm:grid-cols-3">
             {[
               { icon: CheckCircle2, text: "Escolha um tamanho para o pedido todo." },
@@ -317,7 +321,7 @@ export default function CardapioDaSemanaPage() {
 
         {loading && (
           <div className="mt-8 rounded-2xl border border-dashed p-10 text-center font-semibold text-[#47625d]">
-            Carregando cardapio...
+            Carregando cardápio...
           </div>
         )}
 
@@ -352,19 +356,19 @@ export default function CardapioDaSemanaPage() {
                     <h2 className="text-sm font-black uppercase tracking-wide text-[#b85b36]">Personalizado</h2>
                     <div className="mt-3 grid gap-4 md:grid-cols-4">
                       {renderGramasInput("Carbo", "carboGramas")}
-                      {renderGramasInput("Proteina", "proteinaGramas")}
-                      {renderGramasInput("Feijao", "feijaoGramas")}
+                      {renderGramasInput("Proteína", "proteinaGramas")}
+                      {renderGramasInput("Feijão", "feijaoGramas")}
                       {renderGramasInput("Legumes", "legumeGramas")}
                     </div>
                   </div>
                 )}
               </div>
               <div className="mt-4 space-y-2">
-                <Label>Observacoes opcional</Label>
+                <Label>Observação (opcional)</Label>
                 <Textarea
                   value={observacoes}
                   onChange={(event) => setObservacoes(event.target.value)}
-                  placeholder="Alguma observacao?"
+                  placeholder="Alguma observação?"
                   className="min-h-10 resize-none"
                 />
               </div>
@@ -411,7 +415,7 @@ export default function CardapioDaSemanaPage() {
                                   onChange={(event) => toggleFeijaoOpcional(opcao.id, event.target.checked)}
                                   className="h-4 w-4 accent-[#b85b36]"
                                 />
-                                Adicionar feijao opcional nesta marmita (+R$2 por unidade)
+                                Adicionar feijão opcional nesta marmita (+R$2 por unidade)
                               </label>
                             ) : null}
                           </div>
@@ -431,7 +435,7 @@ export default function CardapioDaSemanaPage() {
               </div>
               {totalFeijaoOpcional ? (
                 <p className="mt-1 text-center text-sm font-bold text-[#b85b36]">
-                  Feijao opcional: {totalFeijaoOpcional} unidade(s) (+R$2 cada)
+                  Feijão opcional: {totalFeijaoOpcional} unidade(s) (+R$2 cada)
                 </p>
               ) : null}
             </section>
@@ -453,7 +457,7 @@ export default function CardapioDaSemanaPage() {
               </div>
               {!whatsappNumber && (
                 <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm font-semibold text-amber-800">
-                  Configure o numero em NEXT_PUBLIC_WHATSAPP_PEDIDOS_NUMERO para ativar o envio pelo WhatsApp.
+                  Configure o número em NEXT_PUBLIC_WHATSAPP_PEDIDOS_NUMERO para ativar o envio pelo WhatsApp.
                 </div>
               )}
 
@@ -471,7 +475,7 @@ export default function CardapioDaSemanaPage() {
               </div>
 
               <p className="mt-4 text-center text-xs font-medium text-[#60746f]">
-                Seus dados estao seguros e seu pedido sera enviado para nossa equipe pelo WhatsApp.
+                Seus dados estão seguros e seu pedido será enviado para nossa equipe pelo WhatsApp.
               </p>
             </section>
           </>
