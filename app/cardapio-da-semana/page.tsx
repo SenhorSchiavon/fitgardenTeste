@@ -277,9 +277,9 @@ export default function CardapioDaSemanaPage() {
   return (
     <main className="min-h-screen bg-[#f5f1e9] px-3 py-4 text-[#15332f] sm:px-6 sm:py-8">
       <div className="mx-auto max-w-5xl rounded-[28px] border border-[#e3d8c8] bg-[#fffdf8] p-4 shadow-2xl shadow-black/10 sm:p-8">
-        <header className="grid gap-5 sm:grid-cols-[180px_1fr_150px] sm:items-center">
-          <div className="flex items-center justify-center rounded-2xl bg-white p-3 shadow-sm">
-            <img src="/brand/fitgarden-horizontal.png" alt="Fit Garden" className="max-h-20 object-contain" />
+        <header className="grid gap-5 sm:grid-cols-[280px_1fr] sm:items-center">
+          <div className="flex items-center justify-center overflow-hidden rounded-2xl bg-[#1b413c] p-2 shadow-sm">
+            <img src="/brand/fitgarden-logo-04.png" alt="Fit Garden" className="h-auto w-full object-contain" />
           </div>
 
           <div className="text-center sm:text-left">
@@ -292,11 +292,6 @@ export default function CardapioDaSemanaPage() {
             </p>
           </div>
 
-          <div className="hidden justify-center sm:flex">
-            <div className="flex h-28 w-28 items-center justify-center rounded-[28px] border-4 border-white bg-white p-2 shadow-xl">
-              <img src="/brand/fitgarden-vertical.png" alt="Fit Garden" className="h-full w-full object-contain" />
-            </div>
-          </div>
         </header>
 
         <section className="mt-6 rounded-2xl border-4 border-[#14332f] bg-white p-3 shadow-sm">

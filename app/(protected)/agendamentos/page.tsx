@@ -305,6 +305,7 @@ export default function Agendamentos() {
     createAgendamento,
     updateAgendamento,
     getAgendamentos,
+    getAgendamentoById,
     deleteAgendamento,
     integrarEntregasDoDia,
     baixarXlsxImportEntregasDoDia,
@@ -1749,6 +1750,7 @@ export default function Agendamentos() {
         onUpdateCliente={updateCliente}
         onSubmit={async (payload) => {
           let pedidoCriadoId: number | null = null;
+          let agendamentoCriadoId: number | null = null;
           if (modoEdicao && agendamentoEditandoId) {
             await updateAgendamento(agendamentoEditandoId, {
               tipo: payload.tipo,
@@ -1836,17 +1838,28 @@ export default function Agendamentos() {
               })),
             });
             pedidoCriadoId = Number(criado.pedidoId);
+            agendamentoCriadoId = Number(criado.agendamentoId);
           }
 
-          const date = utils.toISODateOnly(selectedDate);
+          const date = payload.data instanceof Date
+            ? utils.toISODateOnly(payload.data)
+            : String(payload.data).slice(0, 10);
           const res = await getAgendamentos({ date, page: 1, pageSize: 200 });
           const agendamentosAtualizados = (res.rows || []).map(mapApiToUi);
           setAgendamentos(agendamentosAtualizados);
 
           if (pedidoCriadoId != null) {
-            const novoPedido = agendamentosAtualizados.find(
-              (agendamento) => agendamento.numeroPedido === `#${pedidoCriadoId}`,
+            let novoPedido = agendamentosAtualizados.find(
+              (agendamento) =>
+                (agendamentoCriadoId != null && agendamento.id === String(agendamentoCriadoId)) ||
+                agendamento.numeroPedido === `#${pedidoCriadoId}`,
             );
+
+            if (!novoPedido && agendamentoCriadoId != null) {
+              const agendamentoCriado = await getAgendamentoById(agendamentoCriadoId);
+              novoPedido = mapApiToUi(agendamentoCriado);
+            }
+
             if (novoPedido) {
               await copiarResumoPedido(novoPedido);
             } else {
