@@ -246,10 +246,9 @@ export default function CardapioDaSemanaPage() {
     setFeijaoOpcional((prev) => ({ ...prev, [id]: checked }));
   }
 
-  async function enviarPedido() {
+  function enviarPedido() {
     if (!total) return;
     if (!whatsappNumber) return;
-    const whatsappWindow = window.open("about:blank", "_blank");
 
     const text = montarMensagem({
       nome,
@@ -267,6 +266,12 @@ export default function CardapioDaSemanaPage() {
       tamanhoSelecionado,
     });
 
+    // O WhatsApp é o fluxo principal e abre sem depender da API de registro.
+    const whatsappUrl = `https://wa.me/${whatsappNumber}?text=${encodeURIComponent(text)}`;
+    const whatsappWindow = window.open(whatsappUrl, "_blank");
+    if (!whatsappWindow) window.location.href = whatsappUrl;
+
+    void (async () => {
     try {
       setEnviando(true);
       setErroEnvio("");
@@ -292,15 +297,12 @@ export default function CardapioDaSemanaPage() {
       });
       const data = await res.json().catch(() => null);
       if (!res.ok) throw new Error(data?.message || "Não foi possível registrar o pedido.");
-      const whatsappUrl = `https://wa.me/${whatsappNumber}?text=${encodeURIComponent(text)}`;
-      if (whatsappWindow) whatsappWindow.location.href = whatsappUrl;
-      else window.location.href = whatsappUrl;
-    } catch (e: any) {
-      whatsappWindow?.close();
-      setErroEnvio(e?.message || "Erro ao enviar pedido. Tente novamente.");
+    } catch {
+      setErroEnvio("O WhatsApp foi aberto, mas o pedido não pôde ser registrado no sistema agora.");
     } finally {
       setEnviando(false);
     }
+    })();
   }
 
   function renderGramasInput(label: string, keyName: "carboGramas" | "proteinaGramas" | "feijaoGramas" | "legumeGramas") {
