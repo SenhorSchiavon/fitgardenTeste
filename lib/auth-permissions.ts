@@ -28,6 +28,7 @@ export const SCREEN_DEFINITIONS: ScreenDefinition[] = [
   { key: "planos", label: "Planos", path: "/planos" },
   { key: "clientes", label: "Clientes", path: "/clientes" },
   { key: "agendamentos", label: "Agendamentos", path: "/agendamentos" },
+  { key: "pedidos-clientes", label: "Pedidos de Clientes", path: "/pedidos-clientes" },
   { key: "pedidos-aberto", label: "Pedidos em Aberto", path: "/pedidos-aberto" },
   { key: "historico-pedidos", label: "Histórico de Pedidos", path: "/historico-pedidos" },
   { key: "pedido-sem-agendamento", label: "Sem Agendamento", path: "/pedido-sem-agendamento" },

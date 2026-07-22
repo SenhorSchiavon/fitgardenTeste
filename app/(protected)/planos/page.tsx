@@ -127,12 +127,12 @@ function novaLinhaPlano(): PlanoItemForm {
   };
 }
 
-function valorPlanoPorQuantidade(tamanho: any, quantidade: number) {
+function valorUnitarioPorQuantidade(tamanho: any, quantidade: number) {
   const qtd = Math.max(1, Math.floor(Number(quantidade || 1)));
-  if (qtd >= 40 && tamanho.valor40 != null) return Number(tamanho.valor40 || 0) * qtd;
-  if (qtd >= 20 && tamanho.valor20 != null) return Number(tamanho.valor20 || 0) * qtd;
-  if (qtd >= 10 && tamanho.valor10 != null) return Number(tamanho.valor10 || 0) * qtd;
-  return Number(tamanho.valorUnitario || 0) * qtd;
+  if (qtd >= 40 && tamanho.valor40 != null) return Number(tamanho.valor40 || 0);
+  if (qtd >= 20 && tamanho.valor20 != null) return Number(tamanho.valor20 || 0);
+  if (qtd >= 10 && tamanho.valor10 != null) return Number(tamanho.valor10 || 0);
+  return Number(tamanho.valorUnitario || 0);
 }
 
 export default function PlanosPage() {
@@ -180,21 +180,31 @@ export default function PlanosPage() {
   };
 
   const itensCalculados = useMemo(() => {
+    const unidadesTotais = form.itens.reduce(
+      (total, item) => total + Math.max(1, Math.floor(toNumber(item.unidades, 1))),
+      0,
+    );
     const regrasPeso = regras
       .filter((r) => r.tipo === "PESO_TOTAL")
       .sort((a, b) => Number(a.limite) - Number(b.limite));
+    const regraVolume = regras
+      .filter((r) => r.tipo === "VOLUME_TOTAL" && unidadesTotais >= Number(r.limite))
+      .sort((a, b) => Number(b.limite) - Number(a.limite))[0];
+    const descontoVolume = regraVolume ? Number(regraVolume.preco || 0) / 100 : 0;
 
     return form.itens.map((item) => {
       const unidades = Math.max(1, Math.floor(toNumber(item.unidades, 1)));
       if (item.tipo === "TAMANHO") {
         const tamanho = tamanhos.find((t) => String(t.id) === String(item.tamanhoId));
-        const valorTotal = tamanho ? valorPlanoPorQuantidade(tamanho, unidades) : 0;
+        const valorUnitarioBase = tamanho ? valorUnitarioPorQuantidade(tamanho, unidadesTotais) : 0;
+        const valorUnitario = Math.max(0, valorUnitarioBase * (1 - descontoVolume));
+        const valorTotal = valorUnitario * unidades;
         return {
           ...item,
           unidades,
           label: tamanho?.pesagemGramas ? `${tamanho.pesagemGramas}g` : "Tamanho",
           valorTotal,
-          valorUnitario: unidades > 0 ? valorTotal / unidades : 0,
+          valorUnitario,
           valido: !!tamanho,
         };
       }
@@ -202,7 +212,8 @@ export default function PlanosPage() {
       const pesoComponentes = getPesoComponentes(item);
       const peso = pesoComponentes || Math.max(0, Math.floor(toNumber(item.pesoPersonalizadoGramas, 0)));
       const regra = regrasPeso.find((r) => peso <= Number(r.limite)) || regrasPeso[regrasPeso.length - 1];
-      const valorUnitario = peso > 0 && regra ? Number(regra.preco || 0) : 0;
+      const valorUnitarioBase = peso > 0 && regra ? Number(regra.preco || 0) : 0;
+      const valorUnitario = Math.max(0, valorUnitarioBase * (1 - descontoVolume));
       return {
         ...item,
         unidades,

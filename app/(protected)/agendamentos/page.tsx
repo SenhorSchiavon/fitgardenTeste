@@ -68,6 +68,7 @@ import { useRelatorioPedidosDia } from "@/hooks/useRelatorioPedidosDia";
 import { useRelatorioMontadoresRotas } from "@/hooks/useRelatorioMontadoresRotas";
 import { usePreparosSelecionaveis } from "@/hooks/usePreparosSelecionaveis";
 import { useSalgados } from "@/hooks/useSalgados";
+import { apiFetch } from "@/hooks/api";
 import { useCongeladas } from "@/hooks/useCongeladas";
 import { usePlanosCliente } from "@/hooks/usePlanosCliente";
 import { useRegrasPersonalizadas } from "@/hooks/useRegrasPersonalizadas";
@@ -329,6 +330,20 @@ export default function Agendamentos() {
     number | null
   >(null);
   const [dadosEdicao, setDadosEdicao] = useState<any>(null);
+
+  useEffect(() => {
+    const raw = sessionStorage.getItem("fitgarden:pedido-publico-agendamento");
+    if (!raw) return;
+    try {
+      const pedidoRecebido = JSON.parse(raw);
+      setModoEdicao(false);
+      setAgendamentoEditandoId(null);
+      setDadosEdicao(pedidoRecebido);
+      setCadastroOpen(true);
+    } finally {
+      sessionStorage.removeItem("fitgarden:pedido-publico-agendamento");
+    }
+  }, []);
 
   const { preparos, loading: loadingPreparos } = usePreparosSelecionaveis();
   const { salgados } = useSalgados();
@@ -1839,6 +1854,18 @@ export default function Agendamentos() {
             });
             pedidoCriadoId = Number(criado.pedidoId);
             agendamentoCriadoId = Number(criado.agendamentoId);
+
+            if (dadosEdicao?.pedidoPublicoId) {
+              await apiFetch(`${String(process.env.NEXT_PUBLIC_API_URL || "http://localhost:3333/api").replace(/\/+$/, "")}/pedidos-publicos/${dadosEdicao.pedidoPublicoId}`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  clienteId: Number(payload.clienteId),
+                  status: "AGENDADO",
+                  agendamentoId: Number(criado.agendamentoId),
+                }),
+              });
+            }
           }
 
           const date = payload.data instanceof Date

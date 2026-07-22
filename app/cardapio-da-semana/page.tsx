@@ -155,6 +155,8 @@ export default function CardapioDaSemanaPage() {
   const [nome, setNome] = useState("");
   const [telefone, setTelefone] = useState("");
   const [observacoes, setObservacoes] = useState("");
+  const [enviando, setEnviando] = useState(false);
+  const [erroEnvio, setErroEnvio] = useState("");
   const [personalizada, setPersonalizada] = useState({
     carboGramas: "",
     proteinaGramas: "",
@@ -244,9 +246,10 @@ export default function CardapioDaSemanaPage() {
     setFeijaoOpcional((prev) => ({ ...prev, [id]: checked }));
   }
 
-  function enviarPedido() {
+  async function enviarPedido() {
     if (!total) return;
     if (!whatsappNumber) return;
+    const whatsappWindow = window.open("about:blank", "_blank");
 
     const text = montarMensagem({
       nome,
@@ -264,7 +267,40 @@ export default function CardapioDaSemanaPage() {
       tamanhoSelecionado,
     });
 
-    window.open(`https://wa.me/${whatsappNumber}?text=${encodeURIComponent(text)}`, "_blank");
+    try {
+      setEnviando(true);
+      setErroEnvio("");
+      const res = await fetch(apiUrl("/public/pedidos"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          cardapioId: cardapio?.id,
+          origem: cardapio?.destinoWhatsApp || "principal",
+          nome,
+          telefone,
+          tamanhoLabel: tamanhoSelecionado,
+          observacoes,
+          personalizada,
+          itens: opcoes
+            .map((opcao) => ({
+              opcaoId: Number(opcao.id),
+              quantidade: Number(itensPedido[opcao.id] || 0),
+              adicionarFeijao: !!feijaoOpcional[opcao.id],
+            }))
+            .filter((item) => item.quantidade > 0),
+        }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(data?.message || "Não foi possível registrar o pedido.");
+      const whatsappUrl = `https://wa.me/${whatsappNumber}?text=${encodeURIComponent(text)}`;
+      if (whatsappWindow) whatsappWindow.location.href = whatsappUrl;
+      else window.location.href = whatsappUrl;
+    } catch (e: any) {
+      whatsappWindow?.close();
+      setErroEnvio(e?.message || "Erro ao enviar pedido. Tente novamente.");
+    } finally {
+      setEnviando(false);
+    }
   }
 
   function renderGramasInput(label: string, keyName: "carboGramas" | "proteinaGramas" | "feijaoGramas" | "legumeGramas") {
@@ -470,12 +506,14 @@ export default function CardapioDaSemanaPage() {
                   size="lg"
                   className="h-14 w-full max-w-xl rounded-xl bg-[#c24f2f] text-base font-black uppercase tracking-wide text-white shadow-lg shadow-[#c24f2f]/25 hover:bg-[#a94329] sm:text-xl"
                   onClick={enviarPedido}
-                  disabled={!total || !nome.trim() || !telefone.trim() || !whatsappNumber}
+                  disabled={enviando || !total || !nome.trim() || !telefone.trim() || !whatsappNumber}
                 >
                   <Send className="mr-3 h-5 w-5" />
-                  Enviar meu pedido
+                  {enviando ? "Registrando pedido..." : "Enviar meu pedido"}
                 </Button>
               </div>
+
+              {erroEnvio ? <p className="mt-3 text-center text-sm font-semibold text-red-700">{erroEnvio}</p> : null}
 
               <p className="mt-4 text-center text-xs font-medium text-[#60746f]">
                 Seus dados estão seguros e seu pedido será enviado para nossa equipe pelo WhatsApp.
