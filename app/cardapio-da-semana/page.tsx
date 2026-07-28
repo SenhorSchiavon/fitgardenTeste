@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { CheckCircle2, ClipboardList, Leaf, Minus, Plus, Send, ShoppingBasket, Soup, Star, User, Utensils } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { CheckCircle2, ChevronDown, ClipboardList, Leaf, MessageCircle, Minus, Plus, Send, ShoppingBasket, Soup, Star, User, Utensils } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -146,6 +146,7 @@ function montarMensagem({
 }
 
 export default function CardapioDaSemanaPage() {
+  const dadosSectionRef = useRef<HTMLElement>(null);
   const [cardapio, setCardapio] = useState<CardapioPublico | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -303,6 +304,10 @@ export default function CardapioDaSemanaPage() {
       setEnviando(false);
     }
     })();
+  }
+
+  function continuarParaEnvio() {
+    dadosSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
   function renderGramasInput(label: string, keyName: "carboGramas" | "proteinaGramas" | "feijaoGramas" | "legumeGramas") {
@@ -468,23 +473,45 @@ export default function CardapioDaSemanaPage() {
               })}
             </section>
 
-            <section className="sticky bottom-3 z-10 mt-6 rounded-2xl border bg-white/95 p-4 shadow-xl backdrop-blur">
-              <div className="flex items-center justify-center gap-3 text-xl font-black uppercase tracking-wide text-[#14332f]">
-                <ShoppingBasket className="h-7 w-7" />
-                Total de marmitas:
-                <span className="text-3xl text-[#b85b36]">{total}</span>
+            <section className="sticky bottom-2 z-20 mt-6 rounded-2xl border-2 border-[#14332f] bg-white/95 p-3 shadow-2xl backdrop-blur sm:bottom-3 sm:p-4">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex min-w-0 items-center gap-2 text-[#14332f]">
+                  <ShoppingBasket className="h-6 w-6 shrink-0" />
+                  <div className="leading-tight">
+                    <p className="text-xs font-bold uppercase tracking-wide text-[#60746f]">Seu pedido</p>
+                    <p className="font-black"><span className="text-2xl text-[#b85b36]">{total}</span> marmita(s)</p>
+                  </div>
+                </div>
+                <Button
+                  type="button"
+                  onClick={continuarParaEnvio}
+                  disabled={!total}
+                  className="h-12 shrink-0 rounded-xl bg-[#c24f2f] px-4 text-sm font-black uppercase text-white shadow-lg shadow-[#c24f2f]/25 hover:bg-[#a94329] sm:px-7 sm:text-base"
+                >
+                  {total ? "Continuar para enviar" : "Escolha as marmitas"}
+                  {total ? <ChevronDown className="ml-2 h-5 w-5" /> : null}
+                </Button>
               </div>
               {totalFeijaoOpcional ? (
                 <p className="mt-1 text-center text-sm font-bold text-[#b85b36]">
                   Feijão opcional: {totalFeijaoOpcional} unidade(s) (+R$2 cada)
                 </p>
               ) : null}
+              {total > 0 ? (
+                <p className="mt-2 text-center text-xs font-black uppercase tracking-wide text-[#b85b36]">
+                  Atenção: seu pedido ainda não foi enviado
+                </p>
+              ) : null}
             </section>
 
-            <section className="mt-5 rounded-2xl border bg-white p-4 shadow-sm">
+            <section ref={dadosSectionRef} className="mt-5 scroll-mt-4 rounded-2xl border-2 border-[#14332f] bg-white p-4 shadow-sm">
               <div className="mb-4 flex items-center gap-2 text-lg font-black uppercase text-[#14332f]">
                 <User className="h-5 w-5" />
-                Seus dados
+                Último passo: enviar pedido
+              </div>
+              <div className="mb-4 flex gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm font-bold leading-snug text-emerald-900">
+                <MessageCircle className="h-6 w-6 shrink-0" />
+                <p>Preencha seus dados e toque no botão abaixo. Não precisa tirar print: seu pedido completo abrirá pronto no WhatsApp.</p>
               </div>
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
@@ -511,9 +538,15 @@ export default function CardapioDaSemanaPage() {
                   disabled={enviando || !total || !nome.trim() || !telefone.trim() || !whatsappNumber}
                 >
                   <Send className="mr-3 h-5 w-5" />
-                  {enviando ? "Registrando pedido..." : "Enviar meu pedido"}
+                  {enviando ? "Registrando pedido..." : "Abrir WhatsApp e enviar pedido"}
                 </Button>
               </div>
+
+              {total > 0 && (!nome.trim() || !telefone.trim()) ? (
+                <p className="mt-3 text-center text-sm font-bold text-[#b85b36]">
+                  Preencha nome e telefone para liberar o botão de envio.
+                </p>
+              ) : null}
 
               {erroEnvio ? <p className="mt-3 text-center text-sm font-semibold text-red-700">{erroEnvio}</p> : null}
 
