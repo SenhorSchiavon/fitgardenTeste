@@ -474,21 +474,21 @@ export default function CardapioDaSemanaPage() {
             </section>
 
             <section className="sticky bottom-2 z-20 mt-6 rounded-2xl border-2 border-[#14332f] bg-white/95 p-3 shadow-2xl backdrop-blur sm:bottom-3 sm:p-4">
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex min-w-0 items-center gap-2 text-[#14332f]">
+              <div className="grid gap-2 sm:grid-cols-[auto_1fr] sm:items-center sm:gap-4">
+                <div className="flex min-w-0 items-center justify-center gap-2 text-[#14332f] sm:justify-start">
                   <ShoppingBasket className="h-6 w-6 shrink-0" />
-                  <div className="leading-tight">
+                  <div className="flex items-baseline gap-2 leading-tight sm:block">
                     <p className="text-xs font-bold uppercase tracking-wide text-[#60746f]">Seu pedido</p>
-                    <p className="font-black"><span className="text-2xl text-[#b85b36]">{total}</span> marmita(s)</p>
+                    <p className="whitespace-nowrap font-black"><span className="text-2xl text-[#b85b36]">{total}</span> marmita(s)</p>
                   </div>
                 </div>
                 <Button
                   type="button"
                   onClick={continuarParaEnvio}
                   disabled={!total}
-                  className="h-12 shrink-0 rounded-xl bg-[#c24f2f] px-4 text-sm font-black uppercase text-white shadow-lg shadow-[#c24f2f]/25 hover:bg-[#a94329] sm:px-7 sm:text-base"
+                  className="h-12 w-full rounded-xl bg-[#c24f2f] px-3 text-sm font-black uppercase text-white shadow-lg shadow-[#c24f2f]/25 hover:bg-[#a94329] sm:justify-self-end sm:px-7 sm:text-base"
                 >
-                  {total ? "Continuar para enviar" : "Escolha as marmitas"}
+                  <span className="truncate">{total ? "Continuar para enviar" : "Escolha as marmitas"}</span>
                   {total ? <ChevronDown className="ml-2 h-5 w-5" /> : null}
                 </Button>
               </div>
