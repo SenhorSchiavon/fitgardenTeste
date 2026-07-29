@@ -1395,15 +1395,21 @@ export function NovoAgendamentoNovoLayout({
     const referencia = itensDoGrupoAtual[0];
     const tamanhoHerdadoId = referencia?.tamanhoId || "";
     const tamanhoHerdadoLabel = referencia?.tamanhoLabel || "";
+    const personalizadaHerdada = referencia?.tipoItem === "PERSONALIZADA";
     resetFormItem();
     setBuscaMarmita("");
     setFiltroCatalogo("TODAS");
     setCategoriaCatalogo("TODAS");
     setFormItem((prev) => ({
       ...prev,
-      tipoItem: "PADRAO",
-      tamanhoId: tamanhoHerdadoId,
+      tipoItem: personalizadaHerdada ? "PERSONALIZADA" : "PADRAO",
+      tamanhoId: personalizadaHerdada ? "" : tamanhoHerdadoId,
       tamanhoLabel: tamanhoHerdadoLabel,
+      carboGramas: personalizadaHerdada ? Number(referencia?.carboGramas || 0) : 0,
+      proteinaGramas: personalizadaHerdada ? Number(referencia?.proteinaGramas || 0) : 0,
+      legumeGramas: personalizadaHerdada ? Number(referencia?.legumeGramas || 0) : 0,
+      feijaoGramas: personalizadaHerdada ? Number(referencia?.feijaoGramas || 0) : 0,
+      complementoGramas: personalizadaHerdada ? Number(referencia?.complementoGramas || 0) : 0,
       destinatarioNome: itensDoGrupoAtual[0]
         ? getDestinatarioItem(itensDoGrupoAtual[0])
         : clienteSelecionado?.nome || "",
@@ -1767,6 +1773,39 @@ export function NovoAgendamentoNovoLayout({
           />
         </div>
       </div>
+    );
+  }
+
+  function renderGramagemCompacta(
+    label: string,
+    nome: string,
+    gramasKey: "carboGramas" | "proteinaGramas" | "legumeGramas" | "feijaoGramas" | "complementoGramas",
+  ) {
+    return (
+      <label className="min-w-[76px] flex-1 space-y-1">
+        <span className="block truncate text-[10px] font-bold uppercase tracking-wide text-slate-500" title={nome}>
+          {label}
+        </span>
+        <div className="relative">
+          <Input
+            type="number"
+            min={0}
+            step="1"
+            value={Number(formItem[gramasKey] || 0)}
+            onChange={(event) => {
+              const gramas = Number(event.target.value || 0);
+              setFormItem((prev) => ({
+                ...prev,
+                [gramasKey]: gramas,
+                ...(gramasKey === "feijaoGramas" ? { adicionarFeijao: gramas > 0 } : {}),
+              }));
+            }}
+            className="h-9 bg-white pr-6 text-center text-sm font-semibold"
+            aria-label={`${label} em gramas`}
+          />
+          <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-slate-400">g</span>
+        </div>
+      </label>
     );
   }
 
@@ -3964,105 +4003,70 @@ export function NovoAgendamentoNovoLayout({
                         {opcoesPersonalizadasFiltradas.map((opcao) => {
                           const selecionada = String(formItem.opcaoId || "") === String(opcao.id);
                           return (
-                            <button
+                            <div
                               key={opcao.id}
-                              type="button"
-                              onClick={() => selecionarOpcaoPersonalizada(opcao)}
                               className={cn(
-                                "flex w-full items-center justify-between rounded-lg border bg-white px-3 py-3 text-left transition-colors",
+                                "rounded-lg border bg-white transition-colors",
                                 selecionada
                                   ? "border-emerald-500 bg-emerald-50 ring-1 ring-emerald-300"
                                   : "border-slate-200 hover:border-emerald-300",
                               )}
                             >
-                              <div>
-                                <div className="text-sm font-semibold text-slate-800">{opcao.nome}</div>
-                                <div className="text-[10px] text-muted-foreground">
-                                  {selecionada ? "Marmita selecionada" : "Clique para usar esta composição"}
+                              <button
+                                type="button"
+                                onClick={() => selecionarOpcaoPersonalizada(opcao)}
+                                className="flex w-full items-center justify-between px-3 py-3 text-left"
+                              >
+                                <div>
+                                  <div className="text-sm font-semibold text-slate-800">{opcao.nome}</div>
+                                  <div className="text-[10px] text-muted-foreground">
+                                    {selecionada ? "Gramagens abertas" : "Clique para informar as gramagens"}
+                                  </div>
                                 </div>
-                              </div>
-                              {selecionada ? <Check className="h-5 w-5 text-emerald-600" /> : <Plus className="h-4 w-4 text-emerald-600" />}
-                            </button>
+                                {selecionada ? <ChevronDown className="h-4 w-4 text-emerald-600" /> : <Plus className="h-4 w-4 text-emerald-600" />}
+                              </button>
+
+                              {selecionada && (
+                                <div className="border-t border-emerald-200 px-3 py-3">
+                                  <div className="flex flex-wrap items-end gap-2 xl:flex-nowrap">
+                                    {renderGramagemCompacta("Carb.", formItem.carboNome, "carboGramas")}
+                                    {renderGramagemCompacta("Prot.", formItem.proteinaNome, "proteinaGramas")}
+                                    {renderGramagemCompacta("Leg.", formItem.legumeNome, "legumeGramas")}
+                                    {renderGramagemCompacta("Feijão", formItem.feijaoNome, "feijaoGramas")}
+                                    {renderGramagemCompacta("Compl.", formItem.complementoNome, "complementoGramas")}
+                                    <div className="min-w-[72px] space-y-1 text-center">
+                                      <span className="block text-[10px] font-bold uppercase tracking-wide text-slate-500">Total</span>
+                                      <div className="flex h-9 items-center justify-center rounded-md border bg-white px-2 text-sm font-bold text-emerald-700">
+                                        {totalGramasPersonalizada}g
+                                      </div>
+                                    </div>
+                                    {!formItem.id && (
+                                      <Button
+                                        type="button"
+                                        onClick={() => addPedidoNaLista(false)}
+                                        className="h-9 shrink-0 rounded-lg px-4"
+                                      >
+                                        <Plus className="mr-1.5 h-4 w-4" />
+                                        Adicionar
+                                      </Button>
+                                    )}
+                                  </div>
+                                  <p className="mt-2 truncate text-[10px] text-slate-500" title={[formItem.carboNome, formItem.proteinaNome, formItem.legumeNome, formItem.feijaoNome, formItem.complementoNome].filter(Boolean).join(" • ")}>
+                                    {[formItem.carboNome, formItem.proteinaNome, formItem.legumeNome, formItem.feijaoNome, formItem.complementoNome].filter(Boolean).join(" • ")}
+                                  </p>
+                                </div>
+                              )}
+                            </div>
                           );
                         })}
                       </div>
                     </div>
 
-                    {formItem.opcaoId ? (
-                      <div className="rounded-xl border bg-slate-50 px-4 py-3">
-                        <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Marmita selecionada</div>
-                        <div className="mt-1 font-bold text-primary">{formItem.opcaoNome}</div>
-                      </div>
-                    ) : (
+                    {!formItem.opcaoId && (
                       <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-                        Selecione uma marmita acima para liberar as gramaturas.
+                        Selecione uma marmita acima para abrir as gramagens.
                       </div>
                     )}
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {renderIngredientePersonalizada({
-                        label: "Carboidrato",
-                        items: carboidratos,
-                        idKey: "carboId",
-                        nomeKey: "carboNome",
-                        gramasKey: "carboGramas",
-                      })}
-                      {renderIngredientePersonalizada({
-                        label: "Proteína",
-                        items: proteinas,
-                        idKey: "proteinaId",
-                        nomeKey: "proteinaNome",
-                        gramasKey: "proteinaGramas",
-                      })}
-                      {renderIngredientePersonalizada({
-                        label: "Legume",
-                        items: legumes,
-                        idKey: "legumeId",
-                        nomeKey: "legumeNome",
-                        gramasKey: "legumeGramas",
-                      })}
-                      {renderIngredientePersonalizada({
-                        label: "Feijão",
-                        items: feijoes,
-                        idKey: "feijaoId",
-                        nomeKey: "feijaoNome",
-                        gramasKey: "feijaoGramas",
-                        optional: true,
-                      })}
-                      {renderIngredientePersonalizada({
-                        label: "Complemento",
-                        items: complementos,
-                        idKey: "complementoId",
-                        nomeKey: "complementoNome",
-                        gramasKey: "complementoGramas",
-                        optional: true,
-                      })}
-                    </div>
-
-                    <div className="rounded-lg border p-3 text-sm">
-                      <span className="font-medium">Peso total da personalizada:</span>{" "}
-                      {totalGramasPersonalizada}g
-                    </div>
-
-                    <div className="rounded-lg border p-3 space-y-2">
-                      <Label>Preço da personalizada</Label>
-                      <Input
-                        type="number"
-                        min={0}
-                        step="0.01"
-                        value={formItem.precoUnit || 0}
-                        onChange={(e) =>
-                          setFormItem((prev) => ({
-                            ...prev,
-                            precoUnit: Number(e.target.value || 0),
-                          }))
-                        }
-                        placeholder="Temporário até plugar regra real"
-                      />
-                      <p className="text-xs text-muted-foreground">
-                        Aqui depois a gente troca pelo cálculo real da personalizada.
-                      </p>
-                    </div>
                   </div>
                 )}
 
@@ -4231,30 +4235,10 @@ export function NovoAgendamentoNovoLayout({
             >
               Cancelar
             </Button>
-            {formItem.tipoItem === "PERSONALIZADA" && !formItem.id && (
-              <>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => addPedidoNaLista(false, { manterPesagens: true })}
-                  className="rounded-xl"
-                >
-                  Adicionar e manter pesagens
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => addPedidoNaLista(false)}
-                  className="rounded-xl"
-                >
-                  Adicionar e novas pesagens
-                </Button>
-              </>
-            )}
             <Button
               type="button"
               onClick={() => {
-                if (formItem.tipoItem === "PADRAO" && !formItem.id) {
+                if ((formItem.tipoItem === "PADRAO" || formItem.tipoItem === "PERSONALIZADA") && !formItem.id) {
                   setModalNovoPedidoOpen(false);
                   resetFormItem();
                   return;
@@ -4263,7 +4247,7 @@ export function NovoAgendamentoNovoLayout({
               }}
               className="rounded-xl shadow-lg"
             >
-              {formItem.tipoItem === "PADRAO" && !formItem.id ? "Concluir montagem" : "Salvar"}
+              {(formItem.tipoItem === "PADRAO" || formItem.tipoItem === "PERSONALIZADA") && !formItem.id ? "Concluir montagem" : "Salvar"}
             </Button>
           </DialogFooter>
         </DialogContent>

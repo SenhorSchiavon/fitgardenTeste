@@ -1016,6 +1016,8 @@ export default function Agendamentos() {
       <Header
         title="Agendamentos"
         subtitle="Gerencie os agendamentos de pedidos"
+        searchValue={buscaAgendamento}
+        onSearchChange={setBuscaAgendamento}
       />
 
       <div className="flex flex-col md:flex-row items-center justify-between gap-4 mb-8 bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">

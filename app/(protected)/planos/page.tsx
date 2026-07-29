@@ -196,8 +196,7 @@ export default function PlanosPage() {
       const unidades = Math.max(1, Math.floor(toNumber(item.unidades, 1)));
       if (item.tipo === "TAMANHO") {
         const tamanho = tamanhos.find((t) => String(t.id) === String(item.tamanhoId));
-        const valorUnitarioBase = tamanho ? valorUnitarioPorQuantidade(tamanho, unidadesTotais) : 0;
-        const valorUnitario = Math.max(0, valorUnitarioBase * (1 - descontoVolume));
+        const valorUnitario = tamanho ? valorUnitarioPorQuantidade(tamanho, unidadesTotais) : 0;
         const valorTotal = valorUnitario * unidades;
         return {
           ...item,
