@@ -380,7 +380,7 @@ export function ClienteFormDialog({
       nome: upper(initialValue?.nome),
       telefone: initialValue?.telefone ?? "",
       cep: initialValue?.cep ?? "",
-      uf: "PR",
+      uf: upper(initialValue?.uf) || "PR",
       cidade: normalizarCidadePermitida(initialValue?.cidade),
       bairro: upper(initialValue?.bairro),
       logradouro: upper(initialValue?.logradouro),
