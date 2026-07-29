@@ -96,6 +96,7 @@ type Agendamento = {
   quantidade: number;
   quantidadeLabel?: string;
   formaPagamento: string;
+  voucherCodigo?: string;
   entregador: string;
   observacoes?: string;
 
@@ -205,6 +206,11 @@ function ordenarAgendamentosRota(rows: Agendamento[]) {
 function montarDadosEdicaoAgendamento(agendamento: Agendamento) {
   const raw = agendamento._raw || {};
   const pedido = raw.pedido || {};
+  const pagamentos = pedido.pagamentos ?? raw.pagamentos ?? [];
+  const voucherCodigo =
+    agendamento.voucherCodigo ??
+    pagamentos.find((pagamento: any) => String(pagamento.voucherCodigo || "").trim())?.voucherCodigo ??
+    "";
   return {
     ...raw,
     clienteId: pedido.clienteId ?? raw.clienteId,
@@ -223,6 +229,7 @@ function montarDadosEdicaoAgendamento(agendamento: Agendamento) {
     regiao: raw.regiao ?? agendamento.zona ?? null,
     observacoes: pedido.observacoes ?? agendamento.observacoes ?? "",
     formaPagamento: agendamento.formaPagamento || "A_DEFINIR",
+    voucherCodigo,
     itens: pedido.itens ?? raw.itens ?? [],
   };
 }
@@ -449,11 +456,11 @@ export default function Agendamentos() {
       grupos.set(grupo, linhas);
     });
     const itens = Array.from(grupos.entries())
-      .flatMap(([grupo, linhas]) => [grupo, ...linhas])
+      .flatMap(([grupo, linhas]) => [`*${grupo}*`, ...linhas])
       .join("\n");
     const planos = agendamento.planosAtivos || [];
     const linhas = [
-      `🔔 Pedido Confirmado ${agendamento.numeroPedido}`,
+      `🔔 *Pedido Confirmado ${agendamento.numeroPedido}*`,
       "",
       `*Cliente:* ${agendamento.cliente.toUpperCase()}`,
       `*Telefone:* ${agendamento.telefone}`,
@@ -469,7 +476,7 @@ export default function Agendamentos() {
       "",
       `*Forma de Pagamento:* ${getLabelPagamento(agendamento.formaPagamento)}`,
       ...(planos.length
-        ? ["", "PLANOS ATIVOS - SALDO RESTANTE:", ...planos.map((plano) => `${plano.saldo} unidades - ${plano.tamanho}`)]
+        ? ["", "*Planos ativos — saldo restante:*", ...planos.map((plano) => `${plano.saldo} unidades - ${plano.tamanho}`)]
         : []),
     ];
 
@@ -602,6 +609,44 @@ export default function Agendamentos() {
         const precoCadastro = it.salgado?.preco ?? salgados.find((s) => Number(s.id) === Number(it.salgadoId))?.preco;
         const unit = precoSalgadoVolume != null ? precoSalgadoVolume : Number(precoCadastro ?? 0);
         return { tipoItem: it.tipoItem, valor: unit * qtd };
+      }
+
+      if (it.tipoItem === "PERSONALIZADA") {
+        const totalGramas =
+          Number(it.carboGramas || 0) +
+          Number(it.proteinaGramas || 0) +
+          Number(it.legumeGramas || 0) +
+          Number(it.feijaoGramas || 0) +
+          Number(it.complementoGramas || 0);
+        const proteinaGramas = Number(it.proteinaGramas || 0);
+        const regrasProteina = regras
+          .filter((r) => r.tipo === "PROTEINA")
+          .sort((a, b) => Number(a.limite) - Number(b.limite));
+        const regrasPeso = regras
+          .filter((r) => r.tipo === "PESO_TOTAL")
+          .sort((a, b) => Number(a.limite) - Number(b.limite));
+        const precoFaixa = (faixas: typeof regrasProteina, valor: number) => {
+          if (!faixas.length) return 0;
+          return Number((faixas.find((r) => valor <= Number(r.limite)) || faixas[faixas.length - 1]).preco);
+        };
+        const tiposCount = [
+          !!it.carboId || Number(it.carboGramas || 0) > 0,
+          !!it.proteinaId || Number(it.proteinaGramas || 0) > 0,
+          !!it.legumeId || Number(it.legumeGramas || 0) > 0,
+          !!it.feijaoId || Number(it.feijaoGramas || 0) > 0,
+          !!it.complementoId || Number(it.complementoGramas || 0) > 0,
+        ].filter(Boolean).length;
+        const regraAjuste = regras.find(
+          (r) => r.tipo === "QUANTIDADE_INGREDIENTES" && Number(r.limite) === tiposCount,
+        );
+        const unit = Math.max(
+          precoFaixa(regrasProteina, proteinaGramas),
+          precoFaixa(regrasPeso, totalGramas),
+        ) + Number(regraAjuste?.preco || 0);
+        return {
+          tipoItem: it.tipoItem,
+          valor: (unit > 0 ? unit : Number(it.valor || 0) / qtd) * qtd,
+        };
       }
 
       return { tipoItem: it.tipoItem, valor: Number(it.valor || 0) };
@@ -787,6 +832,10 @@ export default function Agendamentos() {
         pagamentos[0]?.forma ??
         row.formaPagamento ??
         "-",
+      voucherCodigo:
+        pagamentos.find((p: any) => String(p.voucherCodigo || "").trim())?.voucherCodigo ??
+        row.voucherCodigo ??
+        undefined,
       entregador: row.entregador ?? "-",
       valorPedido,
       valorTaxa,
@@ -901,6 +950,7 @@ export default function Agendamentos() {
     id: String(o.id),
     nome: o.nome,
     categoria: o.categoria ?? null,
+    preparos: o.preparos ?? [],
   }));
   const carboidratos = preparos
     .filter((p) => p.tipo === "CARBOIDRATO")
@@ -1889,9 +1939,13 @@ export default function Agendamentos() {
             pedidoCriadoId = Number(criado.pedidoId);
             agendamentoCriadoId = Number(criado.agendamentoId);
 
-            const pedidoPublicoImportadoId = payload.pedidoPublicoId || dadosEdicao?.pedidoPublicoId;
-            if (pedidoPublicoImportadoId) {
-              await apiFetch(`${String(process.env.NEXT_PUBLIC_API_URL || "http://localhost:3333/api").replace(/\/+$/, "")}/pedidos-publicos/${pedidoPublicoImportadoId}`, {
+            const pedidosPublicosImportadosIds = Array.from(new Set([
+              ...(Array.isArray(payload.pedidosPublicosIds) ? payload.pedidosPublicosIds : []),
+              ...(Array.isArray(dadosEdicao?.pedidosPublicosIds) ? dadosEdicao.pedidosPublicosIds : []),
+              ...(dadosEdicao?.pedidoPublicoId ? [dadosEdicao.pedidoPublicoId] : []),
+            ].map(Number).filter(Boolean)));
+            await Promise.all(pedidosPublicosImportadosIds.map((pedidoPublicoImportadoId) =>
+              apiFetch(`${String(process.env.NEXT_PUBLIC_API_URL || "http://localhost:3333/api").replace(/\/+$/, "")}/pedidos-publicos/${pedidoPublicoImportadoId}`, {
                 method: "PATCH",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
@@ -1899,8 +1953,8 @@ export default function Agendamentos() {
                   status: "AGENDADO",
                   agendamentoId: Number(criado.agendamentoId),
                 }),
-              });
-            }
+              })
+            ));
           }
 
           const date = payload.data instanceof Date

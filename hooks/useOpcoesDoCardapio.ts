@@ -6,6 +6,11 @@ type OpcaoDoCardapio = {
   id: string;
   nome: string;
   categoria: string | null;
+  preparos?: {
+    tipo: "CARBOIDRATO" | "PROTEINA" | "LEGUMES" | "FEIJAO" | "COMPLEMENTO";
+    preparoId: string;
+    nome: string;
+  }[];
   tamanhos: {
     tamanhoId: string;
     tamanhoLabel: string;

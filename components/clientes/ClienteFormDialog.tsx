@@ -151,6 +151,39 @@ async function buscarCepViaCep(cep: string) {
   };
 }
 
+function normalizarEnderecoBusca(value: unknown) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zA-Z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .toLowerCase()
+    .trim();
+}
+
+function distanciaEdicao(a: string, b: string) {
+  const anterior = Array.from({ length: b.length + 1 }, (_, index) => index);
+  for (let i = 1; i <= a.length; i++) {
+    const atual = [i];
+    for (let j = 1; j <= b.length; j++) {
+      atual[j] = Math.min(
+        atual[j - 1] + 1,
+        anterior[j] + 1,
+        anterior[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1),
+      );
+    }
+    anterior.splice(0, anterior.length, ...atual);
+  }
+  return anterior[b.length];
+}
+
+function similaridadeEndereco(a: unknown, b: unknown) {
+  const esquerda = normalizarEnderecoBusca(a).replace(/^(rua|avenida|av|travessa|alameda|rodovia)\s+/, "");
+  const direita = normalizarEnderecoBusca(b).replace(/^(rua|avenida|av|travessa|alameda|rodovia)\s+/, "");
+  const maior = Math.max(esquerda.length, direita.length, 1);
+  return 1 - distanciaEdicao(esquerda, direita) / maior;
+}
+
 async function buscarCepPorEnderecoViaCep(input: {
   uf?: string;
   cidade?: string;
@@ -168,33 +201,50 @@ async function buscarCepPorEnderecoViaCep(input: {
 
   const semTipo = logradouro.replace(/^(rua|avenida|av\.?|travessa|alameda|rodovia)\s+/i, "").trim();
   const palavras = semTipo.split(/\s+/).filter((parte) => parte.length > 2);
-  const consultas = Array.from(new Set([
+  const consultasPrincipais = Array.from(new Set([
     logradouro,
     semTipo,
+    palavras.length >= 2 ? `${palavras[0]} ${palavras[palavras.length - 1]}` : "",
     palavras.slice(-3).join(" "),
     palavras.slice(0, 3).join(" "),
   ].filter((valor) => valor.length >= 3)));
-  let data: any[] = [];
-  for (const consulta of consultas) {
+
+  const consultar = async (consulta: string) => {
     const url = `https://viacep.com.br/ws/${encodeURIComponent(uf)}/${encodeURIComponent(cidade)}/${encodeURIComponent(consulta)}/json/`;
-    const res = await fetch(url, { cache: "no-store" });
-    if (!res.ok) continue;
-    const resultado = await res.json();
-    if (Array.isArray(resultado) && resultado.length > 0) {
-      data = resultado;
-      break;
+    try {
+      const res = await fetch(url, { cache: "no-store" });
+      if (!res.ok) return [];
+      const resultado = await res.json();
+      return Array.isArray(resultado) ? resultado : [];
+    } catch {
+      return [];
     }
+  };
+
+  // As consultas rodam juntas para não deixar o cadastro travado por vários
+  // segundos. Palavras isoladas são usadas apenas se a busca normal não achar.
+  let data = (await Promise.all(consultasPrincipais.map(consultar))).flat();
+  if (data.length === 0) {
+    const consultasAlternativas = Array.from(new Set(
+      palavras.filter((palavra) => palavra.length >= 5),
+    ));
+    data = (await Promise.all(consultasAlternativas.map(consultar))).flat();
   }
+  data = Array.from(new Map(data.map((item: any) => [String(item.cep || ""), item])).values());
   if (!Array.isArray(data) || data.length === 0) {
     throw new Error("Nenhum CEP encontrado para esse endereço.");
   }
 
-  const matchBairro =
-    bairro
-      ? data.find((item: any) => String(item.bairro || "").trim().toLowerCase() === bairro) ||
-        data.find((item: any) => String(item.bairro || "").trim().toLowerCase().includes(bairro))
-      : null;
-  const item = matchBairro || data[0];
+  const item = [...data].sort((a: any, b: any) => {
+    const score = (resultado: any) => {
+      const enderecoScore = similaridadeEndereco(logradouro, resultado.logradouro) * 100;
+      const bairroNormalizado = normalizarEnderecoBusca(bairro);
+      const bairroResultado = normalizarEnderecoBusca(resultado.bairro);
+      const bairroScore = bairroNormalizado && bairroResultado.includes(bairroNormalizado) ? 25 : 0;
+      return enderecoScore + bairroScore;
+    };
+    return score(b) - score(a);
+  })[0];
 
   return {
     cep: onlyDigits(item.cep || ""),
@@ -486,17 +536,29 @@ export function ClienteFormDialog({
         logradouro: upper(data.logradouro || form.logradouro),
       };
 
-      const ruaNum = [next.logradouro, form.numero].filter(Boolean).join(", ");
-      const cidadeUf = [next.cidade, next.uf].filter(Boolean).join(" - ");
-      const endereco = [ruaNum, next.bairro, cidadeUf, next.cep, "Brasil"].filter(Boolean).join(", ");
-      const geo = await geocodeNominatimComFallback(endereco);
-
+      // O CEP e os dados do endereço já são válidos mesmo se o serviço de mapa
+      // estiver indisponível. Mantemos o preenchimento e tratamos o mapa à parte.
       setForm((p) => ({
         ...p,
         ...next,
-        latitude: geo.lat,
-        longitude: geo.lon,
+        latitude: null,
+        longitude: null,
       }));
+
+      const ruaNum = [next.logradouro, form.numero].filter(Boolean).join(", ");
+      const cidadeUf = [next.cidade, next.uf].filter(Boolean).join(" - ");
+      const endereco = [ruaNum, next.bairro, cidadeUf, next.cep, "Brasil"].filter(Boolean).join(", ");
+      try {
+        const geo = await geocodeNominatimComFallback(endereco);
+        setForm((p) => ({
+          ...p,
+          ...next,
+          latitude: geo.lat,
+          longitude: geo.lon,
+        }));
+      } catch {
+        setAvisoCep("CEP e endereço preenchidos. O mapa não conseguiu localizar esse endereço agora.");
+      }
       setTaxaEntrega(null);
       setErroTaxaEntrega(null);
 
@@ -579,17 +641,27 @@ export function ClienteFormDialog({
         secundarioLogradouro: upper(data.logradouro || form.secundarioLogradouro),
       };
 
-      const ruaNum = [next.secundarioLogradouro, form.secundarioNumero].filter(Boolean).join(", ");
-      const cidadeUf = [next.secundarioCidade, next.secundarioUf].filter(Boolean).join(" - ");
-      const endereco = [ruaNum, next.secundarioBairro, cidadeUf, next.secundarioCep, "Brasil"].filter(Boolean).join(", ");
-      const geo = await geocodeNominatimComFallback(endereco);
-
       setForm((p) => ({
         ...p,
         ...next,
-        secundarioLatitude: geo.lat,
-        secundarioLongitude: geo.lon,
+        secundarioLatitude: null,
+        secundarioLongitude: null,
       }));
+
+      const ruaNum = [next.secundarioLogradouro, form.secundarioNumero].filter(Boolean).join(", ");
+      const cidadeUf = [next.secundarioCidade, next.secundarioUf].filter(Boolean).join(" - ");
+      const endereco = [ruaNum, next.secundarioBairro, cidadeUf, next.secundarioCep, "Brasil"].filter(Boolean).join(", ");
+      try {
+        const geo = await geocodeNominatimComFallback(endereco);
+        setForm((p) => ({
+          ...p,
+          ...next,
+          secundarioLatitude: geo.lat,
+          secundarioLongitude: geo.lon,
+        }));
+      } catch {
+        setAvisoCepSecundario("CEP e endereço preenchidos. O mapa não conseguiu localizar esse endereço agora.");
+      }
       setTaxaEntregaSecundario(null);
       setErroTaxaEntregaSecundario(null);
 

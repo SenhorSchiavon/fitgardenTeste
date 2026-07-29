@@ -129,6 +129,11 @@ type OpcaoCardapio = {
   nome: string;
   tipo?: "PRATO" | "CARBOIDRATO" | "PROTEINA" | "LEGUME" | "FEIJAO" | "COMPLEMENTO";
   categoria?: string | null;
+  preparos?: {
+    tipo: "CARBOIDRATO" | "PROTEINA" | "LEGUMES" | "FEIJAO" | "COMPLEMENTO";
+    preparoId: string;
+    nome: string;
+  }[];
 };
 
 type SalgadoOption = {
@@ -426,8 +431,11 @@ export function NovoAgendamentoNovoLayout({
   const [clienteDialogOpen, setClienteDialogOpen] = useState(false);
   const [importarPedidoOpen, setImportarPedidoOpen] = useState(false);
   const [pedidosPendentesCliente, setPedidosPendentesCliente] = useState<any[]>([]);
+  const [buscaImportacao, setBuscaImportacao] = useState("");
   const [carregandoPedidosPendentes, setCarregandoPedidosPendentes] = useState(false);
-  const [pedidoPublicoId, setPedidoPublicoId] = useState<number | null>(null);
+  const [pedidosPublicosIds, setPedidosPublicosIds] = useState<number[]>([]);
+  const [telefonePedidosImportados, setTelefonePedidosImportados] = useState("");
+  const [dadosClientePedidoImportado, setDadosClientePedidoImportado] = useState<{ nome: string; telefone: string } | null>(null);
   const [agendamentoDuplicado, setAgendamentoDuplicado] = useState<any | null>(null);
   const [checandoDuplicidade, setChecandoDuplicidade] = useState(false);
   const [incluirTaxaEntrega, setIncluirTaxaEntrega] = useState(true);
@@ -540,7 +548,7 @@ export function NovoAgendamentoNovoLayout({
   );
 
   const clienteFormInitialValue = useMemo(() => {
-    if (!clienteSelecionado) return null;
+    if (!clienteSelecionado) return dadosClientePedidoImportado;
     const principal = clienteSelecionado.enderecos?.find((e) => e.principal) || clienteSelecionado.enderecos?.[0];
     const secundario = clienteSelecionado.enderecos?.find((e) => !e.principal);
 
@@ -569,7 +577,7 @@ export function NovoAgendamentoNovoLayout({
       secundarioLongitude: secundario?.longitude ?? null,
       tags: clienteSelecionado.tags?.map((t) => t.tag) || [],
     };
-  }, [clienteSelecionado]);
+  }, [clienteSelecionado, dadosClientePedidoImportado]);
 
   const horarios = useMemo(
     () => {
@@ -618,7 +626,13 @@ export function NovoAgendamentoNovoLayout({
   useEffect(() => {
     if (open && initialData) {
       setClienteId(String(initialData.pedido?.clienteId || initialData.clienteId || ""));
-      setPedidoPublicoId(initialData.pedidoPublicoId ? Number(initialData.pedidoPublicoId) : null);
+      setPedidosPublicosIds(
+        Array.isArray(initialData.pedidosPublicosIds)
+          ? initialData.pedidosPublicosIds.map(Number).filter(Boolean)
+          : initialData.pedidoPublicoId
+            ? [Number(initialData.pedidoPublicoId)]
+            : [],
+      );
       setTipo(initialData.tipoEntrega || initialData.tipo || "NAO_DEFINIR");
       setData(initialData.data ? new Date(initialData.data) : getDefaultAgendamentoDate());
       setDataEntregaCongelada(initialData.dataEntregaCongelada ? new Date(initialData.dataEntregaCongelada) : getDefaultAgendamentoDate());
@@ -642,7 +656,18 @@ export function NovoAgendamentoNovoLayout({
       setVoucherCodigo(initialData.voucherCodigo || "");
       
       const rawItens = initialData.itens || initialData.pedido?.itens || [];
-      const mappedItens: NovoPedidoItem[] = rawItens.map((it: any) => ({
+      const mappedItens: NovoPedidoItem[] = rawItens.map((it: any) => {
+        const opcaoCardapio = opcoesPadrao.find((opcao) => String(opcao.id) === String(it.opcaoId || it.opcao?.id || ""));
+        const preparoDaOpcao = (tipo: "CARBOIDRATO" | "PROTEINA" | "LEGUMES" | "FEIJAO" | "COMPLEMENTO") =>
+          opcaoCardapio?.preparos?.find((preparo) => preparo.tipo === tipo);
+        const carboOpcao = preparoDaOpcao("CARBOIDRATO");
+        const proteinaOpcao = preparoDaOpcao("PROTEINA");
+        const legumeOpcao = preparoDaOpcao("LEGUMES");
+        const feijaoOpcao = preparoDaOpcao("FEIJAO");
+        const complementoOpcao = preparoDaOpcao("COMPLEMENTO");
+        const personalizada = it.tipoItem === "PERSONALIZADA";
+
+        return ({
         id: it.id ? String(it.id) : uid(),
         groupId: `tamanho:${String(it.tamanhoId || it.tamanho?.id || it.tamanhoLabel || it.tamanho?.pesagemGramas || it.tipoItem || "item")}`,
         tipoItem: it.tipoItem || (it.congeladaId || it.congelada ? "CONGELADA" : it.salgadoId || it.salgado ? "SALGADO" : it.opcaoId || it.opcao ? "PADRAO" : "PERSONALIZADA"),
@@ -660,16 +685,16 @@ export function NovoAgendamentoNovoLayout({
         salgadoNome: it.salgado?.nome || "",
         congeladaId: String(it.congeladaId || ""),
         congeladaNome: it.congelada?.nome || it.congeladaNome || "",
-        carboId: String(it.carboId || ""),
-        carboNome: it.carbo?.nome || "",
-        proteinaId: String(it.proteinaId || ""),
-        proteinaNome: it.proteina?.nome || "",
-        legumeId: String(it.legumeId || ""),
-        legumeNome: it.legume?.nome || "",
-        feijaoId: String(it.feijaoId || ""),
-        feijaoNome: it.feijao?.nome || "",
-        complementoId: String(it.complementoId || ""),
-        complementoNome: it.complemento?.nome || "",
+        carboId: String(it.carboId || (personalizada ? carboOpcao?.preparoId : "") || ""),
+        carboNome: it.carbo?.nome || (personalizada ? carboOpcao?.nome : "") || "",
+        proteinaId: String(it.proteinaId || (personalizada ? proteinaOpcao?.preparoId : "") || ""),
+        proteinaNome: it.proteina?.nome || (personalizada ? proteinaOpcao?.nome : "") || "",
+        legumeId: String(it.legumeId || (personalizada ? legumeOpcao?.preparoId : "") || ""),
+        legumeNome: it.legume?.nome || (personalizada ? legumeOpcao?.nome : "") || "",
+        feijaoId: String(it.feijaoId || (personalizada && Number(it.feijaoGramas || 0) > 0 ? feijaoOpcao?.preparoId : "") || ""),
+        feijaoNome: it.feijao?.nome || (personalizada && Number(it.feijaoGramas || 0) > 0 ? feijaoOpcao?.nome : "") || "",
+        complementoId: String(it.complementoId || (personalizada ? complementoOpcao?.preparoId : "") || ""),
+        complementoNome: it.complemento?.nome || (personalizada ? complementoOpcao?.nome : "") || "",
         zerarLegume: !!it.zerarLegume,
         adicionarFeijao: !!it.adicionarFeijao,
         observacaoItem: it.observacaoItem || "",
@@ -686,7 +711,8 @@ export function NovoAgendamentoNovoLayout({
         legumeGramas: Number(it.legumeGramas || 0),
         feijaoGramas: Number(it.feijaoGramas || 0),
         complementoGramas: Number(it.complementoGramas || 0),
-      }));
+        });
+      });
       setItens(mappedItens);
     } else if (open && !initialData) {
       resetForm();
@@ -894,6 +920,15 @@ export function NovoAgendamentoNovoLayout({
       .sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR", { sensitivity: "base" }));
   }, [buscaMarmita, categoriaCatalogo, filtroCatalogo, opcoesPadrao, quantidadeCatalogoPorOpcao, quantidadeCatalogoIncluindoEdicaoPorOpcao, formItem.id]);
 
+  const opcoesPersonalizadasFiltradas = useMemo(() => {
+    const termos = normalizarBusca(buscaMarmita).split(/\s+/).filter(Boolean);
+    return opcoesPadrao.filter((opcao) => {
+      if (categoriaCatalogo !== "TODAS" && normalizarBusca(opcao.categoria || "") !== categoriaCatalogo) return false;
+      const nome = normalizarBusca(opcao.nome);
+      return termos.every((termo) => nome.includes(termo));
+    });
+  }, [buscaMarmita, categoriaCatalogo, opcoesPadrao]);
+
   const hasItensNoGrupoAtual = itensDoGrupoAtual.length > 0;
 
   const planoSelecionado = useMemo(
@@ -1044,6 +1079,15 @@ export function NovoAgendamentoNovoLayout({
         };
       }
 
+      // Personalizadas são precificadas pelas gramaturas/regras atuais e não
+      // dependem de possuir um tamanho padrão cadastrado.
+      if (item.tipoItem === "PERSONALIZADA") {
+        return {
+          ...item,
+          precoUnit: calcularPrecoPersonalizada(item),
+        };
+      }
+
       const tamanho = tamanhos.find((t) => t.id === item.tamanhoId);
       if (!tamanho) return item;
 
@@ -1053,9 +1097,7 @@ export function NovoAgendamentoNovoLayout({
       return {
         ...item,
         precoUnit:
-          item.tipoItem === "PERSONALIZADA"
-            ? calcularPrecoPersonalizada(item)
-            : Number(precoFaixa || 0) + adicionalTrocas,
+          Number(precoFaixa || 0) + adicionalTrocas,
       };
     });
   }, [itens, tamanhos, totalMarmitas, totalSalgados, regras]);
@@ -1165,7 +1207,9 @@ export function NovoAgendamentoNovoLayout({
     setAvisoHorarioAutomatico("");
     setAvisoPagamentoAutomatico("");
     setItens([]);
-    setPedidoPublicoId(null);
+    setPedidosPublicosIds([]);
+    setTelefonePedidosImportados("");
+    setDadosClientePedidoImportado(null);
     setPlanosComprados([]);
     setIncluirTaxaEntrega(true);
     resetFormItem();
@@ -1258,6 +1302,8 @@ export function NovoAgendamentoNovoLayout({
       ...prev,
       id: "",
       quantidade: 1,
+      opcaoId: "",
+      opcaoNome: "",
       carboId: "",
       carboNome: "",
       proteinaId: "",
@@ -1538,13 +1584,46 @@ export function NovoAgendamentoNovoLayout({
       if (!faixas.length) return 0;
       return Number((faixas.find((r) => valor <= Number(r.limite)) || faixas[faixas.length - 1]).preco);
     };
-    const tiposCount = [item.carboId, item.proteinaId, item.legumeId, item.feijaoId, item.complementoId].filter(Boolean).length;
+    const tiposCount = [
+      !!item.carboId || Number(item.carboGramas || 0) > 0,
+      !!item.proteinaId || Number(item.proteinaGramas || 0) > 0,
+      !!item.legumeId || Number(item.legumeGramas || 0) > 0,
+      !!item.feijaoId || Number(item.feijaoGramas || 0) > 0,
+      !!item.complementoId || Number(item.complementoGramas || 0) > 0,
+    ].filter(Boolean).length;
     const regraAjuste = regras.find((r) => r.tipo === "QUANTIDADE_INGREDIENTES" && Number(r.limite) === tiposCount);
     return Math.max(precoFaixa(regrasProteina, proteina), precoFaixa(regrasTotal, total)) + Number(regraAjuste?.preco || 0);
   }
 
   function itemTemTroca(item: NovoPedidoItem) {
     return contarTrocasItem(item) > 0 || !!item.zerarLegume || !!item.adicionarFeijao;
+  }
+
+  function selecionarOpcaoPersonalizada(opcao: OpcaoCardapio) {
+    const componente = (tipo: "CARBOIDRATO" | "PROTEINA" | "LEGUMES" | "FEIJAO" | "COMPLEMENTO") =>
+      opcao.preparos?.find((preparo) => preparo.tipo === tipo);
+    const carbo = componente("CARBOIDRATO");
+    const proteina = componente("PROTEINA");
+    const legume = componente("LEGUMES");
+    const feijao = componente("FEIJAO");
+    const complemento = componente("COMPLEMENTO");
+
+    setFormItem((prev) => ({
+      ...prev,
+      opcaoId: opcao.id,
+      opcaoNome: opcao.nome,
+      carboId: carbo?.preparoId || "",
+      carboNome: carbo?.nome || "",
+      proteinaId: proteina?.preparoId || "",
+      proteinaNome: proteina?.nome || "",
+      legumeId: legume?.preparoId || "",
+      legumeNome: legume?.nome || "",
+      feijaoId: feijao?.preparoId || "",
+      feijaoNome: feijao?.nome || "",
+      complementoId: complemento?.preparoId || "",
+      complementoNome: complemento?.nome || "",
+      adicionarFeijao: false,
+    }));
   }
 
   function editarItem(item: NovoPedidoItem) {
@@ -1559,7 +1638,7 @@ export function NovoAgendamentoNovoLayout({
   function getNomeItem(item: NovoPedidoItem) {
     if (item.tipoItem === "SALGADO") return item.salgadoNome || "Salgado";
     if (item.tipoItem === "CONGELADA") return item.congeladaNome || "Congelada";
-    if (item.tipoItem === "PERSONALIZADA") return "Personalizada";
+    if (item.tipoItem === "PERSONALIZADA") return item.opcaoNome ? `${item.opcaoNome} (Personalizada)` : "Personalizada";
     return item.opcaoNome || "Marmita padrão";
   }
 
@@ -1615,7 +1694,7 @@ export function NovoAgendamentoNovoLayout({
       <div className="grid grid-cols-[minmax(0,1fr)_120px] gap-3">
         <div className="space-y-2">
           <Label>{label}</Label>
-          {formItem.id && formItem.tipoItem === "PERSONALIZADA" ? (
+          {formItem.tipoItem === "PERSONALIZADA" ? (
             <div className="flex h-11 items-center rounded-md border bg-slate-50 px-3 text-sm font-medium">
               {selectedName || (optional ? "Não utilizado" : "Ingrediente não informado")}
             </div>
@@ -1859,6 +1938,10 @@ export function NovoAgendamentoNovoLayout({
     }
 
     if (formItem.tipoItem === "PERSONALIZADA") {
+      if (!formItem.opcaoId) {
+        toast.error("Marmita não selecionada", { description: "Escolha uma marmita do cardápio antes de informar as gramaturas." });
+        return;
+      }
       if (totalGramasPersonalizada <= 0) {
         toast.error("Peso não informado", { description: "Informe a gramagem dos ingredientes da sua personalizada." })
         return;
@@ -1909,41 +1992,37 @@ export function NovoAgendamentoNovoLayout({
   }
 
   function changeItemQty(id: string, delta: number) {
-    setItens((prev) =>
-      prev.map((item) => {
-        if (item.id !== id) return item;
-        const nextItem = {
-          ...item,
-          quantidade: Math.max(1, Number(item.quantidade || 1) + delta),
-        };
-        if (delta > 0 && !canUsePlanoForItem(nextItem)) {
-          toast.error("Plano não encontrado", {
-            description: "O cliente não tem um plano compatível com este tamanho.",
-          });
-          return item;
-        }
-        return {
-          ...nextItem,
-        };
-      })
+    const atual = itens.find((item) => item.id === id);
+    if (!atual) return;
+    const quantidade = Math.max(1, Number(atual.quantidade || 1) + delta);
+    const nextItem = { ...atual, quantidade };
+    if (delta > 0 && !canUsePlanoForItem(nextItem)) {
+      toast.error("Plano não encontrado", {
+        description: "O cliente não tem um plano compatível com este tamanho.",
+      });
+      return;
+    }
+    setItens((prev) => prev.map((item) => (item.id === id ? nextItem : item)));
+    // Durante a edição, o modal mantém uma cópia do item. Ela precisa acompanhar
+    // a lista para não restaurar a quantidade antiga ao clicar em Salvar.
+    setFormItem((prev) =>
+      prev.id === id ? { ...prev, quantidade } : prev,
     );
   }
 
   function setItemQty(id: string, quantidade: number) {
     const qtd = Math.max(1, Math.floor(Number(quantidade || 1)));
-    setItens((prev) =>
-      prev.map((item) => {
-        if (item.id !== id) return item;
-        const nextItem = { ...item, quantidade: qtd };
-        if (qtd > Number(item.quantidade || 0) && !canUsePlanoForItem(nextItem)) {
-          toast.error("Plano não encontrado", {
-            description: "O cliente não tem saldo compatível para essa quantidade.",
-          });
-          return item;
-        }
-        return nextItem;
-      }),
-    );
+    const atual = itens.find((item) => item.id === id);
+    if (!atual) return;
+    const nextItem = { ...atual, quantidade: qtd };
+    if (qtd > Number(atual.quantidade || 0) && !canUsePlanoForItem(nextItem)) {
+      toast.error("Plano não encontrado", {
+        description: "O cliente não tem saldo compatível para essa quantidade.",
+      });
+      return;
+    }
+    setItens((prev) => prev.map((item) => (item.id === id ? nextItem : item)));
+    setFormItem((prev) => (prev.id === id ? { ...prev, quantidade: qtd } : prev));
   }
 
   function ajustarQuantidadeMarmitaCatalogo(opcao: OpcaoCardapio, delta: number) {
@@ -2170,7 +2249,7 @@ export function NovoAgendamentoNovoLayout({
     }
 
     const payload: any = {
-      pedidoPublicoId,
+      pedidosPublicosIds,
       clienteId,
       tipo,
       data: data instanceof Date ? data.toISOString() : data,
@@ -2204,16 +2283,22 @@ export function NovoAgendamentoNovoLayout({
   }
 
   async function abrirImportacaoPedido() {
-    if (!clienteSelecionado) return;
+    setBuscaImportacao("");
     setImportarPedidoOpen(true);
     setCarregandoPedidosPendentes(true);
     try {
-      const query = new URLSearchParams({ status: "PENDENTE", clienteId: String(clienteSelecionado.id) });
+      const query = new URLSearchParams({ status: "PENDENTE" });
+      if (clienteSelecionado) query.set("clienteId", String(clienteSelecionado.id));
       const base = String(process.env.NEXT_PUBLIC_API_URL || "http://localhost:3333/api").replace(/\/+$/, "");
       const res = await apiFetch(`${base}/pedidos-publicos?${query}`, { cache: "no-store" });
       const data = await res.json().catch(() => []);
       if (!res.ok) throw new Error(data?.message || "Erro ao carregar pedidos pendentes.");
-      setPedidosPendentesCliente(data || []);
+      const telefoneReferencia = telefonePedidosImportados.replace(/\D/g, "").slice(-11);
+      setPedidosPendentesCliente(
+        telefoneReferencia
+          ? (data || []).filter((pedido: any) => String(pedido.telefone || "").replace(/\D/g, "").slice(-11) === telefoneReferencia)
+          : data || [],
+      );
     } catch (e: any) {
       toast.error("Não foi possível carregar os pedidos", { description: e?.message });
       setPedidosPendentesCliente([]);
@@ -2222,31 +2307,81 @@ export function NovoAgendamentoNovoLayout({
     }
   }
 
+  const pedidosPendentesFiltrados = useMemo(() => {
+    const termos = normalizarBusca(buscaImportacao).split(/\s+/).filter(Boolean);
+    if (!termos.length) return pedidosPendentesCliente;
+    return pedidosPendentesCliente.filter((pedido) => {
+      const texto = normalizarBusca([pedido.id, pedido.nome, pedido.telefone, pedido.tamanhoLabel].join(" "));
+      return termos.every((termo) => texto.includes(termo));
+    });
+  }, [buscaImportacao, pedidosPendentesCliente]);
+
   function importarPedidoPublico(pedido: any) {
+    const telefonePedido = String(pedido.telefone || "").replace(/\D/g, "").slice(-11);
+    const telefoneReferencia = telefonePedidosImportados.replace(/\D/g, "").slice(-11);
+    if (telefoneReferencia && telefonePedido !== telefoneReferencia) {
+      toast.error("Pedido de outro cliente", { description: "Importe somente pedidos da mesma pessoa neste agendamento." });
+      return;
+    }
     const personalizada = pedido.itens?.personalizada || {};
     const customizado = String(pedido.tamanhoLabel).toUpperCase() === "PERSONALIZADO";
-    const groupId = `tamanho:${pedido.tamanhoId || pedido.tamanhoLabel}`;
-    const importados: NovoPedidoItem[] = (pedido.itens?.escolhas || []).map((item: any) => ({
-      ...formItem,
-      id: uid(),
-      groupId,
-      tipoItem: customizado ? "PERSONALIZADA" : "PADRAO",
-      destinatarioNome: pedido.nome || clienteSelecionado?.nome || "",
-      tamanhoId: pedido.tamanhoId ? String(pedido.tamanhoId) : "",
-      tamanhoLabel: pedido.tamanhoLabel || "",
-      quantidade: Math.max(1, Number(item.quantidade || 1)),
-      opcaoId: String(item.opcaoId || ""),
-      opcaoNome: item.nome || "",
-      adicionarFeijao: !!item.adicionarFeijao,
-      carboGramas: Number(personalizada.carboGramas || 0),
-      proteinaGramas: Number(personalizada.proteinaGramas || 0),
-      feijaoGramas: Number(personalizada.feijaoGramas || 0),
-      legumeGramas: Number(personalizada.legumeGramas || 0),
-    }));
+    const pesoPersonalizado = customizado
+      ? Number(personalizada.carboGramas || 0) +
+        Number(personalizada.proteinaGramas || 0) +
+        Number(personalizada.feijaoGramas || 0) +
+        Number(personalizada.legumeGramas || 0) +
+        Number(personalizada.complementoGramas || 0)
+      : 0;
+    const tamanhoPersonalizado = customizado
+      ? tamanhos.find((tamanho) => parseInt(tamanho.nome, 10) === pesoPersonalizado)
+      : undefined;
+    const groupId = `tamanho:${customizado ? pesoPersonalizado : pedido.tamanhoId || pedido.tamanhoLabel}`;
+    const importados: NovoPedidoItem[] = (pedido.itens?.escolhas || []).map((item: any) => {
+      const opcao = opcoesPadrao.find((opcaoAtual) => String(opcaoAtual.id) === String(item.opcaoId));
+      const componente = (tipo: "CARBOIDRATO" | "PROTEINA" | "LEGUMES" | "FEIJAO" | "COMPLEMENTO") =>
+        opcao?.preparos?.find((preparo) => preparo.tipo === tipo);
+      const carbo = componente("CARBOIDRATO");
+      const proteina = componente("PROTEINA");
+      const legume = componente("LEGUMES");
+      const feijao = componente("FEIJAO");
+      const complemento = componente("COMPLEMENTO");
+
+      return {
+        ...formItem,
+        id: uid(),
+        groupId,
+        tipoItem: customizado ? "PERSONALIZADA" : "PADRAO",
+        destinatarioNome: pedido.nome || clienteSelecionado?.nome || "",
+        tamanhoId: customizado ? tamanhoPersonalizado?.id || "" : pedido.tamanhoId ? String(pedido.tamanhoId) : "",
+        tamanhoLabel: customizado && pesoPersonalizado > 0 ? `${pesoPersonalizado}g` : pedido.tamanhoLabel || "",
+        quantidade: Math.max(1, Number(item.quantidade || 1)),
+        opcaoId: String(item.opcaoId || ""),
+        opcaoNome: item.nome || opcao?.nome || "",
+        adicionarFeijao: !!item.adicionarFeijao,
+        carboId: customizado ? carbo?.preparoId || "" : formItem.carboId,
+        carboNome: customizado ? carbo?.nome || "" : formItem.carboNome,
+        proteinaId: customizado ? proteina?.preparoId || "" : formItem.proteinaId,
+        proteinaNome: customizado ? proteina?.nome || "" : formItem.proteinaNome,
+        legumeId: customizado ? legume?.preparoId || "" : formItem.legumeId,
+        legumeNome: customizado ? legume?.nome || "" : formItem.legumeNome,
+        feijaoId: customizado && Number(personalizada.feijaoGramas || 0) > 0 ? feijao?.preparoId || "" : "",
+        feijaoNome: customizado && Number(personalizada.feijaoGramas || 0) > 0 ? feijao?.nome || "" : "",
+        complementoId: customizado ? complemento?.preparoId || "" : formItem.complementoId,
+        complementoNome: customizado ? complemento?.nome || "" : formItem.complementoNome,
+        carboGramas: Number(personalizada.carboGramas || 0),
+        proteinaGramas: Number(personalizada.proteinaGramas || 0),
+        feijaoGramas: Number(personalizada.feijaoGramas || 0),
+        legumeGramas: Number(personalizada.legumeGramas || 0),
+        complementoGramas: Number(personalizada.complementoGramas || 0),
+      };
+    });
     setItens((prev) => [...prev, ...importados]);
-    setPedidoPublicoId(Number(pedido.id));
+    setPedidosPublicosIds((prev) => Array.from(new Set([...prev, Number(pedido.id)])));
+    setTelefonePedidosImportados(telefonePedido);
+    setDadosClientePedidoImportado({ nome: String(pedido.nome || ""), telefone: String(pedido.telefone || "") });
+    setPedidosPendentesCliente((prev) => prev.filter((item) => String(item.telefone || "").replace(/\D/g, "").slice(-11) === telefonePedido));
+    if (!clienteId && pedido.cliente?.id) setClienteId(String(pedido.cliente.id));
     setObservacoesPedido((prev) => [prev, pedido.observacoes, `Pedido público #${pedido.id} importado.`].filter(Boolean).join("\n"));
-    setImportarPedidoOpen(false);
     toast.success("Pedido importado", { description: `${importados.length} item(ns) adicionados ao agendamento.` });
   }
 
@@ -2378,6 +2513,18 @@ export function NovoAgendamentoNovoLayout({
                         <span className="sr-only">{clienteSelecionado ? "Editar cliente" : "Cadastrar cliente"}</span>
                       </Button>
                     </div>
+                    {!initialData ? (
+                      <Button
+                        type="button"
+                        className="mt-2 w-full bg-blue-600 text-white hover:bg-blue-700"
+                        onClick={() => void abrirImportacaoPedido()}
+                      >
+                        <Package className="mr-2 h-4 w-4" />
+                        {pedidosPublicosIds.length
+                          ? `Importar mais pedidos})`
+                          : "Importar pedidos"}
+                      </Button>
+                    ) : null}
                   </div>
 
                   {checandoDuplicidade && clienteId && data && !initialData && (
@@ -2424,13 +2571,6 @@ export function NovoAgendamentoNovoLayout({
                             </Button>
                           </Link>
                         </div>
-                        {!initialData ? (
-                          <Button type="button" variant="outline" size="sm" className="w-full" onClick={() => void abrirImportacaoPedido()} disabled={!!pedidoPublicoId}>
-                            <Package className="mr-2 h-4 w-4" />
-                            {pedidoPublicoId ? `Pedido #${pedidoPublicoId} importado` : "Importar pedido pendente"}
-                          </Button>
-                        ) : null}
-
                         {clienteSelecionado.planos && clienteSelecionado.planos.length > 0 && (
                           <div className="flex flex-col gap-1 mt-1">
                             {clienteSelecionado.planos.map((plano: any) => {
@@ -3745,7 +3885,7 @@ export function NovoAgendamentoNovoLayout({
                                 size="icon"
                                 variant="outline"
                                 className="h-7 w-7"
-                                disabled={!!formItem.id || quantidade === 0}
+                                disabled={quantidade === 0}
                                 onClick={() => ajustarQuantidadeMarmitaCatalogo(opcao, -1)}
                               >
                                 <Minus className="h-4 w-4" />
@@ -3755,7 +3895,6 @@ export function NovoAgendamentoNovoLayout({
                                 type="button"
                                 size="icon"
                                 className="h-7 w-7 bg-emerald-600 text-white hover:bg-emerald-700"
-                                disabled={!!formItem.id}
                                 onClick={() => ajustarQuantidadeMarmitaCatalogo(opcao, 1)}
                               >
                                 <Plus className="h-4 w-4" />
@@ -3779,6 +3918,87 @@ export function NovoAgendamentoNovoLayout({
                   </div>
                 ) : (
                   <div className="space-y-4">
+                    <div className="space-y-4 rounded-2xl border border-emerald-100 bg-emerald-50/30 p-4">
+                      <div>
+                        <Label className="text-base font-bold text-slate-800">Escolha a marmita do cardápio</Label>
+                        <p className="text-xs text-muted-foreground">
+                          Os ingredientes vêm da marmita escolhida. Na personalizada, você altera somente as gramaturas.
+                        </p>
+                      </div>
+
+                      <div className="relative">
+                        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                        <Input
+                          value={buscaMarmita}
+                          onChange={(event) => setBuscaMarmita(event.target.value)}
+                          placeholder="Buscar marmita por nome. Ex.: arroz integral frango"
+                          className="h-11 bg-white pl-10"
+                        />
+                      </div>
+
+                      <div className="flex flex-wrap gap-1.5">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant={categoriaCatalogo === "TODAS" ? "default" : "outline"}
+                          className="h-7 rounded-full px-3 text-xs"
+                          onClick={() => setCategoriaCatalogo("TODAS")}
+                        >
+                          Todas categorias
+                        </Button>
+                        {categoriasCatalogo.map((categoria) => (
+                          <Button
+                            key={categoria.value}
+                            type="button"
+                            size="sm"
+                            variant={categoriaCatalogo === categoria.value ? "default" : "outline"}
+                            className="h-7 rounded-full px-3 text-xs"
+                            onClick={() => setCategoriaCatalogo(categoria.value)}
+                          >
+                            {categoria.label}
+                          </Button>
+                        ))}
+                      </div>
+
+                      <div className="max-h-[260px] space-y-1 overflow-y-auto pr-1 custom-scrollbar">
+                        {opcoesPersonalizadasFiltradas.map((opcao) => {
+                          const selecionada = String(formItem.opcaoId || "") === String(opcao.id);
+                          return (
+                            <button
+                              key={opcao.id}
+                              type="button"
+                              onClick={() => selecionarOpcaoPersonalizada(opcao)}
+                              className={cn(
+                                "flex w-full items-center justify-between rounded-lg border bg-white px-3 py-3 text-left transition-colors",
+                                selecionada
+                                  ? "border-emerald-500 bg-emerald-50 ring-1 ring-emerald-300"
+                                  : "border-slate-200 hover:border-emerald-300",
+                              )}
+                            >
+                              <div>
+                                <div className="text-sm font-semibold text-slate-800">{opcao.nome}</div>
+                                <div className="text-[10px] text-muted-foreground">
+                                  {selecionada ? "Marmita selecionada" : "Clique para usar esta composição"}
+                                </div>
+                              </div>
+                              {selecionada ? <Check className="h-5 w-5 text-emerald-600" /> : <Plus className="h-4 w-4 text-emerald-600" />}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {formItem.opcaoId ? (
+                      <div className="rounded-xl border bg-slate-50 px-4 py-3">
+                        <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Marmita selecionada</div>
+                        <div className="mt-1 font-bold text-primary">{formItem.opcaoNome}</div>
+                      </div>
+                    ) : (
+                      <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                        Selecione uma marmita acima para liberar as gramaturas.
+                      </div>
+                    )}
+
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       {renderIngredientePersonalizada({
                         label: "Carboidrato",
@@ -4235,19 +4455,33 @@ export function NovoAgendamentoNovoLayout({
       </Dialog>
 
       <Dialog open={importarPedidoOpen} onOpenChange={setImportarPedidoOpen}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="flex max-h-[85vh] max-w-2xl flex-col overflow-hidden p-0">
+          <div className="shrink-0 border-b px-6 pb-4 pt-6">
           <DialogHeader><DialogTitle>Importar pedido pendente</DialogTitle></DialogHeader>
+            <div className="relative mt-4">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={buscaImportacao}
+                onChange={(event) => setBuscaImportacao(event.target.value)}
+                placeholder="Pesquisar por nome, telefone ou nº do pedido"
+                className="pl-9"
+              />
+            </div>
+          </div>
           {carregandoPedidosPendentes ? <p className="py-8 text-center text-muted-foreground">Carregando pedidos...</p> : null}
           {!carregandoPedidosPendentes && pedidosPendentesCliente.length === 0 ? <p className="rounded-lg border border-dashed p-6 text-center text-muted-foreground">Este cliente não possui pedidos pendentes.</p> : null}
-          <div className="space-y-2">
-            {pedidosPendentesCliente.map((pedido) => (
-              <button key={pedido.id} type="button" onClick={() => importarPedidoPublico(pedido)} className="flex w-full items-center justify-between rounded-lg border p-3 text-left hover:border-emerald-400 hover:bg-emerald-50">
-                <div><p className="font-bold">Pedido #{pedido.id} · {pedido.tamanhoLabel}</p><p className="text-sm text-muted-foreground">{new Date(pedido.createdAt).toLocaleString("pt-BR")}</p></div>
-                <Badge>{(pedido.itens?.escolhas || []).reduce((acc: number, item: any) => acc + Number(item.quantidade || 0), 0)} marmitas</Badge>
+          {!carregandoPedidosPendentes && pedidosPendentesCliente.length > 0 && pedidosPendentesFiltrados.length === 0 ? <p className="m-6 rounded-lg border border-dashed p-6 text-center text-muted-foreground">Nenhum pedido encontrado para essa busca.</p> : null}
+          <div className="min-h-0 flex-1 space-y-2 overflow-y-auto px-6 py-4">
+            {pedidosPendentesFiltrados.map((pedido) => {
+              const importado = pedidosPublicosIds.includes(Number(pedido.id));
+              return (
+              <button key={pedido.id} type="button" disabled={importado} onClick={() => importarPedidoPublico(pedido)} className={cn("flex w-full items-center justify-between rounded-lg border p-3 text-left hover:border-emerald-400 hover:bg-emerald-50", importado && "border-emerald-300 bg-emerald-50 opacity-70")}>
+                <div className="min-w-0"><p className="font-bold">Pedido #{pedido.id} · {pedido.tamanhoLabel}</p><p className="truncate text-sm font-medium">{pedido.nome || "Sem nome"} · {pedido.telefone || "Sem telefone"}</p><p className="text-xs text-muted-foreground">{new Date(pedido.createdAt).toLocaleString("pt-BR")}</p></div>
+                <Badge>{importado ? "Importado" : `${(pedido.itens?.escolhas || []).reduce((acc: number, item: any) => acc + Number(item.quantidade || 0), 0)} marmitas`}</Badge>
               </button>
-            ))}
+            )})}
           </div>
-          <p className="text-xs text-muted-foreground">É possível importar um pedido por vez. Ele sairá dos pendentes após salvar o agendamento.</p>
+          <div className="shrink-0 border-t bg-slate-50 px-6 py-3"><p className="text-xs text-muted-foreground">Você pode importar vários pedidos. Todos sairão dos pendentes após salvar o agendamento.</p></div>
         </DialogContent>
       </Dialog>
 
