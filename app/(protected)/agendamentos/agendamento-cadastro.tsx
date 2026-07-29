@@ -63,6 +63,7 @@ import { toast } from "sonner";
 import { useAgendamentos } from "@/hooks/useAgendamentos";
 import { PlanoCatalogo, usePlanosCliente } from "@/hooks/usePlanosCliente";
 import { ClienteFormDialog } from "@/components/clientes/ClienteFormDialog";
+import { apiFetch } from "@/hooks/api";
 
 type PedidoTipo = "NAO_DEFINIR" | "ENTREGA" | "RETIRADA" | "CONGELAR";
 type CongelarSubtipo = "ENTREGA" | "RETIRADA";
@@ -423,6 +424,10 @@ export function NovoAgendamentoNovoLayout({
   const [avisoHorarioAutomatico, setAvisoHorarioAutomatico] = useState("");
   const [avisoPagamentoAutomatico, setAvisoPagamentoAutomatico] = useState("");
   const [clienteDialogOpen, setClienteDialogOpen] = useState(false);
+  const [importarPedidoOpen, setImportarPedidoOpen] = useState(false);
+  const [pedidosPendentesCliente, setPedidosPendentesCliente] = useState<any[]>([]);
+  const [carregandoPedidosPendentes, setCarregandoPedidosPendentes] = useState(false);
+  const [pedidoPublicoId, setPedidoPublicoId] = useState<number | null>(null);
   const [agendamentoDuplicado, setAgendamentoDuplicado] = useState<any | null>(null);
   const [checandoDuplicidade, setChecandoDuplicidade] = useState(false);
   const [incluirTaxaEntrega, setIncluirTaxaEntrega] = useState(true);
@@ -613,6 +618,7 @@ export function NovoAgendamentoNovoLayout({
   useEffect(() => {
     if (open && initialData) {
       setClienteId(String(initialData.pedido?.clienteId || initialData.clienteId || ""));
+      setPedidoPublicoId(initialData.pedidoPublicoId ? Number(initialData.pedidoPublicoId) : null);
       setTipo(initialData.tipoEntrega || initialData.tipo || "NAO_DEFINIR");
       setData(initialData.data ? new Date(initialData.data) : getDefaultAgendamentoDate());
       setDataEntregaCongelada(initialData.dataEntregaCongelada ? new Date(initialData.dataEntregaCongelada) : getDefaultAgendamentoDate());
@@ -638,6 +644,7 @@ export function NovoAgendamentoNovoLayout({
       const rawItens = initialData.itens || initialData.pedido?.itens || [];
       const mappedItens: NovoPedidoItem[] = rawItens.map((it: any) => ({
         id: it.id ? String(it.id) : uid(),
+        groupId: `tamanho:${String(it.tamanhoId || it.tamanho?.id || it.tamanhoLabel || it.tamanho?.pesagemGramas || it.tipoItem || "item")}`,
         tipoItem: it.tipoItem || (it.congeladaId || it.congelada ? "CONGELADA" : it.salgadoId || it.salgado ? "SALGADO" : it.opcaoId || it.opcao ? "PADRAO" : "PERSONALIZADA"),
         destinatarioNome: it.destinatarioNome || "",
         tamanhoId: String(it.tamanhoId || ""),
@@ -1041,13 +1048,13 @@ export function NovoAgendamentoNovoLayout({
       if (!tamanho) return item;
 
       const precoFaixa = getPrecoUnitPorQuantidade(tamanho, totalMarmitas || 1);
-      const adicionalTrocas = item.tipoItem === "PADRAO" ? contarTrocasItem(item) * 2 : 0;
+      const adicionalTrocas = item.tipoItem === "PADRAO" ? getAdicionaisUnitarios(item) : 0;
 
       return {
         ...item,
         precoUnit:
           item.tipoItem === "PERSONALIZADA"
-            ? item.precoUnit
+            ? calcularPrecoPersonalizada(item)
             : Number(precoFaixa || 0) + adicionalTrocas,
       };
     });
@@ -1057,7 +1064,7 @@ export function NovoAgendamentoNovoLayout({
     return itensComPrecoBruto.map((item) => {
       if (!item.usarPlano) return item;
       if (!canUsePlanoForItem(item)) return item;
-      return { ...item, precoUnit: item.tipoItem === "PADRAO" ? contarTrocasItem(item) * 2 : 0 };
+      return { ...item, precoUnit: item.tipoItem === "PADRAO" ? getAdicionaisUnitarios(item) : 0 };
     });
   }, [itensComPrecoBruto, clienteSelecionado]);
 
@@ -1158,6 +1165,7 @@ export function NovoAgendamentoNovoLayout({
     setAvisoHorarioAutomatico("");
     setAvisoPagamentoAutomatico("");
     setItens([]);
+    setPedidoPublicoId(null);
     setPlanosComprados([]);
     setIncluirTaxaEntrega(true);
     resetFormItem();
@@ -1286,37 +1294,7 @@ export function NovoAgendamentoNovoLayout({
 
   useEffect(() => {
     if (formItem.tipoItem !== "PERSONALIZADA") return;
-
-    const proteina = Number(formItem.proteinaGramas || 0);
-    const total = totalGramasPersonalizada;
-
-    const regrasProteina = regras.filter((r) => r.tipo === "PROTEINA").sort((a, b) => a.limite - b.limite);
-    const regrasTotal = regras.filter((r) => r.tipo === "PESO_TOTAL").sort((a, b) => a.limite - b.limite);
-
-    let precoProteina = regrasProteina.length > 0 ? regrasProteina[regrasProteina.length - 1].preco : 0;
-    for (const r of regrasProteina) {
-      if (proteina <= r.limite) {
-        precoProteina = r.preco;
-        break;
-      }
-    }
-
-    let precoTotal = regrasTotal.length > 0 ? regrasTotal[regrasTotal.length - 1].preco : 0;
-    for (const r of regrasTotal) {
-      if (total <= r.limite) {
-        precoTotal = r.preco;
-        break;
-      }
-    }
-
-    let finalPrice = Math.max(precoProteina, precoTotal);
-
-    // Ajuste por quantidade de ingredientes
-    const tiposCount = [formItem.carboId, formItem.proteinaId, formItem.legumeId, formItem.feijaoId, formItem.complementoId].filter(id => !!id).length;
-    const regraAjuste = regras.find(r => r.tipo === "QUANTIDADE_INGREDIENTES" && Number(r.limite) === tiposCount);
-    const ajuste = regraAjuste ? Number(regraAjuste.preco) : 0;
-    
-    finalPrice += ajuste;
+    const finalPrice = calcularPrecoPersonalizada(formItem);
 
     setFormItem((prev) => {
       if (prev.precoUnit === finalPrice) return prev;
@@ -1355,6 +1333,8 @@ export function NovoAgendamentoNovoLayout({
     setFormItem((prev) => ({
       ...prev,
       destinatarioNome: getDestinatarioItem(itemReferencia),
+      tamanhoId: itemReferencia.tamanhoId || "",
+      tamanhoLabel: itemReferencia.tamanhoLabel || "",
     }));
     setModalEscolhaPedidoOpen(true);
   }
@@ -1366,6 +1346,9 @@ export function NovoAgendamentoNovoLayout({
       });
       return;
     }
+    const referencia = itensDoGrupoAtual[0];
+    const tamanhoHerdadoId = referencia?.tamanhoId || "";
+    const tamanhoHerdadoLabel = referencia?.tamanhoLabel || "";
     resetFormItem();
     setBuscaMarmita("");
     setFiltroCatalogo("TODAS");
@@ -1373,6 +1356,8 @@ export function NovoAgendamentoNovoLayout({
     setFormItem((prev) => ({
       ...prev,
       tipoItem: "PADRAO",
+      tamanhoId: tamanhoHerdadoId,
+      tamanhoLabel: tamanhoHerdadoLabel,
       destinatarioNome: itensDoGrupoAtual[0]
         ? getDestinatarioItem(itensDoGrupoAtual[0])
         : clienteSelecionado?.nome || "",
@@ -1540,6 +1525,24 @@ export function NovoAgendamentoNovoLayout({
     ].filter(Boolean).length;
   }
 
+  function getAdicionaisUnitarios(item: NovoPedidoItem) {
+    return contarTrocasItem(item) * 2 + (item.adicionarFeijao ? 2 : 0);
+  }
+
+  function calcularPrecoPersonalizada(item: NovoPedidoItem) {
+    const proteina = Number(item.proteinaGramas || 0);
+    const total = getPesoPersonalizadoItem(item);
+    const regrasProteina = regras.filter((r) => r.tipo === "PROTEINA").sort((a, b) => Number(a.limite) - Number(b.limite));
+    const regrasTotal = regras.filter((r) => r.tipo === "PESO_TOTAL").sort((a, b) => Number(a.limite) - Number(b.limite));
+    const precoFaixa = (faixas: typeof regrasProteina, valor: number) => {
+      if (!faixas.length) return 0;
+      return Number((faixas.find((r) => valor <= Number(r.limite)) || faixas[faixas.length - 1]).preco);
+    };
+    const tiposCount = [item.carboId, item.proteinaId, item.legumeId, item.feijaoId, item.complementoId].filter(Boolean).length;
+    const regraAjuste = regras.find((r) => r.tipo === "QUANTIDADE_INGREDIENTES" && Number(r.limite) === tiposCount);
+    return Math.max(precoFaixa(regrasProteina, proteina), precoFaixa(regrasTotal, total)) + Number(regraAjuste?.preco || 0);
+  }
+
   function itemTemTroca(item: NovoPedidoItem) {
     return contarTrocasItem(item) > 0 || !!item.zerarLegume || !!item.adicionarFeijao;
   }
@@ -1612,7 +1615,11 @@ export function NovoAgendamentoNovoLayout({
       <div className="grid grid-cols-[minmax(0,1fr)_120px] gap-3">
         <div className="space-y-2">
           <Label>{label}</Label>
-          <Popover>
+          {formItem.id && formItem.tipoItem === "PERSONALIZADA" ? (
+            <div className="flex h-11 items-center rounded-md border bg-slate-50 px-3 text-sm font-medium">
+              {selectedName || (optional ? "Não utilizado" : "Ingrediente não informado")}
+            </div>
+          ) : <Popover>
             <PopoverTrigger asChild>
               <Button
                 type="button"
@@ -1657,7 +1664,7 @@ export function NovoAgendamentoNovoLayout({
                 </CommandList>
               </Command>
             </PopoverContent>
-          </Popover>
+          </Popover>}
         </div>
 
         <div className="space-y-2">
@@ -1811,17 +1818,15 @@ export function NovoAgendamentoNovoLayout({
         getPrecoUnitPorQuantidade(tamanho, totalMarmitas + (isEdit ? 0 : formItem.quantidade))
       );
 
-      let qtdTrocas = 0;
-      if (formItem.trocaCarboId) qtdTrocas++;
-      if (formItem.trocaProteinaId) qtdTrocas++;
-      if (formItem.trocaLegumeId && !formItem.zerarLegume) qtdTrocas++;
-
-      precoUnit += qtdTrocas * 2;
+      precoUnit += getAdicionaisUnitarios(formItem);
 
       const novo: NovoPedidoItem = {
         ...formItem,
         id: isEdit ? formItem.id : uid(),
-        groupId: currentGroupId,
+        groupId: itens.find((item) =>
+          (item.tipoItem === "PADRAO" || item.tipoItem === "PERSONALIZADA") &&
+          ((item.tamanhoId && item.tamanhoId === formItem.tamanhoId) || item.tamanhoLabel === tamanho.nome)
+        )?.groupId || currentGroupId,
         tamanhoLabel: tamanho.nome,
         precoUnit,
       };
@@ -1862,7 +1867,10 @@ export function NovoAgendamentoNovoLayout({
       const novo: NovoPedidoItem = {
         ...formItem,
         id: isEdit ? formItem.id : uid(),
-        groupId: currentGroupId,
+        groupId: itens.find((item) =>
+          (item.tipoItem === "PADRAO" || item.tipoItem === "PERSONALIZADA") &&
+          item.tamanhoLabel === `${totalGramasPersonalizada}g`
+        )?.groupId || currentGroupId,
         // Tenta encontrar um ID de tamanho que combine com a gramagem da personalizada
         tamanhoId: tamanhos.find(t => parseInt(t.nome) === totalGramasPersonalizada)?.id || "",
         tamanhoLabel: `${totalGramasPersonalizada}g`,
@@ -2162,6 +2170,7 @@ export function NovoAgendamentoNovoLayout({
     }
 
     const payload: any = {
+      pedidoPublicoId,
       clienteId,
       tipo,
       data: data instanceof Date ? data.toISOString() : data,
@@ -2192,6 +2201,53 @@ export function NovoAgendamentoNovoLayout({
     await onSubmit?.(payload);
     onOpenChange(false);
     resetForm();
+  }
+
+  async function abrirImportacaoPedido() {
+    if (!clienteSelecionado) return;
+    setImportarPedidoOpen(true);
+    setCarregandoPedidosPendentes(true);
+    try {
+      const query = new URLSearchParams({ status: "PENDENTE", clienteId: String(clienteSelecionado.id) });
+      const base = String(process.env.NEXT_PUBLIC_API_URL || "http://localhost:3333/api").replace(/\/+$/, "");
+      const res = await apiFetch(`${base}/pedidos-publicos?${query}`, { cache: "no-store" });
+      const data = await res.json().catch(() => []);
+      if (!res.ok) throw new Error(data?.message || "Erro ao carregar pedidos pendentes.");
+      setPedidosPendentesCliente(data || []);
+    } catch (e: any) {
+      toast.error("Não foi possível carregar os pedidos", { description: e?.message });
+      setPedidosPendentesCliente([]);
+    } finally {
+      setCarregandoPedidosPendentes(false);
+    }
+  }
+
+  function importarPedidoPublico(pedido: any) {
+    const personalizada = pedido.itens?.personalizada || {};
+    const customizado = String(pedido.tamanhoLabel).toUpperCase() === "PERSONALIZADO";
+    const groupId = `tamanho:${pedido.tamanhoId || pedido.tamanhoLabel}`;
+    const importados: NovoPedidoItem[] = (pedido.itens?.escolhas || []).map((item: any) => ({
+      ...formItem,
+      id: uid(),
+      groupId,
+      tipoItem: customizado ? "PERSONALIZADA" : "PADRAO",
+      destinatarioNome: pedido.nome || clienteSelecionado?.nome || "",
+      tamanhoId: pedido.tamanhoId ? String(pedido.tamanhoId) : "",
+      tamanhoLabel: pedido.tamanhoLabel || "",
+      quantidade: Math.max(1, Number(item.quantidade || 1)),
+      opcaoId: String(item.opcaoId || ""),
+      opcaoNome: item.nome || "",
+      adicionarFeijao: !!item.adicionarFeijao,
+      carboGramas: Number(personalizada.carboGramas || 0),
+      proteinaGramas: Number(personalizada.proteinaGramas || 0),
+      feijaoGramas: Number(personalizada.feijaoGramas || 0),
+      legumeGramas: Number(personalizada.legumeGramas || 0),
+    }));
+    setItens((prev) => [...prev, ...importados]);
+    setPedidoPublicoId(Number(pedido.id));
+    setObservacoesPedido((prev) => [prev, pedido.observacoes, `Pedido público #${pedido.id} importado.`].filter(Boolean).join("\n"));
+    setImportarPedidoOpen(false);
+    toast.success("Pedido importado", { description: `${importados.length} item(ns) adicionados ao agendamento.` });
   }
 
   const podeAdicionarPlano =
@@ -2368,6 +2424,12 @@ export function NovoAgendamentoNovoLayout({
                             </Button>
                           </Link>
                         </div>
+                        {!initialData ? (
+                          <Button type="button" variant="outline" size="sm" className="w-full" onClick={() => void abrirImportacaoPedido()} disabled={!!pedidoPublicoId}>
+                            <Package className="mr-2 h-4 w-4" />
+                            {pedidoPublicoId ? `Pedido #${pedidoPublicoId} importado` : "Importar pedido pendente"}
+                          </Button>
+                        ) : null}
 
                         {clienteSelecionado.planos && clienteSelecionado.planos.length > 0 && (
                           <div className="flex flex-col gap-1 mt-1">
@@ -2499,7 +2561,8 @@ export function NovoAgendamentoNovoLayout({
                         }, {} as Record<string, typeof itensComPrecoFinal>)
                       ).map((grupo, gIdx) => {
                         const totalMarmitasG = grupo.reduce((sum, i) => sum + Number(i.quantidade || 0), 0);
-                        const subtotalG = grupo.reduce((sum, i) => sum + Number(i.precoUnit || 0) * Number(i.quantidade || 0), 0);
+                        // Usa a mesma fonte do resumo lateral, inclusive rateio do desconto por volume.
+                        const subtotalG = Number(resumoPedidos[gIdx]?.subtotal || 0);
                         const itemReferencia = grupo[0];
                         const nomePedido = getDestinatarioItem(itemReferencia);
                         const tamanhoPedido =
@@ -4168,6 +4231,23 @@ export function NovoAgendamentoNovoLayout({
               {formItem.id ? "Salvar substituições" : "Adicionar marmita com substituições"}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={importarPedidoOpen} onOpenChange={setImportarPedidoOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader><DialogTitle>Importar pedido pendente</DialogTitle></DialogHeader>
+          {carregandoPedidosPendentes ? <p className="py-8 text-center text-muted-foreground">Carregando pedidos...</p> : null}
+          {!carregandoPedidosPendentes && pedidosPendentesCliente.length === 0 ? <p className="rounded-lg border border-dashed p-6 text-center text-muted-foreground">Este cliente não possui pedidos pendentes.</p> : null}
+          <div className="space-y-2">
+            {pedidosPendentesCliente.map((pedido) => (
+              <button key={pedido.id} type="button" onClick={() => importarPedidoPublico(pedido)} className="flex w-full items-center justify-between rounded-lg border p-3 text-left hover:border-emerald-400 hover:bg-emerald-50">
+                <div><p className="font-bold">Pedido #{pedido.id} · {pedido.tamanhoLabel}</p><p className="text-sm text-muted-foreground">{new Date(pedido.createdAt).toLocaleString("pt-BR")}</p></div>
+                <Badge>{(pedido.itens?.escolhas || []).reduce((acc: number, item: any) => acc + Number(item.quantidade || 0), 0)} marmitas</Badge>
+              </button>
+            ))}
+          </div>
+          <p className="text-xs text-muted-foreground">É possível importar um pedido por vez. Ele sairá dos pendentes após salvar o agendamento.</p>
         </DialogContent>
       </Dialog>
 

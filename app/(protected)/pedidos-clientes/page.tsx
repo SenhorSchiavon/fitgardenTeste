@@ -2,14 +2,17 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { CalendarPlus, Eye, Phone, RefreshCw, Search, ShoppingBasket, UserRound } from "lucide-react";
+import { CalendarPlus, Eye, Phone, RefreshCw, Search, ShoppingBasket, Trash2, UserPlus } from "lucide-react";
 import { Header } from "@/components/header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { apiFetch } from "@/hooks/api";
+import { ClienteFormDialog } from "@/components/clientes/ClienteFormDialog";
+import { useClientes } from "@/hooks/useClientes";
 
 type Escolha = { opcaoId: number; nome: string; quantidade: number; adicionarFeijao?: boolean };
 type PedidoPublico = {
@@ -22,6 +25,7 @@ type PedidoPublico = {
   observacoes?: string | null;
   status: "PENDENTE" | "AGENDADO" | "DESCARTADO";
   agendamentoId?: number | null;
+  motivoDescarte?: string | null;
   itens: { escolhas?: Escolha[]; personalizada?: Record<string, string> | null };
   cliente?: { id: number; nome: string; telefone: string } | null;
   cardapio: { id: number; nome: string };
@@ -38,6 +42,11 @@ export default function PedidosClientesPage() {
   const [busca, setBusca] = useState("");
   const [loading, setLoading] = useState(true);
   const [erro, setErro] = useState("");
+  const [descartando, setDescartando] = useState<PedidoPublico | null>(null);
+  const [motivoDescarte, setMotivoDescarte] = useState("");
+  const [clienteDialogOpen, setClienteDialogOpen] = useState(false);
+  const [pedidoParaCliente, setPedidoParaCliente] = useState<PedidoPublico | null>(null);
+  const { createCliente, saving: savingCliente } = useClientes();
 
   const carregar = useCallback(async () => {
     setLoading(true);
@@ -92,6 +101,26 @@ export default function PedidosClientesPage() {
     router.push(`/agendamentos?pedidoPublico=${pedido.id}`);
   };
 
+  const descartarPedido = async () => {
+    if (!descartando || !motivoDescarte.trim()) return;
+    const res = await apiFetch(`${apiBase()}/pedidos-publicos/${descartando.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: "DESCARTADO", motivoDescarte: motivoDescarte.trim() }),
+    });
+    const data = await res.json().catch(() => null);
+    if (!res.ok) throw new Error(data?.message || "Não foi possível descartar o pedido.");
+    setDescartando(null);
+    setMotivoDescarte("");
+    setSelecionado(null);
+    await carregar();
+  };
+
+  const abrirCadastroCliente = (pedido: PedidoPublico) => {
+    setPedidoParaCliente(pedido);
+    setClienteDialogOpen(true);
+  };
+
   const resumo = useMemo(() => ({
     pendentes: pedidos.filter((p) => p.status === "PENDENTE").length,
     semCliente: pedidos.filter((p) => !p.cliente).length,
@@ -119,7 +148,7 @@ export default function PedidosClientesPage() {
           {pedidos.map((pedido) => (
             <Card key={pedido.id} className="cursor-pointer transition hover:border-emerald-300 hover:shadow-sm" onClick={() => setSelecionado(pedido)}>
               <CardContent className="grid gap-3 p-4 md:grid-cols-[1fr_180px_180px_auto] md:items-center">
-                <div><div className="flex flex-wrap items-center gap-2"><p className="font-bold">#{pedido.id} · {pedido.nome}</p><Badge variant={pedido.origem === "ALTERNATIVO" ? "secondary" : "default"}>{pedido.origem === "ALTERNATIVO" ? "Alternativo" : "Principal"}</Badge>{!pedido.cliente ? <Badge variant="destructive">Cliente não encontrado</Badge> : <Badge className="bg-emerald-600">{pedido.cliente.nome}</Badge>}</div><p className="mt-1 text-sm text-muted-foreground"><Phone className="mr-1 inline h-3.5 w-3.5" />{pedido.telefone} · {pedido.cardapio.nome}</p></div>
+                <div><div className="flex flex-wrap items-center gap-2"><p className="font-bold">#{pedido.id} · {pedido.nome}</p><Badge variant={pedido.origem === "ALTERNATIVO" ? "secondary" : "default"}>{pedido.origem === "ALTERNATIVO" ? "Alternativo" : "Principal"}</Badge>{pedido.status === "DESCARTADO" ? <Badge variant="destructive">Descartado</Badge> : !pedido.cliente ? <Badge variant="destructive">Cliente não encontrado</Badge> : <Badge className="bg-emerald-600">{pedido.cliente.nome}</Badge>}</div><p className="mt-1 text-sm text-muted-foreground"><Phone className="mr-1 inline h-3.5 w-3.5" />{pedido.telefone} · {pedido.cardapio.nome}</p>{pedido.motivoDescarte ? <p className="mt-1 text-sm font-medium text-red-700">Motivo: {pedido.motivoDescarte}</p> : null}</div>
                 <div className="text-sm"><ShoppingBasket className="mr-1 inline h-4 w-4" /><strong>{totalMarmitas(pedido)}</strong> marmitas · {pedido.tamanhoLabel}</div>
                 <div className="text-sm text-muted-foreground">{new Date(pedido.createdAt).toLocaleString("pt-BR")}</div>
                 <Button size="sm" variant="outline"><Eye className="mr-2 h-4 w-4" />Abrir</Button>
@@ -136,12 +165,43 @@ export default function PedidosClientesPage() {
           <DialogHeader><DialogTitle>Pedido #{selecionado?.id} · {selecionado?.nome}</DialogTitle></DialogHeader>
           {selecionado ? <div className="space-y-4">
             <div className="grid gap-3 rounded-md bg-slate-50 p-4 sm:grid-cols-2"><div><p className="text-xs text-muted-foreground">Telefone</p><p className="font-medium">{selecionado.telefone}</p></div><div><p className="text-xs text-muted-foreground">Cliente no sistema</p><p className="font-medium">{selecionado.cliente?.nome || "Não encontrado — selecione ou cadastre no agendamento"}</p></div></div>
+            {!selecionado.cliente && selecionado.status === "PENDENTE" ? <Button variant="outline" className="w-full" onClick={() => abrirCadastroCliente(selecionado)}><UserPlus className="mr-2 h-4 w-4" />Cadastrar cliente com nome e telefone</Button> : null}
             <div className="divide-y rounded-md border">{(selecionado.itens?.escolhas || []).map((item) => <div key={item.opcaoId} className="flex justify-between p-3"><span>{item.nome}{item.adicionarFeijao ? " + feijão" : ""}</span><strong>{item.quantidade}x</strong></div>)}</div>
             {selecionado.observacoes ? <div><p className="text-xs text-muted-foreground">Observações</p><p className="whitespace-pre-wrap">{selecionado.observacoes}</p></div> : null}
+            {selecionado.motivoDescarte ? <div className="rounded-md border border-red-200 bg-red-50 p-3"><p className="text-xs font-bold uppercase text-red-700">Motivo do descarte</p><p className="mt-1 text-red-900">{selecionado.motivoDescarte}</p></div> : null}
             <Button className="w-full bg-emerald-600 hover:bg-emerald-700" onClick={() => iniciarAgendamento(selecionado)} disabled={selecionado.status !== "PENDENTE"}><CalendarPlus className="mr-2 h-4 w-4" />Levar para o agendamento</Button>
+            {selecionado.status === "PENDENTE" ? <Button variant="destructive" className="w-full" onClick={() => { setDescartando(selecionado); setSelecionado(null); }}><Trash2 className="mr-2 h-4 w-4" />Descartar pedido</Button> : null}
           </div> : null}
         </DialogContent>
       </Dialog>
+
+      <Dialog open={!!descartando} onOpenChange={(open) => { if (!open) { setDescartando(null); setMotivoDescarte(""); } }}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Descartar pedido #{descartando?.id}</DialogTitle></DialogHeader>
+          <Textarea value={motivoDescarte} onChange={(event) => setMotivoDescarte(event.target.value)} placeholder="Informe obrigatoriamente o motivo do descarte" />
+          <Button variant="destructive" disabled={!motivoDescarte.trim()} onClick={() => void descartarPedido()}>Confirmar descarte</Button>
+        </DialogContent>
+      </Dialog>
+
+      <ClienteFormDialog
+        open={clienteDialogOpen}
+        onOpenChange={setClienteDialogOpen}
+        title="Cadastrar cliente do pedido"
+        saving={savingCliente}
+        initialValue={pedidoParaCliente ? { nome: pedidoParaCliente.nome, telefone: pedidoParaCliente.telefone } : null}
+        onSubmit={createCliente}
+        onCreated={async (cliente) => {
+          if (!pedidoParaCliente || !cliente?.id) return;
+          await apiFetch(`${apiBase()}/pedidos-publicos/${pedidoParaCliente.id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ clienteId: Number(cliente.id) }),
+          });
+          setPedidoParaCliente(null);
+          setSelecionado(null);
+          await carregar();
+        }}
+      />
     </div>
   );
 }

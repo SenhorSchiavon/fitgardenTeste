@@ -166,11 +166,25 @@ async function buscarCepPorEnderecoViaCep(input: {
   if (cidade.length < 3) throw new Error("Informe a cidade.");
   if (logradouro.length < 3) throw new Error("Informe a rua com pelo menos 3 letras.");
 
-  const url = `https://viacep.com.br/ws/${encodeURIComponent(uf)}/${encodeURIComponent(cidade)}/${encodeURIComponent(logradouro)}/json/`;
-  const res = await fetch(url, { cache: "no-store" });
-  if (!res.ok) throw new Error("Erro ao consultar ViaCEP.");
-
-  const data = await res.json();
+  const semTipo = logradouro.replace(/^(rua|avenida|av\.?|travessa|alameda|rodovia)\s+/i, "").trim();
+  const palavras = semTipo.split(/\s+/).filter((parte) => parte.length > 2);
+  const consultas = Array.from(new Set([
+    logradouro,
+    semTipo,
+    palavras.slice(-3).join(" "),
+    palavras.slice(0, 3).join(" "),
+  ].filter((valor) => valor.length >= 3)));
+  let data: any[] = [];
+  for (const consulta of consultas) {
+    const url = `https://viacep.com.br/ws/${encodeURIComponent(uf)}/${encodeURIComponent(cidade)}/${encodeURIComponent(consulta)}/json/`;
+    const res = await fetch(url, { cache: "no-store" });
+    if (!res.ok) continue;
+    const resultado = await res.json();
+    if (Array.isArray(resultado) && resultado.length > 0) {
+      data = resultado;
+      break;
+    }
+  }
   if (!Array.isArray(data) || data.length === 0) {
     throw new Error("Nenhum CEP encontrado para esse endereço.");
   }

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { ptBR } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Calendar } from "@/components/ui/calendar";
 import {
@@ -48,7 +49,8 @@ import {
   Send,
   Check,
   MessageCircle,
-  Printer
+  Printer,
+  Search,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -242,6 +244,14 @@ function moneyBr(value: number) {
   });
 }
 
+function normalizarBusca(value: string) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+}
+
 function toast({
   title,
   description,
@@ -302,6 +312,7 @@ export default function Agendamentos() {
     cardapioAtivo?.id,
   );
   const [agendamentos, setAgendamentos] = useState<Agendamento[]>([]);
+  const [buscaAgendamento, setBuscaAgendamento] = useState("");
   const {
     createAgendamento,
     updateAgendamento,
@@ -370,15 +381,29 @@ export default function Agendamentos() {
     });
   }, [planosNaoPagos, selectedDate, utils]);
 
+  const agendamentosFiltrados = useMemo(() => {
+    const termos = normalizarBusca(buscaAgendamento).split(/\s+/).filter(Boolean);
+    if (!termos.length) return agendamentos;
+    return agendamentos.filter((agendamento) => {
+      const texto = normalizarBusca([
+        agendamento.cliente,
+        agendamento.telefone,
+        agendamento.numeroPedido,
+        agendamento.endereco,
+      ].join(" "));
+      return termos.every((termo) => texto.includes(termo));
+    });
+  }, [agendamentos, buscaAgendamento]);
+
   const agendamentosPorRota = useMemo(() => {
     const grupos = ROTAS_ENTREGA.map((rota) => ({
       ...rota,
       agendamentos: ordenarAgendamentosRota(
-        agendamentos.filter((agendamento) => getRotaAgendamento(agendamento)?.id === rota.id),
+        agendamentosFiltrados.filter((agendamento) => getRotaAgendamento(agendamento)?.id === rota.id),
       ),
     })).filter((grupo) => grupo.agendamentos.length > 0);
     const semRota = ordenarAgendamentosRota(
-      agendamentos.filter((agendamento) => agendamento.tipoEntrega !== "CONGELAR" && !getRotaAgendamento(agendamento)),
+      agendamentosFiltrados.filter((agendamento) => agendamento.tipoEntrega !== "CONGELAR" && !getRotaAgendamento(agendamento)),
     );
     if (semRota.length > 0) {
       grupos.push({
@@ -392,7 +417,7 @@ export default function Agendamentos() {
       });
     }
     return grupos;
-  }, [agendamentos]);
+  }, [agendamentosFiltrados]);
 
   const totalMarmitasAgendadas = useMemo(() => {
     return agendamentos.reduce((total, agendamento) => {
@@ -430,19 +455,19 @@ export default function Agendamentos() {
     const linhas = [
       `🔔 Pedido Confirmado ${agendamento.numeroPedido}`,
       "",
-      `Cliente: ${agendamento.cliente.toUpperCase()}`,
-      `Telefone: ${agendamento.telefone}`,
-      `Tipo: ${getLabelTipoEntrega(agendamento.tipoEntrega).toUpperCase()}`,
-      agendamento.tipoEntrega === "ENTREGA" ? `Endereço: ${agendamento.endereco.toUpperCase()}` : null,
+      `*Cliente:* ${agendamento.cliente.toUpperCase()}`,
+      `*Telefone:* ${agendamento.telefone}`,
+      `*Tipo:* ${getLabelTipoEntrega(agendamento.tipoEntrega).toUpperCase()}`,
+      agendamento.tipoEntrega === "ENTREGA" ? `*Endereço:* ${agendamento.endereco.toUpperCase()}` : null,
       "",
-      "Itens",
+      "*Itens:*",
       itens,
       "",
-      `Subtotal: ${moneyBr(agendamento.valorPedido || 0)}`,
-      `Taxa de Entrega: ${moneyBr(agendamento.valorTaxa || 0)}`,
-      `Total: ${moneyBr(agendamento.valorTotalFinal ?? agendamento.valorTotal ?? 0)}`,
+      `*Subtotal:* ${moneyBr(agendamento.valorPedido || 0)}`,
+      `*Taxa de Entrega:* ${moneyBr(agendamento.valorTaxa || 0)}`,
+      `*Total:* ${moneyBr(agendamento.valorTotalFinal ?? agendamento.valorTotal ?? 0)}`,
       "",
-      `Forma de Pagamento: ${getLabelPagamento(agendamento.formaPagamento)}`,
+      `*Forma de Pagamento:* ${getLabelPagamento(agendamento.formaPagamento)}`,
       ...(planos.length
         ? ["", "PLANOS ATIVOS - SALDO RESTANTE:", ...planos.map((plano) => `${plano.saldo} unidades - ${plano.tamanho}`)]
         : []),
@@ -562,7 +587,7 @@ export default function Agendamentos() {
 
     const valores = itens.map((it) => {
       const qtd = Math.max(1, Number(it.quantidade || 1));
-      const adicionalTrocas = it.tipoItem === "PADRAO" ? contarTrocasItem(it) * 2 : 0;
+      const adicionalTrocas = it.tipoItem === "PADRAO" ? contarTrocasItem(it) * 2 + (it.adicionarFeijao ? 2 : 0) : 0;
       if (it.usarPlano) return { tipoItem: it.tipoItem, valor: adicionalTrocas * qtd };
 
       if (it.tipoItem === "PADRAO") {
@@ -1065,12 +1090,21 @@ export default function Agendamentos() {
 
           <TabsContent value="agendamentos" className="mt-0">
         <Card className="shadow-sm border-slate-100 overflow-hidden">
-          <CardHeader className="bg-slate-50/50 py-4 px-6 border-b border-slate-100 flex flex-row items-center justify-between">
+          <CardHeader className="bg-slate-50/50 py-4 px-6 border-b border-slate-100 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <CardTitle className="text-lg font-bold text-slate-700 flex items-center gap-2">
               <CalendarIcon className="h-5 w-5 text-primary" />
               Agendamentos para {formatDate(selectedDate)}
             </CardTitle>
-            <div className="flex items-center gap-2">
+            <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
+              <div className="relative w-full sm:w-64">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <Input
+                  value={buscaAgendamento}
+                  onChange={(event) => setBuscaAgendamento(event.target.value)}
+                  placeholder="Cliente, telefone, nº ou rua"
+                  className="h-9 bg-white pl-9"
+                />
+              </div>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button
@@ -1110,11 +1144,11 @@ export default function Agendamentos() {
           <CardContent className="p-0">
             <ScrollArea className="h-[calc(100vh-320px)]">
               <div className="p-6 space-y-4">
-                {agendamentos.length === 0 ? (
+                {agendamentosFiltrados.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-20 text-slate-400">
                     <CheckCircle2 className="h-12 w-12 mb-4 opacity-20" />
-                    <p className="font-medium">Nenhum agendamento para hoje</p>
-                    <p className="text-sm">Os pedidos aparecerão aqui conforme forem agendados</p>
+                    <p className="font-medium">{buscaAgendamento ? "Nenhum agendamento encontrado" : "Nenhum agendamento para hoje"}</p>
+                    <p className="text-sm">{buscaAgendamento ? "Tente buscar por outro nome, telefone, número ou endereço" : "Os pedidos aparecerão aqui conforme forem agendados"}</p>
                   </div>
                 ) : (
                   agendamentosPorRota.map((grupo) => (
@@ -1855,8 +1889,9 @@ export default function Agendamentos() {
             pedidoCriadoId = Number(criado.pedidoId);
             agendamentoCriadoId = Number(criado.agendamentoId);
 
-            if (dadosEdicao?.pedidoPublicoId) {
-              await apiFetch(`${String(process.env.NEXT_PUBLIC_API_URL || "http://localhost:3333/api").replace(/\/+$/, "")}/pedidos-publicos/${dadosEdicao.pedidoPublicoId}`, {
+            const pedidoPublicoImportadoId = payload.pedidoPublicoId || dadosEdicao?.pedidoPublicoId;
+            if (pedidoPublicoImportadoId) {
+              await apiFetch(`${String(process.env.NEXT_PUBLIC_API_URL || "http://localhost:3333/api").replace(/\/+$/, "")}/pedidos-publicos/${pedidoPublicoImportadoId}`, {
                 method: "PATCH",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
