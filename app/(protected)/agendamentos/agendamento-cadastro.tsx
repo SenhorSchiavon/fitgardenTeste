@@ -50,6 +50,7 @@ import {
   Send,
   Minus,
   Check,
+  ChevronDown,
   ChevronsUpDown,
   Pencil,
   Cookie,
