@@ -294,32 +294,13 @@ type ResultadoEnderecoHere = {
 };
 
 async function buscarEnderecosHere(consulta: string): Promise<ResultadoEnderecoHere[]> {
-  const apiKey = process.env.NEXT_PUBLIC_HERE_API_KEY || "";
-  if (!apiKey) throw new Error("Chave do HERE não configurada.");
   const query = String(consulta || "").trim();
   if (query.length < 3) throw new Error("Informe um CEP ou endereço para localizar.");
-  const qs = new URLSearchParams({ q: query, in: "countryCode:BRA", lang: "pt-BR", limit: "6", apiKey });
-  const res = await fetch(`https://geocode.search.hereapi.com/v1/geocode?${qs.toString()}`, { cache: "no-store" });
+  const qs = new URLSearchParams({ q: query });
+  const res = await apiFetch(`${getApiUrl()}/clientes/buscar/endereco?${qs.toString()}`, { cache: "no-store" });
   const data = await res.json().catch(() => null);
-  if (!res.ok) throw new Error(data?.title || "Não foi possível consultar o HERE.");
-  const resultados = (Array.isArray(data?.items) ? data.items : [])
-    .map((item: any): ResultadoEnderecoHere | null => {
-      const pos = item?.position;
-      const address = item?.address || {};
-      if (!pos || !Number.isFinite(Number(pos.lat)) || !Number.isFinite(Number(pos.lng))) return null;
-      return {
-        id: String(item.id || `${pos.lat},${pos.lng}`),
-        label: String(address.label || item.title || query),
-        cep: onlyDigits(address.postalCode || ""),
-        uf: String(address.stateCode || address.state || "PR").toUpperCase(),
-        cidade: String(address.city || address.county || ""),
-        bairro: String(address.district || address.subdistrict || ""),
-        logradouro: String(address.street || ""),
-        latitude: Number(pos.lat),
-        longitude: Number(pos.lng),
-      };
-    })
-    .filter((item: ResultadoEnderecoHere | null): item is ResultadoEnderecoHere => !!item);
+  if (!res.ok) throw new Error(data?.message || "Não foi possível consultar o HERE.");
+  const resultados = (Array.isArray(data) ? data : []) as ResultadoEnderecoHere[];
   if (!resultados.length) throw new Error("Nenhum endereço encontrado pelo HERE.");
   return resultados;
 }
