@@ -789,8 +789,16 @@ export default function Agendamentos() {
     const valorPendentePagamentos = pagamentos
       .filter((p: any) => p.status === "PENDENTE")
       .reduce((acc: number, p: any) => acc + Number(p.valor || 0), 0);
-    const valorDescontoPagamentos = pagamentos
-      .filter((p: any) => p.forma === "PLANO" && p.status === "CONFIRMADO")
+    const valorPlanoUnidadesRegistrado = pagamentos
+      .filter(
+        (p: any) =>
+          p.forma === "PLANO" &&
+          p.status === "CONFIRMADO" &&
+          Number(p.consumoUnidades || 0) > 0,
+      )
+      .reduce((acc: number, p: any) => acc + Number(p.valor || 0), 0);
+    const valorDescontoVoucher = pagamentos
+      .filter((p: any) => p.forma === "VOUCHER" && p.status === "CONFIRMADO")
       .reduce((acc: number, p: any) => acc + Number(p.valor || 0), 0);
 
     const taxaEntregaAbatidaPlano = pagamentos.some(
@@ -800,12 +808,14 @@ export default function Agendamentos() {
         Number(p.consumoEntregas || 0) > 0,
     );
 
-    // Usamos o maior valor de desconto encontrado para garantir que o plano seja aplicado
-    const valorDescontosApi = row.pedido?.valorDescontos ?? row.valorDescontos;
-    const valorDescontos =
-      valorDescontosApi !== null && valorDescontosApi !== undefined
-        ? Number(valorDescontosApi)
-        : Math.max(valorDescontoItens, valorDescontoPagamentos);
+    // O registro financeiro guarda o custo histórico da unidade do plano. Para o
+    // total devido, porém, um item consumido cobre integralmente seu valor atual.
+    const temItensMarcadosComoPlano = itens.some((it: any) => !!it.usarPlano);
+    const valorItensCobertosPlano = temItensMarcadosComoPlano
+      ? valorDescontoItens
+      : valorPlanoUnidadesRegistrado;
+    const valorEntregaCobertaPlano = taxaEntregaAbatidaPlano ? valorTaxa : 0;
+    const valorDescontos = valorItensCobertosPlano + valorEntregaCobertaPlano;
 
     // O backend já reconcilia o pagamento pendente ao editar o pedido. Esse é o
     // valor efetivamente devido e precisa prevalecer, inclusive quando for zero.
@@ -815,14 +825,16 @@ export default function Agendamentos() {
       valorTotalFinalApi !== undefined &&
       Number.isFinite(Number(valorTotalFinalApi));
     const temPagamentoPendente = pagamentos.some((p: any) => p.status === "PENDENTE");
-    const valorTotalFinal = Math.max(
+    const valorTotalPelaCoberturaAtual = Math.max(
       0,
-      temValorTotalFinalApi
-        ? Number(valorTotalFinalApi)
-        : temPagamentoPendente
-          ? valorPendentePagamentos
-          : valorTotalOriginal - valorDescontos,
+      valorTotalOriginal - valorDescontos - valorDescontoVoucher,
     );
+    const candidatosTotal = [
+      valorTotalPelaCoberturaAtual,
+      ...(temValorTotalFinalApi ? [Number(valorTotalFinalApi)] : []),
+      ...(temPagamentoPendente ? [valorPendentePagamentos] : []),
+    ];
+    const valorTotalFinal = Math.max(0, Math.min(...candidatosTotal));
     const usouPlano =
       itens.some((it: any) => !!it.usarPlano) ||
       pagamentos.some((p: any) => p.forma === "PLANO");
