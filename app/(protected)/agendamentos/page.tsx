@@ -776,7 +776,8 @@ export default function Agendamentos() {
 
     // 1. Calcula desconto baseado nos itens marcados como plano
     const itens = row.pedido?.itens ?? row.itens ?? [];
-    const valorPedido = calcularValorPedidoAtual(itens);
+    const valorPedidoCalculado = calcularValorPedidoAtual(itens);
+    const valorPedido = Number(row.pedido?.valorPedido ?? row.valorPedido ?? valorPedidoCalculado);
     const valorTaxa = Number(row.pedido?.valorTaxa ?? row.valorTaxa ?? 0);
     const valorTotalOriginal = valorPedido + valorTaxa;
     const valorDescontoItens = itens
@@ -800,7 +801,11 @@ export default function Agendamentos() {
     );
 
     // Usamos o maior valor de desconto encontrado para garantir que o plano seja aplicado
-    const valorDescontos = Math.max(valorDescontoItens, valorDescontoPagamentos);
+    const valorDescontosApi = row.pedido?.valorDescontos ?? row.valorDescontos;
+    const valorDescontos =
+      valorDescontosApi !== null && valorDescontosApi !== undefined
+        ? Number(valorDescontosApi)
+        : Math.max(valorDescontoItens, valorDescontoPagamentos);
 
     // O backend já reconcilia o pagamento pendente ao editar o pedido. Esse é o
     // valor efetivamente devido e precisa prevalecer, inclusive quando for zero.

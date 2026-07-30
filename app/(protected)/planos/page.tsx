@@ -187,6 +187,9 @@ export default function PlanosPage() {
     const regrasPeso = regras
       .filter((r) => r.tipo === "PESO_TOTAL")
       .sort((a, b) => Number(a.limite) - Number(b.limite));
+    const regrasQuantidadeIngredientes = regras.filter(
+      (r) => r.tipo === "QUANTIDADE_INGREDIENTES",
+    );
     const regraVolume = regras
       .filter((r) => r.tipo === "VOLUME_TOTAL" && unidadesTotais >= Number(r.limite))
       .sort((a, b) => Number(b.limite) - Number(a.limite))[0];
@@ -211,7 +214,20 @@ export default function PlanosPage() {
       const pesoComponentes = getPesoComponentes(item);
       const peso = pesoComponentes || Math.max(0, Math.floor(toNumber(item.pesoPersonalizadoGramas, 0)));
       const regra = regrasPeso.find((r) => peso <= Number(r.limite)) || regrasPeso[regrasPeso.length - 1];
-      const valorUnitarioBase = peso > 0 && regra ? Number(regra.preco || 0) : 0;
+      const quantidadeIngredientes = [
+        item.carboGramas,
+        item.proteinaGramas,
+        item.legumeGramas,
+        item.feijaoGramas,
+        item.complementoGramas,
+      ].filter((gramas) => toNumber(gramas, 0) > 0).length;
+      const regraQuantidadeIngredientes = regrasQuantidadeIngredientes.find(
+        (r) => Number(r.limite) === quantidadeIngredientes,
+      );
+      const ajusteQuantidadeIngredientes = Number(regraQuantidadeIngredientes?.preco || 0);
+      const valorUnitarioBase = peso > 0 && regra
+        ? Number(regra.preco || 0) + ajusteQuantidadeIngredientes
+        : 0;
       const valorUnitario = Math.max(0, valorUnitarioBase * (1 - descontoVolume));
       return {
         ...item,
