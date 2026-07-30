@@ -1164,8 +1164,14 @@ export function NovoAgendamentoNovoLayout({
   }, [itensComPrecoBruto, clienteSelecionado, initialData]);
 
   const subtotalPedido = useMemo(() => {
-    const totalBrutoMarmitas = itensComPrecoFinal
-      .filter((item) => item.tipoItem === "PADRAO" || item.tipoItem === "PERSONALIZADA")
+    const totalBrutoPadrao = itensComPrecoFinal
+      .filter((item) => item.tipoItem === "PADRAO")
+      .reduce(
+      (acc, item) => acc + Number(item.precoUnit || 0) * Number(item.quantidade || 0),
+      0
+    );
+    const totalBrutoPersonalizadas = itensComPrecoFinal
+      .filter((item) => item.tipoItem === "PERSONALIZADA")
       .reduce(
       (acc, item) => acc + Number(item.precoUnit || 0) * Number(item.quantidade || 0),
       0
@@ -1188,10 +1194,10 @@ export function NovoAgendamentoNovoLayout({
 
     if (regrasVolume.length > 0) {
       const pct = Number(regrasVolume[0].preco);
-      return totalBrutoMarmitas * (1 - pct / 100) + totalBrutoSalgados;
+      return totalBrutoPadrao + totalBrutoPersonalizadas * (1 - pct / 100) + totalBrutoSalgados;
     }
 
-    return totalBrutoMarmitas + totalBrutoSalgados;
+    return totalBrutoPadrao + totalBrutoPersonalizadas + totalBrutoSalgados;
   }, [itensComPrecoFinal, regras]);
 
   const resumoPedidos = useMemo(() => {
@@ -1204,8 +1210,8 @@ export function NovoAgendamentoNovoLayout({
       }, {} as Record<string, typeof itensComPrecoFinal>)
     );
 
-    const totalBrutoMarmitas = itensComPrecoFinal
-      .filter((item) => item.tipoItem === "PADRAO" || item.tipoItem === "PERSONALIZADA")
+    const totalBrutoPersonalizadas = itensComPrecoFinal
+      .filter((item) => item.tipoItem === "PERSONALIZADA")
       .reduce((acc, item) => acc + Number(item.precoUnit || 0) * Number(item.quantidade || 0), 0);
 
     const totalMarmitasResumo = itensComPrecoFinal
@@ -1216,17 +1222,20 @@ export function NovoAgendamentoNovoLayout({
       .filter((r) => r.tipo === "VOLUME_TOTAL" && totalMarmitasResumo >= Number(r.limite))
       .sort((a, b) => Number(b.limite) - Number(a.limite))[0];
 
-    const descontoVolume = regraVolume ? totalBrutoMarmitas * (Number(regraVolume.preco) / 100) : 0;
+    const descontoVolume = regraVolume ? totalBrutoPersonalizadas * (Number(regraVolume.preco) / 100) : 0;
 
     return grupos.map((grupo, index) => {
       const subtotalMarmitas = grupo
         .filter((item) => item.tipoItem === "PADRAO" || item.tipoItem === "PERSONALIZADA")
         .reduce((acc, item) => acc + Number(item.precoUnit || 0) * Number(item.quantidade || 0), 0);
+      const subtotalPersonalizadas = grupo
+        .filter((item) => item.tipoItem === "PERSONALIZADA")
+        .reduce((acc, item) => acc + Number(item.precoUnit || 0) * Number(item.quantidade || 0), 0);
       const subtotalSalgados = grupo
         .filter((item) => item.tipoItem === "SALGADO")
         .reduce((acc, item) => acc + Number(item.precoUnit || 0) * Number(item.quantidade || 0), 0);
       const descontoGrupo =
-        totalBrutoMarmitas > 0 ? descontoVolume * (subtotalMarmitas / totalBrutoMarmitas) : 0;
+        totalBrutoPersonalizadas > 0 ? descontoVolume * (subtotalPersonalizadas / totalBrutoPersonalizadas) : 0;
       const itemReferencia = grupo[0];
 
       return {
