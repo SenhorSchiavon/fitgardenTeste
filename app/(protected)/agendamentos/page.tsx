@@ -858,6 +858,18 @@ export default function Agendamentos() {
           .filter((p: any) => p.forma === "PLANO" && p.planoCliente)
           .reduce((acc: number, p: any) => acc + Number(p.planoCliente.saldoUnidades || 0), 0)
       : null;
+    const pagamentoNaoPlanoRelevante = pagamentos.find(
+      (p: any) =>
+        p.forma !== "PLANO" &&
+        (Number(p.valor || 0) > 0 || (p.status === "CONFIRMADO" && p.forma !== "A_DEFINIR")),
+    );
+    const formaPagamentoExibida =
+      usouPlano && valorTotalFinal <= 0
+        ? "PLANO"
+        : pagamentoNaoPlanoRelevante?.forma ??
+          pagamentos.find((p: any) => p.forma === "PLANO")?.forma ??
+          row.formaPagamento ??
+          "-";
 
     return {
       id: String(row.id),
@@ -872,11 +884,7 @@ export default function Agendamentos() {
       zona: zonaMap[row.regiao] ?? "CENTRO",
       quantidade,
       quantidadeLabel,
-      formaPagamento:
-        pagamentos.find((p: any) => p.forma !== "PLANO")?.forma ??
-        pagamentos[0]?.forma ??
-        row.formaPagamento ??
-        "-",
+      formaPagamento: formaPagamentoExibida,
       voucherCodigo:
         pagamentos.find((p: any) => String(p.voucherCodigo || "").trim())?.voucherCodigo ??
         row.voucherCodigo ??
