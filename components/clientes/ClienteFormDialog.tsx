@@ -281,6 +281,49 @@ async function geocodeNominatimComFallback(fullAddress: string) {
   return await geocodeNominatim(fallback);
 }
 
+type ResultadoEnderecoHere = {
+  id: string;
+  label: string;
+  cep: string;
+  uf: string;
+  cidade: string;
+  bairro: string;
+  logradouro: string;
+  latitude: number;
+  longitude: number;
+};
+
+async function buscarEnderecosHere(consulta: string): Promise<ResultadoEnderecoHere[]> {
+  const apiKey = process.env.NEXT_PUBLIC_HERE_API_KEY || "";
+  if (!apiKey) throw new Error("Chave do HERE não configurada.");
+  const query = String(consulta || "").trim();
+  if (query.length < 3) throw new Error("Informe um CEP ou endereço para localizar.");
+  const qs = new URLSearchParams({ q: query, in: "countryCode:BRA", lang: "pt-BR", limit: "6", apiKey });
+  const res = await fetch(`https://geocode.search.hereapi.com/v1/geocode?${qs.toString()}`, { cache: "no-store" });
+  const data = await res.json().catch(() => null);
+  if (!res.ok) throw new Error(data?.title || "Não foi possível consultar o HERE.");
+  const resultados = (Array.isArray(data?.items) ? data.items : [])
+    .map((item: any): ResultadoEnderecoHere | null => {
+      const pos = item?.position;
+      const address = item?.address || {};
+      if (!pos || !Number.isFinite(Number(pos.lat)) || !Number.isFinite(Number(pos.lng))) return null;
+      return {
+        id: String(item.id || `${pos.lat},${pos.lng}`),
+        label: String(address.label || item.title || query),
+        cep: onlyDigits(address.postalCode || ""),
+        uf: String(address.stateCode || address.state || "PR").toUpperCase(),
+        cidade: String(address.city || address.county || ""),
+        bairro: String(address.district || address.subdistrict || ""),
+        logradouro: String(address.street || ""),
+        latitude: Number(pos.lat),
+        longitude: Number(pos.lng),
+      };
+    })
+    .filter((item: ResultadoEnderecoHere | null): item is ResultadoEnderecoHere => !!item);
+  if (!resultados.length) throw new Error("Nenhum endereço encontrado pelo HERE.");
+  return resultados;
+}
+
 export function ClienteFormDialog({
   open,
   onOpenChange,
@@ -304,6 +347,8 @@ export function ClienteFormDialog({
   const [erroLocalizacaoSecundario, setErroLocalizacaoSecundario] = useState<string | null>(null);
   const [avisoCep, setAvisoCep] = useState<string | null>(null);
   const [avisoCepSecundario, setAvisoCepSecundario] = useState<string | null>(null);
+  const [resultadosHere, setResultadosHere] = useState<ResultadoEnderecoHere[]>([]);
+  const [resultadosHereSecundario, setResultadosHereSecundario] = useState<ResultadoEnderecoHere[]>([]);
   const [novaTag, setNovaTag] = useState("");
 
   const [form, setForm] = useState<ClienteFormValue>({
@@ -373,6 +418,8 @@ export function ClienteFormDialog({
     setTaxaEntregaSecundario(null);
     setAvisoCep(null);
     setAvisoCepSecundario(null);
+    setResultadosHere([]);
+    setResultadosHereSecundario([]);
     setNovaTag("");
 
     setForm((prev) => ({
@@ -481,6 +528,36 @@ export function ClienteFormDialog({
     return [ruaNum, form.secundarioBairro, cidadeUf, form.secundarioCep, "Brasil"].filter(Boolean).join(", ");
   };
 
+  const aplicarResultadoHere = (resultado: ResultadoEnderecoHere) => {
+    setForm((p) => ({
+      ...p,
+      cep: resultado.cep || p.cep,
+      uf: resultado.uf || "PR",
+      cidade: normalizarCidadePermitida(resultado.cidade) || p.cidade,
+      bairro: upper(resultado.bairro || p.bairro),
+      logradouro: upper(resultado.logradouro || p.logradouro),
+      latitude: resultado.latitude,
+      longitude: resultado.longitude,
+    }));
+    setResultadosHere([]);
+    setAvisoCep(`Endereço selecionado pelo HERE: ${resultado.label}`);
+  };
+
+  const aplicarResultadoHereSecundario = (resultado: ResultadoEnderecoHere) => {
+    setForm((p) => ({
+      ...p,
+      secundarioCep: resultado.cep || p.secundarioCep,
+      secundarioUf: resultado.uf || "PR",
+      secundarioCidade: normalizarCidadePermitida(resultado.cidade) || p.secundarioCidade,
+      secundarioBairro: upper(resultado.bairro || p.secundarioBairro),
+      secundarioLogradouro: upper(resultado.logradouro || p.secundarioLogradouro),
+      secundarioLatitude: resultado.latitude,
+      secundarioLongitude: resultado.longitude,
+    }));
+    setResultadosHereSecundario([]);
+    setAvisoCepSecundario(`Endereço selecionado pelo HERE: ${resultado.label}`);
+  };
+
   const handleBuscarCep = async () => {
     setAvisoCep(null);
     setErroLocalizacao(null);
@@ -523,49 +600,11 @@ export function ClienteFormDialog({
     setLocalizando(true);
     try {
       const cepClean = onlyDigits(form.cep || "");
-      const data =
-        cepClean.length === 8
-          ? await buscarCepViaCep(form.cep || "")
-          : await buscarCepPorEnderecoViaCep(form);
-
-      const next = {
-        cep: data.cep,
-        uf: "PR",
-        cidade: normalizarCidadePermitida(data.cidade) || form.cidade,
-        bairro: upper(data.bairro || form.bairro),
-        logradouro: upper(data.logradouro || form.logradouro),
-      };
-
-      // O CEP e os dados do endereço já são válidos mesmo se o serviço de mapa
-      // estiver indisponível. Mantemos o preenchimento e tratamos o mapa à parte.
-      setForm((p) => ({
-        ...p,
-        ...next,
-        latitude: null,
-        longitude: null,
-      }));
-
-      const ruaNum = [next.logradouro, form.numero].filter(Boolean).join(", ");
-      const cidadeUf = [next.cidade, next.uf].filter(Boolean).join(" - ");
-      const endereco = [ruaNum, next.bairro, cidadeUf, next.cep, "Brasil"].filter(Boolean).join(", ");
-      try {
-        const geo = await geocodeNominatimComFallback(endereco);
-        setForm((p) => ({
-          ...p,
-          ...next,
-          latitude: geo.lat,
-          longitude: geo.lon,
-        }));
-      } catch {
-        setAvisoCep("CEP e endereço preenchidos. O mapa não conseguiu localizar esse endereço agora.");
-      }
-      setTaxaEntrega(null);
-      setErroTaxaEntrega(null);
-
-      const totalCeps = "total" in data ? Number(data.total || 0) : 0;
-      if (totalCeps > 1) {
-        setAvisoCep(`Encontrei ${totalCeps} CEPs possíveis e preenchi o mais compatível.`);
-      }
+      const consulta = cepClean.length === 8 ? `CEP ${cepClean}, Brasil` : montarEnderecoCompletoParaGeocode();
+      const resultados = await buscarEnderecosHere(consulta);
+      setResultadosHere(resultados);
+      if (resultados.length === 1) aplicarResultadoHere(resultados[0]);
+      else setAvisoCep(`Encontrei ${resultados.length} opções. Escolha o endereço correto abaixo.`);
     } catch (e: any) {
       setErroLocalizacao(e?.message || "Não foi possível localizar o endereço.");
     } finally {
@@ -622,53 +661,11 @@ export function ClienteFormDialog({
     setLocalizandoSecundario(true);
     try {
       const cepClean = onlyDigits(form.secundarioCep || "");
-      const data =
-        cepClean.length === 8
-          ? await buscarCepViaCep(form.secundarioCep || "")
-          : await buscarCepPorEnderecoViaCep({
-              cep: form.secundarioCep,
-              uf: "PR",
-              cidade: form.secundarioCidade,
-              bairro: form.secundarioBairro,
-              logradouro: form.secundarioLogradouro,
-            });
-
-      const next = {
-        secundarioCep: data.cep,
-        secundarioUf: "PR",
-        secundarioCidade: normalizarCidadePermitida(data.cidade) || form.secundarioCidade,
-        secundarioBairro: upper(data.bairro || form.secundarioBairro),
-        secundarioLogradouro: upper(data.logradouro || form.secundarioLogradouro),
-      };
-
-      setForm((p) => ({
-        ...p,
-        ...next,
-        secundarioLatitude: null,
-        secundarioLongitude: null,
-      }));
-
-      const ruaNum = [next.secundarioLogradouro, form.secundarioNumero].filter(Boolean).join(", ");
-      const cidadeUf = [next.secundarioCidade, next.secundarioUf].filter(Boolean).join(" - ");
-      const endereco = [ruaNum, next.secundarioBairro, cidadeUf, next.secundarioCep, "Brasil"].filter(Boolean).join(", ");
-      try {
-        const geo = await geocodeNominatimComFallback(endereco);
-        setForm((p) => ({
-          ...p,
-          ...next,
-          secundarioLatitude: geo.lat,
-          secundarioLongitude: geo.lon,
-        }));
-      } catch {
-        setAvisoCepSecundario("CEP e endereço preenchidos. O mapa não conseguiu localizar esse endereço agora.");
-      }
-      setTaxaEntregaSecundario(null);
-      setErroTaxaEntregaSecundario(null);
-
-      const totalCeps = "total" in data ? Number(data.total || 0) : 0;
-      if (totalCeps > 1) {
-        setAvisoCepSecundario(`Encontrei ${totalCeps} CEPs possíveis e preenchi o mais compatível.`);
-      }
+      const consulta = cepClean.length === 8 ? `CEP ${cepClean}, Brasil` : montarEnderecoSecundarioCompletoParaGeocode();
+      const resultados = await buscarEnderecosHere(consulta);
+      setResultadosHereSecundario(resultados);
+      if (resultados.length === 1) aplicarResultadoHereSecundario(resultados[0]);
+      else setAvisoCepSecundario(`Encontrei ${resultados.length} opções. Escolha o endereço correto abaixo.`);
     } catch (e: any) {
       setErroLocalizacaoSecundario(e?.message || "Não foi possível localizar o endereço secundário.");
     } finally {
@@ -743,7 +740,7 @@ export function ClienteFormDialog({
       enderecos: [
         {
           principal: true,
-          apelido: temEnderecoPrincipal ? (upper(form.apelidoPrincipal).trim() || "CASA") : null,
+          apelido: temEnderecoPrincipal ? (upper(form.apelidoPrincipal).trim() || "ENDEREÇO 01") : null,
           cep: form.cep?.trim() ? onlyDigits(form.cep) : null,
           uf: "PR",
           cidade: form.cidade?.trim() || null,
@@ -757,7 +754,7 @@ export function ClienteFormDialog({
         ...(temEnderecoSecundario
           ? [{
               principal: false,
-              apelido: upper(form.apelidoSecundario).trim() || "TRABALHO",
+              apelido: upper(form.apelidoSecundario).trim() || "ENDEREÇO 02",
               cep: form.secundarioCep?.trim() ? onlyDigits(form.secundarioCep) : null,
               uf: "PR",
               cidade: form.secundarioCidade?.trim() || null,
@@ -834,7 +831,7 @@ export function ClienteFormDialog({
                 value={form.apelidoPrincipal || ""}
                 onChange={(e) => setForm((p) => ({ ...p, apelidoPrincipal: upper(e.target.value) }))}
                 disabled={saving}
-                placeholder="Casa"
+                placeholder="Endereço 01"
               />
             </div>
 
@@ -875,6 +872,23 @@ export function ClienteFormDialog({
             {avisoCep && (
               <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
                 {avisoCep}
+              </div>
+            )}
+            {resultadosHere.length > 1 && (
+              <div className="space-y-2 rounded-lg border border-blue-200 bg-blue-50/50 p-3">
+                <div className="text-xs font-semibold text-blue-900">Escolha o endereço principal correto:</div>
+                {resultadosHere.map((resultado) => (
+                  <Button
+                    key={resultado.id}
+                    type="button"
+                    variant="outline"
+                    className="h-auto w-full justify-start whitespace-normal bg-white px-3 py-2 text-left text-xs"
+                    onClick={() => aplicarResultadoHere(resultado)}
+                  >
+                    <MapPin className="mr-2 h-4 w-4 shrink-0" />
+                    <span>{resultado.label}{resultado.cep ? ` • CEP ${resultado.cep}` : ""}</span>
+                  </Button>
+                ))}
               </div>
             )}
 
@@ -1002,14 +1016,14 @@ export function ClienteFormDialog({
                 value={form.apelidoSecundario || ""}
                 onChange={(e) => setForm((p) => ({ ...p, apelidoSecundario: upper(e.target.value) }))}
                 disabled={saving}
-                placeholder="Trabalho"
+                placeholder="Endereço 02"
               />
             </div>
 
             <div className="grid grid-cols-3 gap-4 items-end">
               <div className="space-y-2">
                 <Label htmlFor="secundarioCep">CEP</Label>
-                <Input id="secundarioCep" value={form.secundarioCep || ""} onChange={(e) => setForm((p) => ({ ...p, secundarioCep: e.target.value }))} disabled={saving} placeholder="00000-000" />
+                <Input id="secundarioCep" value={form.secundarioCep || ""} onChange={(e) => setForm((p) => ({ ...p, secundarioCep: e.target.value, secundarioLatitude: null, secundarioLongitude: null }))} disabled={saving} placeholder="00000-000" />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="secundarioUf">UF</Label>
@@ -1028,11 +1042,28 @@ export function ClienteFormDialog({
                 {avisoCepSecundario}
               </div>
             )}
+            {resultadosHereSecundario.length > 1 && (
+              <div className="space-y-2 rounded-lg border border-blue-200 bg-blue-50/50 p-3">
+                <div className="text-xs font-semibold text-blue-900">Escolha o endereço alternativo correto:</div>
+                {resultadosHereSecundario.map((resultado) => (
+                  <Button
+                    key={resultado.id}
+                    type="button"
+                    variant="outline"
+                    className="h-auto w-full justify-start whitespace-normal bg-white px-3 py-2 text-left text-xs"
+                    onClick={() => aplicarResultadoHereSecundario(resultado)}
+                  >
+                    <MapPin className="mr-2 h-4 w-4 shrink-0" />
+                    <span>{resultado.label}{resultado.cep ? ` • CEP ${resultado.cep}` : ""}</span>
+                  </Button>
+                ))}
+              </div>
+            )}
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="secundarioCidade">Cidade</Label>
-                <Select value={form.secundarioCidade || ""} onValueChange={(secundarioCidade) => setForm((p) => ({ ...p, secundarioCidade }))} disabled={saving}>
+                <Select value={form.secundarioCidade || ""} onValueChange={(secundarioCidade) => setForm((p) => ({ ...p, secundarioCidade, secundarioLatitude: null, secundarioLongitude: null }))} disabled={saving}>
                   <SelectTrigger id="secundarioCidade">
                     <SelectValue placeholder="Selecione a cidade" />
                   </SelectTrigger>
@@ -1043,7 +1074,7 @@ export function ClienteFormDialog({
               </div>
               <div className="space-y-2">
                 <Label htmlFor="secundarioBairro">Bairro</Label>
-                <Input id="secundarioBairro" value={form.secundarioBairro || ""} onChange={(e) => setForm((p) => ({ ...p, secundarioBairro: upper(e.target.value) }))} disabled={saving} />
+                <Input id="secundarioBairro" value={form.secundarioBairro || ""} onChange={(e) => setForm((p) => ({ ...p, secundarioBairro: upper(e.target.value), secundarioLatitude: null, secundarioLongitude: null }))} disabled={saving} />
               </div>
             </div>
 
@@ -1057,11 +1088,11 @@ export function ClienteFormDialog({
             <div className="grid grid-cols-3 gap-4">
               <div className="space-y-2 col-span-2">
                 <Label htmlFor="secundarioLogradouro">Rua</Label>
-                <Input id="secundarioLogradouro" value={form.secundarioLogradouro || ""} onChange={(e) => setForm((p) => ({ ...p, secundarioLogradouro: upper(e.target.value) }))} disabled={saving} />
+                <Input id="secundarioLogradouro" value={form.secundarioLogradouro || ""} onChange={(e) => setForm((p) => ({ ...p, secundarioLogradouro: upper(e.target.value), secundarioLatitude: null, secundarioLongitude: null }))} disabled={saving} />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="secundarioNumero">Número</Label>
-                <Input id="secundarioNumero" value={form.secundarioNumero || ""} onChange={(e) => setForm((p) => ({ ...p, secundarioNumero: upper(e.target.value) }))} disabled={saving} />
+                <Input id="secundarioNumero" value={form.secundarioNumero || ""} onChange={(e) => setForm((p) => ({ ...p, secundarioNumero: upper(e.target.value), secundarioLatitude: null, secundarioLongitude: null }))} disabled={saving} />
               </div>
             </div>
 

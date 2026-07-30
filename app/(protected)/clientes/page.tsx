@@ -89,8 +89,17 @@ export default function Clientes() {
 
       latitude: end1?.latitude ?? null,
       longitude: end1?.longitude ?? null,
-
-      enderecoAlternativo: end2?.endereco || "",
+      apelidoPrincipal: end1?.apelido || "",
+      secundarioCep: end2?.cep || "",
+      secundarioUf: end2?.uf || "",
+      secundarioCidade: end2?.cidade || "",
+      secundarioBairro: end2?.bairro || "",
+      secundarioLogradouro: end2?.logradouro || end2?.endereco || "",
+      secundarioNumero: end2?.numero || "",
+      secundarioComplemento: end2?.complemento || "",
+      secundarioLatitude: end2?.latitude ?? null,
+      secundarioLongitude: end2?.longitude ?? null,
+      apelidoSecundario: end2?.apelido || "",
       tags: (cliente.tags || []).map((t) => t.tag),
     });
 

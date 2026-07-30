@@ -439,6 +439,7 @@ export function NovoAgendamentoNovoLayout({
   const [agendamentoDuplicado, setAgendamentoDuplicado] = useState<any | null>(null);
   const [checandoDuplicidade, setChecandoDuplicidade] = useState(false);
   const [incluirTaxaEntrega, setIncluirTaxaEntrega] = useState(true);
+  const [abaterTaxaEntregaPlano, setAbaterTaxaEntregaPlano] = useState(false);
   const [clienteId, setClienteId] = useState("");
   const [comboboxOpen, setComboboxOpen] = useState(false);
   const [tipo, setTipo] = useState<PedidoTipo>("NAO_DEFINIR");
@@ -455,6 +456,7 @@ export function NovoAgendamentoNovoLayout({
   const [formaPagamento, setFormaPagamento] = useState<FormaPagamento>("A_DEFINIR");
   const [formaPagamentoTaxaVoucher, setFormaPagamentoTaxaVoucher] = useState<FormaPagamento>("A_DEFINIR");
   const [voucherCodigo, setVoucherCodigo] = useState("");
+  const [usarPlanoEscolhidoManualmente, setUsarPlanoEscolhidoManualmente] = useState(false);
 
   const [currentGroupId, setCurrentGroupId] = useState("");
   const [modalNovoPedidoOpen, setModalNovoPedidoOpen] = useState(false);
@@ -470,6 +472,7 @@ export function NovoAgendamentoNovoLayout({
   const [planoPago, setPlanoPago] = useState(false);
   const [planoJaConsumido, setPlanoJaConsumido] = useState(false);
   const [quantidadeConsumidaPlano, setQuantidadeConsumidaPlano] = useState(0);
+  const [quantidadesConsumidasPorItem, setQuantidadesConsumidasPorItem] = useState<Record<number, number>>({});
   const [incluirTaxaPlano, setIncluirTaxaPlano] = useState(true);
   const [quantidadeTaxasPlano, setQuantidadeTaxasPlano] = useState(1);
   const [planosComprados, setPlanosComprados] = useState<Array<{
@@ -654,6 +657,11 @@ export function NovoAgendamentoNovoLayout({
           : "A_DEFINIR",
       );
       setVoucherCodigo(initialData.voucherCodigo || "");
+      setAbaterTaxaEntregaPlano(
+        (initialData.pagamentos || initialData.pedido?.pagamentos || []).some(
+          (pagamento: any) => pagamento.forma === "PLANO" && Number(pagamento.consumoEntregas || 0) > 0,
+        ),
+      );
       
       const rawItens = initialData.itens || initialData.pedido?.itens || [];
       const mappedItens: NovoPedidoItem[] = rawItens.map((it: any) => {
@@ -718,6 +726,19 @@ export function NovoAgendamentoNovoLayout({
       resetForm();
     }
   }, [open, initialData]);
+
+  const saldoEntregasPlano = useMemo(
+    () => (clienteSelecionado?.planos || []).reduce(
+      (total: number, plano: any) => total + Math.max(0, Number(plano.saldoEntregas || 0)),
+      0,
+    ),
+    [clienteSelecionado],
+  );
+
+  useEffect(() => {
+    if (!open || initialData || tipo !== "ENTREGA") return;
+    setAbaterTaxaEntregaPlano(saldoEntregasPlano > 0);
+  }, [open, initialData, clienteId, tipo, saldoEntregasPlano]);
 
   useEffect(() => {
     if (!clienteSelecionado || tipo !== "ENTREGA") return;
@@ -1065,6 +1086,34 @@ export function NovoAgendamentoNovoLayout({
     return (clienteSelecionado?.planos || []).some((plano: any) => planoClienteTemItemCompativel(plano, item));
   }
 
+  function temSaldoPlanoSuficienteParaItem(item: NovoPedidoItem) {
+    if (item.tipoItem === "SALGADO" || item.tipoItem === "CONGELADA") return false;
+    const chave = getPlanoConsumoKey(item);
+    const reservadoNoPedido = itens
+      .filter((atual) => atual.id !== item.id && atual.usarPlano && getPlanoConsumoKey(atual) === chave)
+      .reduce((total, atual) => total + Number(atual.quantidade || 0), 0);
+    return getSaldoPlanoParaItem(item) - reservadoNoPedido >= Number(item.quantidade || 1);
+  }
+
+  useEffect(() => {
+    if (formItem.id || usarPlanoEscolhidoManualmente) return;
+    const deveUsarPlano = temSaldoPlanoSuficienteParaItem(formItem);
+    setFormItem((atual) => atual.usarPlano === deveUsarPlano ? atual : { ...atual, usarPlano: deveUsarPlano });
+  }, [
+    formItem.id,
+    formItem.tipoItem,
+    formItem.tamanhoId,
+    formItem.quantidade,
+    formItem.carboGramas,
+    formItem.proteinaGramas,
+    formItem.legumeGramas,
+    formItem.feijaoGramas,
+    formItem.complementoGramas,
+    clienteSelecionado,
+    itens,
+    usarPlanoEscolhidoManualmente,
+  ]);
+
   const itensComPrecoBruto = useMemo(() => {
     const regraSalgado = regras
       .filter((r) => r.tipo === "VOLUME_SALGADOS" && totalSalgados >= Number(r.limite))
@@ -1105,10 +1154,13 @@ export function NovoAgendamentoNovoLayout({
   const itensComPrecoFinal = useMemo(() => {
     return itensComPrecoBruto.map((item) => {
       if (!item.usarPlano) return item;
+      // Na edição, o saldo já foi abatido quando o pedido foi criado. O próprio
+      // item salvo confirma o uso do plano e não deve ser cobrado novamente.
+      if (initialData) return { ...item, precoUnit: item.tipoItem === "PADRAO" ? getAdicionaisUnitarios(item) : 0 };
       if (!canUsePlanoForItem(item)) return item;
       return { ...item, precoUnit: item.tipoItem === "PADRAO" ? getAdicionaisUnitarios(item) : 0 };
     });
-  }, [itensComPrecoBruto, clienteSelecionado]);
+  }, [itensComPrecoBruto, clienteSelecionado, initialData]);
 
   const subtotalPedido = useMemo(() => {
     const totalBrutoMarmitas = itensComPrecoFinal
@@ -1186,7 +1238,8 @@ export function NovoAgendamentoNovoLayout({
     });
   }, [itensComPrecoFinal, regras, clienteSelecionado]);
 
-  const valorTaxaEntregaResumo = tipo === "ENTREGA" && incluirTaxaEntrega ? Number(valorTaxa || 0) : 0;
+  const valorTaxaEntregaResumo =
+    tipo === "ENTREGA" && incluirTaxaEntrega && !abaterTaxaEntregaPlano ? Number(valorTaxa || 0) : 0;
   const valorTaxaPorPedido =
     resumoPedidos.length > 0 && valorTaxaEntregaResumo > 0 ? valorTaxaEntregaResumo / resumoPedidos.length : 0;
 
@@ -1212,10 +1265,12 @@ export function NovoAgendamentoNovoLayout({
     setDadosClientePedidoImportado(null);
     setPlanosComprados([]);
     setIncluirTaxaEntrega(true);
+    setAbaterTaxaEntregaPlano(false);
     resetFormItem();
   }
 
   function resetFormItem() {
+    setUsarPlanoEscolhidoManualmente(false);
     setFormItem({
       id: "",
       tipoItem: "PADRAO",
@@ -1462,6 +1517,7 @@ export function NovoAgendamentoNovoLayout({
     setPlanoPago(false);
     setPlanoJaConsumido(false);
     setQuantidadeConsumidaPlano(0);
+    setQuantidadesConsumidasPorItem({});
     setIncluirTaxaPlano(true);
     setQuantidadeTaxasPlano(1);
 
@@ -1482,9 +1538,20 @@ export function NovoAgendamentoNovoLayout({
       return;
     }
 
-    const quantidadeConsumida = planoJaConsumido
-      ? Math.min(unidadesPlanoSelecionado, Math.max(0, Math.floor(Number(quantidadeConsumidaPlano || 0))))
-      : 0;
+    const consumosItens = planoJaConsumido && planoSelecionado.itens?.length
+      ? planoSelecionado.itens.map((item) => ({
+          planoItemId: Number(item.id),
+          quantidadeConsumida: Math.min(
+            Number(item.unidades || 0),
+            Math.max(0, Math.floor(Number(quantidadesConsumidasPorItem[Number(item.id)] || 0))),
+          ),
+        }))
+      : undefined;
+    const quantidadeConsumida = consumosItens
+      ? consumosItens.reduce((total, item) => total + item.quantidadeConsumida, 0)
+      : planoJaConsumido
+        ? Math.min(unidadesPlanoSelecionado, Math.max(0, Math.floor(Number(quantidadeConsumidaPlano || 0))))
+        : 0;
     let senhaAutorizacao: string | undefined;
 
     if (quantidadeConsumida > 0) {
@@ -1501,6 +1568,7 @@ export function NovoAgendamentoNovoLayout({
       quantidadeTaxasEntrega: quantidadeTaxasPlanoFinal,
       valorTaxaEntrega: quantidadeTaxasPlanoFinal > 0 ? Number(valorTaxa || 0) : 0,
       quantidadeConsumida,
+      consumosItens,
       senhaAutorizacao,
     });
     const novoVinculo = { ...vinculo, plano: planoSelecionado };
@@ -1526,6 +1594,7 @@ export function NovoAgendamentoNovoLayout({
     setPlanoPago(false);
     setPlanoJaConsumido(false);
     setQuantidadeConsumidaPlano(0);
+    setQuantidadesConsumidasPorItem({});
     setIncluirTaxaPlano(true);
     setQuantidadeTaxasPlano(1);
   }
@@ -1633,12 +1702,109 @@ export function NovoAgendamentoNovoLayout({
   }
 
   function editarItem(item: NovoPedidoItem) {
-    setFormItem({ ...item });
-    setCurrentGroupId(item.groupId || "");
+    const itemNormalizado: NovoPedidoItem = {
+      ...item,
+      id: String(item.id || uid()),
+      groupId: String(item.groupId || item.id || ""),
+      tipoItem: item.tipoItem === "PERSONALIZADA"
+        ? "PERSONALIZADA"
+        : item.tipoItem === "SALGADO"
+          ? "SALGADO"
+          : item.tipoItem === "CONGELADA"
+            ? "CONGELADA"
+            : "PADRAO",
+      destinatarioNome: String(item.destinatarioNome || clienteSelecionado?.nome || ""),
+      tamanhoId: String(item.tamanhoId || ""),
+      tamanhoLabel: String(item.tamanhoLabel || ""),
+      quantidade: Math.max(1, Number(item.quantidade || 1)),
+      opcaoId: String(item.opcaoId || ""),
+      opcaoNome: String(item.opcaoNome || ""),
+      salgadoId: String(item.salgadoId || ""),
+      salgadoNome: String(item.salgadoNome || ""),
+      congeladaId: String(item.congeladaId || ""),
+      congeladaNome: String(item.congeladaNome || ""),
+      carboId: String(item.carboId || ""),
+      carboNome: String(item.carboNome || ""),
+      proteinaId: String(item.proteinaId || ""),
+      proteinaNome: String(item.proteinaNome || ""),
+      legumeId: String(item.legumeId || ""),
+      legumeNome: String(item.legumeNome || ""),
+      feijaoId: String(item.feijaoId || ""),
+      feijaoNome: String(item.feijaoNome || ""),
+      complementoId: String(item.complementoId || ""),
+      complementoNome: String(item.complementoNome || ""),
+      trocaCarboId: String(item.trocaCarboId || ""),
+      trocaCarboNome: String(item.trocaCarboNome || ""),
+      trocaProteinaId: String(item.trocaProteinaId || ""),
+      trocaProteinaNome: String(item.trocaProteinaNome || ""),
+      trocaLegumeId: String(item.trocaLegumeId || ""),
+      trocaLegumeNome: String(item.trocaLegumeNome || ""),
+      carboGramas: Math.max(0, Number(item.carboGramas || 0)),
+      proteinaGramas: Math.max(0, Number(item.proteinaGramas || 0)),
+      legumeGramas: Math.max(0, Number(item.legumeGramas || 0)),
+      feijaoGramas: Math.max(0, Number(item.feijaoGramas || 0)),
+      complementoGramas: Math.max(0, Number(item.complementoGramas || 0)),
+      precoUnit: Math.max(0, Number(item.precoUnit || 0)),
+      observacaoItem: String(item.observacaoItem || ""),
+      zerarLegume: !!item.zerarLegume,
+      adicionarFeijao: !!item.adicionarFeijao || Number(item.feijaoGramas || 0) > 0,
+      usarPlano: !!item.usarPlano,
+    };
+    setUsarPlanoEscolhidoManualmente(true);
+    setFormItem(itemNormalizado);
+    setCurrentGroupId(itemNormalizado.groupId || "");
     setBuscaMarmita("");
     setFiltroCatalogo("PEDIDO");
     setCategoriaCatalogo("TODAS");
     setModalNovoPedidoOpen(true);
+  }
+
+  function alterarTamanhoDoPedido(groupId: string, tamanhoId: string) {
+    const tamanho = tamanhos.find((item) => String(item.id) === String(tamanhoId));
+    if (!tamanho) return;
+
+    const itensPadraoDoGrupo = itens.filter(
+      (item) => (item.groupId || item.id) === groupId && item.tipoItem === "PADRAO",
+    );
+    if (!itensPadraoDoGrupo.length) return;
+
+    const quantidadeTotal = itensPadraoDoGrupo.reduce(
+      (total, item) => total + Number(item.quantidade || 0),
+      0,
+    );
+    const referenciaNovoTamanho: NovoPedidoItem = {
+      ...itensPadraoDoGrupo[0],
+      tamanhoId: tamanho.id,
+      tamanhoLabel: tamanho.nome,
+      quantidade: quantidadeTotal,
+      usarPlano: true,
+    };
+    const chaveNovoTamanho = getPlanoConsumoKey(referenciaNovoTamanho);
+    const itensOriginais = (initialData?.itens || initialData?.pedido?.itens || []) as NovoPedidoItem[];
+    const consumoOriginalMesmoTamanho = initialData
+      ? itensOriginais
+          .filter((item) => item.usarPlano && getPlanoConsumoKey(item) === chaveNovoTamanho)
+          .reduce((total, item) => total + Number(item.quantidade || 0), 0)
+      : 0;
+    const reservadoForaDoGrupo = itens
+      .filter((item) => (item.groupId || item.id) !== groupId && item.usarPlano && getPlanoConsumoKey(item) === chaveNovoTamanho)
+      .reduce((total, item) => total + Number(item.quantidade || 0), 0);
+    const saldoDisponivel = getSaldoPlanoParaItem(referenciaNovoTamanho) + consumoOriginalMesmoTamanho - reservadoForaDoGrupo;
+    const usarPlanoNoGrupo = saldoDisponivel >= quantidadeTotal;
+
+    setItens((atuais) => atuais.map((item) => {
+      if ((item.groupId || item.id) !== groupId || item.tipoItem !== "PADRAO") return item;
+      return {
+        ...item,
+        tamanhoId: tamanho.id,
+        tamanhoLabel: tamanho.nome,
+        usarPlano: usarPlanoNoGrupo,
+      };
+    }));
+
+    toast.success("Tamanho do pedido atualizado", {
+      description: `${quantidadeTotal} marmita${quantidadeTotal === 1 ? "" : "s"} alterada${quantidadeTotal === 1 ? "" : "s"} para ${tamanho.nome}${usarPlanoNoGrupo ? " usando o plano" : ""}.`,
+    });
   }
 
   function getNomeItem(item: NovoPedidoItem) {
@@ -2304,6 +2470,7 @@ export function NovoAgendamentoNovoLayout({
       formaPagamento: formaPagamentoPayload,
       senhaAutorizacao,
       voucherCodigo: isVoucherForma(formaPagamentoPayload) ? voucherCodigo.trim() : undefined,
+      abaterTaxaEntregaPlano: tipo === "ENTREGA" && incluirTaxaEntrega && abaterTaxaEntregaPlano,
       ...(tipo === "ENTREGA" && incluirTaxaEntrega && valorTaxa > 0 ? { valorTaxa } : {}),
       itens: itensComPrecoBruto.map(it => ({
          ...it,
@@ -2420,7 +2587,7 @@ export function NovoAgendamentoNovoLayout({
     setDadosClientePedidoImportado({ nome: String(pedido.nome || ""), telefone: String(pedido.telefone || "") });
     setPedidosPendentesCliente((prev) => prev.filter((item) => String(item.telefone || "").replace(/\D/g, "").slice(-11) === telefonePedido));
     if (!clienteId && pedido.cliente?.id) setClienteId(String(pedido.cliente.id));
-    setObservacoesPedido((prev) => [prev, pedido.observacoes, `Pedido público #${pedido.id} importado.`].filter(Boolean).join("\n"));
+    setObservacoesPedido((prev) => [prev, pedido.observacoes].filter(Boolean).join("\n"));
     toast.success("Pedido importado", { description: `${importados.length} item(ns) adicionados ao agendamento.` });
   }
 
@@ -2743,6 +2910,10 @@ export function NovoAgendamentoNovoLayout({
                         // Usa a mesma fonte do resumo lateral, inclusive rateio do desconto por volume.
                         const subtotalG = Number(resumoPedidos[gIdx]?.subtotal || 0);
                         const itemReferencia = grupo[0];
+                        const groupId = itemReferencia.groupId || itemReferencia.id;
+                        const itensPadraoGrupo = grupo.filter((item) => item.tipoItem === "PADRAO");
+                        const tamanhosPadraoGrupo = Array.from(new Set(itensPadraoGrupo.map((item) => String(item.tamanhoId || ""))));
+                        const tamanhoPadraoGrupo = tamanhosPadraoGrupo.length === 1 ? tamanhosPadraoGrupo[0] : "";
                         const nomePedido = getDestinatarioItem(itemReferencia);
                         const tamanhoPedido =
                           itemReferencia.tipoItem === "SALGADO"
@@ -2751,7 +2922,7 @@ export function NovoAgendamentoNovoLayout({
                         const grupoUsaPlano = grupo.some((item) => item.usarPlano);
                         
                         return (
-                          <div key={grupo[0].groupId || grupo[0].id} className="bg-background">
+                          <div key={groupId} className="bg-background">
                             {/* Cabeçalho do Grupo - Estilo Minimalista */}
                             <div className="bg-muted/30 px-4 py-3 flex flex-col gap-1 border-b border-border/10 sm:flex-row sm:items-center sm:justify-between">
                               <div className="min-w-0">
@@ -2769,7 +2940,29 @@ export function NovoAgendamentoNovoLayout({
                                   </Badge>
                                 </div>
                               </div>
-                              <div className="shrink-0 flex items-center gap-3">
+                              <div className="flex w-full flex-wrap items-end gap-3 sm:w-auto sm:justify-end">
+                                {itensPadraoGrupo.length > 0 && (
+                                  <div className="min-w-[150px] space-y-1" onClick={(event) => event.stopPropagation()}>
+                                    <Label className="block text-[9px] font-black uppercase tracking-widest text-primary/60">
+                                      Tamanho do pedido
+                                    </Label>
+                                    <Select
+                                      value={tamanhoPadraoGrupo}
+                                      onValueChange={(value) => alterarTamanhoDoPedido(groupId, value)}
+                                    >
+                                      <SelectTrigger className="h-8 rounded-full bg-white text-xs">
+                                        <SelectValue placeholder="Escolher tamanho" />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {tamanhos.map((tamanho) => (
+                                          <SelectItem key={tamanho.id} value={tamanho.id}>
+                                            {tamanho.nome}
+                                          </SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                )}
                                 <Button
                                   type="button"
                                   variant="outline"
@@ -3249,6 +3442,23 @@ export function NovoAgendamentoNovoLayout({
                             <span className="block text-[11px] text-muted-foreground font-normal">Calculado pelo endereço: R$ {currency(valorTaxa)}</span>
                           </Label>
                         </div>
+                        {(saldoEntregasPlano > 0 || abaterTaxaEntregaPlano) && incluirTaxaEntrega && (
+                          <div className="flex items-center gap-3 border-t border-border/60 pt-2">
+                            <Checkbox
+                              id="abaterTaxaEntregaPlano"
+                              checked={abaterTaxaEntregaPlano}
+                              onCheckedChange={(v) => setAbaterTaxaEntregaPlano(!!v)}
+                            />
+                            <Label htmlFor="abaterTaxaEntregaPlano" className="text-sm font-medium cursor-pointer leading-tight">
+                              Abater taxa de entrega do plano
+                              <span className="block text-[11px] text-muted-foreground font-normal">
+                                {saldoEntregasPlano > 0
+                                  ? `${saldoEntregasPlano} entrega${saldoEntregasPlano === 1 ? "" : "s"} paga${saldoEntregasPlano === 1 ? " disponível" : "s disponíveis"}`
+                                  : "Entrega já abatida por este pedido"}
+                              </span>
+                            </Label>
+                          </div>
+                        )}
                       </div>
                     )}
 
@@ -3260,7 +3470,7 @@ export function NovoAgendamentoNovoLayout({
                     </div>
                     {(formaPagamento === "PLANO" || itens.some((item) => item.usarPlano)) && (
                       <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs leading-relaxed text-emerald-800">
-                        Itens marcados como plano aparecem zerados porque serão abatidos do saldo do cliente. Se houver taxa de entrega ou item fora do plano, esse valor continua no total a pagar.
+                        Itens marcados como plano aparecem zerados porque serão abatidos do saldo do cliente. A taxa também fica zerada quando “Abater taxa de entrega do plano” estiver marcado.
                       </div>
                     )}
                   </div>
@@ -3380,6 +3590,7 @@ export function NovoAgendamentoNovoLayout({
                   setPlanoSelecionadoId(value);
                   setPlanoJaConsumido(false);
                   setQuantidadeConsumidaPlano(0);
+                  setQuantidadesConsumidasPorItem({});
                 }}
                 disabled={savingPlano || !clienteSelecionado || planosCatalogo.length === 0}
               >
@@ -3443,40 +3654,85 @@ export function NovoAgendamentoNovoLayout({
                   checked={planoJaConsumido}
                   onCheckedChange={(v) => {
                     setPlanoJaConsumido(!!v);
-                    if (!v) setQuantidadeConsumidaPlano(0);
+                    if (!v) {
+                      setQuantidadeConsumidaPlano(0);
+                      setQuantidadesConsumidasPorItem({});
+                    }
                   }}
                   disabled={savingPlano || !planoSelecionado}
                 />
               </div>
 
               {planoJaConsumido && (
-                <div className="grid grid-cols-1 sm:grid-cols-[160px_1fr] gap-3 items-end">
-                  <div className="space-y-1.5">
-                    <Label htmlFor="quantidadeConsumidaPlano" className="text-xs text-muted-foreground">
-                      Consumidas
-                    </Label>
-                    <Input
-                      id="quantidadeConsumidaPlano"
-                      type="number"
-                      min={0}
-                      max={unidadesPlanoSelecionado}
-                      step={1}
-                      value={quantidadeConsumidaPlano}
-                      onChange={(e) =>
-                        setQuantidadeConsumidaPlano(
-                          Math.min(unidadesPlanoSelecionado, Math.max(0, Math.floor(Number(e.target.value || 0)))),
-                        )
-                      }
-                      disabled={savingPlano || !planoSelecionado}
-                    />
-                  </div>
-                  <div className="rounded-lg bg-amber-50 border border-amber-100 px-3 py-2 text-sm">
-                    <div className="text-xs text-amber-700 font-semibold">Saldo inicial</div>
-                    <div className="font-bold text-primary">
-                      {Math.max(0, unidadesPlanoSelecionado - Number(quantidadeConsumidaPlano || 0))} de {unidadesPlanoSelecionado} marmitas
+                planoSelecionado?.itens?.length ? (
+                  <div className="space-y-2">
+                    {planoSelecionado.itens.map((item, index) => {
+                      const itemId = Number(item.id);
+                      const totalItem = Number(item.unidades || 0);
+                      const consumidasItem = Number(quantidadesConsumidasPorItem[itemId] || 0);
+                      const tipoItem = item.pesoPersonalizadoGramas
+                        ? getPlanoPersonalizadoLabel(item)
+                        : item.tamanho?.pesagemGramas
+                          ? `${item.tamanho.pesagemGramas}g`
+                          : "Sem tamanho";
+                      return (
+                        <div key={itemId || index} className="grid grid-cols-1 sm:grid-cols-[1fr_160px] gap-3 items-end rounded-lg bg-amber-50 border border-amber-100 px-3 py-2">
+                          <div className="space-y-1.5">
+                            <Label htmlFor={`quantidadeConsumidaPlano-${itemId}`} className="text-xs font-semibold text-amber-800">
+                              Consumidas — {tipoItem} (de {totalItem})
+                            </Label>
+                            <Input
+                              id={`quantidadeConsumidaPlano-${itemId}`}
+                              type="number"
+                              min={0}
+                              max={totalItem}
+                              step={1}
+                              value={consumidasItem}
+                              onChange={(e) => {
+                                const quantidade = Math.min(totalItem, Math.max(0, Math.floor(Number(e.target.value || 0))));
+                                setQuantidadesConsumidasPorItem((atual) => ({ ...atual, [itemId]: quantidade }));
+                              }}
+                              disabled={savingPlano}
+                            />
+                          </div>
+                          <div className="pb-2 text-sm">
+                            <div className="text-xs text-amber-700 font-semibold">Saldo inicial de {tipoItem}</div>
+                            <div className="font-bold text-primary">{totalItem - consumidasItem} de {totalItem} marmitas</div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                    <div className="text-sm text-muted-foreground text-right">
+                      Saldo total inicial: <span className="font-bold text-primary">
+                        {Math.max(0, unidadesPlanoSelecionado - Object.values(quantidadesConsumidasPorItem).reduce((total, quantidade) => total + Number(quantidade || 0), 0))} de {unidadesPlanoSelecionado} marmitas
+                      </span>
                     </div>
                   </div>
-                </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-[160px_1fr] gap-3 items-end">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="quantidadeConsumidaPlano" className="text-xs text-muted-foreground">Consumidas</Label>
+                      <Input
+                        id="quantidadeConsumidaPlano"
+                        type="number"
+                        min={0}
+                        max={unidadesPlanoSelecionado}
+                        step={1}
+                        value={quantidadeConsumidaPlano}
+                        onChange={(e) => setQuantidadeConsumidaPlano(
+                          Math.min(unidadesPlanoSelecionado, Math.max(0, Math.floor(Number(e.target.value || 0)))),
+                        )}
+                        disabled={savingPlano || !planoSelecionado}
+                      />
+                    </div>
+                    <div className="rounded-lg bg-amber-50 border border-amber-100 px-3 py-2 text-sm">
+                      <div className="text-xs text-amber-700 font-semibold">Saldo inicial</div>
+                      <div className="font-bold text-primary">
+                        {Math.max(0, unidadesPlanoSelecionado - Number(quantidadeConsumidaPlano || 0))} de {unidadesPlanoSelecionado} marmitas
+                      </div>
+                    </div>
+                  </div>
+                )
               )}
             </div>
 
@@ -3660,7 +3916,6 @@ export function NovoAgendamentoNovoLayout({
                         <Label>Tamanho</Label>
                         <Select
                           value={formItem.tipoItem === "PERSONALIZADA" ? "__personalizado__" : formItem.tamanhoId}
-                          disabled={hasItensNoGrupoAtual && !formItem.id && formItem.tipoItem !== "PERSONALIZADA"}
                           onValueChange={(v) => {
                             if (v === "__personalizado__") {
                               setFormItem((prev) => ({
@@ -3673,6 +3928,9 @@ export function NovoAgendamentoNovoLayout({
                               }));
                             } else {
                               const tamanho = tamanhos.find((t) => t.id === v);
+                              if (hasItensNoGrupoAtual && !formItem.id && formItem.tipoItem !== "PERSONALIZADA") {
+                                alterarTamanhoDoPedido(currentGroupId, v);
+                              }
                               setFormItem((prev) => ({
                                 ...prev,
                                 tipoItem: "PADRAO",
@@ -3696,7 +3954,7 @@ export function NovoAgendamentoNovoLayout({
                         </Select>
                         {hasItensNoGrupoAtual && !formItem.id && formItem.tipoItem !== "PERSONALIZADA" && (
                           <p className="text-[10px] text-muted-foreground">
-                            Tamanho travado para as marmitas deste subpedido.
+                            Ao alterar, todas as marmitas deste subpedido serão atualizadas para o novo tamanho.
                           </p>
                         )}
                       </div>
@@ -3770,6 +4028,7 @@ export function NovoAgendamentoNovoLayout({
                             checked={formItem.usarPlano}
                             disabled={hasItensNoGrupoAtual && !formItem.id}
                             onCheckedChange={(v) => {
+                               setUsarPlanoEscolhidoManualmente(true);
                                const usarPlano = !!v;
                                const itemComPlano = { ...formItem, usarPlano };
                                if (usarPlano && !canUsePlanoForItem(itemComPlano)) {

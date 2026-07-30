@@ -446,6 +446,10 @@ export default function Agendamentos() {
   };
 
   const montarMensagemConfirmacao = (agendamento: Agendamento) => {
+    const faixaHorario = String(agendamento.faixaHorario || "").trim();
+    const horarioFormatado = faixaHorario.includes("-")
+      ? faixaHorario.split("-").map((parte) => parte.trim()).filter(Boolean).join(" às ")
+      : faixaHorario;
     const grupos = new Map<string, string[]>();
     agendamento.itens.forEach((item) => {
       const detalhes = [item.carbo, item.proteina, item.legume, item.feijao, item.complemento].filter(Boolean);
@@ -465,6 +469,7 @@ export default function Agendamentos() {
       `*Cliente:* ${agendamento.cliente.toUpperCase()}`,
       `*Telefone:* ${agendamento.telefone}`,
       `*Tipo:* ${getLabelTipoEntrega(agendamento.tipoEntrega).toUpperCase()}`,
+      `*Horário:* ${horarioFormatado || "A DEFINIR"}`,
       agendamento.tipoEntrega === "ENTREGA" ? `*Endereço:* ${agendamento.endereco.toUpperCase()}` : null,
       "",
       "*Itens:*",

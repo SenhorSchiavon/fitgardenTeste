@@ -152,6 +152,7 @@ export function usePlanosCliente() {
         quantidadeTaxasEntrega?: number;
         valorTaxaEntrega?: number;
         quantidadeConsumida?: number;
+        consumosItens?: Array<{ planoItemId: number; quantidadeConsumida: number }>;
         senhaAutorizacao?: string;
       },
     ) => {
@@ -166,6 +167,10 @@ export function usePlanosCliente() {
             quantidadeTaxasEntrega: Math.max(0, Math.floor(Number(extras?.quantidadeTaxasEntrega || 0))),
             valorTaxaEntrega: Math.max(0, Number(extras?.valorTaxaEntrega || 0)),
             quantidadeConsumida: Math.max(0, Math.floor(Number(extras?.quantidadeConsumida || 0))),
+            consumosItens: extras?.consumosItens?.map((item) => ({
+              planoItemId: Number(item.planoItemId),
+              quantidadeConsumida: Math.max(0, Math.floor(Number(item.quantidadeConsumida || 0))),
+            })),
             senhaAutorizacao: extras?.senhaAutorizacao,
           }),
         });
