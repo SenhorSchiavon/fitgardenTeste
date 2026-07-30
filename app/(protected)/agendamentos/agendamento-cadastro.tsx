@@ -1554,7 +1554,14 @@ export function NovoAgendamentoNovoLayout({
         : 0;
     let senhaAutorizacao: string | undefined;
 
-    if (quantidadeConsumida > 0) {
+    if (planoJaConsumido && quantidadeConsumida <= 0) {
+      toast.error("Informe o consumo", {
+        description: "Digite ao menos uma marmita consumida antes de continuar.",
+      });
+      return;
+    }
+
+    if (planoJaConsumido) {
       senhaAutorizacao = window.prompt("Informe a senha de administrador para cadastrar plano já consumido:") || "";
       if (!senhaAutorizacao.trim()) {
         toast.error("Senha obrigatória", {
@@ -3569,7 +3576,7 @@ export function NovoAgendamentoNovoLayout({
       </Dialog>
 
       <Dialog open={modalPlanoOpen} onOpenChange={setModalPlanoOpen}>
-        <DialogContent className="max-w-xl bg-white">
+        <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto bg-white">
           <DialogHeader>
             <DialogTitle className="font-serif text-2xl text-primary">
               Vincular Plano ao Cliente
