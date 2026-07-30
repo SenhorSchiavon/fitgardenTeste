@@ -1689,13 +1689,30 @@ export default function Agendamentos() {
               </Button>
               <Button
                 className="bg-emerald-700 hover:bg-emerald-800 rounded-xl px-8 shadow-lg shadow-emerald-100"
-                onClick={() => {
+                onClick={async () => {
                   if (!agendamentoSelecionado) return;
-                  setModoEdicao(true);
-                  setAgendamentoEditandoId(Number(agendamentoSelecionado.id));
-                  setDadosEdicao(montarDadosEdicaoAgendamento(agendamentoSelecionado));
-                  setDetalhesDialogOpen(false);
-                  setCadastroOpen(true);
+                  try {
+                    const agendamentoId = Number(
+                      agendamentoSelecionado._raw?.agendamentoId ?? agendamentoSelecionado.id,
+                    );
+                    const agendamentoCompleto = await getAgendamentoById<any>(agendamentoId);
+                    setModoEdicao(true);
+                    setAgendamentoEditandoId(agendamentoId);
+                    setDadosEdicao(
+                      montarDadosEdicaoAgendamento({
+                        ...agendamentoSelecionado,
+                        _raw: agendamentoCompleto || agendamentoSelecionado._raw,
+                      }),
+                    );
+                    setDetalhesDialogOpen(false);
+                    setCadastroOpen(true);
+                  } catch (erro: any) {
+                    toast({
+                      title: "Não foi possível abrir a edição",
+                      description: erro?.message || "Falha ao carregar os dados completos do pedido.",
+                      variant: "destructive",
+                    });
+                  }
                 }}
               >
                 Editar Pedido
