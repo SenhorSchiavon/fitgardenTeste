@@ -105,6 +105,7 @@ type Agendamento = {
   valorTotal?: number;
   valorDescontos?: number;
   valorTotalFinal?: number;
+  taxaEntregaAbatidaPlano?: boolean;
   usouPlano?: boolean;
   saldoMarmitasAposPedido?: number | null;
   planosAtivos?: { tamanho: string; saldo: number }[];
@@ -791,10 +792,32 @@ export default function Agendamentos() {
       .filter((p: any) => p.forma === "PLANO" && p.status === "CONFIRMADO")
       .reduce((acc: number, p: any) => acc + Number(p.valor || 0), 0);
 
+    const taxaEntregaAbatidaPlano = pagamentos.some(
+      (p: any) =>
+        p.forma === "PLANO" &&
+        p.status === "CONFIRMADO" &&
+        Number(p.consumoEntregas || 0) > 0,
+    );
+
     // Usamos o maior valor de desconto encontrado para garantir que o plano seja aplicado
     const valorDescontos = Math.max(valorDescontoItens, valorDescontoPagamentos);
 
-    const valorTotalFinal = Math.max(0, valorTotalOriginal);
+    // O backend já reconcilia o pagamento pendente ao editar o pedido. Esse é o
+    // valor efetivamente devido e precisa prevalecer, inclusive quando for zero.
+    const valorTotalFinalApi = row.pedido?.valorTotalFinal ?? row.valorTotalFinal;
+    const temValorTotalFinalApi =
+      valorTotalFinalApi !== null &&
+      valorTotalFinalApi !== undefined &&
+      Number.isFinite(Number(valorTotalFinalApi));
+    const temPagamentoPendente = pagamentos.some((p: any) => p.status === "PENDENTE");
+    const valorTotalFinal = Math.max(
+      0,
+      temValorTotalFinalApi
+        ? Number(valorTotalFinalApi)
+        : temPagamentoPendente
+          ? valorPendentePagamentos
+          : valorTotalOriginal - valorDescontos,
+    );
     const usouPlano =
       itens.some((it: any) => !!it.usarPlano) ||
       pagamentos.some((p: any) => p.forma === "PLANO");
@@ -847,6 +870,7 @@ export default function Agendamentos() {
       valorTotal: valorTotalOriginal,
       valorDescontos,
       valorTotalFinal,
+      taxaEntregaAbatidaPlano,
       usouPlano,
       saldoMarmitasAposPedido,
       planosAtivos,
@@ -1507,8 +1531,10 @@ export default function Agendamentos() {
                     <div className="flex justify-between items-center py-1 border-b border-dashed border-slate-100 pb-3">
                       <span className="text-sm text-slate-600">Entrega</span>
                       <span className="text-sm font-medium">
-                         {agendamentoSelecionado?.tipoEntrega === "ENTREGA" 
-                          ? `R$ ${(agendamentoSelecionado?.valorTaxa ?? 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
+                         {agendamentoSelecionado?.tipoEntrega === "ENTREGA"
+                          ? agendamentoSelecionado?.taxaEntregaAbatidaPlano
+                            ? `R$ ${(agendamentoSelecionado?.valorTaxa ?? 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} (abatida pelo plano)`
+                            : `R$ ${(agendamentoSelecionado?.valorTaxa ?? 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
                           : "Grátis"}
                       </span>
                     </div>
