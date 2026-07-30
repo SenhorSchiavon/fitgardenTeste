@@ -105,6 +105,12 @@ function upper(value?: string | null) {
   return String(value || "").toUpperCase();
 }
 
+function coordenadaValida(value: unknown) {
+  if (value === null || value === undefined || value === "") return null;
+  const numero = Number(value);
+  return Number.isFinite(numero) ? numero : null;
+}
+
 function getApiUrl() {
   const base = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3333";
   return base.replace(/\/+$/, "");
@@ -378,6 +384,24 @@ export function ClienteFormDialog({
     );
   }, [form.cep, form.cidade, form.bairro, form.logradouro, form.numero, form.complemento]);
 
+  const assinaturaEndereco = (cep?: string, cidade?: string, bairro?: string, logradouro?: string, numero?: string) =>
+    [onlyDigits(cep || ""), upper(cidade).trim(), upper(bairro).trim(), upper(logradouro).trim(), upper(numero).trim()].join("|");
+  const enderecoPrincipalFoiAlterado = assinaturaEndereco(form.cep, form.cidade, form.bairro, form.logradouro, form.numero) !==
+    assinaturaEndereco(initialValue?.cep, initialValue?.cidade, initialValue?.bairro, initialValue?.logradouro, initialValue?.numero);
+  const enderecoSecundarioFoiAlterado = assinaturaEndereco(
+    form.secundarioCep,
+    form.secundarioCidade,
+    form.secundarioBairro,
+    form.secundarioLogradouro,
+    form.secundarioNumero,
+  ) !== assinaturaEndereco(
+    initialValue?.secundarioCep,
+    initialValue?.secundarioCidade,
+    initialValue?.secundarioBairro,
+    initialValue?.secundarioLogradouro,
+    initialValue?.secundarioNumero,
+  );
+
   const coordsSecundarioOk = useMemo(() => {
     return (
       typeof form.secundarioLatitude === "number" &&
@@ -414,8 +438,8 @@ export function ClienteFormDialog({
       logradouro: upper(initialValue?.logradouro),
       numero: upper(initialValue?.numero),
       complemento: upper(initialValue?.complemento),
-      latitude: initialValue?.latitude ?? null,
-      longitude: initialValue?.longitude ?? null,
+      latitude: coordenadaValida(initialValue?.latitude),
+      longitude: coordenadaValida(initialValue?.longitude),
       apelidoPrincipal: initialValue?.apelidoPrincipal ?? "",
       secundarioCep: initialValue?.secundarioCep ?? "",
       secundarioUf: initialValue?.secundarioUf ?? "",
@@ -424,8 +448,8 @@ export function ClienteFormDialog({
       secundarioLogradouro: upper(initialValue?.secundarioLogradouro),
       secundarioNumero: upper(initialValue?.secundarioNumero),
       secundarioComplemento: upper(initialValue?.secundarioComplemento),
-      secundarioLatitude: initialValue?.secundarioLatitude ?? null,
-      secundarioLongitude: initialValue?.secundarioLongitude ?? null,
+      secundarioLatitude: coordenadaValida(initialValue?.secundarioLatitude),
+      secundarioLongitude: coordenadaValida(initialValue?.secundarioLongitude),
       apelidoSecundario: initialValue?.apelidoSecundario ?? "",
       tags: initialValue?.tags ?? [],
     }));
@@ -697,7 +721,7 @@ export function ClienteFormDialog({
     const telefone = String(form.telefone || "").trim();
     if (!nome) return;
     if (!telefone) return;
-    if (temEnderecoPrincipal && !coordsOk) {
+    if (temEnderecoPrincipal && enderecoPrincipalFoiAlterado && !coordsOk) {
       setErroLocalizacao("Localize o endereço antes de salvar.");
       return;
     }
@@ -709,7 +733,7 @@ export function ClienteFormDialog({
       !!form.secundarioLogradouro?.trim() ||
       !!form.secundarioNumero?.trim() ||
       !!form.secundarioComplemento?.trim();
-    if (temEnderecoSecundario && !coordsSecundarioOk) {
+    if (temEnderecoSecundario && enderecoSecundarioFoiAlterado && !coordsSecundarioOk) {
       setErroLocalizacaoSecundario("Localize o endereço secundário antes de salvar.");
       return;
     }
@@ -1184,7 +1208,7 @@ export function ClienteFormDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
             Cancelar
           </Button>
-          <Button onClick={handleSave} disabled={saving || (temEnderecoPrincipal && !coordsOk)}>
+          <Button onClick={handleSave} disabled={saving || (temEnderecoPrincipal && enderecoPrincipalFoiAlterado && !coordsOk)}>
             {saving ? "Salvando..." : "Salvar"}
           </Button>
         </div>
