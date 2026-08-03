@@ -49,6 +49,10 @@ function cleanPhone(value?: string | null) {
   return digits.startsWith("55") ? digits : `55${digits}`;
 }
 
+function cleanGramas(value?: string | number | null) {
+  return String(value ?? "").replace(/\D/g, "").slice(0, 4);
+}
+
 function categoryLabel(category: string) {
   const normalized = normalize(category);
   if (!normalized || normalized === "OUTROS" || normalized === "DELETADO") return "FIT - MONTE SUA MARMITA";
@@ -251,16 +255,18 @@ export default function CardapioDaSemanaPage() {
     if (!total) return;
     if (!whatsappNumber) return;
 
+    const personalizadaSanitizada = {
+      carboGramas: cleanGramas(personalizada.carboGramas),
+      proteinaGramas: cleanGramas(personalizada.proteinaGramas),
+      feijaoGramas: cleanGramas(personalizada.feijaoGramas),
+      legumeGramas: cleanGramas(personalizada.legumeGramas),
+    };
+
     const text = montarMensagem({
       nome,
       observacoes,
       telefone,
-      personalizada: {
-        carboGramas: personalizada.carboGramas,
-        proteinaGramas: personalizada.proteinaGramas,
-        feijaoGramas: personalizada.feijaoGramas,
-        legumeGramas: personalizada.legumeGramas,
-      },
+      personalizada: personalizadaSanitizada,
       opcoes,
       itensPedido,
       feijaoOpcional,
@@ -286,7 +292,7 @@ export default function CardapioDaSemanaPage() {
           telefone,
           tamanhoLabel: tamanhoSelecionado,
           observacoes,
-          personalizada,
+          personalizada: personalizadaSanitizada,
           itens: opcoes
             .map((opcao) => ({
               opcaoId: Number(opcao.id),
@@ -315,11 +321,13 @@ export default function CardapioDaSemanaPage() {
       <div className="space-y-2">
         <Label>{label}</Label>
         <Input
-          type="number"
-          min={0}
+          type="text"
+          inputMode="numeric"
+          pattern="[0-9]*"
+          maxLength={4}
           value={personalizada[keyName]}
-          onChange={(event) => setPersonalizada((prev) => ({ ...prev, [keyName]: event.target.value }))}
-          placeholder="Gramas"
+          onChange={(event) => setPersonalizada((prev) => ({ ...prev, [keyName]: cleanGramas(event.target.value) }))}
+          placeholder="Somente números"
         />
       </div>
     );

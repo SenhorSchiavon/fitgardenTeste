@@ -297,6 +297,10 @@ function normalizarBusca(value: string) {
     .trim();
 }
 
+function normalizarTelefoneComparacao(value?: string | null) {
+  return String(value || "").replace(/\D/g, "").slice(-11);
+}
+
 type EnderecoClienteOption = NonNullable<ClienteOption["enderecos"]>[number];
 
 function formatEnderecoCliente(e?: EnderecoClienteOption | null) {
@@ -374,9 +378,10 @@ function uid() {
 }
 
 function getDefaultAgendamentoDate() {
-  const tomorrow = new Date();
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  return tomorrow;
+  const proximaData = new Date();
+  const diasAAdicionar = proximaData.getDay() === 5 ? 3 : 1;
+  proximaData.setDate(proximaData.getDate() + diasAAdicionar);
+  return proximaData;
 }
 
 function toISODateOnlyLocal(date?: Date | null) {
@@ -435,7 +440,6 @@ export function NovoAgendamentoNovoLayout({
   const [buscaImportacao, setBuscaImportacao] = useState("");
   const [carregandoPedidosPendentes, setCarregandoPedidosPendentes] = useState(false);
   const [pedidosPublicosIds, setPedidosPublicosIds] = useState<number[]>([]);
-  const [telefonePedidosImportados, setTelefonePedidosImportados] = useState("");
   const [dadosClientePedidoImportado, setDadosClientePedidoImportado] = useState<{ nome: string; telefone: string } | null>(null);
   const [agendamentoDuplicado, setAgendamentoDuplicado] = useState<any | null>(null);
   const [checandoDuplicidade, setChecandoDuplicidade] = useState(false);
@@ -463,6 +467,10 @@ export function NovoAgendamentoNovoLayout({
   const [modalNovoPedidoOpen, setModalNovoPedidoOpen] = useState(false);
   const [modalEscolhaPedidoOpen, setModalEscolhaPedidoOpen] = useState(false);
   const [modalPlanoOpen, setModalPlanoOpen] = useState(false);
+  const [confirmacaoAplicarPlano, setConfirmacaoAplicarPlano] = useState<{
+    ids: string[];
+    unidades: number;
+  } | null>(null);
   const [modalTrocasOpen, setModalTrocasOpen] = useState(false);
   const [buscaMarmita, setBuscaMarmita] = useState("");
   const [filtroCatalogo, setFiltroCatalogo] = useState<"TODAS" | "PEDIDO">("TODAS");
@@ -728,18 +736,15 @@ export function NovoAgendamentoNovoLayout({
     }
   }, [open, initialData]);
 
-  const saldoEntregasPlano = useMemo(
-    () => (clienteSelecionado?.planos || []).reduce(
-      (total: number, plano: any) => total + Math.max(0, Number(plano.saldoEntregas || 0)),
-      0,
-    ),
-    [clienteSelecionado],
+  const saldoEntregasPlano = (clienteSelecionado?.planos || []).reduce(
+    (total: number, plano: any) => total + Math.max(0, Number(plano.saldoEntregas || 0)),
+    0,
   );
 
   useEffect(() => {
-    if (!open || initialData || tipo !== "ENTREGA") return;
-    setAbaterTaxaEntregaPlano(saldoEntregasPlano > 0);
-  }, [open, initialData, clienteId, tipo, saldoEntregasPlano]);
+    if (!open || tipo !== "ENTREGA" || saldoEntregasPlano <= 0) return;
+    setAbaterTaxaEntregaPlano(true);
+  }, [open, clienteId, tipo, saldoEntregasPlano]);
 
   useEffect(() => {
     if (!clienteSelecionado || tipo !== "ENTREGA") return;
@@ -1082,6 +1087,42 @@ export function NovoAgendamentoNovoLayout({
     );
   }
 
+  function getItensElegiveisParaAplicarPlano() {
+    const saldoRestantePorChave = new Map<string, number>();
+
+    for (const item of itens) {
+      if (item.tipoItem === "SALGADO" || item.tipoItem === "CONGELADA") continue;
+      const chave = getPlanoConsumoKey(item);
+      if (!saldoRestantePorChave.has(chave)) {
+        saldoRestantePorChave.set(chave, getSaldoPlanoParaItem(item));
+      }
+      if (item.usarPlano) {
+        saldoRestantePorChave.set(
+          chave,
+          Math.max(0, Number(saldoRestantePorChave.get(chave) || 0) - Number(item.quantidade || 0)),
+        );
+      }
+    }
+
+    const ids: string[] = [];
+    let unidades = 0;
+    for (const item of itens) {
+      if (item.usarPlano || item.tipoItem === "SALGADO" || item.tipoItem === "CONGELADA") continue;
+      if (!(clienteSelecionado?.planos || []).some((plano: any) => planoClienteTemItemCompativel(plano, item))) continue;
+
+      const chave = getPlanoConsumoKey(item);
+      const quantidade = Math.max(1, Number(item.quantidade || 1));
+      const saldoRestante = Number(saldoRestantePorChave.get(chave) || 0);
+      if (saldoRestante < quantidade) continue;
+
+      ids.push(item.id);
+      unidades += quantidade;
+      saldoRestantePorChave.set(chave, saldoRestante - quantidade);
+    }
+
+    return { ids, unidades };
+  }
+
   function canUsePlanoForItem(item: NovoPedidoItem) {
     if (!item.usarPlano || item.tipoItem === "SALGADO" || item.tipoItem === "CONGELADA") return true;
     return (clienteSelecionado?.planos || []).some((plano: any) => planoClienteTemItemCompativel(plano, item));
@@ -1237,13 +1278,43 @@ export function NovoAgendamentoNovoLayout({
       const descontoGrupo =
         totalBrutoPersonalizadas > 0 ? descontoVolume * (subtotalPersonalizadas / totalBrutoPersonalizadas) : 0;
       const itemReferencia = grupo[0];
+      const detalhesAlteracoes = grupo.flatMap((item) => {
+        const quantidade = Math.max(1, Number(item.quantidade || 1));
+        const valorAdicional = currency(2 * quantidade);
+        const marmita = `${quantidade}x ${getNomeItem(item)}`;
+        const detalhes: string[] = [];
+
+        if (item.trocaCarboId || item.trocaCarboNome) {
+          detalhes.push(
+            `${marmita}: carboidrato${item.carboNome ? ` ${item.carboNome}` : ""} → ${item.trocaCarboNome || "substituição escolhida"} (+ R$ ${valorAdicional})`,
+          );
+        }
+        if (item.trocaProteinaId || item.trocaProteinaNome) {
+          detalhes.push(
+            `${marmita}: proteína${item.proteinaNome ? ` ${item.proteinaNome}` : ""} → ${item.trocaProteinaNome || "substituição escolhida"} (+ R$ ${valorAdicional})`,
+          );
+        }
+        if (!item.zerarLegume && (item.trocaLegumeId || item.trocaLegumeNome)) {
+          detalhes.push(
+            `${marmita}: legume${item.legumeNome ? ` ${item.legumeNome}` : ""} → ${item.trocaLegumeNome || "substituição escolhida"} (+ R$ ${valorAdicional})`,
+          );
+        }
+        if (item.zerarLegume) {
+          detalhes.push(`${marmita}: sem legume`);
+        }
+        if (item.adicionarFeijao) {
+          detalhes.push(`${marmita}: feijão adicional (+ R$ ${valorAdicional})`);
+        }
+
+        return detalhes;
+      });
 
       return {
         id: itemReferencia?.groupId || itemReferencia?.id || String(index),
         label: `Pedido #${index + 1}`,
         nome: itemReferencia ? getDestinatarioItem(itemReferencia) : "-",
         subtotal: subtotalMarmitas - descontoGrupo + subtotalSalgados,
-        temTroca: grupo.some((item) => itemTemTroca(item)),
+        detalhesAlteracoes,
       };
     });
   }, [itensComPrecoFinal, regras, clienteSelecionado]);
@@ -1271,9 +1342,9 @@ export function NovoAgendamentoNovoLayout({
     setAvisoPagamentoAutomatico("");
     setItens([]);
     setPedidosPublicosIds([]);
-    setTelefonePedidosImportados("");
     setDadosClientePedidoImportado(null);
     setPlanosComprados([]);
+    setConfirmacaoAplicarPlano(null);
     setIncluirTaxaEntrega(true);
     setAbaterTaxaEntregaPlano(false);
     resetFormItem();
@@ -1605,6 +1676,11 @@ export function NovoAgendamentoNovoLayout({
         pago: planoPago,
       },
     ]);
+
+    const itensElegiveis = getItensElegiveisParaAplicarPlano();
+    if (itensElegiveis.ids.length > 0) {
+      setConfirmacaoAplicarPlano(itensElegiveis);
+    }
 
     setModalPlanoOpen(false);
     setPlanoSelecionadoId("");
@@ -2511,17 +2587,11 @@ export function NovoAgendamentoNovoLayout({
     setCarregandoPedidosPendentes(true);
     try {
       const query = new URLSearchParams({ status: "PENDENTE" });
-      if (clienteSelecionado) query.set("clienteId", String(clienteSelecionado.id));
       const base = String(process.env.NEXT_PUBLIC_API_URL || "http://localhost:3333/api").replace(/\/+$/, "");
       const res = await apiFetch(`${base}/pedidos-publicos?${query}`, { cache: "no-store" });
       const data = await res.json().catch(() => []);
       if (!res.ok) throw new Error(data?.message || "Erro ao carregar pedidos pendentes.");
-      const telefoneReferencia = telefonePedidosImportados.replace(/\D/g, "").slice(-11);
-      setPedidosPendentesCliente(
-        telefoneReferencia
-          ? (data || []).filter((pedido: any) => String(pedido.telefone || "").replace(/\D/g, "").slice(-11) === telefoneReferencia)
-          : data || [],
-      );
+      setPedidosPendentesCliente(data || []);
     } catch (e: any) {
       toast.error("Não foi possível carregar os pedidos", { description: e?.message });
       setPedidosPendentesCliente([]);
@@ -2540,12 +2610,7 @@ export function NovoAgendamentoNovoLayout({
   }, [buscaImportacao, pedidosPendentesCliente]);
 
   function importarPedidoPublico(pedido: any) {
-    const telefonePedido = String(pedido.telefone || "").replace(/\D/g, "").slice(-11);
-    const telefoneReferencia = telefonePedidosImportados.replace(/\D/g, "").slice(-11);
-    if (telefoneReferencia && telefonePedido !== telefoneReferencia) {
-      toast.error("Pedido de outro cliente", { description: "Importe somente pedidos da mesma pessoa neste agendamento." });
-      return;
-    }
+    const telefonePedido = normalizarTelefoneComparacao(pedido.telefone);
     const personalizada = pedido.itens?.personalizada || {};
     const customizado = String(pedido.tamanhoLabel).toUpperCase() === "PERSONALIZADO";
     const pesoPersonalizado = customizado
@@ -2600,10 +2665,15 @@ export function NovoAgendamentoNovoLayout({
     });
     setItens((prev) => [...prev, ...importados]);
     setPedidosPublicosIds((prev) => Array.from(new Set([...prev, Number(pedido.id)])));
-    setTelefonePedidosImportados(telefonePedido);
     setDadosClientePedidoImportado({ nome: String(pedido.nome || ""), telefone: String(pedido.telefone || "") });
-    setPedidosPendentesCliente((prev) => prev.filter((item) => String(item.telefone || "").replace(/\D/g, "").slice(-11) === telefonePedido));
-    if (!clienteId && pedido.cliente?.id) setClienteId(String(pedido.cliente.id));
+    setPedidosPendentesCliente((prev) => prev.filter((item) => Number(item.id) !== Number(pedido.id)));
+    if (!clienteId) {
+      const clientePeloTelefone = clientes.find(
+        (cliente) => normalizarTelefoneComparacao(cliente.telefone) === telefonePedido,
+      );
+      const clienteEncontradoId = pedido.cliente?.id || clientePeloTelefone?.id;
+      if (clienteEncontradoId) setClienteId(String(clienteEncontradoId));
+    }
     setObservacoesPedido((prev) => [prev, pedido.observacoes].filter(Boolean).join("\n"));
     toast.success("Pedido importado", { description: `${importados.length} item(ns) adicionados ao agendamento.` });
   }
@@ -3385,9 +3455,16 @@ export function NovoAgendamentoNovoLayout({
                                     <div className="truncate text-xs font-semibold text-foreground">
                                       {pedido.nome}
                                     </div>
-                                    {pedido.temTroca && (
-                                      <div className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-amber-700">
-                                        Troca requisitada
+                                    {pedido.detalhesAlteracoes.length > 0 && (
+                                      <div className="mt-1.5 space-y-1">
+                                        {pedido.detalhesAlteracoes.map((detalhe, detalheIndex) => (
+                                          <div
+                                            key={`${pedido.id}-alteracao-${detalheIndex}`}
+                                            className="rounded bg-amber-50 px-2 py-1 text-[10px] font-medium leading-snug text-amber-800"
+                                          >
+                                            {detalhe}
+                                          </div>
+                                        ))}
                                       </div>
                                     )}
                                   </div>
@@ -3582,6 +3659,50 @@ export function NovoAgendamentoNovoLayout({
               </Button>
             )}
           </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={!!confirmacaoAplicarPlano}
+        onOpenChange={(aberto) => {
+          if (!aberto) setConfirmacaoAplicarPlano(null);
+        }}
+      >
+        <DialogContent className="max-w-md bg-white">
+          <DialogHeader>
+            <DialogTitle className="font-serif text-2xl text-primary">
+              Aplicar plano ao pedido?
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2 text-sm text-muted-foreground">
+            <p>
+              Encontramos <strong className="text-primary">{confirmacaoAplicarPlano?.unidades || 0} marmita(s)</strong>{" "}
+              compatível(is) neste agendamento.
+            </p>
+            <p>
+              Deseja marcar todos esses itens para usar o saldo do plano? Adicionais e trocas continuam sendo cobrados normalmente.
+            </p>
+          </div>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button type="button" variant="outline" onClick={() => setConfirmacaoAplicarPlano(null)}>
+              Agora não
+            </Button>
+            <Button
+              type="button"
+              onClick={() => {
+                if (!confirmacaoAplicarPlano) return;
+                const ids = new Set(confirmacaoAplicarPlano.ids);
+                const unidades = confirmacaoAplicarPlano.unidades;
+                setItens((atuais) => atuais.map((item) => ids.has(item.id) ? { ...item, usarPlano: true } : item));
+                setConfirmacaoAplicarPlano(null);
+                toast.success("Plano aplicado ao agendamento", {
+                  description: `${unidades} marmita${unidades === 1 ? "" : "s"} marcada${unidades === 1 ? "" : "s"} para usar o saldo do plano.`,
+                });
+              }}
+            >
+              Aplicar a todos
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
@@ -4729,7 +4850,7 @@ export function NovoAgendamentoNovoLayout({
             </div>
           </div>
           {carregandoPedidosPendentes ? <p className="py-8 text-center text-muted-foreground">Carregando pedidos...</p> : null}
-          {!carregandoPedidosPendentes && pedidosPendentesCliente.length === 0 ? <p className="rounded-lg border border-dashed p-6 text-center text-muted-foreground">Este cliente não possui pedidos pendentes.</p> : null}
+          {!carregandoPedidosPendentes && pedidosPendentesCliente.length === 0 ? <p className="rounded-lg border border-dashed p-6 text-center text-muted-foreground">Não há pedidos pendentes para importar.</p> : null}
           {!carregandoPedidosPendentes && pedidosPendentesCliente.length > 0 && pedidosPendentesFiltrados.length === 0 ? <p className="m-6 rounded-lg border border-dashed p-6 text-center text-muted-foreground">Nenhum pedido encontrado para essa busca.</p> : null}
           <div className="min-h-0 flex-1 space-y-2 overflow-y-auto px-6 py-4">
             {pedidosPendentesFiltrados.map((pedido) => {

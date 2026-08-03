@@ -782,7 +782,19 @@ export default function Agendamentos() {
     const valorTotalOriginal = valorPedido + valorTaxa;
     const valorDescontoItens = itens
       .filter((it: any) => it.usarPlano)
-      .reduce((acc: number, it: any) => acc + Number(it.valor || 0), 0);
+      .reduce((acc: number, it: any) => {
+        const valorItem = Number(it.valor || 0);
+        if (it.tipoItem !== "PADRAO") return acc + valorItem;
+
+        const quantidade = Math.max(1, Number(it.quantidade || 1));
+        const quantidadeTrocas = [
+          it.trocaCarboId || it.trocaCarbo?.id || it.trocaCarboNome,
+          it.trocaProteinaId || it.trocaProteina?.id || it.trocaProteinaNome,
+          !it.zerarLegume && (it.trocaLegumeId || it.trocaLegume?.id || it.trocaLegumeNome),
+        ].filter(Boolean).length;
+        const valorAdicionais = (quantidadeTrocas * 2 + (it.adicionarFeijao ? 2 : 0)) * quantidade;
+        return acc + Math.max(0, valorItem - valorAdicionais);
+      }, 0);
 
     // 2. Calcula desconto baseado em pagamentos registrados (backup/consistência)
     const pagamentos = row.pedido?.pagamentos ?? row.pagamentos ?? [];
@@ -829,15 +841,17 @@ export default function Agendamentos() {
       0,
       valorTotalOriginal - valorDescontos - valorDescontoVoucher,
     );
-    const candidatosTotal = [
-      valorTotalPelaCoberturaAtual,
-      ...(temValorTotalFinalApi ? [Number(valorTotalFinalApi)] : []),
-      ...(temPagamentoPendente ? [valorPendentePagamentos] : []),
-    ];
-    const valorTotalFinal = Math.max(0, Math.min(...candidatosTotal));
     const usouPlano =
       itens.some((it: any) => !!it.usarPlano) ||
       pagamentos.some((p: any) => p.forma === "PLANO");
+    const candidatosTotal = [
+      ...(temValorTotalFinalApi ? [Number(valorTotalFinalApi)] : []),
+      ...(temPagamentoPendente ? [valorPendentePagamentos] : []),
+      valorTotalPelaCoberturaAtual,
+    ];
+    const valorTotalFinal = usouPlano
+      ? valorTotalPelaCoberturaAtual
+      : Math.max(0, Math.min(...candidatosTotal));
     const planosCliente = row.pedido?.cliente?.planos ?? row.cliente?.planos ?? [];
     const saldosPorTamanho = new Map<string, number>();
     planosCliente.forEach((plano: any) => {
@@ -1937,6 +1951,7 @@ export default function Agendamentos() {
               observacoes: payload.observacoes ?? null,
               formaPagamento: payload.formaPagamento,
               senhaAutorizacao: payload.senhaAutorizacao,
+              abaterTaxaEntregaPlano: payload.abaterTaxaEntregaPlano,
               itens: payload.itens.map((it: any) => ({
                 tipoItem: it.tipoItem,
                 destinatarioNome: it.destinatarioNome,
@@ -1981,6 +1996,7 @@ export default function Agendamentos() {
               formaPagamento: payload.formaPagamento,
               senhaAutorizacao: payload.senhaAutorizacao,
               voucherCodigo: payload.voucherCodigo,
+              abaterTaxaEntregaPlano: payload.abaterTaxaEntregaPlano,
               itens: payload.itens.map((it: any) => ({
                 tipoItem: it.tipoItem,
                 destinatarioNome: it.destinatarioNome,

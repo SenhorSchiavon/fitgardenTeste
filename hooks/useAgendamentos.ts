@@ -130,6 +130,7 @@ export type CreateAgendamentoInput = {
   formaPagamento: FormaPagamento;
   senhaAutorizacao?: string;
   voucherCodigo?: string;
+  abaterTaxaEntregaPlano?: boolean;
   itens: AgendamentoItemInput[];
 };
 
@@ -146,6 +147,7 @@ export type UpdateAgendamentoInput = Partial<{
   observacoes: string | null;
   formaPagamento: FormaPagamento;
   senhaAutorizacao: string;
+  abaterTaxaEntregaPlano: boolean;
   itens: AgendamentoItemInput[];
 }>;
 
@@ -526,6 +528,7 @@ export function useAgendamentos(options?: { baseUrl?: string }) {
           formaPagamento: payload.formaPagamento,
           senhaAutorizacao: payload.senhaAutorizacao,
           voucherCodigo: payload.voucherCodigo?.trim() || undefined,
+          abaterTaxaEntregaPlano: payload.abaterTaxaEntregaPlano,
           itens: (payload.itens || []).map((it) => ({
             tipoItem: it.tipoItem === "PERSONALIZADA" ? "PERSONALIZADA" : it.tipoItem === "SALGADO" ? "SALGADO" : it.tipoItem === "CONGELADA" ? "CONGELADA" : "PADRAO",
             tamanhoId: it.tamanhoId != null && it.tamanhoId !== "" ? Number(it.tamanhoId) : null,
