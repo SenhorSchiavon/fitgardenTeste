@@ -49,6 +49,7 @@ import {
   Send,
   Check,
   MessageCircle,
+  Copy,
   Printer,
   Search,
 } from "lucide-react";
@@ -105,6 +106,7 @@ type Agendamento = {
   valorTaxa?: number;
   valorTotal?: number;
   valorDescontos?: number;
+  valorDescontoPlanoItens?: number;
   valorDescontoVoucher?: number;
   valorTotalFinal?: number;
   valorPlanosComprados?: number;
@@ -135,6 +137,7 @@ type Agendamento = {
     complemento?: string;
     complementoGramas?: number;
     adicionarFeijao?: boolean;
+    adicionarArroz?: boolean;
     trocas?: string;
   }[];
   _raw?: any;
@@ -463,6 +466,9 @@ export default function Agendamentos() {
       const descricao = item.adicionarFeijao && item.tipoItem !== "PERSONALIZADA"
         ? `${descricaoBase} + FEIJÃO ADICIONAL`
         : descricaoBase;
+      const descricaoComArroz = item.adicionarArroz && item.tipoItem !== "PERSONALIZADA"
+        ? `${descricao} + ARROZ ADICIONAL`
+        : descricao;
       const personalizada = item.tipoItem === "PERSONALIZADA";
       const pesagens = personalizada
         ? [
@@ -483,7 +489,7 @@ export default function Agendamentos() {
         .filter(Boolean)
         .join(" - ");
       const linhas = grupos.get(grupo) || [];
-      linhas.push(`    ${item.quantidade}x ${descricao}`.toUpperCase());
+      linhas.push(`    ${item.quantidade}x ${descricaoComArroz}`.toUpperCase());
       grupos.set(grupo, linhas);
     });
     const itens = Array.from(grupos.entries())
@@ -502,13 +508,16 @@ export default function Agendamentos() {
       "*Itens:*",
       itens,
       "",
-      `*Subtotal:* ${moneyBr(agendamento.valorPedidoProporcional ?? agendamento.valorPedido ?? 0)}`,
       agendamento.valorPlanosComprados && agendamento.valorPlanosComprados > 0
-        ? `*Plano adquirido:* ${moneyBr(agendamento.valorPlanosComprados)}`
-        : null,
+        ? `*Valor do Plano:* ${moneyBr(agendamento.valorPlanosComprados)}`
+        : `*Subtotal:* ${moneyBr(agendamento.valorPedidoProporcional ?? agendamento.valorPedido ?? 0)}`,
       `*Taxa de Entrega:* ${moneyBr(agendamento.valorTaxa || 0)}`,
       agendamento.valorDescontoVoucher && agendamento.valorDescontoVoucher > 0
         ? `*Desconto Voucher:* - ${moneyBr(agendamento.valorDescontoVoucher)}`
+        : null,
+      (!agendamento.valorPlanosComprados || agendamento.valorPlanosComprados <= 0) &&
+      agendamento.valorDescontoPlanoItens && agendamento.valorDescontoPlanoItens > 0
+        ? `*Desconto do Plano:* - ${moneyBr(agendamento.valorDescontoPlanoItens)}`
         : null,
       `*Total:* ${moneyBr(agendamento.valorTotalFinal ?? agendamento.valorTotal ?? 0)}`,
       "",
@@ -632,7 +641,7 @@ export default function Agendamentos() {
 
     const valores = itens.map((it) => {
       const qtd = Math.max(1, Number(it.quantidade || 1));
-      const adicionalTrocas = it.tipoItem === "PADRAO" ? contarTrocasItem(it) * 2 + (it.adicionarFeijao ? 2 : 0) : 0;
+      const adicionalTrocas = it.tipoItem === "PADRAO" ? contarTrocasItem(it) * 2 + (it.adicionarFeijao ? 2 : 0) + (it.adicionarArroz ? 2 : 0) : 0;
       if (it.usarPlano) return { tipoItem: it.tipoItem, valor: adicionalTrocas * qtd };
 
       if (it.tipoItem === "PADRAO") {
@@ -773,6 +782,7 @@ export default function Agendamentos() {
           complemento: it.complemento?.nome || it.complementoNome || "",
           complementoGramas: Number(it.complementoGramas || 0),
           adicionarFeijao: !!it.adicionarFeijao,
+          adicionarArroz: !!it.adicionarArroz,
           trocas: [
             it.trocaCarbo?.nome || it.trocaCarboNome,
             it.trocaProteina?.nome || it.trocaProteinaNome,
@@ -815,7 +825,7 @@ export default function Agendamentos() {
           it.trocaProteinaId || it.trocaProteina?.id || it.trocaProteinaNome,
           !it.zerarLegume && (it.trocaLegumeId || it.trocaLegume?.id || it.trocaLegumeNome),
         ].filter(Boolean).length;
-        const valorAdicionais = (quantidadeTrocas * 2 + (it.adicionarFeijao ? 2 : 0)) * quantidade;
+        const valorAdicionais = (quantidadeTrocas * 2 + (it.adicionarFeijao ? 2 : 0) + (it.adicionarArroz ? 2 : 0)) * quantidade;
         return acc + Math.max(0, valorItem - valorAdicionais);
       }, 0);
 
@@ -952,6 +962,7 @@ export default function Agendamentos() {
       valorTaxa,
       valorTotal: valorTotalOriginal,
       valorDescontos,
+      valorDescontoPlanoItens: valorItensCobertosPlano,
       valorDescontoVoucher,
       valorTotalFinal,
       valorPlanosComprados,
@@ -1376,13 +1387,13 @@ export default function Agendamentos() {
                                 variant="outline"
                                 size="icon"
                                 className="h-9 w-9 border-emerald-200 text-emerald-700 hover:bg-emerald-50"
-                                title="Enviar resumo pelo WhatsApp"
+                                title="Copiar resumo do pedido"
                                 onClick={(event) => {
                                   event.stopPropagation();
-                                  handleEnviarConfirmacao(agendamento);
+                                  void copiarResumoPedido(agendamento);
                                 }}
                               >
-                                <MessageCircle className="h-4 w-4" />
+                                <Copy className="h-4 w-4" />
                               </Button>
                               <Button
                                 type="button"
@@ -2019,6 +2030,7 @@ export default function Agendamentos() {
 
                 zerarLegume: !!it.zerarLegume,
                 adicionarFeijao: !!it.adicionarFeijao,
+                adicionarArroz: !!it.adicionarArroz,
                 carboGramas: Number(it.carboGramas || 0),
                 proteinaGramas: Number(it.proteinaGramas || 0),
                 legumeGramas: Number(it.legumeGramas || 0),
@@ -2064,6 +2076,7 @@ export default function Agendamentos() {
 
                 zerarLegume: !!it.zerarLegume,
                 adicionarFeijao: !!it.adicionarFeijao,
+                adicionarArroz: !!it.adicionarArroz,
                 carboGramas: Number(it.carboGramas || 0),
                 proteinaGramas: Number(it.proteinaGramas || 0),
                 legumeGramas: Number(it.legumeGramas || 0),

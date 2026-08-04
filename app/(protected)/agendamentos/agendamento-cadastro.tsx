@@ -181,6 +181,7 @@ type NovoPedidoItem = {
 
   zerarLegume: boolean;
   adicionarFeijao: boolean;
+  adicionarArroz?: boolean;
   observacaoItem: string;
 
   precoUnit: number;
@@ -529,6 +530,7 @@ export function NovoAgendamentoNovoLayout({
 
     zerarLegume: false,
     adicionarFeijao: false,
+    adicionarArroz: false,
     observacaoItem: "",
     trocaCarboId: "",
     trocaCarboNome: "",
@@ -718,6 +720,7 @@ export function NovoAgendamentoNovoLayout({
         complementoNome: it.complemento?.nome || (personalizada ? complementoOpcao?.nome : "") || "",
         zerarLegume: !!it.zerarLegume,
         adicionarFeijao: !!it.adicionarFeijao,
+        adicionarArroz: !!it.adicionarArroz,
         observacaoItem: it.observacaoItem || "",
         precoUnit: Number(it.valor || it.precoUnit || 0) / Math.max(1, Number(it.quantidade || 1)),
         usarPlano: !!it.usarPlano,
@@ -1337,6 +1340,9 @@ export function NovoAgendamentoNovoLayout({
         if (item.adicionarFeijao) {
           detalhes.push(`${marmita}: feijão adicional (+ R$ ${valorAdicional})`);
         }
+        if (item.adicionarArroz) {
+          detalhes.push(`${marmita}: arroz adicional (+ R$ ${valorAdicional})`);
+        }
 
         return detalhes;
       });
@@ -1353,6 +1359,15 @@ export function NovoAgendamentoNovoLayout({
 
   const valorTaxaEntregaResumo =
     tipo === "ENTREGA" && incluirTaxaEntrega && !abaterTaxaEntregaPlano ? Number(valorTaxa || 0) : 0;
+  const valorAdicionaisVoucherResumo = itensComPrecoFinal
+    .filter((item) => item.tipoItem === "PADRAO")
+    .reduce(
+      (total, item) => total + getAdicionaisUnitarios(item) * Math.max(1, Number(item.quantidade || 1)),
+      0,
+    );
+  const valorDescontoVoucherResumo = isVoucherForma(formaPagamento)
+    ? Math.max(0, subtotalPedido - valorAdicionaisVoucherResumo)
+    : 0;
   const valorTaxaPorPedido =
     resumoPedidos.length > 0 && valorTaxaEntregaResumo > 0 ? valorTaxaEntregaResumo / resumoPedidos.length : 0;
 
@@ -1762,6 +1777,7 @@ export function NovoAgendamentoNovoLayout({
         : null,
       item.zerarLegume ? "Sem legume" : null,
       item.adicionarFeijao ? "Com feijão" : null,
+      item.adicionarArroz ? "Com arroz adicional" : null,
     ].filter(Boolean);
 
     return extras.join(" • ");
@@ -1776,7 +1792,7 @@ export function NovoAgendamentoNovoLayout({
   }
 
   function getAdicionaisUnitarios(item: NovoPedidoItem) {
-    return contarTrocasItem(item) * 2 + (item.adicionarFeijao ? 2 : 0);
+    return contarTrocasItem(item) * 2 + (item.adicionarFeijao ? 2 : 0) + (item.adicionarArroz ? 2 : 0);
   }
 
   function calcularPrecoPersonalizada(item: NovoPedidoItem) {
@@ -1800,7 +1816,7 @@ export function NovoAgendamentoNovoLayout({
   }
 
   function itemTemTroca(item: NovoPedidoItem) {
-    return contarTrocasItem(item) > 0 || !!item.zerarLegume || !!item.adicionarFeijao;
+    return contarTrocasItem(item) > 0 || !!item.zerarLegume || !!item.adicionarFeijao || !!item.adicionarArroz;
   }
 
   function selecionarOpcaoPersonalizada(opcao: OpcaoCardapio) {
@@ -1877,6 +1893,7 @@ export function NovoAgendamentoNovoLayout({
       observacaoItem: String(item.observacaoItem || ""),
       zerarLegume: !!item.zerarLegume,
       adicionarFeijao: !!item.adicionarFeijao || Number(item.feijaoGramas || 0) > 0,
+      adicionarArroz: !!item.adicionarArroz,
       usarPlano: !!item.usarPlano,
     };
     setUsarPlanoEscolhidoManualmente(true);
@@ -1961,6 +1978,7 @@ export function NovoAgendamentoNovoLayout({
         : null,
       item.zerarLegume ? "Sem legume" : null,
       item.adicionarFeijao ? "Com feijão" : null,
+      item.adicionarArroz ? "Com arroz adicional" : null,
     ].filter(Boolean).join(" • ");
   }
 
@@ -2460,6 +2478,7 @@ export function NovoAgendamentoNovoLayout({
       trocaLegumeNome: editandoMesmaOpcao ? prev.trocaLegumeNome : "",
       zerarLegume: editandoMesmaOpcao ? prev.zerarLegume : false,
       adicionarFeijao: editandoMesmaOpcao ? prev.adicionarFeijao : false,
+      adicionarArroz: editandoMesmaOpcao ? prev.adicionarArroz : false,
     }));
     setModalTrocasOpen(true);
   }
@@ -2683,6 +2702,7 @@ export function NovoAgendamentoNovoLayout({
         opcaoId: String(item.opcaoId || ""),
         opcaoNome: item.nome || opcao?.nome || "",
         adicionarFeijao: !!item.adicionarFeijao,
+        adicionarArroz: !!item.adicionarArroz,
         carboId: customizado ? carbo?.preparoId || "" : formItem.carboId,
         carboNome: customizado ? carbo?.nome || "" : formItem.carboNome,
         proteinaId: customizado ? proteina?.preparoId || "" : formItem.proteinaId,
@@ -3054,7 +3074,26 @@ export function NovoAgendamentoNovoLayout({
                                   <span className="text-[10px] font-black uppercase tracking-widest text-primary/70">Pedido #{gIdx + 1}</span>
                                   <Badge variant="outline" className="text-[9px] h-3.5 px-1 bg-white/50">{totalMarmitasG} un.</Badge>
                                   {grupoUsaPlano && (
-                                    <Badge className="h-4 text-[9px] bg-green-600 hover:bg-green-700 border-none font-bold">PLANO</Badge>
+                                    <>
+                                      <Badge className="h-4 text-[9px] bg-green-600 hover:bg-green-700 border-none font-bold">PLANO</Badge>
+                                      <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        className="h-6 rounded-full border-red-200 px-2 text-[10px] font-bold text-red-700 hover:bg-red-50"
+                                        onClick={(event) => {
+                                          event.stopPropagation();
+                                          const ids = new Set(grupo.map((item) => item.id));
+                                          setItens((atuais) => atuais.map((item) => ids.has(item.id) ? { ...item, usarPlano: false } : item));
+                                          if (formaPagamento === "PLANO") setFormaPagamento("A_DEFINIR");
+                                          toast.success("Plano removido deste pedido", {
+                                            description: "As marmitas voltarão a ser cobradas normalmente e o saldo utilizado será devolvido ao salvar.",
+                                          });
+                                        }}
+                                      >
+                                        Desusar plano
+                                      </Button>
+                                    </>
                                   )}
                                 </div>
                                 <div className="mt-1 flex items-center gap-2 min-w-0 flex-wrap">
@@ -3596,9 +3635,16 @@ export function NovoAgendamentoNovoLayout({
 
                     <Separator className="my-2" />
 
+                    {valorDescontoVoucherResumo > 0 && (
+                      <div className="flex items-center justify-between text-sm font-semibold text-emerald-700">
+                        <span>Desconto do voucher (marmitas)</span>
+                        <span>- R$ {currency(valorDescontoVoucherResumo)}</span>
+                      </div>
+                    )}
+
                     <div className="flex items-center justify-between text-lg">
                       <span className="font-bold text-primary">Total a pagar</span>
-                      <span className="font-extrabold text-xl text-primary">R$ {currency(subtotalPedido + valorTaxaEntregaResumo + valorPlanosNaoPagosResumo)}</span>
+                      <span className="font-extrabold text-xl text-primary">R$ {currency(Math.max(0, subtotalPedido - valorDescontoVoucherResumo + valorTaxaEntregaResumo + valorPlanosNaoPagosResumo))}</span>
                     </div>
                     {(formaPagamento === "PLANO" || itens.some((item) => item.usarPlano)) && (
                       <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs leading-relaxed text-emerald-800">
@@ -4192,7 +4238,9 @@ export function NovoAgendamentoNovoLayout({
                     const temPlanoCompativel = clienteSelecionado?.planos?.some((p: any) =>
                       planoClienteTemItemCompativel(p, formItem),
                     );
-                    if (!temPlanoCompativel) return null;
+                    // Na edição, mantém o controle visível para permitir devolver um
+                    // consumo antigo mesmo quando o cliente já não possui saldo ativo.
+                    if (!temPlanoCompativel && !formItem.usarPlano) return null;
                     return (
                       <div className="mt-4 flex items-center justify-between p-3 rounded-lg bg-green-50 border border-green-100">
                          <div className="space-y-0.5">
@@ -4625,6 +4673,7 @@ export function NovoAgendamentoNovoLayout({
                               !it.zerarLegume && it.trocaLegumeNome ? `Troca legume: ${it.trocaLegumeNome}` : null,
                               it.zerarLegume ? "Sem legume" : null,
                               it.adicionarFeijao ? "Com feijão" : null,
+                              it.adicionarArroz ? "Com arroz adicional" : null,
                             ].filter(Boolean);
                             return (
                               <div className="text-[10px] text-amber-700 leading-relaxed mt-0.5">
@@ -4862,6 +4911,16 @@ export function NovoAgendamentoNovoLayout({
                 }
               />
               <Label className="m-0">Adicionar feijão</Label>
+            </div>
+
+            <div className="flex items-center gap-3 rounded-lg border p-3">
+              <Checkbox
+                checked={!!formItem.adicionarArroz}
+                onCheckedChange={(checked) =>
+                  setFormItem((prev) => ({ ...prev, adicionarArroz: !!checked }))
+                }
+              />
+              <Label className="m-0">Adicionar arroz</Label>
             </div>
           </div>
 
