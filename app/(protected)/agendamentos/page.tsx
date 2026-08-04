@@ -435,7 +435,10 @@ export default function Agendamentos() {
       ),
     })).filter((grupo) => grupo.agendamentos.length > 0);
     const semRota = ordenarAgendamentosRota(
-      agendamentosFiltrados.filter((agendamento) => agendamento.tipoEntrega !== "CONGELAR" && !getRotaAgendamento(agendamento)),
+      // Congeladas também são agendamentos do dia de produção. Elas não entram
+      // em uma rota de entrega deste dia, mas precisam continuar visíveis e
+      // editáveis na seção Sem rota, identificadas pela tag "Congelar".
+      agendamentosFiltrados.filter((agendamento) => !getRotaAgendamento(agendamento)),
     );
     if (semRota.length > 0) {
       grupos.push({
@@ -723,11 +726,11 @@ export default function Agendamentos() {
           return Number((faixas.find((r) => valor <= Number(r.limite)) || faixas[faixas.length - 1]).preco);
         };
         const tiposCount = [
-          !!it.carboId || Number(it.carboGramas || 0) > 0,
-          !!it.proteinaId || Number(it.proteinaGramas || 0) > 0,
-          !!it.legumeId || Number(it.legumeGramas || 0) > 0,
-          !!it.feijaoId || Number(it.feijaoGramas || 0) > 0,
-          !!it.complementoId || Number(it.complementoGramas || 0) > 0,
+          Number(it.carboGramas || 0) > 0,
+          Number(it.proteinaGramas || 0) > 0,
+          Number(it.legumeGramas || 0) > 0,
+          Number(it.feijaoGramas || 0) > 0,
+          Number(it.complementoGramas || 0) > 0,
         ].filter(Boolean).length;
         const regraAjuste = regras.find(
           (r) => r.tipo === "QUANTIDADE_INGREDIENTES" && Number(r.limite) === tiposCount,

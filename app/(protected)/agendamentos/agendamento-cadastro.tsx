@@ -1924,7 +1924,8 @@ export function NovoAgendamentoNovoLayout({
   }
 
   function getAdicionaisUnitarios(item: NovoPedidoItem) {
-    return contarTrocasItem(item) * 2 + (item.adicionarFeijao ? 2 : 0) + (item.adicionarArroz ? 2 : 0);
+    const adicionalFeijao = item.tipoItem === "PADRAO" && item.adicionarFeijao ? 2 : 0;
+    return contarTrocasItem(item) * 2 + adicionalFeijao + (item.adicionarArroz ? 2 : 0);
   }
 
   function calcularPrecoPersonalizada(item: NovoPedidoItem) {
@@ -1941,20 +1942,18 @@ export function NovoAgendamentoNovoLayout({
       return Number((faixas.find((r) => valor <= Number(r.limite)) || faixas[faixas.length - 1]).preco);
     };
     const tiposCount = [
-      !!item.carboId || Number(item.carboGramas || 0) > 0,
-      !!item.proteinaId || Number(item.proteinaGramas || 0) > 0,
-      !!item.legumeId || Number(item.legumeGramas || 0) > 0,
-      // Feijão marcado como adicional é cobrado separadamente e não deve também
-      // aumentar a faixa de quantidade de ingredientes da personalizada.
-      !item.adicionarFeijao && (!!item.feijaoId || Number(item.feijaoGramas || 0) > 0),
-      !!item.complementoId || Number(item.complementoGramas || 0) > 0,
+      Number(item.carboGramas || 0) > 0,
+      Number(item.proteinaGramas || 0) > 0,
+      Number(item.legumeGramas || 0) > 0,
+      Number(item.feijaoGramas || 0) > 0,
+      Number(item.complementoGramas || 0) > 0,
     ].filter(Boolean).length;
     const regraAjuste = regras.find((r) => r.tipo === "QUANTIDADE_INGREDIENTES" && Number(r.limite) === tiposCount);
     const precoProteina = precoFaixa(regrasProteina, proteina);
     const precoPesoTotal = precoFaixa(regrasTotal, total);
     const precoBase = Math.max(precoProteina, precoPesoTotal);
     const ajusteIngredientes = Number(regraAjuste?.preco || 0);
-    const adicionais = (item.adicionarFeijao ? 2 : 0) + (item.adicionarArroz ? 2 : 0);
+    const adicionais = item.adicionarArroz ? 2 : 0;
 
     return {
       precoUnitario: precoBase + ajusteIngredientes + adicionais,
@@ -4455,11 +4454,17 @@ export function NovoAgendamentoNovoLayout({
 
                 {formItem.tipoItem === "SALGADO" ? (
                   <div className="rounded-xl border border-secondary/20 bg-secondary/5 p-4 text-sm text-muted-foreground">
-                    <span className="font-semibold text-primary">Salgado selecionado:</span>{" "}
-                    {formItem.salgadoNome || "Escolha um salgado acima"}.
-                    {formItem.salgadoId && (
-                      <span className="ml-1">Preço unitário: R$ {currency(formItem.precoUnit)}.</span>
-                    )}
+                    <span className="font-semibold text-primary">Salgados selecionados:</span>{" "}
+                    {formItem.id
+                      ? `${formItem.quantidade}x ${formItem.salgadoNome}`
+                      : salgados
+                          .map((salgado) => ({
+                            nome: salgado.nome,
+                            quantidade: Math.max(0, Number(quantidadesSalgados[salgado.id] || 0)),
+                          }))
+                          .filter((item) => item.quantidade > 0)
+                          .map((item) => `${item.quantidade}x ${item.nome}`)
+                          .join(" · ") || "Informe a quantidade de cada salgado acima"}.
                   </div>
                 ) : formItem.tipoItem === "CONGELADA" ? (
                   <div className="rounded-xl border border-sky-200 bg-sky-50 p-4 text-sm text-sky-900">
