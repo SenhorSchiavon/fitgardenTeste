@@ -29,6 +29,7 @@ type CardapioPublico = {
 };
 
 const TAMANHOS = ["200g", "300g", "400g", "500g", "PERSONALIZADO"] as const;
+type TamanhoSelecionado = (typeof TAMANHOS)[number] | "";
 
 function apiUrl(path: string) {
   const base = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3333/api";
@@ -107,7 +108,7 @@ function montarMensagem({
   opcoes: OpcaoPublica[];
   itensPedido: Record<string, number>;
   feijaoOpcional: Record<string, boolean>;
-  tamanhoSelecionado: string;
+  tamanhoSelecionado: TamanhoSelecionado;
 }) {
   const escolhidas = opcoes
     .filter((opcao) => Number(itensPedido[opcao.id] || 0) > 0)
@@ -156,7 +157,7 @@ export default function CardapioDaSemanaPage() {
   const [error, setError] = useState("");
   const [itensPedido, setItensPedido] = useState<Record<string, number>>({});
   const [feijaoOpcional, setFeijaoOpcional] = useState<Record<string, boolean>>({});
-  const [tamanhoSelecionado, setTamanhoSelecionado] = useState<(typeof TAMANHOS)[number]>("200g");
+  const [tamanhoSelecionado, setTamanhoSelecionado] = useState<TamanhoSelecionado>("");
   const [nome, setNome] = useState("");
   const [telefone, setTelefone] = useState("");
   const [observacoes, setObservacoes] = useState("");
@@ -233,6 +234,8 @@ export default function CardapioDaSemanaPage() {
   }
 
   function changeQuantity(id: string, delta: number) {
+    if (!tamanhoSelecionado) return;
+
     setItensPedido((prev) => {
       const atual = Number(prev[id] || 0);
       const proximo = Math.max(0, atual + delta);
@@ -252,7 +255,7 @@ export default function CardapioDaSemanaPage() {
   }
 
   function enviarPedido() {
-    if (!total) return;
+    if (!tamanhoSelecionado || !total) return;
     if (!whatsappNumber) return;
 
     const personalizadaSanitizada = {
@@ -393,16 +396,23 @@ export default function CardapioDaSemanaPage() {
                   <Label className="text-base font-black uppercase text-[#14332f]">Tamanho do pedido</Label>
                   <select
                     value={tamanhoSelecionado}
-                    onChange={(event) => setTamanhoSelecionado(event.target.value as (typeof TAMANHOS)[number])}
+                    onChange={(event) => setTamanhoSelecionado(event.target.value as TamanhoSelecionado)}
                     className="h-11 w-full rounded-xl border border-[#d8cbbd] bg-[#fffdf8] px-3 text-sm font-black text-[#14332f]"
                   >
+                    <option value="" disabled>
+                      Selecionar
+                    </option>
                     {TAMANHOS.map((tamanho) => (
                       <option key={tamanho} value={tamanho}>
                         {tamanho}
                       </option>
                     ))}
                   </select>
-                  <p className="text-xs font-medium text-[#60746f]">Todas as marmitas do pedido usam esse tamanho.</p>
+                  <p className={cn("text-xs font-medium", tamanhoSelecionado ? "text-[#60746f]" : "font-bold text-[#b85b36]")}>
+                    {tamanhoSelecionado
+                      ? "Todas as marmitas do pedido usam esse tamanho."
+                      : "Selecione o tamanho para liberar as quantidades."}
+                  </p>
                 </div>
 
                 {tamanhoSelecionado === "PERSONALIZADO" && (
@@ -454,10 +464,10 @@ export default function CardapioDaSemanaPage() {
                             </div>
                             <div className="grid grid-cols-[34px_34px_34px] justify-end overflow-hidden rounded-lg border bg-white sm:grid-cols-[38px_38px_38px]">
                               <div className="grid place-items-center text-sm font-black tabular-nums text-[#14332f]">{quantidade}</div>
-                              <button type="button" className="grid place-items-center border-l text-[#14332f] transition hover:bg-[#f6e4d8]" onClick={() => changeQuantity(opcao.id, -1)}>
+                              <button type="button" disabled={!tamanhoSelecionado} className="grid place-items-center border-l text-[#14332f] transition hover:bg-[#f6e4d8] disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-300" onClick={() => changeQuantity(opcao.id, -1)}>
                                 <Minus className="h-4 w-4" />
                               </button>
-                              <button type="button" className="grid place-items-center border-l text-[#14332f] transition hover:bg-[#dceee5]" onClick={() => changeQuantity(opcao.id, 1)}>
+                              <button type="button" disabled={!tamanhoSelecionado} className="grid place-items-center border-l text-[#14332f] transition hover:bg-[#dceee5] disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-300" onClick={() => changeQuantity(opcao.id, 1)}>
                                 <Plus className="h-4 w-4" />
                               </button>
                             </div>
@@ -493,10 +503,10 @@ export default function CardapioDaSemanaPage() {
                 <Button
                   type="button"
                   onClick={continuarParaEnvio}
-                  disabled={!total}
+                  disabled={!tamanhoSelecionado || !total}
                   className="h-12 w-full rounded-xl bg-[#c24f2f] px-3 text-sm font-black uppercase text-white shadow-lg shadow-[#c24f2f]/25 hover:bg-[#a94329] sm:justify-self-end sm:px-7 sm:text-base"
                 >
-                  <span className="truncate">{total ? "Continuar para enviar" : "Escolha as marmitas"}</span>
+                  <span className="truncate">{!tamanhoSelecionado ? "Selecione o tamanho" : total ? "Continuar para enviar" : "Escolha as marmitas"}</span>
                   {total ? <ChevronDown className="ml-2 h-5 w-5" /> : null}
                 </Button>
               </div>
@@ -543,7 +553,7 @@ export default function CardapioDaSemanaPage() {
                   size="lg"
                   className="h-14 w-full max-w-xl rounded-xl bg-[#c24f2f] text-base font-black uppercase tracking-wide text-white shadow-lg shadow-[#c24f2f]/25 hover:bg-[#a94329] sm:text-xl"
                   onClick={enviarPedido}
-                  disabled={enviando || !total || !nome.trim() || !telefone.trim() || !whatsappNumber}
+                  disabled={enviando || !tamanhoSelecionado || !total || !nome.trim() || !telefone.trim() || !whatsappNumber}
                 >
                   <Send className="mr-3 h-5 w-5" />
                   {enviando ? "Registrando pedido..." : "Abrir WhatsApp e enviar pedido"}
