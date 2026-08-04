@@ -557,6 +557,7 @@ export function NovoAgendamentoNovoLayout({
     () => clientes.find((c) => c.id === clienteId) || null,
     [clientes, clienteId]
   );
+  const ehEntrega = tipo === "ENTREGA" || (tipo === "CONGELAR" && congelarSubtipo === "ENTREGA");
 
   const enderecosDisponiveis = useMemo(
     () => (clienteSelecionado?.enderecos || []).filter((e) => !!formatEnderecoCliente(e)),
@@ -753,12 +754,12 @@ export function NovoAgendamentoNovoLayout({
   );
 
   useEffect(() => {
-    if (!open || tipo !== "ENTREGA" || saldoEntregasPlano <= 0) return;
+    if (!open || !ehEntrega || saldoEntregasPlano <= 0) return;
     setAbaterTaxaEntregaPlano(true);
-  }, [open, clienteId, tipo, saldoEntregasPlano]);
+  }, [open, clienteId, ehEntrega, saldoEntregasPlano]);
 
   useEffect(() => {
-    if (!clienteSelecionado || tipo !== "ENTREGA") return;
+    if (!clienteSelecionado || !ehEntrega) return;
     const principal = enderecosDisponiveis.find((e) => e.principal) || enderecosDisponiveis[0];
     if (!principal) {
       setEndereco("");
@@ -775,14 +776,14 @@ export function NovoAgendamentoNovoLayout({
 
     const selected = enderecosDisponiveis.find((e) => String(e.id ?? "0") === enderecoSelecionadoId);
     if (selected) setEndereco(formatEnderecoCliente(selected));
-  }, [clienteSelecionado, tipo, enderecosDisponiveis, enderecoSelecionadoId]);
+  }, [clienteSelecionado, ehEntrega, enderecosDisponiveis, enderecoSelecionadoId]);
 
   // Estimativa de taxa de entrega
   useEffect(() => {
     let ativo = true;
 
     async function updateTaxa() {
-      if (tipo !== "ENTREGA" || !clienteId || !endereco.trim()) {
+      if (!ehEntrega || !clienteId || !endereco.trim()) {
         setValorTaxa(0);
         setDistanciaEntregaKm(null);
         return;
@@ -811,7 +812,7 @@ export function NovoAgendamentoNovoLayout({
     return () => {
       ativo = false;
     };
-  }, [clienteId, tipo, endereco, enderecoSelecionado, estimarTaxaEntrega]);
+  }, [clienteId, ehEntrega, endereco, enderecoSelecionado, estimarTaxaEntrega]);
 
   // A compra de taxinhas do plano usa a taxa estimada do endereço principal,
   // mesmo quando o agendamento atual é retirada ou ainda não teve o tipo definido.
@@ -1387,7 +1388,7 @@ export function NovoAgendamentoNovoLayout({
   }, [itensComPrecoFinal, regras, clienteSelecionado]);
 
   const valorTaxaEntregaResumo =
-    tipo === "ENTREGA" && incluirTaxaEntrega && !abaterTaxaEntregaPlano ? Number(valorTaxa || 0) : 0;
+    ehEntrega && incluirTaxaEntrega && !abaterTaxaEntregaPlano ? Number(valorTaxa || 0) : 0;
   const valorAdicionaisVoucherResumo = itensComPrecoFinal
     .filter((item) => item.tipoItem === "PADRAO" || item.tipoItem === "PERSONALIZADA")
     .reduce(
@@ -1745,7 +1746,7 @@ export function NovoAgendamentoNovoLayout({
       });
       return;
     }
-    if (tipo === "ENTREGA" && !clienteSelecionado?.enderecoPrincipal?.trim() && !endereco.trim()) {
+    if (ehEntrega && !clienteSelecionado?.enderecoPrincipal?.trim() && !endereco.trim()) {
       toast.error("Cliente sem endereço", { description: "Cadastre um endereço antes de adicionar plano com entrega." });
       return;
     }
@@ -1757,7 +1758,7 @@ export function NovoAgendamentoNovoLayout({
     setPlanoJaConsumido(false);
     setQuantidadeConsumidaPlano(0);
     setQuantidadesConsumidasPorItem({});
-    setIncluirTaxaPlano(tipo === "ENTREGA" && valorTaxa > 0);
+    setIncluirTaxaPlano(ehEntrega && valorTaxa > 0);
     setQuantidadeTaxasPlano(1);
 
     try {
@@ -2650,7 +2651,7 @@ export function NovoAgendamentoNovoLayout({
       });
       return;
     }
-    if (tipo === "ENTREGA" && !endereco.trim()) {
+    if (ehEntrega && !endereco.trim()) {
       toast.error("Pedido marcado como entrega mas sem endereço", {
         description: "Cadastre ou selecione um endereço do cliente antes de finalizar.",
       });
@@ -2728,16 +2729,16 @@ export function NovoAgendamentoNovoLayout({
         : null,
       congelarSubtipo: tipo === "CONGELAR" ? congelarSubtipo : null,
       faixaHorario: tipo === "RETIRADA" ? horario.inicio : `${horario.inicio}-${horario.fim}`,
-      endereco: tipo === "ENTREGA" ? endereco : tipo,
-      entregaLatitude: tipo === "ENTREGA" && enderecoSelecionado?.latitude != null ? Number(enderecoSelecionado.latitude) : undefined,
-      entregaLongitude: tipo === "ENTREGA" && enderecoSelecionado?.longitude != null ? Number(enderecoSelecionado.longitude) : undefined,
+      endereco: ehEntrega ? endereco : tipo,
+      entregaLatitude: ehEntrega && enderecoSelecionado?.latitude != null ? Number(enderecoSelecionado.latitude) : undefined,
+      entregaLongitude: ehEntrega && enderecoSelecionado?.longitude != null ? Number(enderecoSelecionado.longitude) : undefined,
       observacoes: observacoesPedido,
       formaPagamento: formaPagamentoPayload,
       senhaAutorizacao,
       voucherCodigo: isVoucherForma(formaPagamentoPayload) ? voucherCodigo.trim() : undefined,
       formaPagamentoTaxaVoucher: formaPagamento === "VOUCHER" ? formaPagamentoTaxaVoucher : undefined,
-      abaterTaxaEntregaPlano: tipo === "ENTREGA" && incluirTaxaEntrega && abaterTaxaEntregaPlano,
-      ...(tipo === "ENTREGA" && incluirTaxaEntrega && valorTaxa > 0 ? { valorTaxa } : {}),
+      abaterTaxaEntregaPlano: ehEntrega && incluirTaxaEntrega && abaterTaxaEntregaPlano,
+      ...(ehEntrega && incluirTaxaEntrega && valorTaxa > 0 ? { valorTaxa } : {}),
       itens: itensComPrecoBruto.map(it => ({
          ...it,
          carboGramas: Number(it.carboGramas || 0),
@@ -2855,7 +2856,7 @@ export function NovoAgendamentoNovoLayout({
   const podeAdicionarPlano =
     !!clienteSelecionado &&
     !(agendamentoDuplicado && !initialData) &&
-    (tipo !== "ENTREGA" || !!clienteSelecionado.enderecoPrincipal?.trim() || !!endereco.trim());
+    (!ehEntrega || !!clienteSelecionado.enderecoPrincipal?.trim() || !!endereco.trim());
 
   return (
     <>
@@ -3505,7 +3506,7 @@ export function NovoAgendamentoNovoLayout({
                     </p>
                   )}
 
-                  {tipo === "ENTREGA" ? (
+                  {ehEntrega ? (
                     <div className="space-y-2">
                       <Label>Endereço</Label>
                       {enderecosDisponiveis.length > 0 ? (
@@ -3720,7 +3721,7 @@ export function NovoAgendamentoNovoLayout({
                       )}
                     </div>
 
-                    {tipo === "ENTREGA" && valorTaxa > 0 && (
+                    {ehEntrega && valorTaxa > 0 && (
                       <div className="rounded-lg border border-dashed border-border/60 p-3 space-y-2 bg-muted/20">
                         <div className="flex items-center gap-3">
                           <Checkbox

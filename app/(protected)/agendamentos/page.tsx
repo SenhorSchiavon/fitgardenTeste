@@ -534,13 +534,20 @@ export default function Agendamentos() {
       ].filter((linha): linha is string => !!linha))
       .join("\n");
     const planos = agendamento.planosAtivos || [];
+    const tipoConfirmacao = agendamento.tipoEntrega === "CONGELAR"
+      ? [
+          "CONGELAR",
+          (agendamento.congelarSubtipo || "A DEFINIR").toUpperCase(),
+          formatarDataAgendamento(agendamento.dataEntregaCongelada),
+        ].join(" - ")
+      : getLabelTipoEntrega(agendamento.tipoEntrega).toUpperCase();
     const linhas = [
       `🔔 *Pedido Confirmado ${agendamento.numeroPedido}*`,
       `*Agendado para:* ${formatarDataAgendamento(agendamento.data)}`,
       "",
       `*Cliente:* ${agendamento.cliente.toUpperCase()}`,
       `*Telefone:* ${agendamento.telefone}`,
-      `*Tipo:* ${getLabelTipoEntrega(agendamento.tipoEntrega).toUpperCase()}`,
+      `*Tipo:* ${tipoConfirmacao}`,
       `*Horário:* ${horarioFormatado || "A DEFINIR"}`,
       agendamento.tipoEntrega === "ENTREGA" ? `*Endereço:* ${agendamento.endereco.toUpperCase()}` : null,
       "",
