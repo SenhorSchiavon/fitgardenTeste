@@ -166,7 +166,9 @@ function horarioFimEmMinutos(faixaHorario: string) {
 }
 
 function getRotaAgendamento(agendamento: Agendamento) {
-  if (agendamento.tipoEntrega === "CONGELAR") return null;
+  if (agendamento.tipoEntrega === "CONGELAR") {
+    return ROTAS_ENTREGA[ROTAS_ENTREGA.length - 1];
+  }
   const inicio = horarioInicioEmMinutos(agendamento.faixaHorario);
   if (inicio == null) return null;
   const rota = ROTAS_ENTREGA.find((item) => inicio >= item.start && inicio < item.end);
@@ -435,9 +437,6 @@ export default function Agendamentos() {
       ),
     })).filter((grupo) => grupo.agendamentos.length > 0);
     const semRota = ordenarAgendamentosRota(
-      // Congeladas também são agendamentos do dia de produção. Elas não entram
-      // em uma rota de entrega deste dia, mas precisam continuar visíveis e
-      // editáveis na seção Sem rota, identificadas pela tag "Congelar".
       agendamentosFiltrados.filter((agendamento) => !getRotaAgendamento(agendamento)),
     );
     if (semRota.length > 0) {
@@ -1878,7 +1877,7 @@ export default function Agendamentos() {
                               <TableRow key={row.preparoId}>
                                 <TableCell>{row.nome}</TableCell>
                                 <TableCell className="text-right font-medium">
-                                  {Number(row.kgPronto ?? 0).toFixed(3)} kg
+                                  {Number(row.kgPronto ?? 0).toFixed(1)} kg
                                 </TableCell>
                               </TableRow>
                             ))}
@@ -1887,7 +1886,7 @@ export default function Agendamentos() {
                               <TableCell className="text-right font-black text-slate-800">
                                 {(
                                   relatorioPreparos!.prontos.reduce((acc, r) => acc + Number(r.kgPronto ?? 0), 0)
-                                ).toFixed(3)} kg
+                                ).toFixed(1)} kg
                               </TableCell>
                             </TableRow>
                           </>
@@ -1917,7 +1916,7 @@ export default function Agendamentos() {
                               <TableRow key={row.ingredienteId}>
                                 <TableCell>{row.nome}</TableCell>
                                 <TableCell className="text-right font-medium text-emerald-700">
-                                  {Number(row.kgCru ?? 0).toFixed(3)} kg
+                                  {Number(row.kgCru ?? 0).toFixed(1)} kg
                                 </TableCell>
                               </TableRow>
                             ))}
@@ -1926,7 +1925,7 @@ export default function Agendamentos() {
                               <TableCell className="text-right font-black text-slate-800">
                                 {(
                                   relatorioPreparos!.crus.reduce((acc, r) => acc + Number(r.kgCru ?? 0), 0)
-                                ).toFixed(3)} kg
+                                ).toFixed(1)} kg
                               </TableCell>
                             </TableRow>
                           </>
@@ -2063,6 +2062,8 @@ export default function Agendamentos() {
               entregaLongitude: payload.entregaLongitude,
               observacoes: payload.observacoes ?? null,
               formaPagamento: payload.formaPagamento,
+              voucherCodigo: payload.voucherCodigo,
+              formaPagamentoTaxaVoucher: payload.formaPagamentoTaxaVoucher,
               senhaAutorizacao: payload.senhaAutorizacao,
               abaterTaxaEntregaPlano: payload.abaterTaxaEntregaPlano,
               itens: payload.itens.map((it: any) => ({

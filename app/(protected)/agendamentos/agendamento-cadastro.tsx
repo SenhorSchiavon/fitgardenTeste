@@ -677,8 +677,33 @@ export function NovoAgendamentoNovoLayout({
           formaInicial === "VOUCHER_TAXA_PIX" ? "PIX" : "A_DEFINIR"),
       );
       setVoucherCodigo(initialData.voucherCodigo || "");
+      const pagamentosIniciais = initialData.pagamentos || initialData.pedido?.pagamentos || [];
+      setPlanosComprados(
+        pagamentosIniciais
+          .filter((pagamento: any) =>
+            pagamento.forma === "PLANO" &&
+            pagamento.planoClienteId &&
+            pagamento.consumoUnidades == null &&
+            pagamento.consumoEntregas == null &&
+            Number(pagamento.valor || 0) > 0,
+          )
+          .map((pagamento: any) => {
+            const plano = pagamento.planoCliente?.plano;
+            const valorTotal = Number(pagamento.valor || 0);
+            const valorPlano = Number(plano?.valor || valorTotal);
+            return {
+              id: Number(pagamento.planoClienteId),
+              nome: plano?.nome || `Plano #${pagamento.planoClienteId}`,
+              resumo: plano?.unidades ? `${plano.unidades} marmitas` : "Plano lançado neste pedido",
+              valorPlano,
+              valorTaxas: Math.max(0, valorTotal - valorPlano),
+              valorTotal,
+              pago: pagamento.status === "CONFIRMADO",
+            };
+          }),
+      );
       setAbaterTaxaEntregaPlano(
-        (initialData.pagamentos || initialData.pedido?.pagamentos || []).some(
+        pagamentosIniciais.some(
           (pagamento: any) => pagamento.forma === "PLANO" && Number(pagamento.consumoEntregas || 0) > 0,
         ),
       );
