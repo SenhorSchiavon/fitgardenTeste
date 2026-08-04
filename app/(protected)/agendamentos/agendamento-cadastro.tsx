@@ -1381,7 +1381,7 @@ export function NovoAgendamentoNovoLayout({
         if (item.zerarLegume) {
           detalhes.push(`${marmita}: sem legume`);
         }
-        if (item.adicionarFeijao) {
+        if (item.adicionarFeijao && item.tipoItem !== "PERSONALIZADA") {
           detalhes.push(`${marmita}: feijão adicional (+ R$ ${valorAdicional})`);
         }
         if (item.adicionarArroz) {
@@ -1944,7 +1944,9 @@ export function NovoAgendamentoNovoLayout({
       !!item.carboId || Number(item.carboGramas || 0) > 0,
       !!item.proteinaId || Number(item.proteinaGramas || 0) > 0,
       !!item.legumeId || Number(item.legumeGramas || 0) > 0,
-      !!item.feijaoId || Number(item.feijaoGramas || 0) > 0,
+      // Feijão marcado como adicional é cobrado separadamente e não deve também
+      // aumentar a faixa de quantidade de ingredientes da personalizada.
+      !item.adicionarFeijao && (!!item.feijaoId || Number(item.feijaoGramas || 0) > 0),
       !!item.complementoId || Number(item.complementoGramas || 0) > 0,
     ].filter(Boolean).length;
     const regraAjuste = regras.find((r) => r.tipo === "QUANTIDADE_INGREDIENTES" && Number(r.limite) === tiposCount);
