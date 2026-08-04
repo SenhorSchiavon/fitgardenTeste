@@ -470,6 +470,19 @@ export default function Agendamentos() {
     return qtd > 0 ? `${nome} ${qtd}g` : nome;
   };
 
+  const formatarDataAgendamento = (valor?: string | null) => {
+    const partes = String(valor || "").match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (!partes) return "A DEFINIR";
+
+    const [, ano, mes, dia] = partes;
+    const dataLocal = new Date(Number(ano), Number(mes) - 1, Number(dia));
+    const diaDaSemana = new Intl.DateTimeFormat("pt-BR", { weekday: "long" })
+      .format(dataLocal)
+      .toUpperCase();
+
+    return `${diaDaSemana} - ${dia}/${mes}/${ano.slice(-2)}`;
+  };
+
   const montarMensagemConfirmacao = (agendamento: Agendamento) => {
     const faixaHorario = String(agendamento.faixaHorario || "").trim();
     const horarioFormatado = faixaHorario.includes("-")
@@ -514,6 +527,7 @@ export default function Agendamentos() {
     const planos = agendamento.planosAtivos || [];
     const linhas = [
       `🔔 *Pedido Confirmado ${agendamento.numeroPedido}*`,
+      `*Agendado para:* ${formatarDataAgendamento(agendamento.data)}`,
       "",
       `*Cliente:* ${agendamento.cliente.toUpperCase()}`,
       `*Telefone:* ${agendamento.telefone}`,
@@ -962,6 +976,7 @@ export default function Agendamentos() {
       cliente: row.pedido?.cliente?.nome ?? row.cliente?.nome ?? "-",
       telefone: row.pedido?.cliente?.telefone ?? row.cliente?.telefone ?? "-",
       tipoEntrega: row.pedido?.tipo ?? row.tipo ?? "ENTREGA",
+      data: row.data ?? null,
       dataEntregaCongelada: row.dataEntregaCongelada ?? null,
       congelarSubtipo: row.congelarSubtipo ?? null,
       faixaHorario: row.faixaHorario,
