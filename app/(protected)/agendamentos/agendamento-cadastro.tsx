@@ -600,6 +600,7 @@ export function NovoAgendamentoNovoLayout({
 
   const horarios = useMemo(
     () => {
+      if (tipo === "CONGELAR") return gerarHorarios30({ start: "00:00", end: "23:30" });
       if (isSabado(data)) return gerarHorarios30({ start: "09:30", end: "12:30" });
       return gerarHorarios30(
         tipo === "RETIRADA"
@@ -2601,7 +2602,7 @@ export function NovoAgendamentoNovoLayout({
     }
 
     const janelaEntrega = isSabado(data) ? { start: "09:30", end: "12:30" } : getJanelaEntregaPorDistancia(tipo === "ENTREGA" ? distanciaEntregaKm : null);
-    if (tipo !== "RETIRADA" && (
+    if (tipo === "ENTREGA" && (
       toMin(horario.inicio) < toMin(janelaEntrega.start) ||
       toMin(horario.fim) > toMin(janelaEntrega.end) ||
       toMin(horario.fim) - toMin(horario.inicio) < 60
@@ -3428,6 +3429,8 @@ export function NovoAgendamentoNovoLayout({
                   <p className="text-xs text-muted-foreground">
                     {tipo === "RETIRADA"
                       ? "Retirada usa horário único entre 12:30 e 18:00."
+                      : tipo === "CONGELAR"
+                      ? "Congeladas podem ser agendadas em qualquer horário do dia."
                       : tipo === "ENTREGA" && distanciaEntregaKm != null
                       ? `Distância estimada: ${distanciaEntregaKm.toFixed(2).replace(".", ",")} km. Janela disponível: ${horarios[0]}-${horarios[horarios.length - 1]}.`
                       : `Janela disponível: ${horarios[0]}-${horarios[horarios.length - 1]}.`}

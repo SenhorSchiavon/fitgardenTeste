@@ -488,7 +488,7 @@ export default function Agendamentos() {
     const horarioFormatado = faixaHorario.includes("-")
       ? faixaHorario.split("-").map((parte) => parte.trim()).filter(Boolean).join(" às ")
       : faixaHorario;
-    const grupos = new Map<string, string[]>();
+    const grupos = new Map<string, { linhas: string[]; totalMarmitas: number }>();
     agendamento.itens.forEach((item) => {
       const detalhes = [item.carbo, item.proteina, item.legume, item.feijao, item.complemento].filter(Boolean);
       const descricaoBase = detalhes.length ? detalhes.join(" + ") : item.nome;
@@ -517,12 +517,19 @@ export default function Agendamentos() {
       const grupo = [tituloTamanho, item.destinatarioNome]
         .filter(Boolean)
         .join(" - ");
-      const linhas = grupos.get(grupo) || [];
-      linhas.push(`    ${item.quantidade}x ${descricaoComArroz}`.toUpperCase());
-      grupos.set(grupo, linhas);
+      const dadosGrupo = grupos.get(grupo) || { linhas: [], totalMarmitas: 0 };
+      dadosGrupo.linhas.push(`    ${item.quantidade}x ${descricaoComArroz}`.toUpperCase());
+      if (item.tipoItem !== "SALGADO" && item.tipoItem !== "CONGELADA") {
+        dadosGrupo.totalMarmitas += Number(item.quantidade || 0);
+      }
+      grupos.set(grupo, dadosGrupo);
     });
     const itens = Array.from(grupos.entries())
-      .flatMap(([grupo, linhas]) => [`*${grupo}*`, ...linhas])
+      .flatMap(([grupo, dados]) => [
+        `*${grupo}*`,
+        dados.totalMarmitas > 0 ? `*Total de marmitas:* ${dados.totalMarmitas}` : null,
+        ...dados.linhas,
+      ].filter((linha): linha is string => !!linha))
       .join("\n");
     const planos = agendamento.planosAtivos || [];
     const linhas = [
@@ -2036,6 +2043,7 @@ export default function Agendamentos() {
               tipo: payload.tipo,
               data: payload.data,
               dataEntregaCongelada: payload.dataEntregaCongelada,
+              congelarSubtipo: payload.congelarSubtipo,
               faixaHorario: payload.faixaHorario,
               endereco: payload.endereco,
               entregaLatitude: payload.entregaLatitude,
@@ -2081,6 +2089,7 @@ export default function Agendamentos() {
               tipo: payload.tipo,
               data: payload.data,
               dataEntregaCongelada: payload.dataEntregaCongelada,
+              congelarSubtipo: payload.congelarSubtipo,
               faixaHorario: payload.faixaHorario,
               endereco: payload.endereco,
               entregaLatitude: payload.entregaLatitude,
