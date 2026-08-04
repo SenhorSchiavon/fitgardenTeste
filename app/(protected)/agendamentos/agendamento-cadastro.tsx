@@ -482,7 +482,7 @@ export function NovoAgendamentoNovoLayout({
   const [planoJaConsumido, setPlanoJaConsumido] = useState(false);
   const [quantidadeConsumidaPlano, setQuantidadeConsumidaPlano] = useState(0);
   const [quantidadesConsumidasPorItem, setQuantidadesConsumidasPorItem] = useState<Record<number, number>>({});
-  const [incluirTaxaPlano, setIncluirTaxaPlano] = useState(true);
+  const [incluirTaxaPlano, setIncluirTaxaPlano] = useState(false);
   const [quantidadeTaxasPlano, setQuantidadeTaxasPlano] = useState(1);
   const [planosComprados, setPlanosComprados] = useState<Array<{
     id: number;
@@ -966,7 +966,7 @@ export function NovoAgendamentoNovoLayout({
   const valorPlanoSelecionado = Number(planoSelecionado?.valor || 0);
   const unidadesPlanoSelecionado = Number(planoSelecionado?.unidades || 0);
   const quantidadeTaxasPlanoFinal =
-    incluirTaxaPlano && tipo === "ENTREGA" && valorTaxa > 0
+    incluirTaxaPlano
       ? Math.max(1, Math.floor(Number(quantidadeTaxasPlano || 1)))
       : 0;
   const valorTaxasPlanoTotal = quantidadeTaxasPlanoFinal * Number(valorTaxa || 0);
@@ -1599,7 +1599,7 @@ export function NovoAgendamentoNovoLayout({
     setPlanoJaConsumido(false);
     setQuantidadeConsumidaPlano(0);
     setQuantidadesConsumidasPorItem({});
-    setIncluirTaxaPlano(true);
+    setIncluirTaxaPlano(tipo === "ENTREGA" && valorTaxa > 0);
     setQuantidadeTaxasPlano(1);
 
     try {
@@ -3379,6 +3379,7 @@ export function NovoAgendamentoNovoLayout({
                         <SelectItem value="PIX">PIX</SelectItem>
                         <SelectItem value="DINHEIRO">Dinheiro</SelectItem>
                         <SelectItem value="CREDITO">Cartão</SelectItem>
+                        <SelectItem value="LINK">Link de pagamento</SelectItem>
                         <SelectItem value="VOUCHER">Voucher</SelectItem>
                         <SelectItem value="TROCA">Troca</SelectItem>
                         <SelectItem value="BONIFICACAO">Bonificação</SelectItem>
@@ -3874,14 +3875,17 @@ export function NovoAgendamentoNovoLayout({
               )}
             </div>
 
-            {tipo === "ENTREGA" && valorTaxa > 0 && (
-              <div className="rounded-xl border border-border/70 p-3 space-y-3">
+            <div className="rounded-xl border border-border/70 p-3 space-y-3">
                 <div className="flex items-center justify-between gap-4">
                   <div>
                     <Label htmlFor="incluirTaxaPlano" className="text-sm font-semibold cursor-pointer">
-                      Incluir taxa de entrega?
+                      Adicionar taxinhas de entrega?
                     </Label>
-                    <p className="text-xs text-muted-foreground">Valor da taxa: R$ {currency(valorTaxa)}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {valorTaxa > 0
+                        ? `Valor de cada taxa: R$ ${currency(valorTaxa)}`
+                        : "Adiciona entregas ao saldo do plano sem custo adicional neste vínculo."}
+                    </p>
                   </div>
                   <Checkbox
                     id="incluirTaxaPlano"
@@ -3912,13 +3916,14 @@ export function NovoAgendamentoNovoLayout({
                     <div className="rounded-lg bg-emerald-50 border border-emerald-100 px-3 py-2 text-sm">
                       <div className="text-xs text-emerald-700 font-semibold">Taxas de entrega</div>
                       <div className="font-bold text-primary">
-                        {quantidadeTaxasPlanoFinal} x R$ {currency(valorTaxa)} = R$ {currency(valorTaxasPlanoTotal)}
+                        {valorTaxa > 0
+                          ? `${quantidadeTaxasPlanoFinal} x R$ ${currency(valorTaxa)} = R$ ${currency(valorTaxasPlanoTotal)}`
+                          : `${quantidadeTaxasPlanoFinal} taxinha${quantidadeTaxasPlanoFinal === 1 ? "" : "s"} adicionada${quantidadeTaxasPlanoFinal === 1 ? "" : "s"} ao saldo`}
                       </div>
                     </div>
                   </div>
                 )}
               </div>
-            )}
 
             <div className="rounded-xl border border-primary/10 bg-primary/5 p-4">
               <div className="flex items-center justify-between text-sm">

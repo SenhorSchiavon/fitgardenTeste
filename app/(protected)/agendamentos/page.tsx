@@ -101,9 +101,11 @@ type Agendamento = {
   observacoes?: string;
 
   valorPedido?: number;
+  valorPedidoProporcional?: number;
   valorTaxa?: number;
   valorTotal?: number;
   valorDescontos?: number;
+  valorDescontoVoucher?: number;
   valorTotalFinal?: number;
   taxaEntregaAbatidaPlano?: boolean;
   usouPlano?: boolean;
@@ -130,6 +132,7 @@ type Agendamento = {
     feijaoGramas?: number;
     complemento?: string;
     complementoGramas?: number;
+    adicionarFeijao?: boolean;
     trocas?: string;
   }[];
   _raw?: any;
@@ -180,17 +183,17 @@ function getLabelPagamento(forma: string) {
   const labels: Record<string, string> = {
     A_DEFINIR: "Não definido",
     DINHEIRO: "Dinheiro",
-    CREDITO: "Cartao de credito",
-    DEBITO: "Cartao de debito",
+    CREDITO: "Cartão de crédito",
+    DEBITO: "Cartão de débito",
     PIX: "PIX",
-    LINK: "Link",
+    LINK: "Link de pagamento",
     VOUCHER: "Voucher",
     PLANO: "Plano",
     TROCA: "Troca",
-    BONIFICACAO: "Bonificacao",
-    VOUCHER_TAXA_DINHEIRO: "Voucher taxa dinheiro",
-    VOUCHER_TAXA_CARTAO: "Voucher taxa cartao",
-    VOUCHER_TAXA_PIX: "Voucher taxa PIX",
+    BONIFICACAO: "Bonificação",
+    VOUCHER_TAXA_DINHEIRO: "Voucher + taxa em dinheiro",
+    VOUCHER_TAXA_CARTAO: "Voucher + taxa no cartão",
+    VOUCHER_TAXA_PIX: "Voucher + taxa no PIX",
   };
   return labels[forma] || forma || "-";
 }
@@ -454,8 +457,29 @@ export default function Agendamentos() {
     const grupos = new Map<string, string[]>();
     agendamento.itens.forEach((item) => {
       const detalhes = [item.carbo, item.proteina, item.legume, item.feijao, item.complemento].filter(Boolean);
-      const descricao = detalhes.length ? detalhes.join(" + ") : item.nome;
-      const grupo = [item.tamanho || "Itens", item.destinatarioNome].filter(Boolean).join(" - ");
+      const descricaoBase = detalhes.length ? detalhes.join(" + ") : item.nome;
+      const descricao = item.adicionarFeijao && item.tipoItem !== "PERSONALIZADA"
+        ? `${descricaoBase} + FEIJÃO ADICIONAL`
+        : descricaoBase;
+      const personalizada = item.tipoItem === "PERSONALIZADA";
+      const pesagens = personalizada
+        ? [
+            [item.carbo, item.carboGramas],
+            [item.proteina, item.proteinaGramas],
+            [item.legume, item.legumeGramas],
+            [item.feijao, item.feijaoGramas],
+            [item.complemento, item.complementoGramas],
+          ]
+            .filter(([nome, gramas]) => !!nome && Number(gramas || 0) > 0)
+            .map(([, gramas]) => Number(gramas))
+            .join("/")
+        : "";
+      const tituloTamanho = personalizada
+        ? `PERSONALIZADO${pesagens ? ` ${pesagens}` : ""}`
+        : item.tamanho || "Itens";
+      const grupo = [tituloTamanho, item.destinatarioNome]
+        .filter(Boolean)
+        .join(" - ");
       const linhas = grupos.get(grupo) || [];
       linhas.push(`    ${item.quantidade}x ${descricao}`.toUpperCase());
       grupos.set(grupo, linhas);
@@ -476,8 +500,11 @@ export default function Agendamentos() {
       "*Itens:*",
       itens,
       "",
-      `*Subtotal:* ${moneyBr(agendamento.valorPedido || 0)}`,
+      `*Subtotal:* ${moneyBr(agendamento.valorPedidoProporcional ?? agendamento.valorPedido ?? 0)}`,
       `*Taxa de Entrega:* ${moneyBr(agendamento.valorTaxa || 0)}`,
+      agendamento.valorDescontoVoucher && agendamento.valorDescontoVoucher > 0
+        ? `*Desconto Voucher:* - ${moneyBr(agendamento.valorDescontoVoucher)}`
+        : null,
       `*Total:* ${moneyBr(agendamento.valorTotalFinal ?? agendamento.valorTotal ?? 0)}`,
       "",
       `*Forma de Pagamento:* ${getLabelPagamento(agendamento.formaPagamento)}`,
@@ -690,12 +717,6 @@ export default function Agendamentos() {
         const isSalgado = it.tipoItem === "SALGADO";
         const isCongelada = it.tipoItem === "CONGELADA";
         const isPersonalizada = it.tipoItem === "PERSONALIZADA";
-        const totalPersonalizadaGramas =
-          Number(it.carboGramas || 0) +
-          Number(it.proteinaGramas || 0) +
-          Number(it.legumeGramas || 0) +
-          Number(it.feijaoGramas || 0) +
-          Number(it.complementoGramas || 0);
         const trocas = [
           it.trocaCarbo?.nome ? `Troca Carbo: ${it.trocaCarbo.nome}` : null,
           it.trocaProteina?.nome ? `Troca Prot.: ${it.trocaProteina.nome}` : null,
@@ -728,11 +749,7 @@ export default function Agendamentos() {
             : isSalgado
             ? "Salgado"
             : isPersonalizada
-            ? it.tamanho?.pesagemGramas
-              ? `${it.tamanho.pesagemGramas}g`
-              : totalPersonalizadaGramas > 0
-              ? `${totalPersonalizadaGramas}g`
-              : "Personalizada"
+            ? "Personalizado"
             : it.tamanho?.pesagemGramas
             ? `${it.tamanho.pesagemGramas}g`
             : (it.tamanhoLabel ?? "-"),
@@ -750,6 +767,7 @@ export default function Agendamentos() {
           feijaoGramas: Number(it.feijaoGramas || 0),
           complemento: it.complemento?.nome || it.complementoNome || "",
           complementoGramas: Number(it.complementoGramas || 0),
+          adicionarFeijao: !!it.adicionarFeijao,
           trocas: [
             it.trocaCarbo?.nome || it.trocaCarboNome,
             it.trocaProteina?.nome || it.trocaProteinaNome,
@@ -809,6 +827,13 @@ export default function Agendamentos() {
           Number(p.consumoUnidades || 0) > 0,
       )
       .reduce((acc: number, p: any) => acc + Number(p.valor || 0), 0);
+    const valorPlanoProporcional = valorPlanoUnidadesRegistrado > 0
+      ? valorPlanoUnidadesRegistrado
+      : valorDescontoItens;
+    const valorPedidoProporcional = Math.max(
+      0,
+      valorPedido - valorDescontoItens + valorPlanoProporcional,
+    );
     const valorDescontoVoucher = pagamentos
       .filter((p: any) => p.forma === "VOUCHER" && p.status === "CONFIRMADO")
       .reduce((acc: number, p: any) => acc + Number(p.valor || 0), 0);
@@ -905,9 +930,11 @@ export default function Agendamentos() {
         undefined,
       entregador: row.entregador ?? "-",
       valorPedido,
+      valorPedidoProporcional,
       valorTaxa,
       valorTotal: valorTotalOriginal,
       valorDescontos,
+      valorDescontoVoucher,
       valorTotalFinal,
       taxaEntregaAbatidaPlano,
       usouPlano,
@@ -1565,7 +1592,7 @@ export default function Agendamentos() {
                     </div>
                     <div className="flex justify-between items-center py-1">
                       <span className="text-sm text-slate-600">Subtotal</span>
-                      <span className="text-sm font-medium">R$ {(agendamentoSelecionado?.valorPedido ?? 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                      <span className="text-sm font-medium">R$ {(agendamentoSelecionado?.valorPedidoProporcional ?? agendamentoSelecionado?.valorPedido ?? 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
                     </div>
                     <div className="flex justify-between items-center py-1 border-b border-dashed border-slate-100 pb-3">
                       <span className="text-sm text-slate-600">Entrega</span>
