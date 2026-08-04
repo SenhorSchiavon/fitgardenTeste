@@ -1349,6 +1349,20 @@ export function NovoAgendamentoNovoLayout({
         const marmita = `${quantidade}x ${getNomeItem(item)}`;
         const detalhes: string[] = [];
 
+        if (item.tipoItem === "PERSONALIZADA") {
+          const calculo = detalharPrecoPersonalizada(item);
+          const partes = [
+            `${calculo.criterioBase}: R$ ${currency(calculo.precoBase)}`,
+            calculo.ajusteIngredientes !== 0
+              ? `ajuste por ${calculo.tiposCount} ingrediente${calculo.tiposCount === 1 ? "" : "s"}: ${calculo.ajusteIngredientes > 0 ? "+ " : "- "}R$ ${currency(Math.abs(calculo.ajusteIngredientes))}`
+              : null,
+            calculo.adicionais > 0 ? `adicionais: + R$ ${currency(calculo.adicionais)}` : null,
+          ].filter(Boolean);
+          detalhes.push(
+            `${marmita} (${calculo.totalGramas}g): ${partes.join("; ")} = R$ ${currency(calculo.precoUnitario)}/un. × ${quantidade} = R$ ${currency(calculo.precoUnitario * quantidade)}`,
+          );
+        }
+
         if (item.trocaCarboId || item.trocaCarboNome) {
           detalhes.push(
             `${marmita}: carboidrato${item.carboNome ? ` ${item.carboNome}` : ""} → ${item.trocaCarboNome || "substituição escolhida"} (+ R$ ${valorAdicional})`,
@@ -1376,6 +1390,12 @@ export function NovoAgendamentoNovoLayout({
 
         return detalhes;
       });
+
+      if (descontoGrupo > 0 && regraVolume) {
+        detalhesAlteracoes.push(
+          `Desconto por volume (${Number(regraVolume.preco)}%): - R$ ${currency(descontoGrupo)}`,
+        );
+      }
 
       return {
         id: itemReferencia?.groupId || itemReferencia?.id || String(index),
@@ -1908,6 +1928,10 @@ export function NovoAgendamentoNovoLayout({
   }
 
   function calcularPrecoPersonalizada(item: NovoPedidoItem) {
+    return detalharPrecoPersonalizada(item).precoUnitario;
+  }
+
+  function detalharPrecoPersonalizada(item: NovoPedidoItem) {
     const proteina = Number(item.proteinaGramas || 0);
     const total = getPesoPersonalizadoItem(item);
     const regrasProteina = regras.filter((r) => r.tipo === "PROTEINA").sort((a, b) => Number(a.limite) - Number(b.limite));
@@ -1924,12 +1948,21 @@ export function NovoAgendamentoNovoLayout({
       !!item.complementoId || Number(item.complementoGramas || 0) > 0,
     ].filter(Boolean).length;
     const regraAjuste = regras.find((r) => r.tipo === "QUANTIDADE_INGREDIENTES" && Number(r.limite) === tiposCount);
-    return (
-      Math.max(precoFaixa(regrasProteina, proteina), precoFaixa(regrasTotal, total)) +
-      Number(regraAjuste?.preco || 0) +
-      (item.adicionarFeijao ? 2 : 0) +
-      (item.adicionarArroz ? 2 : 0)
-    );
+    const precoProteina = precoFaixa(regrasProteina, proteina);
+    const precoPesoTotal = precoFaixa(regrasTotal, total);
+    const precoBase = Math.max(precoProteina, precoPesoTotal);
+    const ajusteIngredientes = Number(regraAjuste?.preco || 0);
+    const adicionais = (item.adicionarFeijao ? 2 : 0) + (item.adicionarArroz ? 2 : 0);
+
+    return {
+      precoUnitario: precoBase + ajusteIngredientes + adicionais,
+      precoBase,
+      criterioBase: precoProteina > precoPesoTotal ? `faixa da proteína (${proteina}g)` : `faixa do peso total (${total}g)`,
+      ajusteIngredientes,
+      adicionais,
+      tiposCount,
+      totalGramas: total,
+    };
   }
 
   function itemTemTroca(item: NovoPedidoItem) {
