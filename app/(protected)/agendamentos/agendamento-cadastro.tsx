@@ -481,6 +481,7 @@ export function NovoAgendamentoNovoLayout({
   const [filtroCatalogo, setFiltroCatalogo] = useState<"TODAS" | "PEDIDO">("TODAS");
   const [categoriaCatalogo, setCategoriaCatalogo] = useState("TODAS");
   const [itens, setItens] = useState<NovoPedidoItem[]>([]);
+  const [quantidadesSalgados, setQuantidadesSalgados] = useState<Record<string, number>>({});
   const [planosCatalogo, setPlanosCatalogo] = useState<PlanoCatalogo[]>([]);
   const [planoSelecionadoId, setPlanoSelecionadoId] = useState("");
   const [planoPago, setPlanoPago] = useState(false);
@@ -665,11 +666,10 @@ export function NovoAgendamentoNovoLayout({
       const formaInicial = initialData.formaPagamento || "A_DEFINIR";
       setFormaPagamento(isVoucherForma(formaInicial) ? "VOUCHER" : formaInicial);
       setFormaPagamentoTaxaVoucher(
-        formaInicial === "VOUCHER_TAXA_DINHEIRO" ||
-        formaInicial === "VOUCHER_TAXA_CARTAO" ||
-        formaInicial === "VOUCHER_TAXA_PIX"
-          ? formaInicial
-          : "A_DEFINIR",
+        initialData.formaPagamentoTaxaVoucher ||
+        (formaInicial === "VOUCHER_TAXA_DINHEIRO" ? "DINHEIRO" :
+          formaInicial === "VOUCHER_TAXA_CARTAO" ? "CREDITO" :
+          formaInicial === "VOUCHER_TAXA_PIX" ? "PIX" : "A_DEFINIR"),
       );
       setVoucherCodigo(initialData.voucherCodigo || "");
       setAbaterTaxaEntregaPlano(
@@ -1233,9 +1233,9 @@ export function NovoAgendamentoNovoLayout({
       if (!item.usarPlano) return item;
       // Na edição, o saldo já foi abatido quando o pedido foi criado. O próprio
       // item salvo confirma o uso do plano e não deve ser cobrado novamente.
-      if (initialData) return { ...item, precoUnit: item.tipoItem === "PADRAO" ? getAdicionaisUnitarios(item) : 0 };
+      if (initialData) return { ...item, precoUnit: item.tipoItem === "PADRAO" || item.tipoItem === "PERSONALIZADA" ? getAdicionaisUnitarios(item) : 0 };
       if (!canUsePlanoForItem(item)) return item;
-      return { ...item, precoUnit: item.tipoItem === "PADRAO" ? getAdicionaisUnitarios(item) : 0 };
+      return { ...item, precoUnit: item.tipoItem === "PADRAO" || item.tipoItem === "PERSONALIZADA" ? getAdicionaisUnitarios(item) : 0 };
     });
   }, [itensComPrecoBruto, clienteSelecionado, initialData]);
 
@@ -1252,6 +1252,12 @@ export function NovoAgendamentoNovoLayout({
       (acc, item) => acc + Number(item.precoUnit || 0) * Number(item.quantidade || 0),
       0
     );
+    const totalAdicionaisPersonalizadas = itensComPrecoFinal
+      .filter((item) => item.tipoItem === "PERSONALIZADA")
+      .reduce(
+        (acc, item) => acc + getAdicionaisUnitarios(item) * Number(item.quantidade || 0),
+        0,
+      );
     const totalBrutoSalgados = itensComPrecoFinal
       .filter((item) => item.tipoItem === "SALGADO")
       .reduce(
@@ -1270,7 +1276,8 @@ export function NovoAgendamentoNovoLayout({
 
     if (regrasVolume.length > 0) {
       const pct = Number(regrasVolume[0].preco);
-      return totalBrutoPadrao + totalBrutoPersonalizadas * (1 - pct / 100) + totalBrutoSalgados;
+      const baseComDesconto = Math.max(0, totalBrutoPersonalizadas - totalAdicionaisPersonalizadas);
+      return totalBrutoPadrao + baseComDesconto * (1 - pct / 100) + totalAdicionaisPersonalizadas + totalBrutoSalgados;
     }
 
     return totalBrutoPadrao + totalBrutoPersonalizadas + totalBrutoSalgados;
@@ -1286,9 +1293,13 @@ export function NovoAgendamentoNovoLayout({
       }, {} as Record<string, typeof itensComPrecoFinal>)
     );
 
-    const totalBrutoPersonalizadas = itensComPrecoFinal
+    const totalBasePersonalizadas = itensComPrecoFinal
       .filter((item) => item.tipoItem === "PERSONALIZADA")
-      .reduce((acc, item) => acc + Number(item.precoUnit || 0) * Number(item.quantidade || 0), 0);
+      .reduce(
+        (acc, item) =>
+          acc + Math.max(0, Number(item.precoUnit || 0) - getAdicionaisUnitarios(item)) * Number(item.quantidade || 0),
+        0,
+      );
 
     const totalMarmitasResumo = itensComPrecoFinal
       .filter((item) => item.tipoItem === "PADRAO" || item.tipoItem === "PERSONALIZADA")
@@ -1298,20 +1309,24 @@ export function NovoAgendamentoNovoLayout({
       .filter((r) => r.tipo === "VOLUME_TOTAL" && totalMarmitasResumo >= Number(r.limite))
       .sort((a, b) => Number(b.limite) - Number(a.limite))[0];
 
-    const descontoVolume = regraVolume ? totalBrutoPersonalizadas * (Number(regraVolume.preco) / 100) : 0;
+    const descontoVolume = regraVolume ? totalBasePersonalizadas * (Number(regraVolume.preco) / 100) : 0;
 
     return grupos.map((grupo, index) => {
       const subtotalMarmitas = grupo
         .filter((item) => item.tipoItem === "PADRAO" || item.tipoItem === "PERSONALIZADA")
         .reduce((acc, item) => acc + Number(item.precoUnit || 0) * Number(item.quantidade || 0), 0);
-      const subtotalPersonalizadas = grupo
+      const basePersonalizadasGrupo = grupo
         .filter((item) => item.tipoItem === "PERSONALIZADA")
-        .reduce((acc, item) => acc + Number(item.precoUnit || 0) * Number(item.quantidade || 0), 0);
+        .reduce(
+          (acc, item) =>
+            acc + Math.max(0, Number(item.precoUnit || 0) - getAdicionaisUnitarios(item)) * Number(item.quantidade || 0),
+          0,
+        );
       const subtotalSalgados = grupo
         .filter((item) => item.tipoItem === "SALGADO")
         .reduce((acc, item) => acc + Number(item.precoUnit || 0) * Number(item.quantidade || 0), 0);
       const descontoGrupo =
-        totalBrutoPersonalizadas > 0 ? descontoVolume * (subtotalPersonalizadas / totalBrutoPersonalizadas) : 0;
+        totalBasePersonalizadas > 0 ? descontoVolume * (basePersonalizadasGrupo / totalBasePersonalizadas) : 0;
       const itemReferencia = grupo[0];
       const detalhesAlteracoes = grupo.flatMap((item) => {
         const quantidade = Math.max(1, Number(item.quantidade || 1));
@@ -1360,7 +1375,7 @@ export function NovoAgendamentoNovoLayout({
   const valorTaxaEntregaResumo =
     tipo === "ENTREGA" && incluirTaxaEntrega && !abaterTaxaEntregaPlano ? Number(valorTaxa || 0) : 0;
   const valorAdicionaisVoucherResumo = itensComPrecoFinal
-    .filter((item) => item.tipoItem === "PADRAO")
+    .filter((item) => item.tipoItem === "PADRAO" || item.tipoItem === "PERSONALIZADA")
     .reduce(
       (total, item) => total + getAdicionaisUnitarios(item) * Math.max(1, Number(item.quantidade || 1)),
       0,
@@ -1603,6 +1618,7 @@ export function NovoAgendamentoNovoLayout({
 
   function abrirFormularioSalgado() {
     resetFormItem();
+    setQuantidadesSalgados(Object.fromEntries(salgados.map((salgado) => [salgado.id, 0])));
     setFormItem((prev) => ({
       ...prev,
       tipoItem: "SALGADO",
@@ -1610,6 +1626,39 @@ export function NovoAgendamentoNovoLayout({
     }));
     setModalEscolhaPedidoOpen(false);
     setModalNovoPedidoOpen(true);
+  }
+
+  function adicionarSalgadosSelecionados() {
+    const selecionados = salgados
+      .map((salgado) => ({ salgado, quantidade: Math.max(0, Math.floor(Number(quantidadesSalgados[salgado.id] || 0))) }))
+      .filter((item) => item.quantidade > 0);
+    if (!selecionados.length) {
+      toast.error("Informe a quantidade", { description: "Adicione ao menos um salgado para continuar." });
+      return;
+    }
+    const groupId = currentGroupId || uid();
+    const novos: NovoPedidoItem[] = selecionados.map(({ salgado, quantidade }) => ({
+      ...formItem,
+      id: uid(),
+      groupId,
+      tipoItem: "SALGADO",
+      salgadoId: salgado.id,
+      salgadoNome: salgado.nome,
+      quantidade,
+      opcaoId: "",
+      opcaoNome: "",
+      tamanhoId: "",
+      tamanhoLabel: "Salgado",
+      precoUnit: Number(salgado.preco || 0),
+      usarPlano: false,
+    }));
+    setItens((atuais) => [...atuais, ...novos]);
+    setModalNovoPedidoOpen(false);
+    resetFormItem();
+    setQuantidadesSalgados({});
+    toast.success("Salgados adicionados", {
+      description: novos.map((item) => `${item.quantidade}x ${item.salgadoNome}`).join(" · "),
+    });
   }
 
   function abrirFormularioCongelada() {
@@ -1812,7 +1861,12 @@ export function NovoAgendamentoNovoLayout({
       !!item.complementoId || Number(item.complementoGramas || 0) > 0,
     ].filter(Boolean).length;
     const regraAjuste = regras.find((r) => r.tipo === "QUANTIDADE_INGREDIENTES" && Number(r.limite) === tiposCount);
-    return Math.max(precoFaixa(regrasProteina, proteina), precoFaixa(regrasTotal, total)) + Number(regraAjuste?.preco || 0);
+    return (
+      Math.max(precoFaixa(regrasProteina, proteina), precoFaixa(regrasTotal, total)) +
+      Number(regraAjuste?.preco || 0) +
+      (item.adicionarFeijao ? 2 : 0) +
+      (item.adicionarArroz ? 2 : 0)
+    );
   }
 
   function itemTemTroca(item: NovoPedidoItem) {
@@ -2558,10 +2612,7 @@ export function NovoAgendamentoNovoLayout({
       return;
     }
 
-    const formaPagamentoPayload: FormaPagamento =
-      formaPagamento === "VOUCHER" && formaPagamentoTaxaVoucher !== "A_DEFINIR"
-        ? formaPagamentoTaxaVoucher
-        : formaPagamento;
+    const formaPagamentoPayload: FormaPagamento = formaPagamento;
 
     if (formaPagamentoPayload === "PLANO" && !itens.some((it) => it.usarPlano)) {
       toast.error("Plano não selecionado", {
@@ -2619,6 +2670,7 @@ export function NovoAgendamentoNovoLayout({
       formaPagamento: formaPagamentoPayload,
       senhaAutorizacao,
       voucherCodigo: isVoucherForma(formaPagamentoPayload) ? voucherCodigo.trim() : undefined,
+      formaPagamentoTaxaVoucher: formaPagamento === "VOUCHER" ? formaPagamentoTaxaVoucher : undefined,
       abaterTaxaEntregaPlano: tipo === "ENTREGA" && incluirTaxaEntrega && abaterTaxaEntregaPlano,
       ...(tipo === "ENTREGA" && incluirTaxaEntrega && valorTaxa > 0 ? { valorTaxa } : {}),
       itens: itensComPrecoBruto.map(it => ({
@@ -3481,7 +3533,7 @@ export function NovoAgendamentoNovoLayout({
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label>Forma de pagamento da taxa</Label>
+                        <Label>Forma de pagamento da entrega</Label>
                         <Select
                           value={formaPagamentoTaxaVoucher}
                           onValueChange={(v: FormaPagamento) => setFormaPagamentoTaxaVoucher(v)}
@@ -3491,9 +3543,10 @@ export function NovoAgendamentoNovoLayout({
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="A_DEFINIR">Não definido</SelectItem>
-                            <SelectItem value="VOUCHER_TAXA_PIX">PIX</SelectItem>
-                            <SelectItem value="VOUCHER_TAXA_DINHEIRO">Dinheiro</SelectItem>
-                            <SelectItem value="VOUCHER_TAXA_CARTAO">Cartão</SelectItem>
+                            <SelectItem value="PIX">PIX</SelectItem>
+                            <SelectItem value="DINHEIRO">Dinheiro</SelectItem>
+                            <SelectItem value="CREDITO">Cartão de crédito</SelectItem>
+                            <SelectItem value="DEBITO">Cartão de débito</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
@@ -4079,33 +4132,32 @@ export function NovoAgendamentoNovoLayout({
                       )}
                     </div>
 
-                    {formItem.tipoItem === "SALGADO" ? (
+                    {formItem.tipoItem === "SALGADO" && !formItem.id ? (
                       <div className="space-y-2">
-                        <Label>Salgado</Label>
-                        <Select
-                          value={formItem.salgadoId || ""}
-                          onValueChange={(v) => {
-                            const salgado = salgados.find((s) => s.id === v);
-                            setFormItem((prev) => ({
-                              ...prev,
-                              salgadoId: v,
-                              salgadoNome: salgado?.nome || "",
-                              precoUnit: Number(salgado?.preco || 0),
-                            }));
-                          }}
-                        >
-                          <SelectTrigger className="bg-background border-muted-foreground/20 h-11">
-                            <SelectValue placeholder="Selecione o salgado" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {salgados.map((salgado) => (
-                              <SelectItem key={salgado.id} value={salgado.id}>
-                                {salgado.nome} - R$ {currency(salgado.preco)}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        <Label>Quantidade por salgado</Label>
+                        <div className="grid gap-3 sm:grid-cols-2">
+                          {salgados.map((salgado) => (
+                            <div key={salgado.id} className="rounded-xl border bg-background p-3">
+                              <Label htmlFor={`qtd-salgado-${salgado.id}`} className="text-sm font-bold">{salgado.nome}</Label>
+                              <Input
+                                id={`qtd-salgado-${salgado.id}`}
+                                type="number"
+                                min={0}
+                                step={1}
+                                value={quantidadesSalgados[salgado.id] || 0}
+                                onChange={(event) => setQuantidadesSalgados((atual) => ({
+                                  ...atual,
+                                  [salgado.id]: Math.max(0, Math.floor(Number(event.target.value || 0))),
+                                }))}
+                                className="mt-2 h-11"
+                              />
+                            </div>
+                          ))}
+                        </div>
+                        <p className="text-xs text-muted-foreground">A faixa de preço considera a soma de todos os sabores.</p>
                       </div>
+                    ) : formItem.tipoItem === "SALGADO" ? (
+                      <div className="text-sm font-semibold">{formItem.salgadoNome}</div>
                     ) : formItem.tipoItem === "CONGELADA" ? (
                       <div className="space-y-2">
                         <Label>Congelada</Label>
@@ -4727,7 +4779,8 @@ export function NovoAgendamentoNovoLayout({
                   resetFormItem();
                   return;
                 }
-                addPedidoNaLista(true);
+                if (formItem.tipoItem === "SALGADO" && !formItem.id) adicionarSalgadosSelecionados();
+                else addPedidoNaLista(true);
               }}
               className="rounded-xl shadow-lg"
             >

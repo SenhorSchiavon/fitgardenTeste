@@ -97,6 +97,7 @@ type Agendamento = {
   quantidade: number;
   quantidadeLabel?: string;
   formaPagamento: string;
+  formaPagamentoTaxaVoucher?: string | null;
   voucherCodigo?: string;
   entregador: string;
   observacoes?: string;
@@ -201,6 +202,21 @@ function getLabelPagamento(forma: string) {
     VOUCHER_TAXA_PIX: "Voucher + taxa no PIX",
   };
   return labels[forma] || forma || "-";
+}
+
+function getLabelPagamentoConfirmacao(agendamento: Agendamento) {
+  if (agendamento.formaPagamento !== "VOUCHER" && !Number(agendamento.valorDescontoVoucher || 0)) {
+    return getLabelPagamento(agendamento.formaPagamento);
+  }
+  const taxa = agendamento.formaPagamentoTaxaVoucher || "A_DEFINIR";
+  const labelsTaxa: Record<string, string> = {
+    A_DEFINIR: "Taxa não definida",
+    PIX: "Taxa PIX",
+    DINHEIRO: "Taxa em dinheiro",
+    CREDITO: "Taxa cartão de crédito",
+    DEBITO: "Taxa cartão de débito",
+  };
+  return `Voucher / ${labelsTaxa[taxa] || "Taxa não definida"}`;
 }
 
 function ordenarAgendamentosRota(rows: Agendamento[]) {
@@ -521,7 +537,7 @@ export default function Agendamentos() {
         : null,
       `*Total:* ${moneyBr(agendamento.valorTotalFinal ?? agendamento.valorTotal ?? 0)}`,
       "",
-      `*Forma de Pagamento:* ${getLabelPagamento(agendamento.formaPagamento)}`,
+      `*Forma de Pagamento:* ${getLabelPagamentoConfirmacao(agendamento)}`,
       ...(planos.length
         ? ["", "*Planos ativos — saldo restante:*", ...planos.map((plano) => `${plano.saldo} unidades - ${plano.tamanho}`)]
         : []),
@@ -931,7 +947,9 @@ export default function Agendamentos() {
         (Number(p.valor || 0) > 0 || (p.status === "CONFIRMADO" && p.forma !== "A_DEFINIR")),
     );
     const formaPagamentoExibida =
-      usouPlano && valorTotalFinal <= 0
+      valorDescontoVoucher > 0
+        ? "VOUCHER"
+        : usouPlano && valorTotalFinal <= 0
         ? "PLANO"
         : pagamentoNaoPlanoRelevante?.forma ??
           pagamentos.find((p: any) => p.forma === "PLANO")?.forma ??
@@ -952,6 +970,7 @@ export default function Agendamentos() {
       quantidade,
       quantidadeLabel,
       formaPagamento: formaPagamentoExibida,
+      formaPagamentoTaxaVoucher: row.pedido?.formaPagamentoTaxaVoucher ?? row.formaPagamentoTaxaVoucher ?? null,
       voucherCodigo:
         pagamentos.find((p: any) => String(p.voucherCodigo || "").trim())?.voucherCodigo ??
         row.voucherCodigo ??
