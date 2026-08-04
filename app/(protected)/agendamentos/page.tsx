@@ -513,13 +513,15 @@ export default function Agendamentos() {
         : "";
       const tituloTamanho = personalizada
         ? `PERSONALIZADO${pesagens ? ` ${pesagens}` : ""}`
+        : item.tipoItem === "CONGELADA"
+        ? `CONGELADAS ${item.tamanho || ""}`.trim()
         : item.tamanho || "Itens";
       const grupo = [tituloTamanho, item.destinatarioNome]
         .filter(Boolean)
         .join(" - ");
       const dadosGrupo = grupos.get(grupo) || { linhas: [], totalMarmitas: 0 };
       dadosGrupo.linhas.push(`    ${item.quantidade}x ${descricaoComArroz}`.toUpperCase());
-      if (item.tipoItem !== "SALGADO" && item.tipoItem !== "CONGELADA") {
+      if (item.tipoItem !== "SALGADO") {
         dadosGrupo.totalMarmitas += Number(item.quantidade || 0);
       }
       grupos.set(grupo, dadosGrupo);
@@ -2000,6 +2002,7 @@ export default function Agendamentos() {
             id: String(c.id),
             nome: c.nome,
             telefone: c.telefone,
+            valorTaxaEntregaManual: c.valorTaxaEntregaManual,
             enderecoPrincipal: enderecoTexto,
             enderecos: c.enderecos,
             tags: c.tags,

@@ -34,6 +34,7 @@ type ClientePayload = {
   nome: string;
   telefone: string;
   tags: string[];
+  valorTaxaEntregaManual: number | null;
   enderecos: Array<{
     principal: boolean;
     cep?: string | null;
@@ -53,6 +54,7 @@ type ClientePayload = {
 type ClienteFormValue = {
   nome: string;
   telefone: string;
+  valorTaxaEntregaManual?: string | number | null;
 
   cep?: string;
   uf?: string;
@@ -351,6 +353,7 @@ export function ClienteFormDialog({
   const [form, setForm] = useState<ClienteFormValue>({
     nome: "",
     telefone: "",
+    valorTaxaEntregaManual: "",
     cep: "",
     uf: "PR",
     cidade: "",
@@ -441,6 +444,7 @@ export function ClienteFormDialog({
       ...prev,
       nome: upper(initialValue?.nome),
       telefone: initialValue?.telefone ?? "",
+      valorTaxaEntregaManual: initialValue?.valorTaxaEntregaManual ?? "",
       cep: initialValue?.cep ?? "",
       uf: upper(initialValue?.uf) || "PR",
       cidade: normalizarCidadePermitida(initialValue?.cidade),
@@ -751,6 +755,10 @@ export function ClienteFormDialog({
     const payload: ClientePayload = {
       nome,
       telefone,
+      valorTaxaEntregaManual:
+        form.valorTaxaEntregaManual === "" || form.valorTaxaEntregaManual === null || form.valorTaxaEntregaManual === undefined
+          ? null
+          : Math.max(0, Number(form.valorTaxaEntregaManual)),
       tags: form.tags || [],
       enderecos: [
         {
@@ -968,8 +976,31 @@ export function ClienteFormDialog({
 
             {erroLocalizacao && <div className="text-sm text-red-600">{erroLocalizacao}</div>}
 
+            <div className="rounded-md border border-amber-200 bg-amber-50/60 p-3">
+              <Label htmlFor="valorTaxaEntregaManual">Taxa de entrega manual para este cliente</Label>
+              <Input
+                id="valorTaxaEntregaManual"
+                type="number"
+                min={0}
+                step="0.01"
+                value={form.valorTaxaEntregaManual ?? ""}
+                onChange={(e) => setForm((p) => ({ ...p, valorTaxaEntregaManual: e.target.value }))}
+                placeholder="Deixe vazio para calcular pelo endereço"
+                className="mt-2 bg-white"
+                disabled={saving}
+              />
+              <p className="mt-1 text-xs text-amber-800">
+                Quando preenchida, esta taxa substitui o cálculo automático pelo endereço.
+              </p>
+            </div>
+
             <div className="rounded-md border border-dashed border-emerald-200 bg-emerald-50/50 px-3 py-2 text-sm">
-              {calculandoTaxa ? (
+              {form.valorTaxaEntregaManual !== "" && form.valorTaxaEntregaManual !== null && form.valorTaxaEntregaManual !== undefined ? (
+                <div className="flex items-center justify-between gap-3">
+                  <span className="font-medium text-emerald-900">Taxa manual definida</span>
+                  <span className="font-extrabold text-emerald-800">R$ {currency(Number(form.valorTaxaEntregaManual))}</span>
+                </div>
+              ) : calculandoTaxa ? (
                 <span className="font-medium text-emerald-800">Calculando taxa de entrega...</span>
               ) : erroTaxaEntrega ? (
                 <span className="text-orange-700">{erroTaxaEntrega}</span>

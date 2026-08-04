@@ -96,6 +96,7 @@ type ClienteOption = {
   id: string;
   nome: string;
   telefone?: string | null;
+  valorTaxaEntregaManual?: number | string | null;
   enderecoPrincipal?: string | null;
   tags?: Array<{ id?: number; tag: string }>;
   enderecos?: Array<{
@@ -482,6 +483,7 @@ export function NovoAgendamentoNovoLayout({
   const [categoriaCatalogo, setCategoriaCatalogo] = useState("TODAS");
   const [itens, setItens] = useState<NovoPedidoItem[]>([]);
   const [quantidadesSalgados, setQuantidadesSalgados] = useState<Record<string, number>>({});
+  const [quantidadesCongeladas, setQuantidadesCongeladas] = useState<Record<string, number>>({});
   const [planosCatalogo, setPlanosCatalogo] = useState<PlanoCatalogo[]>([]);
   const [planoSelecionadoId, setPlanoSelecionadoId] = useState("");
   const [planoPago, setPlanoPago] = useState(false);
@@ -574,6 +576,7 @@ export function NovoAgendamentoNovoLayout({
     return {
       nome: clienteSelecionado.nome,
       telefone: clienteSelecionado.telefone || "",
+      valorTaxaEntregaManual: clienteSelecionado.valorTaxaEntregaManual ?? "",
       apelidoPrincipal: principal?.apelido || "",
       cep: principal?.cep || "",
       uf: principal?.uf || "",
@@ -915,7 +918,7 @@ export function NovoAgendamentoNovoLayout({
   }, [open, clienteId, data, initialData, getAgendamentos]);
 
   const totalMarmitas = useMemo(
-    () => itens.filter((item) => item.tipoItem === "PADRAO" || item.tipoItem === "PERSONALIZADA").reduce((acc, item) => acc + Number(item.quantidade || 0), 0),
+    () => itens.filter((item) => item.tipoItem === "PADRAO" || item.tipoItem === "PERSONALIZADA" || item.tipoItem === "CONGELADA").reduce((acc, item) => acc + Number(item.quantidade || 0), 0),
     [itens]
   );
 
@@ -1206,6 +1209,16 @@ export function NovoAgendamentoNovoLayout({
         };
       }
 
+      if (item.tipoItem === "CONGELADA") {
+        const congelada = congeladas.find((opcao) => opcao.id === item.congeladaId);
+        const tamanho = tamanhos.find((opcao) => Number.parseInt(opcao.nome, 10) === Number(congelada?.tamanhoGramas));
+        return {
+          ...item,
+          precoUnit: tamanho ? getPrecoUnitPorQuantidade(tamanho, totalMarmitas || 1) : 0,
+          tamanhoId: tamanho?.id || item.tamanhoId,
+        };
+      }
+
       // Personalizadas são precificadas pelas gramaturas/regras atuais e não
       // dependem de possuir um tamanho padrão cadastrado.
       if (item.tipoItem === "PERSONALIZADA") {
@@ -1227,7 +1240,7 @@ export function NovoAgendamentoNovoLayout({
           Number(precoFaixa || 0) + adicionalTrocas,
       };
     });
-  }, [itens, tamanhos, totalMarmitas, totalSalgados, regras]);
+  }, [itens, tamanhos, congeladas, totalMarmitas, totalSalgados, regras]);
 
   const itensComPrecoFinal = useMemo(() => {
     return itensComPrecoBruto.map((item) => {
@@ -1242,7 +1255,7 @@ export function NovoAgendamentoNovoLayout({
 
   const subtotalPedido = useMemo(() => {
     const totalBrutoPadrao = itensComPrecoFinal
-      .filter((item) => item.tipoItem === "PADRAO")
+      .filter((item) => item.tipoItem === "PADRAO" || item.tipoItem === "CONGELADA")
       .reduce(
       (acc, item) => acc + Number(item.precoUnit || 0) * Number(item.quantidade || 0),
       0
@@ -1267,7 +1280,7 @@ export function NovoAgendamentoNovoLayout({
       );
 
     const totalMarmitas = itensComPrecoFinal
-      .filter((item) => item.tipoItem === "PADRAO" || item.tipoItem === "PERSONALIZADA")
+      .filter((item) => item.tipoItem === "PADRAO" || item.tipoItem === "PERSONALIZADA" || item.tipoItem === "CONGELADA")
       .reduce((acc, it) => acc + it.quantidade, 0);
 
     // Desconto por volume total
@@ -1303,7 +1316,7 @@ export function NovoAgendamentoNovoLayout({
       );
 
     const totalMarmitasResumo = itensComPrecoFinal
-      .filter((item) => item.tipoItem === "PADRAO" || item.tipoItem === "PERSONALIZADA")
+      .filter((item) => item.tipoItem === "PADRAO" || item.tipoItem === "PERSONALIZADA" || item.tipoItem === "CONGELADA")
       .reduce((acc, item) => acc + Number(item.quantidade || 0), 0);
 
     const regraVolume = regras
@@ -1314,7 +1327,7 @@ export function NovoAgendamentoNovoLayout({
 
     return grupos.map((grupo, index) => {
       const subtotalMarmitas = grupo
-        .filter((item) => item.tipoItem === "PADRAO" || item.tipoItem === "PERSONALIZADA")
+        .filter((item) => item.tipoItem === "PADRAO" || item.tipoItem === "PERSONALIZADA" || item.tipoItem === "CONGELADA")
         .reduce((acc, item) => acc + Number(item.precoUnit || 0) * Number(item.quantidade || 0), 0);
       const basePersonalizadasGrupo = grupo
         .filter((item) => item.tipoItem === "PERSONALIZADA")
@@ -1659,6 +1672,54 @@ export function NovoAgendamentoNovoLayout({
     setQuantidadesSalgados({});
     toast.success("Salgados adicionados", {
       description: novos.map((item) => `${item.quantidade}x ${item.salgadoNome}`).join(" · "),
+    });
+  }
+
+  function adicionarCongeladasSelecionadas() {
+    const selecionadas = congeladas
+      .map((congelada) => ({
+        congelada,
+        quantidade: Math.max(0, Math.floor(Number(quantidadesCongeladas[congelada.id] || 0))),
+      }))
+      .filter((item) => item.quantidade > 0);
+    if (!selecionadas.length) {
+      toast.error("Informe a quantidade", { description: "Adicione ao menos uma congelada para continuar." });
+      return;
+    }
+    const semEstoque = selecionadas.find(({ congelada, quantidade }) => quantidade > Number(congelada.quantidade || 0));
+    if (semEstoque) {
+      toast.error("Estoque insuficiente", {
+        description: `${semEstoque.congelada.nome}: disponível ${semEstoque.congelada.quantidade}.`,
+      });
+      return;
+    }
+    const groupId = currentGroupId || uid();
+    const novas: NovoPedidoItem[] = selecionadas.map(({ congelada, quantidade }) => {
+      const tamanho = tamanhos.find((item) => Number.parseInt(item.nome, 10) === Number(congelada.tamanhoGramas));
+      return {
+        ...formItem,
+        id: uid(),
+        groupId,
+        tipoItem: "CONGELADA",
+        congeladaId: congelada.id,
+        congeladaNome: congelada.nome,
+        quantidade,
+        opcaoId: "",
+        opcaoNome: "",
+        salgadoId: "",
+        salgadoNome: "",
+        tamanhoId: tamanho?.id || "",
+        tamanhoLabel: `${congelada.tamanhoGramas}g`,
+        precoUnit: tamanho ? getPrecoUnitPorQuantidade(tamanho, totalMarmitas || 1) : 0,
+        usarPlano: false,
+      };
+    });
+    setItens((atuais) => [...atuais, ...novas]);
+    setModalNovoPedidoOpen(false);
+    resetFormItem();
+    setQuantidadesCongeladas({});
+    toast.success("Congeladas adicionadas", {
+      description: novas.map((item) => `${item.quantidade}x ${item.congeladaNome}`).join(" · "),
     });
   }
 
@@ -2264,9 +2325,12 @@ export function NovoAgendamentoNovoLayout({
         opcaoNome: "",
         salgadoId: "",
         salgadoNome: "",
-        tamanhoId: "",
+        tamanhoId: tamanhos.find((item) => Number.parseInt(item.nome, 10) === Number(congelada.tamanhoGramas))?.id || "",
         tamanhoLabel: `${congelada.tamanhoGramas}g`,
-        precoUnit: 0,
+        precoUnit: (() => {
+          const tamanhoCongelada = tamanhos.find((item) => Number.parseInt(item.nome, 10) === Number(congelada.tamanhoGramas));
+          return tamanhoCongelada ? getPrecoUnitPorQuantidade(tamanhoCongelada, totalMarmitas || 1) : 0;
+        })(),
         usarPlano: false,
       };
 
@@ -4161,6 +4225,33 @@ export function NovoAgendamentoNovoLayout({
                       </div>
                     ) : formItem.tipoItem === "SALGADO" ? (
                       <div className="text-sm font-semibold">{formItem.salgadoNome}</div>
+                    ) : formItem.tipoItem === "CONGELADA" && !formItem.id ? (
+                      <div className="space-y-2 md:col-span-2">
+                        <Label>Quantidade por congelada</Label>
+                        <div className="grid gap-3 sm:grid-cols-2">
+                          {congeladas.map((congelada) => (
+                            <div key={congelada.id} className="rounded-xl border bg-background p-3">
+                              <Label htmlFor={`qtd-congelada-${congelada.id}`} className="text-sm font-bold">
+                                {congelada.tamanhoGramas}g - {congelada.nome}
+                              </Label>
+                              <p className="text-xs text-muted-foreground">Estoque: {congelada.quantidade}</p>
+                              <Input
+                                id={`qtd-congelada-${congelada.id}`}
+                                type="number"
+                                min={0}
+                                max={congelada.quantidade}
+                                step={1}
+                                value={quantidadesCongeladas[congelada.id] || 0}
+                                onChange={(event) => setQuantidadesCongeladas((atual) => ({
+                                  ...atual,
+                                  [congelada.id]: Math.max(0, Math.floor(Number(event.target.value || 0))),
+                                }))}
+                                className="mt-2 h-11"
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      </div>
                     ) : formItem.tipoItem === "CONGELADA" ? (
                       <div className="space-y-2">
                         <Label>Congelada</Label>
@@ -4237,7 +4328,7 @@ export function NovoAgendamentoNovoLayout({
                       </div>
                     )}
 
-                    {formItem.tipoItem !== "PADRAO" && (
+                    {formItem.tipoItem !== "PADRAO" && (formItem.id || (formItem.tipoItem !== "SALGADO" && formItem.tipoItem !== "CONGELADA")) && (
                     <div className="space-y-2">
                       <Label>Quantidade</Label>
                       <div className="grid grid-cols-[36px_minmax(0,1fr)_36px] gap-2">
@@ -4783,6 +4874,7 @@ export function NovoAgendamentoNovoLayout({
                   return;
                 }
                 if (formItem.tipoItem === "SALGADO" && !formItem.id) adicionarSalgadosSelecionados();
+                else if (formItem.tipoItem === "CONGELADA" && !formItem.id) adicionarCongeladasSelecionadas();
                 else addPedidoNaLista(true);
               }}
               className="rounded-xl shadow-lg"

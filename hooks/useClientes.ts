@@ -66,6 +66,7 @@ export type Cliente = {
   nome: string;
   telefone: string;
   dataNascimento?: string | null;
+  valorTaxaEntregaManual?: number | string | null;
 
   enderecos: EnderecoCliente[];
   tags: { id: number; tag: string }[];
@@ -81,6 +82,7 @@ export type CriarAtualizarClienteInput = {
   telefone: string;
   enderecos?: EnderecoCliente[];
   tags?: string[];
+  valorTaxaEntregaManual?: number | null;
 };
 
 function getApiUrl() {

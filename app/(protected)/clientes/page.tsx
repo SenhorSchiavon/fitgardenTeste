@@ -78,6 +78,7 @@ export default function Clientes() {
     setClienteInitial({
       nome: cliente.nome,
       telefone: cliente.telefone,
+      valorTaxaEntregaManual: cliente.valorTaxaEntregaManual ?? "",
 
       cep: end1?.cep || "",
       uf: end1?.uf || "",
