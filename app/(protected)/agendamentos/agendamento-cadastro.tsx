@@ -298,7 +298,10 @@ function normalizarBusca(value: string) {
 }
 
 function normalizarTelefoneComparacao(value?: string | null) {
-  return String(value || "").replace(/\D/g, "").slice(-11);
+  let digits = String(value || "").replace(/\D/g, "");
+  if (digits.startsWith("55") && digits.length > 11) digits = digits.slice(2);
+  if (digits.length === 10) digits = `${digits.slice(0, 2)}9${digits.slice(2)}`;
+  return digits;
 }
 
 type EnderecoClienteOption = NonNullable<ClienteOption["enderecos"]>[number];
@@ -431,6 +434,7 @@ export function NovoAgendamentoNovoLayout({
   const { estimarTaxaEntrega, getAgendamentos, getUltimoAgendamentoCliente } = useAgendamentos();
   const { listPlanos, vincularPlano, saving: savingPlano } = usePlanosCliente();
   const [valorTaxa, setValorTaxa] = useState(0);
+  const [valorTaxaPlano, setValorTaxaPlano] = useState(0);
   const [distanciaEntregaKm, setDistanciaEntregaKm] = useState<number | null>(null);
   const [avisoHorarioAutomatico, setAvisoHorarioAutomatico] = useState("");
   const [avisoPagamentoAutomatico, setAvisoPagamentoAutomatico] = useState("");
@@ -802,6 +806,33 @@ export function NovoAgendamentoNovoLayout({
     };
   }, [clienteId, tipo, endereco, enderecoSelecionado, estimarTaxaEntrega]);
 
+  // A compra de taxinhas do plano usa a taxa estimada do endereço principal,
+  // mesmo quando o agendamento atual é retirada ou ainda não teve o tipo definido.
+  useEffect(() => {
+    let ativo = true;
+
+    async function updateTaxaPlano() {
+      if (!clienteId) {
+        setValorTaxaPlano(0);
+        return;
+      }
+      const principal = enderecosDisponiveis.find((item) => item.principal) || enderecosDisponiveis[0];
+      try {
+        const res = await estimarTaxaEntrega({
+          clienteId: Number(clienteId),
+          latitude: principal?.latitude != null ? Number(principal.latitude) : undefined,
+          longitude: principal?.longitude != null ? Number(principal.longitude) : undefined,
+        });
+        if (ativo) setValorTaxaPlano(Number(res?.valorTaxa || 0));
+      } catch {
+        if (ativo) setValorTaxaPlano(0);
+      }
+    }
+
+    updateTaxaPlano();
+    return () => { ativo = false; };
+  }, [clienteId, enderecosDisponiveis, estimarTaxaEntrega]);
+
   useEffect(() => {
     let ativo = true;
 
@@ -969,7 +1000,8 @@ export function NovoAgendamentoNovoLayout({
     incluirTaxaPlano
       ? Math.max(1, Math.floor(Number(quantidadeTaxasPlano || 1)))
       : 0;
-  const valorTaxasPlanoTotal = quantidadeTaxasPlanoFinal * Number(valorTaxa || 0);
+  const valorTaxaPlanoUnitario = Number(valorTaxa || 0) > 0 ? Number(valorTaxa) : Number(valorTaxaPlano || 0);
+  const valorTaxasPlanoTotal = quantidadeTaxasPlanoFinal * valorTaxaPlanoUnitario;
   const valorTotalPlanoCliente = valorPlanoSelecionado + valorTaxasPlanoTotal;
   const valorPlanosNaoPagosResumo = planosComprados
     .filter((plano) => !plano.pago)
@@ -1654,7 +1686,7 @@ export function NovoAgendamentoNovoLayout({
 
     const vinculo = await vincularPlano(Number(clienteId), Number(planoSelecionado.id), planoPago, {
       quantidadeTaxasEntrega: quantidadeTaxasPlanoFinal,
-      valorTaxaEntrega: quantidadeTaxasPlanoFinal > 0 ? Number(valorTaxa || 0) : 0,
+      valorTaxaEntrega: quantidadeTaxasPlanoFinal > 0 ? valorTaxaPlanoUnitario : 0,
       quantidadeConsumida,
       consumosItens,
       senhaAutorizacao,
@@ -1680,6 +1712,10 @@ export function NovoAgendamentoNovoLayout({
     const itensElegiveis = getItensElegiveisParaAplicarPlano();
     if (itensElegiveis.ids.length > 0) {
       setConfirmacaoAplicarPlano(itensElegiveis);
+    } else if (itens.some((item) => item.tipoItem !== "SALGADO" && item.tipoItem !== "CONGELADA" && !item.usarPlano)) {
+      toast.warning("Plano vinculado, mas as marmitas não são compatíveis", {
+        description: `O pedido está em outro tamanho/composição. Altere o tamanho do pedido para ${getPlanoCatalogoResumo(planoSelecionado)} para usar o saldo deste plano.`,
+      });
     }
 
     setModalPlanoOpen(false);
@@ -2548,6 +2584,7 @@ export function NovoAgendamentoNovoLayout({
 
     const payload: any = {
       pedidosPublicosIds,
+      planosCompradosIds: planosComprados.map((plano) => plano.id),
       clienteId,
       tipo,
       data: data instanceof Date ? data.toISOString() : data,
@@ -3882,9 +3919,7 @@ export function NovoAgendamentoNovoLayout({
                       Adicionar taxinhas de entrega?
                     </Label>
                     <p className="text-xs text-muted-foreground">
-                      {valorTaxa > 0
-                        ? `Valor de cada taxa: R$ ${currency(valorTaxa)}`
-                        : "Adiciona entregas ao saldo do plano sem custo adicional neste vínculo."}
+                      Valor de cada taxa: R$ {currency(valorTaxaPlanoUnitario)}
                     </p>
                   </div>
                   <Checkbox
@@ -3916,9 +3951,7 @@ export function NovoAgendamentoNovoLayout({
                     <div className="rounded-lg bg-emerald-50 border border-emerald-100 px-3 py-2 text-sm">
                       <div className="text-xs text-emerald-700 font-semibold">Taxas de entrega</div>
                       <div className="font-bold text-primary">
-                        {valorTaxa > 0
-                          ? `${quantidadeTaxasPlanoFinal} x R$ ${currency(valorTaxa)} = R$ ${currency(valorTaxasPlanoTotal)}`
-                          : `${quantidadeTaxasPlanoFinal} taxinha${quantidadeTaxasPlanoFinal === 1 ? "" : "s"} adicionada${quantidadeTaxasPlanoFinal === 1 ? "" : "s"} ao saldo`}
+                        {`${quantidadeTaxasPlanoFinal} x R$ ${currency(valorTaxaPlanoUnitario)} = R$ ${currency(valorTaxasPlanoTotal)}`}
                       </div>
                     </div>
                   </div>

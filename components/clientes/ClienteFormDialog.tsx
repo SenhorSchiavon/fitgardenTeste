@@ -97,6 +97,16 @@ function onlyDigits(v: string) {
   return (v || "").replace(/\D/g, "");
 }
 
+function formatPhoneInput(value: string) {
+  let digits = onlyDigits(value);
+  if (digits.startsWith("55") && digits.length > 11) digits = digits.slice(2);
+  digits = digits.slice(0, 11);
+  if (digits.length <= 2) return digits;
+  if (digits.length <= 6) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
+  if (digits.length <= 10) return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`;
+  return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
+}
+
 function currency(value: number) {
   return Number(value || 0).toFixed(2).replace(".", ",");
 }
@@ -718,7 +728,7 @@ export function ClienteFormDialog({
 
   const handleSave = async () => {
     const nome = upper(form.nome).trim();
-    const telefone = String(form.telefone || "").trim();
+    const telefone = formatPhoneInput(form.telefone);
     if (!nome) return;
     if (!telefone) return;
     if (temEnderecoPrincipal && enderecoPrincipalFoiAlterado && !coordsOk) {
@@ -816,7 +826,10 @@ export function ClienteFormDialog({
                 <Input
                   id="telefone"
                   value={form.telefone}
-                  onChange={(e) => setForm((p) => ({ ...p, telefone: e.target.value }))}
+                  onChange={(e) => setForm((p) => ({ ...p, telefone: formatPhoneInput(e.target.value) }))}
+                  inputMode="tel"
+                  placeholder="(43) 99999-9999"
+                  maxLength={15}
                   disabled={saving}
                 />
               </div>

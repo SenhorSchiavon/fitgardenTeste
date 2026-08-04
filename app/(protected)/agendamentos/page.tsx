@@ -107,6 +107,8 @@ type Agendamento = {
   valorDescontos?: number;
   valorDescontoVoucher?: number;
   valorTotalFinal?: number;
+  valorPlanosComprados?: number;
+  valorPlanosCompradosPendente?: number;
   taxaEntregaAbatidaPlano?: boolean;
   usouPlano?: boolean;
   saldoMarmitasAposPedido?: number | null;
@@ -501,6 +503,9 @@ export default function Agendamentos() {
       itens,
       "",
       `*Subtotal:* ${moneyBr(agendamento.valorPedidoProporcional ?? agendamento.valorPedido ?? 0)}`,
+      agendamento.valorPlanosComprados && agendamento.valorPlanosComprados > 0
+        ? `*Plano adquirido:* ${moneyBr(agendamento.valorPlanosComprados)}`
+        : null,
       `*Taxa de Entrega:* ${moneyBr(agendamento.valorTaxa || 0)}`,
       agendamento.valorDescontoVoucher && agendamento.valorDescontoVoucher > 0
         ? `*Desconto Voucher:* - ${moneyBr(agendamento.valorDescontoVoucher)}`
@@ -827,6 +832,19 @@ export default function Agendamentos() {
           Number(p.consumoUnidades || 0) > 0,
       )
       .reduce((acc: number, p: any) => acc + Number(p.valor || 0), 0);
+    const pagamentosCompraPlano = pagamentos.filter(
+      (p: any) =>
+        p.forma === "PLANO" &&
+        p.planoClienteId &&
+        Number(p.consumoUnidades || 0) === 0 &&
+        Number(p.consumoEntregas || 0) === 0 &&
+        Number(p.valor || 0) > 0,
+    );
+    const valorPlanosComprados = pagamentosCompraPlano
+      .reduce((acc: number, p: any) => acc + Number(p.valor || 0), 0);
+    const valorPlanosCompradosPendente = pagamentosCompraPlano
+      .filter((p: any) => p.status === "PENDENTE")
+      .reduce((acc: number, p: any) => acc + Number(p.valor || 0), 0);
     const valorPlanoProporcional = valorPlanoUnidadesRegistrado > 0
       ? valorPlanoUnidadesRegistrado
       : valorDescontoItens;
@@ -875,7 +893,7 @@ export default function Agendamentos() {
       valorTotalPelaCoberturaAtual,
     ];
     const valorTotalFinal = usouPlano
-      ? valorTotalPelaCoberturaAtual
+      ? valorTotalPelaCoberturaAtual + valorPlanosCompradosPendente
       : Math.max(0, Math.min(...candidatosTotal));
     const planosCliente = row.pedido?.cliente?.planos ?? row.cliente?.planos ?? [];
     const saldosPorTamanho = new Map<string, number>();
@@ -936,6 +954,8 @@ export default function Agendamentos() {
       valorDescontos,
       valorDescontoVoucher,
       valorTotalFinal,
+      valorPlanosComprados,
+      valorPlanosCompradosPendente,
       taxaEntregaAbatidaPlano,
       usouPlano,
       saldoMarmitasAposPedido,
