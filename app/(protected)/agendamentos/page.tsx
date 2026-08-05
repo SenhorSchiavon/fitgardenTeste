@@ -98,6 +98,7 @@ type Agendamento = {
   quantidadeLabel?: string;
   formaPagamento: string;
   formaPagamentoTaxaVoucher?: string | null;
+  taxaVoucherPaga?: boolean;
   voucherCodigo?: string;
   entregador: string;
   observacoes?: string;
@@ -109,9 +110,12 @@ type Agendamento = {
   valorDescontos?: number;
   valorDescontoPlanoItens?: number;
   valorDescontoVoucher?: number;
+  valorDescontoManual?: number;
+  motivoDescontoManual?: string | null;
   valorTotalFinal?: number;
   valorPlanosComprados?: number;
   valorPlanosCompradosPendente?: number;
+  planosComprados?: { nome: string; valor: number }[];
   taxaEntregaAbatidaPlano?: boolean;
   usouPlano?: boolean;
   saldoMarmitasAposPedido?: number | null;
@@ -124,6 +128,7 @@ type Agendamento = {
     nome: string;
     tamanho: string;
     quantidade: number;
+    valor?: number;
     usarPlano: boolean;
     destinatarioNome?: string;
     observacaoItem?: string;
@@ -193,6 +198,8 @@ function getLabelPagamento(forma: string) {
     DINHEIRO: "Dinheiro",
     CREDITO: "Cartão de crédito",
     DEBITO: "Cartão de débito",
+    VALE_ALIMENTACAO: "Vale Alimentação",
+    VALE_REFEICAO: "Vale Refeição",
     PIX: "PIX",
     LINK: "Link de pagamento",
     VOUCHER: "Voucher",
@@ -213,10 +220,12 @@ function getLabelPagamentoConfirmacao(agendamento: Agendamento) {
   const taxa = agendamento.formaPagamentoTaxaVoucher || "A_DEFINIR";
   const labelsTaxa: Record<string, string> = {
     A_DEFINIR: "Taxa não definida",
-    PIX: "Taxa PIX",
+    PIX: agendamento.taxaVoucherPaga ? "Taxa PIX — PAGA" : "Taxa PIX — A PAGAR",
     DINHEIRO: "Taxa em dinheiro",
     CREDITO: "Taxa cartão de crédito",
     DEBITO: "Taxa cartão de débito",
+    VALE_ALIMENTACAO: "Taxa no Vale Alimentação",
+    VALE_REFEICAO: "Taxa no Vale Refeição",
   };
   return `Voucher / ${labelsTaxa[taxa] || "Taxa não definida"}`;
 }
@@ -238,8 +247,10 @@ function montarDadosEdicaoAgendamento(agendamento: Agendamento) {
     String(agendamento.voucherCodigo || "").trim() ||
     String(pagamentos.find((pagamento: any) => String(pagamento.voucherCodigo || "").trim())?.voucherCodigo || "").trim();
   const formaPagamento = agendamento.formaPagamento || "A_DEFINIR";
-  const pagamentoJaRealizado = (formaPagamento === "PIX" || formaPagamento === "LINK") &&
-    pagamentos.some((pagamento: any) => pagamento.forma === formaPagamento && pagamento.status === "CONFIRMADO");
+  const formaPagamentoTaxaVoucher = pedido.formaPagamentoTaxaVoucher ?? raw.formaPagamentoTaxaVoucher ?? null;
+  const formaCobranca = formaPagamento === "VOUCHER" ? formaPagamentoTaxaVoucher : formaPagamento;
+  const pagamentoJaRealizado = (formaCobranca === "PIX" || formaCobranca === "LINK") &&
+    pagamentos.some((pagamento: any) => pagamento.forma === formaCobranca && pagamento.status === "CONFIRMADO");
   return {
     ...raw,
     clienteId: pedido.clienteId ?? raw.clienteId,
@@ -258,6 +269,7 @@ function montarDadosEdicaoAgendamento(agendamento: Agendamento) {
     regiao: raw.regiao ?? agendamento.zona ?? null,
     observacoes: pedido.observacoes ?? agendamento.observacoes ?? "",
     formaPagamento,
+    formaPagamentoTaxaVoucher,
     voucherCodigo,
     pagamentoJaRealizado,
     itens: pedido.itens ?? raw.itens ?? [],
@@ -493,7 +505,7 @@ export default function Agendamentos() {
     const horarioFormatado = faixaHorario.includes("-")
       ? faixaHorario.split("-").map((parte) => parte.trim()).filter(Boolean).join(" às ")
       : faixaHorario;
-    const grupos = new Map<string, { linhas: string[]; totalMarmitas: number }>();
+    const grupos = new Map<string, { linhas: string[]; totalMarmitas: number; subtotal: number }>();
     agendamento.itens.forEach((item) => {
       const detalhes = [item.carbo, item.proteina, item.legume, item.feijao, item.complemento].filter(Boolean);
       const descricaoBase = detalhes.length ? detalhes.join(" + ") : item.nome;
@@ -524,17 +536,19 @@ export default function Agendamentos() {
       const grupo = [tituloTamanho, item.destinatarioNome]
         .filter(Boolean)
         .join(" - ");
-      const dadosGrupo = grupos.get(grupo) || { linhas: [], totalMarmitas: 0 };
+      const dadosGrupo = grupos.get(grupo) || { linhas: [], totalMarmitas: 0, subtotal: 0 };
       dadosGrupo.linhas.push(`    ${item.quantidade}x ${descricaoComArroz}`.toUpperCase());
+      dadosGrupo.subtotal += Number(item.valor || 0);
       if (item.tipoItem !== "SALGADO") {
         dadosGrupo.totalMarmitas += Number(item.quantidade || 0);
       }
       grupos.set(grupo, dadosGrupo);
     });
     const itens = Array.from(grupos.entries())
-      .flatMap(([grupo, dados]) => [
-        `*${grupo}*`,
+      .flatMap(([grupo, dados], indice) => [
+        grupos.size > 1 ? `*PEDIDO ${indice + 1} - ${grupo}*` : `*${grupo}*`,
         dados.totalMarmitas > 0 ? `*Total de marmitas:* ${dados.totalMarmitas}` : null,
+        `*Subtotal do pedido:* ${moneyBr(dados.subtotal)}`,
         ...dados.linhas,
       ].filter((linha): linha is string => !!linha))
       .join("\n");
@@ -560,18 +574,28 @@ export default function Agendamentos() {
       itens,
       "",
       agendamento.valorPlanosComprados && agendamento.valorPlanosComprados > 0
-        ? `*Valor do Plano:* ${moneyBr(agendamento.valorPlanosComprados)}`
+        ? `*Valor do plano adquirido:* ${moneyBr(agendamento.valorPlanosComprados)}`
         : `*Subtotal:* ${moneyBr(agendamento.valorPedidoProporcional ?? agendamento.valorPedido ?? 0)}`,
       `*Taxa de Entrega:* ${moneyBr(agendamento.valorTaxa || 0)}`,
       agendamento.valorDescontoVoucher && agendamento.valorDescontoVoucher > 0
         ? `*Desconto Voucher:* - ${moneyBr(agendamento.valorDescontoVoucher)}`
         : null,
+      agendamento.valorDescontoManual && agendamento.valorDescontoManual > 0
+        ? `*Desconto${agendamento.motivoDescontoManual ? ` (${agendamento.motivoDescontoManual})` : ""}:* - ${moneyBr(agendamento.valorDescontoManual)}`
+        : null,
       (!agendamento.valorPlanosComprados || agendamento.valorPlanosComprados <= 0) &&
       agendamento.valorDescontoPlanoItens && agendamento.valorDescontoPlanoItens > 0
         ? `*Desconto do Plano:* - ${moneyBr(agendamento.valorDescontoPlanoItens)}`
         : null,
-      `*Total:* ${moneyBr(agendamento.valorTotalFinal ?? agendamento.valorTotal ?? 0)}`,
+      `*Total:* ${moneyBr(agendamento.valorPlanosComprados && agendamento.valorPlanosComprados > 0
+        ? Math.max(0, Number(agendamento.valorPedido || 0) - Number(agendamento.valorDescontoPlanoItens || 0)) +
+          (agendamento.taxaEntregaAbatidaPlano ? 0 : Number(agendamento.valorTaxa || 0)) +
+          Number(agendamento.valorPlanosComprados) - Number(agendamento.valorDescontoManual || 0)
+        : agendamento.valorTotalFinal ?? agendamento.valorTotal ?? 0)}`,
       "",
+      ...(agendamento.planosComprados?.length
+        ? ["*Plano adquirido:*", ...agendamento.planosComprados.map((plano) => `${plano.nome} - ${moneyBr(plano.valor)}`), ""]
+        : []),
       `*Forma de Pagamento:* ${getLabelPagamentoConfirmacao(agendamento)}`,
       ...(planos.length
         ? ["", "*Planos ativos — saldo restante:*", ...planos.map((plano) => `${plano.saldo} unidades - ${plano.tamanho}`)]
@@ -819,6 +843,7 @@ export default function Agendamentos() {
             ? `${it.tamanho.pesagemGramas}g`
             : (it.tamanhoLabel ?? "-"),
           quantidade: Number(it.quantidade ?? 0),
+          valor: Number(it.valor ?? 0),
           usarPlano: it.usarPlano,
           destinatarioNome: it.destinatarioNome || "",
           observacaoItem: it.observacaoItem || "",
@@ -903,6 +928,10 @@ export default function Agendamentos() {
     );
     const valorPlanosComprados = pagamentosCompraPlano
       .reduce((acc: number, p: any) => acc + Number(p.valor || 0), 0);
+    const planosComprados = pagamentosCompraPlano.map((p: any) => ({
+      nome: String(p.planoCliente?.plano?.nome || `Plano #${p.planoClienteId}`),
+      valor: Number(p.valor || 0),
+    }));
     const valorPlanosCompradosPendente = pagamentosCompraPlano
       .filter((p: any) => p.planoCliente?.pago === false || (!p.planoCliente && p.status === "PENDENTE"))
       .reduce((acc: number, p: any) => acc + Number(p.valor || 0), 0);
@@ -916,6 +945,12 @@ export default function Agendamentos() {
     const valorDescontoVoucher = pagamentos
       .filter((p: any) => p.forma === "VOUCHER" && p.status === "CONFIRMADO")
       .reduce((acc: number, p: any) => acc + Number(p.valor || 0), 0);
+    const formaTaxaVoucherAtual = row.pedido?.formaPagamentoTaxaVoucher ?? row.formaPagamentoTaxaVoucher ?? null;
+    const taxaVoucherPaga = !!formaTaxaVoucherAtual && pagamentos.some(
+      (p: any) => p.forma === formaTaxaVoucherAtual && p.status === "CONFIRMADO" && !p.voucherId,
+    );
+    const valorDescontoManual = Number(row.pedido?.valorDescontoManual ?? row.valorDescontoManual ?? 0);
+    const motivoDescontoManual = row.pedido?.motivoDescontoManual ?? row.motivoDescontoManual ?? null;
 
     const taxaEntregaAbatidaPlano = pagamentos.some(
       (p: any) =>
@@ -943,7 +978,7 @@ export default function Agendamentos() {
     const temPagamentoPendente = pagamentos.some((p: any) => p.status === "PENDENTE");
     const valorTotalPelaCoberturaAtual = Math.max(
       0,
-      valorTotalOriginal - valorDescontos - valorDescontoVoucher,
+      valorTotalOriginal - valorDescontos - valorDescontoVoucher - valorDescontoManual,
     );
     const usouPlano =
       itens.some((it: any) => !!it.usarPlano) ||
@@ -956,7 +991,17 @@ export default function Agendamentos() {
     const valorTotalFinal = usouPlano
       ? valorTotalPelaCoberturaAtual + valorPlanosCompradosPendente
       : Math.max(0, Math.min(...candidatosTotal));
-    const planosCliente = row.pedido?.cliente?.planos ?? row.cliente?.planos ?? [];
+    const planosClienteAtivos = row.pedido?.cliente?.planos ?? row.cliente?.planos ?? [];
+    // O plano comprado neste pedido ainda pode estar como não pago, mas seu saldo
+    // pós-pedido precisa aparecer imediatamente na confirmação do cliente.
+    const planosCompradosNoPedido = pagamentosCompraPlano
+      .map((pagamento: any) => pagamento.planoCliente)
+      .filter(Boolean);
+    const planosCliente = Array.from(
+      new Map(
+        [...planosClienteAtivos, ...planosCompradosNoPedido].map((plano: any) => [Number(plano.id), plano]),
+      ).values(),
+    );
     const saldosPorTamanho = new Map<string, number>();
     planosCliente.forEach((plano: any) => {
       (plano.itens || []).forEach((saldo: any) => {
@@ -1007,6 +1052,7 @@ export default function Agendamentos() {
       quantidadeLabel,
       formaPagamento: formaPagamentoExibida,
       formaPagamentoTaxaVoucher: row.pedido?.formaPagamentoTaxaVoucher ?? row.formaPagamentoTaxaVoucher ?? null,
+      taxaVoucherPaga,
       voucherCodigo:
         pagamentos.find((p: any) => String(p.voucherCodigo || "").trim())?.voucherCodigo ??
         row.voucherCodigo ??
@@ -1019,9 +1065,12 @@ export default function Agendamentos() {
       valorDescontos,
       valorDescontoPlanoItens: valorItensCobertosPlano,
       valorDescontoVoucher,
+      valorDescontoManual,
+      motivoDescontoManual,
       valorTotalFinal,
       valorPlanosComprados,
       valorPlanosCompradosPendente,
+      planosComprados,
       taxaEntregaAbatidaPlano,
       usouPlano,
       saldoMarmitasAposPedido,

@@ -74,6 +74,8 @@ type FormaPagamento =
   | "PIX"
   | "CREDITO"
   | "DEBITO"
+  | "VALE_ALIMENTACAO"
+  | "VALE_REFEICAO"
   | "LINK"
   | "VOUCHER"
   | "PLANO"
@@ -472,6 +474,9 @@ export function NovoAgendamentoNovoLayout({
   const [formaPagamentoTaxaVoucher, setFormaPagamentoTaxaVoucher] = useState<FormaPagamento>("A_DEFINIR");
   const [voucherCodigo, setVoucherCodigo] = useState("");
   const [pagamentoJaRealizado, setPagamentoJaRealizado] = useState(false);
+  const [descontoManualOpen, setDescontoManualOpen] = useState(false);
+  const [valorDescontoManual, setValorDescontoManual] = useState(0);
+  const [motivoDescontoManual, setMotivoDescontoManual] = useState("");
   const [usarPlanoEscolhidoManualmente, setUsarPlanoEscolhidoManualmente] = useState(false);
 
   const [currentGroupId, setCurrentGroupId] = useState("");
@@ -682,6 +687,10 @@ export function NovoAgendamentoNovoLayout({
           formaInicial === "VOUCHER_TAXA_PIX" ? "PIX" : "A_DEFINIR"),
       );
       setVoucherCodigo(initialData.voucherCodigo || "");
+      const descontoInicial = Number(initialData.valorDescontoManual || initialData.pedido?.valorDescontoManual || 0);
+      setValorDescontoManual(descontoInicial);
+      setMotivoDescontoManual(initialData.motivoDescontoManual || initialData.pedido?.motivoDescontoManual || "");
+      setDescontoManualOpen(descontoInicial > 0);
       const pagamentosIniciais = initialData.pagamentos || initialData.pedido?.pagamentos || [];
       setPagamentoJaRealizado(!!initialData.pagamentoJaRealizado);
       setPlanosComprados(
@@ -1451,6 +1460,14 @@ export function NovoAgendamentoNovoLayout({
   const valorDescontoVoucherResumo = isVoucherForma(formaPagamento)
     ? Math.max(0, subtotalPedido - valorAdicionaisVoucherResumo)
     : 0;
+  const valorAntesDescontoManual = Math.max(
+    0,
+    subtotalPedido - valorDescontoVoucherResumo + valorTaxaEntregaResumo + valorPlanosNaoPagosResumo,
+  );
+  const valorDescontoManualAplicado = Math.min(
+    Math.max(0, Number(valorDescontoManual || 0)),
+    valorAntesDescontoManual,
+  );
   const valorTaxaPorPedido =
     resumoPedidos.length > 0 && valorTaxaEntregaResumo > 0 ? valorTaxaEntregaResumo / resumoPedidos.length : 0;
 
@@ -1465,6 +1482,9 @@ export function NovoAgendamentoNovoLayout({
     setObservacoesPedido("");
     setFormaPagamento("A_DEFINIR");
     setPagamentoJaRealizado(false);
+    setDescontoManualOpen(false);
+    setValorDescontoManual(0);
+    setMotivoDescontoManual("");
     setFormaPagamentoTaxaVoucher("A_DEFINIR");
     setVoucherCodigo("");
     setDistanciaEntregaKm(null);
@@ -2805,9 +2825,15 @@ export function NovoAgendamentoNovoLayout({
       senhaAutorizacao,
       voucherCodigo: isVoucherForma(formaPagamentoPayload) ? voucherCodigo.trim() : undefined,
       formaPagamentoTaxaVoucher: formaPagamento === "VOUCHER" ? formaPagamentoTaxaVoucher : undefined,
-      pagamentoJaRealizado: (formaPagamento === "PIX" || formaPagamento === "LINK")
+      pagamentoJaRealizado: (
+        formaPagamento === "PIX" ||
+        formaPagamento === "LINK" ||
+        (formaPagamento === "VOUCHER" && formaPagamentoTaxaVoucher === "PIX")
+      )
         ? pagamentoJaRealizado
         : false,
+      valorDescontoManual: Math.max(0, Number(valorDescontoManual || 0)),
+      motivoDescontoManual: motivoDescontoManual.trim(),
       abaterTaxaEntregaPlano: ehEntrega && incluirTaxaEntrega && abaterTaxaEntregaPlano,
       ...(ehEntrega && incluirTaxaEntrega && valorTaxa > 0 ? { valorTaxa } : {}),
       itens: itensComPrecoBruto.map(it => ({
@@ -2868,7 +2894,9 @@ export function NovoAgendamentoNovoLayout({
     const tamanhoPersonalizado = customizado
       ? tamanhos.find((tamanho) => parseInt(tamanho.nome, 10) === pesoPersonalizado)
       : undefined;
-    const groupId = `tamanho:${customizado ? pesoPersonalizado : pedido.tamanhoId || pedido.tamanhoLabel}`;
+    // Cada pedido importado representa um subpedido, mesmo quando cliente,
+    // destinatario e tamanho coincidem com os de outra importacao.
+    const groupId = `pedido-publico:${pedido.id}:tamanho:${customizado ? pesoPersonalizado : pedido.tamanhoId || pedido.tamanhoLabel}`;
     const importados: NovoPedidoItem[] = (pedido.itens?.escolhas || []).map((item: any) => {
       const opcao = opcoesPadrao.find((opcaoAtual) => String(opcaoAtual.id) === String(item.opcaoId));
       const componente = (tipo: "CARBOIDRATO" | "PROTEINA" | "LEGUMES" | "FEIJAO" | "COMPLEMENTO") =>
@@ -3306,7 +3334,7 @@ export function NovoAgendamentoNovoLayout({
                                           });
                                         }}
                                       >
-                                        Desusar plano
+                                        Desutilizar plano
                                       </Button>
                                     </>
                                   )}
@@ -3662,7 +3690,10 @@ export function NovoAgendamentoNovoLayout({
                     <Label>Forma de pagamento</Label>
                     <Select
                       value={formaPagamento}
-                      onValueChange={(v: FormaPagamento) => setFormaPagamento(v)}
+                      onValueChange={(v: FormaPagamento) => {
+                        setFormaPagamento(v);
+                        setPagamentoJaRealizado(false);
+                      }}
                     >
                       <SelectTrigger className={cn(formaPagamento === "A_DEFINIR" && "border-red-300 bg-red-50 text-red-700")}>
                         <SelectValue />
@@ -3672,6 +3703,8 @@ export function NovoAgendamentoNovoLayout({
                         <SelectItem value="PIX">PIX</SelectItem>
                         <SelectItem value="DINHEIRO">Dinheiro</SelectItem>
                         <SelectItem value="CREDITO">Cartão</SelectItem>
+                        <SelectItem value="VALE_ALIMENTACAO">Vale Alimentação</SelectItem>
+                        <SelectItem value="VALE_REFEICAO">Vale Refeição</SelectItem>
                         <SelectItem value="LINK">Link de pagamento</SelectItem>
                         <SelectItem value="VOUCHER">Voucher</SelectItem>
                         <SelectItem value="TROCA">Troca</SelectItem>
@@ -3684,13 +3717,13 @@ export function NovoAgendamentoNovoLayout({
                         {avisoPagamentoAutomatico}
                       </p>
                     )}
-                    {(formaPagamento === "PIX" || formaPagamento === "LINK") && (
+                    {(formaPagamento === "PIX" || formaPagamento === "LINK" || (formaPagamento === "VOUCHER" && formaPagamentoTaxaVoucher === "PIX")) && (
                       <label className="flex cursor-pointer items-center gap-2 rounded-lg border p-3 text-sm font-medium">
                         <Checkbox
                           checked={pagamentoJaRealizado}
                           onCheckedChange={(checked) => setPagamentoJaRealizado(checked === true)}
                         />
-                        Já foi pago
+                        {formaPagamento === "VOUCHER" ? "Taxa PIX já foi paga" : "Já foi pago"}
                       </label>
                     )}
                   </div>
@@ -3710,7 +3743,10 @@ export function NovoAgendamentoNovoLayout({
                         <Label>Forma de pagamento da entrega</Label>
                         <Select
                           value={formaPagamentoTaxaVoucher}
-                          onValueChange={(v: FormaPagamento) => setFormaPagamentoTaxaVoucher(v)}
+                          onValueChange={(v: FormaPagamento) => {
+                            setFormaPagamentoTaxaVoucher(v);
+                            setPagamentoJaRealizado(false);
+                          }}
                         >
                           <SelectTrigger>
                             <SelectValue />
@@ -3721,6 +3757,8 @@ export function NovoAgendamentoNovoLayout({
                             <SelectItem value="DINHEIRO">Dinheiro</SelectItem>
                             <SelectItem value="CREDITO">Cartão de crédito</SelectItem>
                             <SelectItem value="DEBITO">Cartão de débito</SelectItem>
+                            <SelectItem value="VALE_ALIMENTACAO">Vale Alimentação</SelectItem>
+                            <SelectItem value="VALE_REFEICAO">Vale Refeição</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
@@ -3869,9 +3907,28 @@ export function NovoAgendamentoNovoLayout({
                       </div>
                     )}
 
+                    {!descontoManualOpen ? (
+                      <Button type="button" variant="outline" className="w-full border-amber-300 text-amber-800 hover:bg-amber-50" onClick={() => setDescontoManualOpen(true)}>
+                        Inserir desconto ou brinde
+                      </Button>
+                    ) : (
+                      <div className="space-y-3 rounded-lg border border-amber-200 bg-amber-50/60 p-3">
+                        <div className="flex items-center justify-between gap-3">
+                          <Label className="font-semibold text-amber-900">Desconto manual</Label>
+                          <Button type="button" variant="ghost" size="sm" onClick={() => { setValorDescontoManual(0); setMotivoDescontoManual(""); setDescontoManualOpen(false); }}>Remover</Button>
+                        </div>
+                        <div className="grid gap-3 sm:grid-cols-2">
+                          <div className="space-y-1"><Label htmlFor="valorDescontoManual">Valor (R$)</Label><Input id="valorDescontoManual" type="number" min="0" step="0.01" max={valorAntesDescontoManual} value={valorDescontoManual || ""} onChange={(event) => setValorDescontoManual(Math.max(0, Number(event.target.value || 0)))} placeholder="0,00" /></div>
+                          <div className="space-y-1"><Label htmlFor="motivoDescontoManual">Motivo</Label><Input id="motivoDescontoManual" value={motivoDescontoManual} onChange={(event) => setMotivoDescontoManual(event.target.value)} placeholder="Ex.: marmita de brinde" maxLength={200} /></div>
+                        </div>
+                        <Button type="button" variant="outline" size="sm" onClick={() => { setValorDescontoManual(valorAntesDescontoManual); if (!motivoDescontoManual.trim()) setMotivoDescontoManual("Pedido de brinde"); }}>Dar pedido inteiro como brinde</Button>
+                        {valorDescontoManualAplicado > 0 && <div className="flex items-center justify-between text-sm font-semibold text-amber-800"><span>Desconto aplicado</span><span>- R$ {currency(valorDescontoManualAplicado)}</span></div>}
+                      </div>
+                    )}
+
                     <div className="flex items-center justify-between text-lg">
                       <span className="font-bold text-primary">Total a pagar</span>
-                      <span className="font-extrabold text-xl text-primary">R$ {currency(Math.max(0, subtotalPedido - valorDescontoVoucherResumo + valorTaxaEntregaResumo + valorPlanosNaoPagosResumo))}</span>
+                      <span className="font-extrabold text-xl text-primary">R$ {currency(Math.max(0, valorAntesDescontoManual - valorDescontoManualAplicado))}</span>
                     </div>
                     {(formaPagamento === "PLANO" || itens.some((item) => item.usarPlano)) && (
                       <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs leading-relaxed text-emerald-800">

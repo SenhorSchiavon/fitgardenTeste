@@ -11,6 +11,8 @@ export type FormaPagamento =
   | "DINHEIRO"
   | "CREDITO"
   | "DEBITO"
+  | "VALE_ALIMENTACAO"
+  | "VALE_REFEICAO"
   | "PIX"
   | "LINK"
   | "VOUCHER"

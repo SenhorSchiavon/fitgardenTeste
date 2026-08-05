@@ -71,6 +71,8 @@ export type FormaPagamento =
   | "DINHEIRO"
   | "CREDITO"
   | "DEBITO"
+  | "VALE_ALIMENTACAO"
+  | "VALE_REFEICAO"
   | "PIX"
   | "LINK"
   | "VOUCHER"
@@ -133,6 +135,8 @@ export type CreateAgendamentoInput = {
   voucherCodigo?: string;
   formaPagamentoTaxaVoucher?: FormaPagamento;
   pagamentoJaRealizado?: boolean;
+  valorDescontoManual?: number;
+  motivoDescontoManual?: string;
   abaterTaxaEntregaPlano?: boolean;
   itens: AgendamentoItemInput[];
 };
@@ -152,6 +156,8 @@ export type UpdateAgendamentoInput = Partial<{
   voucherCodigo: string;
   formaPagamentoTaxaVoucher: FormaPagamento;
   pagamentoJaRealizado: boolean;
+  valorDescontoManual: number;
+  motivoDescontoManual: string | null;
   senhaAutorizacao: string;
   abaterTaxaEntregaPlano: boolean;
   itens: AgendamentoItemInput[];

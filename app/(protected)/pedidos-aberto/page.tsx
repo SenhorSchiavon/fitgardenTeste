@@ -325,6 +325,9 @@ export default function PedidosAberto() {
   const formatFormaPagamento = (forma?: string | null) => {
     if (forma === "A_DEFINIR") return "Não definido";
     if (forma === "CREDITO") return "Cartão";
+    if (forma === "DEBITO") return "Cartão de débito";
+    if (forma === "VALE_ALIMENTACAO") return "Vale Alimentação";
+    if (forma === "VALE_REFEICAO") return "Vale Refeição";
     if (forma === "DINHEIRO") return "Dinheiro";
     if (forma === "PIX") return "PIX";
     if (forma === "PLANO") return "Plano";
@@ -826,6 +829,8 @@ export default function PedidosAberto() {
                   <SelectItem value="DINHEIRO">Dinheiro</SelectItem>
                   <SelectItem value="CREDITO">Cartão de Crédito</SelectItem>
                   <SelectItem value="DEBITO">Cartão de Débito</SelectItem>
+                  <SelectItem value="VALE_ALIMENTACAO">Vale Alimentação</SelectItem>
+                  <SelectItem value="VALE_REFEICAO">Vale Refeição</SelectItem>
                   <SelectItem value="PIX">PIX</SelectItem>
                   <SelectItem value="VOUCHER">Voucher</SelectItem>
                   <SelectItem value="TROCA">Troca</SelectItem>

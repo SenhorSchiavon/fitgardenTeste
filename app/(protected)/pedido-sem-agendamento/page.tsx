@@ -488,6 +488,14 @@ export default function PedidoSemAgendamento() {
                   <Label htmlFor="DEBITO">Cartão de Débito</Label>
                 </div>
                 <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="VALE_ALIMENTACAO" id="VALE_ALIMENTACAO" />
+                  <Label htmlFor="VALE_ALIMENTACAO">Vale Alimentação</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="VALE_REFEICAO" id="VALE_REFEICAO" />
+                  <Label htmlFor="VALE_REFEICAO">Vale Refeição</Label>
+                </div>
+                <div className="flex items-center space-x-2">
                   <RadioGroupItem value="PIX" id="PIX" />
                   <Label htmlFor="PIX">PIX</Label>
                 </div>
