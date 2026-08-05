@@ -291,6 +291,10 @@ function currency(value: number) {
   return Number(value || 0).toFixed(2);
 }
 
+function arredondarParaUmaCasa(value: number) {
+  return Math.round((Number(value || 0) + 1e-9) * 10) / 10;
+}
+
 function normalizarBusca(value: string) {
   return String(value || "")
     .normalize("NFD")
@@ -467,6 +471,7 @@ export function NovoAgendamentoNovoLayout({
   const [formaPagamento, setFormaPagamento] = useState<FormaPagamento>("A_DEFINIR");
   const [formaPagamentoTaxaVoucher, setFormaPagamentoTaxaVoucher] = useState<FormaPagamento>("A_DEFINIR");
   const [voucherCodigo, setVoucherCodigo] = useState("");
+  const [pagamentoJaRealizado, setPagamentoJaRealizado] = useState(false);
   const [usarPlanoEscolhidoManualmente, setUsarPlanoEscolhidoManualmente] = useState(false);
 
   const [currentGroupId, setCurrentGroupId] = useState("");
@@ -678,6 +683,7 @@ export function NovoAgendamentoNovoLayout({
       );
       setVoucherCodigo(initialData.voucherCodigo || "");
       const pagamentosIniciais = initialData.pagamentos || initialData.pedido?.pagamentos || [];
+      setPagamentoJaRealizado(!!initialData.pagamentoJaRealizado);
       setPlanosComprados(
         pagamentosIniciais
           .filter((pagamento: any) =>
@@ -1317,7 +1323,9 @@ export function NovoAgendamentoNovoLayout({
     if (regrasVolume.length > 0) {
       const pct = Number(regrasVolume[0].preco);
       const baseComDesconto = Math.max(0, totalBrutoPersonalizadas - totalAdicionaisPersonalizadas);
-      return totalBrutoPadrao + baseComDesconto * (1 - pct / 100) + totalAdicionaisPersonalizadas + totalBrutoSalgados;
+      return arredondarParaUmaCasa(
+        totalBrutoPadrao + baseComDesconto * (1 - pct / 100) + totalAdicionaisPersonalizadas + totalBrutoSalgados,
+      );
     }
 
     return totalBrutoPadrao + totalBrutoPersonalizadas + totalBrutoSalgados;
@@ -1456,6 +1464,7 @@ export function NovoAgendamentoNovoLayout({
     setEndereco("");
     setObservacoesPedido("");
     setFormaPagamento("A_DEFINIR");
+    setPagamentoJaRealizado(false);
     setFormaPagamentoTaxaVoucher("A_DEFINIR");
     setVoucherCodigo("");
     setDistanciaEntregaKm(null);
@@ -2796,6 +2805,9 @@ export function NovoAgendamentoNovoLayout({
       senhaAutorizacao,
       voucherCodigo: isVoucherForma(formaPagamentoPayload) ? voucherCodigo.trim() : undefined,
       formaPagamentoTaxaVoucher: formaPagamento === "VOUCHER" ? formaPagamentoTaxaVoucher : undefined,
+      pagamentoJaRealizado: (formaPagamento === "PIX" || formaPagamento === "LINK")
+        ? pagamentoJaRealizado
+        : false,
       abaterTaxaEntregaPlano: ehEntrega && incluirTaxaEntrega && abaterTaxaEntregaPlano,
       ...(ehEntrega && incluirTaxaEntrega && valorTaxa > 0 ? { valorTaxa } : {}),
       itens: itensComPrecoBruto.map(it => ({
@@ -2898,6 +2910,24 @@ export function NovoAgendamentoNovoLayout({
       };
     });
     setItens((prev) => [...prev, ...importados]);
+    const itemSemCarboidratoComAdicao = importados.find((itemImportado) => {
+      if (!itemImportado.adicionarArroz || !itemImportado.opcaoId) return false;
+      const opcaoImportada = opcoesPadrao.find(
+        (opcaoAtual) => String(opcaoAtual.id) === String(itemImportado.opcaoId),
+      );
+      return !opcaoImportada?.preparos?.some((preparo) => preparo.tipo === "CARBOIDRATO");
+    });
+    if (itemSemCarboidratoComAdicao) {
+      setFormItem({
+        ...itemSemCarboidratoComAdicao,
+        trocaCarboId: "",
+        trocaCarboNome: "",
+      });
+      setModalTrocasOpen(true);
+      toast.info("Escolha o carboidrato", {
+        description: "Essa opção não tem carboidrato. Informe qual deve ser adicionado.",
+      });
+    }
     setPedidosPublicosIds((prev) => Array.from(new Set([...prev, Number(pedido.id)])));
     setDadosClientePedidoImportado({ nome: String(pedido.nome || ""), telefone: String(pedido.telefone || "") });
     setPedidosPendentesCliente((prev) => prev.filter((item) => Number(item.id) !== Number(pedido.id)));
@@ -2916,6 +2946,14 @@ export function NovoAgendamentoNovoLayout({
     !!clienteSelecionado &&
     !(agendamentoDuplicado && !initialData) &&
     (!ehEntrega || !!clienteSelecionado.enderecoPrincipal?.trim() || !!endereco.trim());
+
+  const opcaoBaseTrocas = opcoesPadrao.find(
+    (opcao) => String(opcao.id) === String(formItem.opcaoId || ""),
+  );
+  const opcaoTemComponente = (tipoComponente: "CARBOIDRATO" | "LEGUMES") =>
+    !!opcaoBaseTrocas?.preparos?.some((preparo) => preparo.tipo === tipoComponente);
+  const opcaoSemCarboidrato = !!formItem.opcaoId && !opcaoTemComponente("CARBOIDRATO");
+  const opcaoSemLegumes = !!formItem.opcaoId && !opcaoTemComponente("LEGUMES");
 
   return (
     <>
@@ -3645,6 +3683,15 @@ export function NovoAgendamentoNovoLayout({
                       <p className="text-xs font-medium text-emerald-700">
                         {avisoPagamentoAutomatico}
                       </p>
+                    )}
+                    {(formaPagamento === "PIX" || formaPagamento === "LINK") && (
+                      <label className="flex cursor-pointer items-center gap-2 rounded-lg border p-3 text-sm font-medium">
+                        <Checkbox
+                          checked={pagamentoJaRealizado}
+                          onCheckedChange={(checked) => setPagamentoJaRealizado(checked === true)}
+                        />
+                        Já foi pago
+                      </label>
                     )}
                   </div>
 
@@ -4958,10 +5005,16 @@ export function NovoAgendamentoNovoLayout({
             <DialogTitle>Substituições da Marmita</DialogTitle>
           </DialogHeader>
 
+          {opcaoSemCarboidrato && (
+            <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm font-medium text-amber-900">
+              Essa opção não tem carboidrato, qual gostaria de adicionar?
+            </div>
+          )}
+
           <div className="space-y-6 pt-2">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="space-y-2">
-                <Label>Trocar carboidrato</Label>
+                <Label>{opcaoSemCarboidrato ? "Adicionar carboidrato" : "Trocar carboidrato"}</Label>
                 <Select
                   value={formItem.trocaCarboId || ""}
                   onValueChange={(v) => {
@@ -4970,11 +5023,12 @@ export function NovoAgendamentoNovoLayout({
                       ...prev,
                       trocaCarboId: v,
                       trocaCarboNome: item?.nome || "",
+                      adicionarArroz: opcaoSemCarboidrato ? false : prev.adicionarArroz,
                     }));
                   }}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Sem troca" />
+                    <SelectValue placeholder={opcaoSemCarboidrato ? "Escolha o carboidrato" : "Sem troca"} />
                   </SelectTrigger>
                   <SelectContent>
                     {carboidratos.map((item) => (
@@ -4998,7 +5052,7 @@ export function NovoAgendamentoNovoLayout({
                       }))
                     }
                   >
-                    Limpar troca
+                    {opcaoSemCarboidrato ? "Remover adição" : "Limpar troca"}
                   </Button>
                 ) : null}
               </div>
@@ -5047,7 +5101,7 @@ export function NovoAgendamentoNovoLayout({
               </div>
 
               <div className="space-y-2">
-                <Label>Trocar legume</Label>
+                <Label>{opcaoSemLegumes ? "Adicionar legume" : "Trocar legume"}</Label>
                 <Select
                   value={formItem.trocaLegumeId || ""}
                   onValueChange={(v) => {
@@ -5064,7 +5118,11 @@ export function NovoAgendamentoNovoLayout({
                   <SelectTrigger>
                     <SelectValue
                       placeholder={
-                        formItem.zerarLegume ? "Legume zerado" : "Sem troca"
+                        formItem.zerarLegume
+                          ? "Legume zerado"
+                          : opcaoSemLegumes
+                            ? "Escolha o legume"
+                            : "Sem troca"
                       }
                     />
                   </SelectTrigger>
@@ -5091,7 +5149,7 @@ export function NovoAgendamentoNovoLayout({
                       }))
                     }
                   >
-                    Limpar troca
+                    {opcaoSemLegumes ? "Remover adição" : "Limpar troca"}
                   </Button>
                 ) : null}
               </div>

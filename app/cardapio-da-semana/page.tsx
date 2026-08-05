@@ -124,7 +124,9 @@ function montarMensagem({
     .filter((opcao) => Number(itensPedido[opcao.id] || 0) > 0)
     .map((opcao) => {
       const quantidade = Number(itensPedido[opcao.id] || 0);
-      const adicionalFeijao = feijaoOpcional[opcao.id] ? " + feijão opcional (+R$2/unidade)" : "";
+      const adicionalFeijao = tamanhoSelecionado !== "PERSONALIZADO" && feijaoOpcional[opcao.id]
+        ? " + feijão opcional (+R$2/unidade)"
+        : "";
       return `${quantidade}x ${opcao.nome}${adicionalFeijao}`;
     });
 
@@ -140,7 +142,7 @@ function montarMensagem({
 
   const total = escolhidas.reduce((acc, linha) => acc + Number(linha.split("x")[0] || 0), 0);
   const totalFeijao = opcoes.reduce((acc, opcao) => (
-    acc + (feijaoOpcional[opcao.id] ? Number(itensPedido[opcao.id] || 0) : 0)
+    acc + (tamanhoSelecionado !== "PERSONALIZADO" && feijaoOpcional[opcao.id] ? Number(itensPedido[opcao.id] || 0) : 0)
   ), 0);
 
   return [
@@ -216,10 +218,11 @@ export default function CardapioDaSemanaPage() {
     return Object.values(itensPedido).reduce((acc, quantidade) => acc + Number(quantidade || 0), 0);
   }, [itensPedido]);
   const totalFeijaoOpcional = useMemo(() => {
+    if (tamanhoSelecionado === "PERSONALIZADO") return 0;
     return opcoes.reduce((acc, opcao) => (
       acc + (feijaoOpcional[opcao.id] ? Number(itensPedido[opcao.id] || 0) : 0)
     ), 0);
-  }, [feijaoOpcional, itensPedido, opcoes]);
+  }, [feijaoOpcional, itensPedido, opcoes, tamanhoSelecionado]);
 
   const grupos = useMemo(() => {
     const map = new Map<string, OpcaoPublica[]>();
@@ -310,7 +313,7 @@ export default function CardapioDaSemanaPage() {
             .map((opcao) => ({
               opcaoId: Number(opcao.id),
               quantidade: Number(itensPedido[opcao.id] || 0),
-              adicionarFeijao: !!feijaoOpcional[opcao.id],
+              adicionarFeijao: tamanhoSelecionado !== "PERSONALIZADO" && !!feijaoOpcional[opcao.id],
             }))
             .filter((item) => item.quantidade > 0),
         }),
@@ -481,7 +484,7 @@ export default function CardapioDaSemanaPage() {
                                 <Plus className="h-4 w-4" />
                               </button>
                             </div>
-                            {quantidade > 0 ? (
+                            {quantidade > 0 && tamanhoSelecionado !== "PERSONALIZADO" ? (
                               <label className="flex items-center gap-2 rounded-lg bg-[#fff7f2] px-3 py-2 text-xs font-bold text-[#b85b36] sm:col-start-2 sm:col-span-2">
                                 <input
                                   type="checkbox"

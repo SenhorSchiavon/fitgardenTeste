@@ -1,19 +1,23 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, Pencil } from "lucide-react";
 
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
     Collapsible,
     CollapsibleContent,
     CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { useClienteHistorico } from "@/hooks/useClienteHistorico";
+import { apiFetch } from "@/hooks/api";
 
 type Aba = "historico" | "planos";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3333/api";
 
 type ClienteMin = {
     id: number | string;
@@ -49,6 +53,10 @@ export function ClienteHistoricoDialog({
     const [aba, setAba] = useState<Aba>(defaultTab);
     const { data, loading, error, getHistorico } = useClienteHistorico();
     const [page, setPage] = useState(1);
+    const [planoEmEdicao, setPlanoEmEdicao] = useState<number | null>(null);
+    const [usosEmEdicao, setUsosEmEdicao] = useState({ unidades: 0, entregas: 0 });
+    const [salvandoUsos, setSalvandoUsos] = useState(false);
+    const [erroUsos, setErroUsos] = useState("");
     const pageSize = 10;
 
     useEffect(() => {
@@ -63,6 +71,45 @@ export function ClienteHistoricoDialog({
     }, [open, cliente?.id, page, pageSize, getHistorico]);
 
     const planos = data?.planos || [];
+
+    const iniciarEdicaoUsos = (plano: (typeof planos)[number]) => {
+        setPlanoEmEdicao(plano.id);
+        setUsosEmEdicao({
+            unidades: Math.max(0, plano.quantidade - plano.saldoUnidades),
+            entregas: Math.max(0, plano.taxasEntregaCompradas - plano.saldoEntregas),
+        });
+        setErroUsos("");
+    };
+
+    const salvarUsos = async (plano: (typeof planos)[number]) => {
+        if (!cliente?.id) return;
+        const unidades = Math.floor(Number(usosEmEdicao.unidades || 0));
+        const entregas = Math.floor(Number(usosEmEdicao.entregas || 0));
+        if (unidades < 0 || unidades > plano.quantidade || entregas < 0 || entregas > plano.taxasEntregaCompradas) {
+            setErroUsos("Informe usos entre zero e o total contratado no plano.");
+            return;
+        }
+        setSalvandoUsos(true);
+        setErroUsos("");
+        try {
+            const res = await apiFetch(`${API_URL}/clientes/${cliente.id}/planos/${plano.id}`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    saldoUnidades: plano.quantidade - unidades,
+                    saldoEntregas: plano.taxasEntregaCompradas - entregas,
+                }),
+            });
+            const json = await res.json().catch(() => null);
+            if (!res.ok) throw new Error(json?.message || "Não foi possível salvar os usos.");
+            await getHistorico({ clienteId: cliente.id, page, pageSize });
+            setPlanoEmEdicao(null);
+        } catch (e: any) {
+            setErroUsos(e?.message || "Não foi possível salvar os usos.");
+        } finally {
+            setSalvandoUsos(false);
+        }
+    };
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
@@ -195,13 +242,84 @@ export function ClienteHistoricoDialog({
                                                             </div>
                                                         </div>
 
-                                                        <CollapsibleTrigger asChild>
-                                                            <Button variant="outline" size="sm" className="gap-2">
-                                                                Ver usos
-                                                                <ChevronDown className="h-4 w-4" />
+                                                        <div className="flex flex-wrap gap-2">
+                                                            <Button
+                                                                type="button"
+                                                                variant="outline"
+                                                                size="sm"
+                                                                className="gap-2"
+                                                                onClick={() => iniciarEdicaoUsos(plano)}
+                                                            >
+                                                                <Pencil className="h-4 w-4" />
+                                                                Editar usos
                                                             </Button>
-                                                        </CollapsibleTrigger>
+                                                            <CollapsibleTrigger asChild>
+                                                                <Button variant="outline" size="sm" className="gap-2">
+                                                                    Ver usos
+                                                                    <ChevronDown className="h-4 w-4" />
+                                                                </Button>
+                                                            </CollapsibleTrigger>
+                                                        </div>
                                                     </div>
+
+                                                    {planoEmEdicao === plano.id && (
+                                                        <div className="mt-4 rounded-md border bg-muted/30 p-3">
+                                                            <div className="grid gap-3 sm:grid-cols-2">
+                                                                <div className="space-y-1.5">
+                                                                    <Label htmlFor={`usos-unidades-${plano.id}`}>Marmitas utilizadas</Label>
+                                                                    <Input
+                                                                        id={`usos-unidades-${plano.id}`}
+                                                                        type="number"
+                                                                        min={0}
+                                                                        max={plano.quantidade}
+                                                                        step={1}
+                                                                        value={usosEmEdicao.unidades}
+                                                                        onChange={(event) => setUsosEmEdicao((atual) => ({
+                                                                            ...atual,
+                                                                            unidades: Number(event.target.value || 0),
+                                                                        }))}
+                                                                    />
+                                                                    <p className="text-xs text-muted-foreground">Total contratado: {plano.quantidade}</p>
+                                                                </div>
+                                                                <div className="space-y-1.5">
+                                                                    <Label htmlFor={`usos-entregas-${plano.id}`}>Taxinhas utilizadas</Label>
+                                                                    <Input
+                                                                        id={`usos-entregas-${plano.id}`}
+                                                                        type="number"
+                                                                        min={0}
+                                                                        max={plano.taxasEntregaCompradas}
+                                                                        step={1}
+                                                                        value={usosEmEdicao.entregas}
+                                                                        onChange={(event) => setUsosEmEdicao((atual) => ({
+                                                                            ...atual,
+                                                                            entregas: Number(event.target.value || 0),
+                                                                        }))}
+                                                                    />
+                                                                    <p className="text-xs text-muted-foreground">Total contratado: {plano.taxasEntregaCompradas}</p>
+                                                                </div>
+                                                            </div>
+                                                            {erroUsos && <p className="mt-2 text-sm text-red-600">{erroUsos}</p>}
+                                                            <div className="mt-3 flex justify-end gap-2">
+                                                                <Button
+                                                                    type="button"
+                                                                    variant="outline"
+                                                                    size="sm"
+                                                                    disabled={salvandoUsos}
+                                                                    onClick={() => setPlanoEmEdicao(null)}
+                                                                >
+                                                                    Cancelar
+                                                                </Button>
+                                                                <Button
+                                                                    type="button"
+                                                                    size="sm"
+                                                                    disabled={salvandoUsos}
+                                                                    onClick={() => salvarUsos(plano)}
+                                                                >
+                                                                    {salvandoUsos ? "Salvando..." : "Salvar usos"}
+                                                                </Button>
+                                                            </div>
+                                                        </div>
+                                                    )}
 
                                                     <CollapsibleContent className="mt-4 border-t pt-3">
                                                         {plano.usos.length === 0 ? (

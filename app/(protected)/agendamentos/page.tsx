@@ -235,9 +235,11 @@ function montarDadosEdicaoAgendamento(agendamento: Agendamento) {
   const pedido = raw.pedido || {};
   const pagamentos = pedido.pagamentos ?? raw.pagamentos ?? [];
   const voucherCodigo =
-    agendamento.voucherCodigo ??
-    pagamentos.find((pagamento: any) => String(pagamento.voucherCodigo || "").trim())?.voucherCodigo ??
-    "";
+    String(agendamento.voucherCodigo || "").trim() ||
+    String(pagamentos.find((pagamento: any) => String(pagamento.voucherCodigo || "").trim())?.voucherCodigo || "").trim();
+  const formaPagamento = agendamento.formaPagamento || "A_DEFINIR";
+  const pagamentoJaRealizado = (formaPagamento === "PIX" || formaPagamento === "LINK") &&
+    pagamentos.some((pagamento: any) => pagamento.forma === formaPagamento && pagamento.status === "CONFIRMADO");
   return {
     ...raw,
     clienteId: pedido.clienteId ?? raw.clienteId,
@@ -255,8 +257,9 @@ function montarDadosEdicaoAgendamento(agendamento: Agendamento) {
     endereco: raw.endereco ?? agendamento.endereco,
     regiao: raw.regiao ?? agendamento.zona ?? null,
     observacoes: pedido.observacoes ?? agendamento.observacoes ?? "",
-    formaPagamento: agendamento.formaPagamento || "A_DEFINIR",
+    formaPagamento,
     voucherCodigo,
+    pagamentoJaRealizado,
     itens: pedido.itens ?? raw.itens ?? [],
   };
 }
@@ -901,7 +904,7 @@ export default function Agendamentos() {
     const valorPlanosComprados = pagamentosCompraPlano
       .reduce((acc: number, p: any) => acc + Number(p.valor || 0), 0);
     const valorPlanosCompradosPendente = pagamentosCompraPlano
-      .filter((p: any) => p.status === "PENDENTE")
+      .filter((p: any) => p.planoCliente?.pago === false || (!p.planoCliente && p.status === "PENDENTE"))
       .reduce((acc: number, p: any) => acc + Number(p.valor || 0), 0);
     const valorPlanoProporcional = valorPlanoUnidadesRegistrado > 0
       ? valorPlanoUnidadesRegistrado
@@ -2064,6 +2067,7 @@ export default function Agendamentos() {
               formaPagamento: payload.formaPagamento,
               voucherCodigo: payload.voucherCodigo,
               formaPagamentoTaxaVoucher: payload.formaPagamentoTaxaVoucher,
+              pagamentoJaRealizado: payload.pagamentoJaRealizado,
               senhaAutorizacao: payload.senhaAutorizacao,
               abaterTaxaEntregaPlano: payload.abaterTaxaEntregaPlano,
               itens: payload.itens.map((it: any) => ({
@@ -2112,6 +2116,8 @@ export default function Agendamentos() {
               formaPagamento: payload.formaPagamento,
               senhaAutorizacao: payload.senhaAutorizacao,
               voucherCodigo: payload.voucherCodigo,
+              formaPagamentoTaxaVoucher: payload.formaPagamentoTaxaVoucher,
+              pagamentoJaRealizado: payload.pagamentoJaRealizado,
               abaterTaxaEntregaPlano: payload.abaterTaxaEntregaPlano,
               itens: payload.itens.map((it: any) => ({
                 tipoItem: it.tipoItem,

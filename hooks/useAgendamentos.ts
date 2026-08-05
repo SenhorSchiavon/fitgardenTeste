@@ -131,6 +131,8 @@ export type CreateAgendamentoInput = {
   formaPagamento: FormaPagamento;
   senhaAutorizacao?: string;
   voucherCodigo?: string;
+  formaPagamentoTaxaVoucher?: FormaPagamento;
+  pagamentoJaRealizado?: boolean;
   abaterTaxaEntregaPlano?: boolean;
   itens: AgendamentoItemInput[];
 };
@@ -147,6 +149,9 @@ export type UpdateAgendamentoInput = Partial<{
   regiao: RegiaoEntrega | null;
   observacoes: string | null;
   formaPagamento: FormaPagamento;
+  voucherCodigo: string;
+  formaPagamentoTaxaVoucher: FormaPagamento;
+  pagamentoJaRealizado: boolean;
   senhaAutorizacao: string;
   abaterTaxaEntregaPlano: boolean;
   itens: AgendamentoItemInput[];
@@ -529,6 +534,8 @@ export function useAgendamentos(options?: { baseUrl?: string }) {
           formaPagamento: payload.formaPagamento,
           senhaAutorizacao: payload.senhaAutorizacao,
           voucherCodigo: payload.voucherCodigo?.trim() || undefined,
+          formaPagamentoTaxaVoucher: payload.formaPagamentoTaxaVoucher,
+          pagamentoJaRealizado: !!payload.pagamentoJaRealizado,
           abaterTaxaEntregaPlano: payload.abaterTaxaEntregaPlano,
           itens: (payload.itens || []).map((it) => ({
             tipoItem: it.tipoItem === "PERSONALIZADA" ? "PERSONALIZADA" : it.tipoItem === "SALGADO" ? "SALGADO" : it.tipoItem === "CONGELADA" ? "CONGELADA" : "PADRAO",
