@@ -698,8 +698,8 @@ export function NovoAgendamentoNovoLayout({
           .filter((pagamento: any) =>
             pagamento.forma === "PLANO" &&
             pagamento.planoClienteId &&
-            pagamento.consumoUnidades == null &&
-            pagamento.consumoEntregas == null &&
+            Number(pagamento.consumoUnidades || 0) === 0 &&
+            Number(pagamento.consumoEntregas || 0) === 0 &&
             Number(pagamento.valor || 0) > 0,
           )
           .map((pagamento: any) => {
