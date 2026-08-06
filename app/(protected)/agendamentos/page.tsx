@@ -647,10 +647,24 @@ export default function Agendamentos() {
     }
     const cupons = pedidos.map((pedido) => {
       const rota = getRotaAgendamento(pedido)?.label || "SEM ROTA";
-      const itens = pedido.itens.map((item) => {
+      const gruposItens = new Map<string, { destinatario: string; tamanho: string; itens: Agendamento["itens"] }>();
+      pedido.itens.forEach((item) => {
+        const destinatario = item.destinatarioNome?.trim() || pedido.cliente;
+        const tamanho = item.tipoItem === "CONGELADA" ? `CONGELADAS ${item.tamanho || ""}`.trim() : item.tamanho || "ITENS";
+        const chave = `${destinatario.toUpperCase()}|${tamanho.toUpperCase()}`;
+        const grupo = gruposItens.get(chave) || { destinatario, tamanho, itens: [] };
+        grupo.itens.push(item);
+        gruposItens.set(chave, grupo);
+      });
+      const itens = Array.from(gruposItens.values()).map((grupo, indice) => {
+        const titulo = gruposItens.size > 1
+          ? `PEDIDO ${indice + 1} - ${grupo.tamanho} - ${grupo.destinatario}`
+          : `${grupo.tamanho} - ${grupo.destinatario}`;
+        const linhas = grupo.itens.map((item) => {
         const descricao = [item.carbo, item.proteina, item.legume, item.feijao, item.complemento].filter(Boolean).join(" + ") || item.nome;
-        const destinatario = item.destinatarioNome ? ` - ${item.destinatarioNome}` : "";
-        return `<div class="item">${escaparHtml(`${item.quantidade}x ${descricao}${destinatario}`.toUpperCase())}</div>`;
+          return `<div class="item">${escaparHtml(`${item.quantidade}x ${descricao}`.toUpperCase())}</div>`;
+        }).join("");
+        return `<div class="subpedido"><div class="subpedido-titulo">${escaparHtml(titulo.toUpperCase())}</div>${linhas}</div>`;
       }).join("");
       const observacoesItens = pedido.itens.map((item) => item.observacaoItem).filter(Boolean).join(" / ");
       const observacao = [pedido.observacoes, observacoesItens].filter(Boolean).join(" / ");
@@ -675,6 +689,8 @@ export default function Agendamentos() {
       .cupom { width: 74mm; padding: 1mm 0 4mm; break-inside: avoid-page; page-break-inside: avoid; break-after: page; page-break-after: always; }
       header { text-align: center; line-height: 1.45; margin-bottom: 4mm; }
       .rota { text-align: center; font-size: 12px; font-weight: 700; margin-bottom: 2mm; }
+      .subpedido { margin: 3mm 0; }
+      .subpedido-titulo { border-bottom: 1px dashed #000; padding-bottom: 1.5mm; margin-bottom: 2mm; font-size: 12px; font-weight: 700; }
       h1 { margin: 3mm 0 2mm; padding: 1mm 0; text-align: center; font-size: 13px; border-top: 1px solid #000; border-bottom: 1px solid #000; }
       p { margin: 1.5mm 0; line-height: 1.35; } .item { margin: 1.8mm 0; font-size: 12px; line-height: 1.25; }
     </style></head><body>${cupons}<script>window.addEventListener('load',()=>setTimeout(()=>window.print(),150));<\/script></body></html>`);
