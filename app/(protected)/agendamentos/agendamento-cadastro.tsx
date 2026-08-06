@@ -2240,11 +2240,7 @@ export function NovoAgendamentoNovoLayout({
       <div className="grid grid-cols-[minmax(0,1fr)_120px] gap-3">
         <div className="space-y-2">
           <Label>{label}</Label>
-          {formItem.tipoItem === "PERSONALIZADA" ? (
-            <div className="flex h-11 items-center rounded-md border bg-slate-50 px-3 text-sm font-medium">
-              {selectedName || (optional ? "Não utilizado" : "Ingrediente não informado")}
-            </div>
-          ) : <Popover>
+          <Popover>
             <PopoverTrigger asChild>
               <Button
                 type="button"
@@ -2289,7 +2285,7 @@ export function NovoAgendamentoNovoLayout({
                 </CommandList>
               </Command>
             </PopoverContent>
-          </Popover>}
+          </Popover>
         </div>
 
         <div className="space-y-2">
@@ -2347,6 +2343,19 @@ export function NovoAgendamentoNovoLayout({
         </div>
       </label>
     );
+  }
+
+  function getCategoriasPersonalizadaPendentes(item: NovoPedidoItem) {
+    const categorias = [
+      { nome: "carboidrato", gramas: item.carboGramas, ingredienteId: item.carboId },
+      { nome: "proteína", gramas: item.proteinaGramas, ingredienteId: item.proteinaId },
+      { nome: "legumes", gramas: item.legumeGramas, ingredienteId: item.legumeId },
+      { nome: "feijão", gramas: item.feijaoGramas, ingredienteId: item.feijaoId },
+      { nome: "complemento", gramas: item.complementoGramas, ingredienteId: item.complementoId },
+    ];
+    return categorias
+      .filter((categoria) => Number(categoria.gramas || 0) > 0 && !categoria.ingredienteId)
+      .map((categoria) => categoria.nome);
   }
 
   function addPedidoNaLista(fechar = true, options?: { manterPesagens?: boolean }) {
@@ -2526,6 +2535,13 @@ export function NovoAgendamentoNovoLayout({
       }
       if (totalGramasPersonalizada <= 0) {
         toast.error("Peso não informado", { description: "Informe a gramagem dos ingredientes da sua personalizada." })
+        return;
+      }
+      const categoriasPendentes = getCategoriasPersonalizadaPendentes(formItem);
+      if (categoriasPendentes.length > 0) {
+        toast.error("Ingredientes obrigatórios não selecionados", {
+          description: `Selecione: ${categoriasPendentes.join(", ")}. A gramagem dessas categorias é maior que zero.`,
+        });
         return;
       }
 
@@ -2815,7 +2831,7 @@ export function NovoAgendamentoNovoLayout({
       return;
     }
 
-    // Validação final de gramagem para personalizadas
+    // Validação final de gramagem e ingredientes das personalizadas.
     const itemInvalido = itensComPrecoBruto.find(it => 
       it.tipoItem === "PERSONALIZADA" && 
       (Number(it.carboGramas || 0) + Number(it.proteinaGramas || 0) + Number(it.legumeGramas || 0) + Number(it.feijaoGramas || 0) + Number(it.complementoGramas || 0)) <= 0
@@ -2824,6 +2840,16 @@ export function NovoAgendamentoNovoLayout({
     if (itemInvalido) {
       toast.error("Erro na personalizada", {
         description: `A marmita personalizada "${itemInvalido.destinatarioNome || 'Sem nome'}" está com peso zerado. Por favor, edite-a e informe as gramas.`,
+      });
+      return;
+    }
+    const itemComCategoriaPendente = itensComPrecoBruto.find(
+      (item) => item.tipoItem === "PERSONALIZADA" && getCategoriasPersonalizadaPendentes(item).length > 0,
+    );
+    if (itemComCategoriaPendente) {
+      const categorias = getCategoriasPersonalizadaPendentes(itemComCategoriaPendente);
+      toast.error("Personalizada incompleta", {
+        description: `Edite a marmita de "${itemComCategoriaPendente.destinatarioNome || "Sem nome"}" e selecione: ${categorias.join(", ")}.`,
       });
       return;
     }
@@ -2919,7 +2945,26 @@ export function NovoAgendamentoNovoLayout({
     // Cada pedido importado representa um subpedido, mesmo quando cliente,
     // destinatario e tamanho coincidem com os de outra importacao.
     const groupId = `pedido-publico:${pedido.id}:tamanho:${customizado ? pesoPersonalizado : pedido.tamanhoId || pedido.tamanhoLabel}`;
-    const importados: NovoPedidoItem[] = (pedido.itens?.escolhas || []).map((item: any) => {
+    const congeladasPedido = Array.isArray(pedido.itens?.congeladas) ? pedido.itens.congeladas : [];
+    const importados: NovoPedidoItem[] = congeladasPedido.length > 0
+      ? congeladasPedido.map((item: any) => {
+          const congelada = congeladas.find((opcao) => String(opcao.id) === String(item.congeladaId));
+          const tamanho = tamanhos.find((opcao) => Number.parseInt(opcao.nome, 10) === Number(item.tamanhoGramas || congelada?.tamanhoGramas));
+          return {
+            ...formItem,
+            id: uid(),
+            groupId: `pedido-publico:${pedido.id}:congeladas`,
+            tipoItem: "CONGELADA",
+            destinatarioNome: pedido.nome || clienteSelecionado?.nome || "",
+            congeladaId: String(item.congeladaId || ""),
+            congeladaNome: item.nome || congelada?.nome || "Congelada",
+            tamanhoId: tamanho?.id || "",
+            tamanhoLabel: `${Number(item.tamanhoGramas || congelada?.tamanhoGramas || 0)}g`,
+            quantidade: Math.max(1, Number(item.quantidade || 1)),
+            usarPlano: false,
+          };
+        })
+      : (pedido.itens?.escolhas || []).map((item: any) => {
       const opcao = opcoesPadrao.find((opcaoAtual) => String(opcaoAtual.id) === String(item.opcaoId));
       const componente = (tipo: "CARBOIDRATO" | "PROTEINA" | "LEGUMES" | "FEIJAO" | "COMPLEMENTO") =>
         opcao?.preparos?.find((preparo) => preparo.tipo === tipo);
@@ -2958,7 +3003,7 @@ export function NovoAgendamentoNovoLayout({
         legumeGramas: Number(personalizada.legumeGramas || 0),
         complementoGramas: Number(personalizada.complementoGramas || 0),
       };
-    });
+        });
     setItens((prev) => [...prev, ...importados]);
     const itemSemCarboidratoComAdicao = importados.find((itemImportado) => {
       if (!itemImportado.adicionarArroz || !itemImportado.opcaoId) return false;
@@ -4414,13 +4459,15 @@ export function NovoAgendamentoNovoLayout({
                     ) : formItem.tipoItem === "CONGELADA" && !formItem.id ? (
                       <div className="space-y-2 md:col-span-2">
                         <Label>Quantidade por congelada</Label>
-                        <div className="grid gap-3 sm:grid-cols-2">
+                        <div className="divide-y overflow-hidden rounded-xl border bg-background">
                           {congeladas.map((congelada) => (
-                            <div key={congelada.id} className="rounded-xl border bg-background p-3">
-                              <Label htmlFor={`qtd-congelada-${congelada.id}`} className="text-sm font-bold">
-                                {congelada.tamanhoGramas}g - {congelada.nome}
-                              </Label>
-                              <p className="text-xs text-muted-foreground">Estoque: {congelada.quantidade}</p>
+                            <div key={congelada.id} className="grid grid-cols-[minmax(0,1fr)_110px] items-center gap-4 p-3 hover:bg-slate-50">
+                              <div>
+                                <Label htmlFor={`qtd-congelada-${congelada.id}`} className="text-sm font-bold">
+                                  {congelada.tamanhoGramas}g - {congelada.nome}
+                                </Label>
+                                <p className="text-xs text-muted-foreground">Estoque: {congelada.quantidade}</p>
+                              </div>
                               <Input
                                 id={`qtd-congelada-${congelada.id}`}
                                 type="number"
@@ -4432,7 +4479,7 @@ export function NovoAgendamentoNovoLayout({
                                   ...atual,
                                   [congelada.id]: Math.max(0, Math.floor(Number(event.target.value || 0))),
                                 }))}
-                                className="mt-2 h-11"
+                                className="h-10 text-center font-bold"
                               />
                             </div>
                           ))}
@@ -5306,7 +5353,7 @@ export function NovoAgendamentoNovoLayout({
               return (
               <button key={pedido.id} type="button" disabled={importado} onClick={() => importarPedidoPublico(pedido)} className={cn("flex w-full items-center justify-between rounded-lg border p-3 text-left hover:border-emerald-400 hover:bg-emerald-50", importado && "border-emerald-300 bg-emerald-50 opacity-70")}>
                 <div className="min-w-0"><p className="font-bold">Pedido #{pedido.id} · {pedido.tamanhoLabel}</p><p className="truncate text-sm font-medium">{pedido.nome || "Sem nome"} · {pedido.telefone || "Sem telefone"}</p><p className="text-xs text-muted-foreground">{new Date(pedido.createdAt).toLocaleString("pt-BR")}</p></div>
-                <Badge>{importado ? "Importado" : `${(pedido.itens?.escolhas || []).reduce((acc: number, item: any) => acc + Number(item.quantidade || 0), 0)} marmitas`}</Badge>
+                <Badge>{importado ? "Importado" : `${([...(pedido.itens?.escolhas || []), ...(pedido.itens?.congeladas || [])]).reduce((acc: number, item: any) => acc + Number(item.quantidade || 0), 0)} marmitas`}</Badge>
               </button>
             )})}
           </div>

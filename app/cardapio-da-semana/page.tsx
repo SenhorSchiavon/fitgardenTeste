@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { CheckCircle2, ChevronDown, ClipboardList, Leaf, MessageCircle, Minus, Plus, Send, ShoppingBasket, Soup, Star, User, Utensils } from "lucide-react";
+import Link from "next/link";
+import { CheckCircle2, ChevronDown, ClipboardList, Leaf, MessageCircle, Minus, Plus, Send, ShoppingBasket, Snowflake, Soup, Star, User, Utensils } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -365,6 +366,9 @@ export default function CardapioDaSemanaPage() {
             <p className="mt-2 text-sm font-medium text-[#47625d] sm:text-base">
               Monte seu pedido escolhendo o tamanho e a quantidade de cada marmita.
             </p>
+            <Link href="/cardapio-da-semana/congeladas" className="mt-4 inline-flex items-center rounded-xl bg-sky-100 px-4 py-2 text-sm font-black uppercase text-sky-800 hover:bg-sky-200">
+              <Snowflake className="mr-2 h-4 w-4" /> Ver marmitas congeladas
+            </Link>
           </div>
 
         </header>
