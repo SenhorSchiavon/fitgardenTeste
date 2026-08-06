@@ -935,7 +935,7 @@ export default function Agendamentos() {
           .filter((p: any) =>
             p.forma === "PLANO" &&
             p.planoClienteId &&
-            (Number(p.consumoUnidades || 0) > 0 || Number(p.consumoEntregas || 0) > 0) &&
+            Number(p.consumoUnidades || 0) > 0 &&
             p.planoCliente?.pago === false &&
             !comprasRegistradasIds.has(Number(p.planoClienteId)),
           )

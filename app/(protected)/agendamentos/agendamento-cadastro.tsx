@@ -707,7 +707,7 @@ export function NovoAgendamentoNovoLayout({
             .filter((pagamento: any) =>
               pagamento.forma === "PLANO" &&
               pagamento.planoClienteId &&
-              (Number(pagamento.consumoUnidades || 0) > 0 || Number(pagamento.consumoEntregas || 0) > 0) &&
+              Number(pagamento.consumoUnidades || 0) > 0 &&
               pagamento.planoCliente?.pago === false &&
               !comprasPlanoIds.has(Number(pagamento.planoClienteId)),
             )
