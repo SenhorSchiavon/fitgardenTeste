@@ -672,8 +672,7 @@ export default function Agendamentos() {
     janela.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Cupons Fit Garden</title><style>
       @page { size: 80mm auto; margin: 3mm; } * { box-sizing: border-box; }
       body { margin: 0; color: #000; font-family: Arial, sans-serif; font-size: 11px; }
-      .cupom { width: 74mm; padding: 1mm 0 4mm; break-after: page; page-break-after: always; }
-      .cupom:last-child { break-after: auto; page-break-after: auto; }
+      .cupom { width: 74mm; padding: 1mm 0 4mm; break-inside: avoid-page; page-break-inside: avoid; break-after: page; page-break-after: always; }
       header { text-align: center; line-height: 1.45; margin-bottom: 4mm; }
       .rota { text-align: center; font-size: 12px; font-weight: 700; margin-bottom: 2mm; }
       h1 { margin: 3mm 0 2mm; padding: 1mm 0; text-align: center; font-size: 13px; border-top: 1px solid #000; border-bottom: 1px solid #000; }
