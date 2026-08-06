@@ -669,6 +669,33 @@ export default function Agendamentos() {
       const observacoesItens = pedido.itens.map((item) => item.observacaoItem).filter(Boolean).join(" / ");
       const observacao = [pedido.observacoes, observacoesItens].filter(Boolean).join(" / ");
       const tamanhos = Array.from(new Set(pedido.itens.map((item) => item.tamanho).filter(Boolean))).join(" / ");
+      const temPlanoAdquirido = Number(pedido.valorPlanosComprados || 0) > 0;
+      const subtotalPedido = Math.max(Number(pedido.valorPedido || 0), Number(pedido.valorDescontoPlanoItens || 0));
+      const valorBasePlanosComprados = (pedido.planosComprados || [])
+        .reduce((total, plano) => total + Number(plano.valorPlano || 0), 0);
+      const valorTaxasPlanosComprados = (pedido.planosComprados || [])
+        .reduce((total, plano) => total + Number(plano.valorTaxas || 0), 0);
+      const totalCupom = temPlanoAdquirido
+        ? Math.max(0, subtotalPedido - Number(pedido.valorDescontoPlanoItens || 0)) +
+          (pedido.taxaEntregaAbatidaPlano ? 0 : Number(pedido.valorTaxa || 0)) +
+          Number(pedido.valorPlanosComprados || 0) - Number(pedido.valorDescontoManual || 0)
+        : Number(pedido.valorTotalFinal ?? pedido.valorTotal ?? 0);
+      const linhasFinanceiras = [
+        temPlanoAdquirido ? ["PLANO ADQUIRIDO", valorBasePlanosComprados, false] : ["SUBTOTAL", subtotalPedido, false],
+        temPlanoAdquirido && valorTaxasPlanosComprados > 0
+          ? ["ENTREGA INCLUIDA NO PLANO", valorTaxasPlanosComprados, false]
+          : !temPlanoAdquirido ? ["TAXA DE ENTREGA", Number(pedido.valorTaxa || 0), false] : null,
+        Number(pedido.valorDescontoVoucher || 0) > 0 ? ["DESCONTO VOUCHER", Number(pedido.valorDescontoVoucher), true] : null,
+        Number(pedido.valorDescontoManual || 0) > 0
+          ? [`DESCONTO${pedido.motivoDescontoManual ? ` (${pedido.motivoDescontoManual})` : ""}`, Number(pedido.valorDescontoManual), true]
+          : null,
+        !temPlanoAdquirido && Number(pedido.valorDescontoPlanoItens || 0) > 0
+          ? ["DESCONTO DO PLANO", Number(pedido.valorDescontoPlanoItens), true]
+          : null,
+      ].filter(Boolean) as Array<[string, number, boolean]>;
+      const resumoFinanceiro = `${linhasFinanceiras.map(([label, valor, desconto]) =>
+        `<div class="valor-linha"><span>${escaparHtml(label)}:</span><b>${desconto ? "- " : ""}${escaparHtml(moneyBr(valor))}</b></div>`,
+      ).join("")}<div class="valor-linha valor-total"><span>TOTAL:</span><b>${escaparHtml(moneyBr(totalCupom))}</b></div>`;
       return `<section class="cupom">
         <header><strong>FIT GARDEN COMIDAS SAUDÁVEIS</strong><br>AV URUGUAI, 1020 - LONDRINA/PR<br>CNPJ: 37.864.396/0001-25<br>TEL: (43) 3324-4706 - WHATS: (43) 99696-1573<br>AGRADECEMOS SUA PREFERÊNCIA!<br>DATA: ${escaparHtml(formatDate(selectedDate))}</header>
         <div class="rota">${escaparHtml(rota)}</div>
@@ -680,6 +707,7 @@ export default function Agendamentos() {
         <p><b>HORÁRIO ESTIMADO:</b> ${escaparHtml(`${getLabelTipoEntrega(pedido.tipoEntrega)} ${pedido.faixaHorario}`.toUpperCase())}</p>
         <p><b>ENDEREÇO / TELEFONE:</b> ${escaparHtml(`${pedido.endereco} / ${pedido.telefone}`)}</p>
         <p><b>CONFERÊNCIA PAGAMENTO:</b> ${escaparHtml(getLabelPagamento(pedido.formaPagamento).toUpperCase())}</p>
+        <div class="valores">${resumoFinanceiro}</div>
         <p><b>TAMANHO DAS MARMITAS (G):</b> ${escaparHtml(tamanhos)}</p>
       </section>`;
     }).join("");
@@ -691,6 +719,9 @@ export default function Agendamentos() {
       .rota { text-align: center; font-size: 12px; font-weight: 700; margin-bottom: 2mm; }
       .subpedido { margin: 3mm 0; }
       .subpedido-titulo { border-bottom: 1px dashed #000; padding-bottom: 1.5mm; margin-bottom: 2mm; font-size: 12px; font-weight: 700; }
+      .valores { margin: 2mm 0; padding: 1.5mm 0; border-top: 1px dashed #000; border-bottom: 1px dashed #000; }
+      .valor-linha { display: flex; justify-content: space-between; gap: 3mm; margin: 1mm 0; }
+      .valor-total { margin-top: 1.5mm; padding-top: 1.5mm; border-top: 1px solid #000; font-size: 13px; }
       h1 { margin: 3mm 0 2mm; padding: 1mm 0; text-align: center; font-size: 13px; border-top: 1px solid #000; border-bottom: 1px solid #000; }
       p { margin: 1.5mm 0; line-height: 1.35; } .item { margin: 1.8mm 0; font-size: 12px; line-height: 1.25; }
     </style></head><body>${cupons}<script>window.addEventListener('load',()=>setTimeout(()=>window.print(),150));<\/script></body></html>`);
