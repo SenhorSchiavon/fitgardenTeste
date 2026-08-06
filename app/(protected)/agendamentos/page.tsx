@@ -575,7 +575,7 @@ export default function Agendamentos() {
       "",
       agendamento.valorPlanosComprados && agendamento.valorPlanosComprados > 0
         ? `*Valor do plano adquirido:* ${moneyBr(agendamento.valorPlanosComprados)}`
-        : `*Subtotal:* ${moneyBr(agendamento.valorPedido ?? 0)}`,
+        : `*Subtotal:* ${moneyBr(Math.max(Number(agendamento.valorPedido || 0), Number(agendamento.valorDescontoPlanoItens || 0)))}`,
       `*Taxa de Entrega:* ${moneyBr(agendamento.valorTaxa || 0)}`,
       agendamento.valorDescontoVoucher && agendamento.valorDescontoVoucher > 0
         ? `*Desconto Voucher:* - ${moneyBr(agendamento.valorDescontoVoucher)}`
@@ -588,7 +588,7 @@ export default function Agendamentos() {
         ? `*Desconto do Plano:* - ${moneyBr(agendamento.valorDescontoPlanoItens)}`
         : null,
       `*Total:* ${moneyBr(agendamento.valorPlanosComprados && agendamento.valorPlanosComprados > 0
-        ? Math.max(0, Number(agendamento.valorPedido || 0) - Number(agendamento.valorDescontoPlanoItens || 0)) +
+        ? Math.max(0, Math.max(Number(agendamento.valorPedido || 0), Number(agendamento.valorDescontoPlanoItens || 0)) - Number(agendamento.valorDescontoPlanoItens || 0)) +
           (agendamento.taxaEntregaAbatidaPlano ? 0 : Number(agendamento.valorTaxa || 0)) +
           Number(agendamento.valorPlanosComprados) - Number(agendamento.valorDescontoManual || 0)
         : agendamento.valorTotalFinal ?? agendamento.valorTotal ?? 0)}`,
@@ -1727,7 +1727,7 @@ export default function Agendamentos() {
                     </div>
                     <div className="flex justify-between items-center py-1">
                       <span className="text-sm text-slate-600">Subtotal</span>
-                      <span className="text-sm font-medium">R$ {(agendamentoSelecionado?.valorPedidoProporcional ?? agendamentoSelecionado?.valorPedido ?? 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                      <span className="text-sm font-medium">R$ {Math.max(Number(agendamentoSelecionado?.valorPedido || 0), Number(agendamentoSelecionado?.valorDescontoPlanoItens || 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
                     </div>
                     <div className="flex justify-between items-center py-1 border-b border-dashed border-slate-100 pb-3">
                       <span className="text-sm text-slate-600">Entrega</span>
@@ -1739,10 +1739,18 @@ export default function Agendamentos() {
                           : "Grátis"}
                       </span>
                     </div>
-                    {agendamentoSelecionado?.valorDescontos && agendamentoSelecionado.valorDescontos > 0 ? (
+                    {agendamentoSelecionado?.valorPlanosComprados && agendamentoSelecionado.valorPlanosComprados > 0 ? (
                       <div className="flex justify-between items-center py-1 border-b border-dashed border-slate-100 pb-3">
-                        <span className="text-sm text-emerald-600 font-medium">Desconto Plano</span>
-                        <span className="text-sm font-bold text-emerald-600">- R$ {agendamentoSelecionado.valorDescontos.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                        <span className="text-sm font-medium text-slate-700">Plano adquirido</span>
+                        <span className="text-sm font-bold text-slate-900">
+                          R$ {agendamentoSelecionado.valorPlanosComprados.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                        </span>
+                      </div>
+                    ) : null}
+                    {agendamentoSelecionado?.valorDescontoPlanoItens && agendamentoSelecionado.valorDescontoPlanoItens > 0 ? (
+                      <div className="flex justify-between items-center py-1 border-b border-dashed border-slate-100 pb-3">
+                        <span className="text-sm text-emerald-600 font-medium">Desconto Plano (marmitas)</span>
+                        <span className="text-sm font-bold text-emerald-600">- R$ {agendamentoSelecionado.valorDescontoPlanoItens.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
                       </div>
                     ) : null}
                     {agendamentoSelecionado?.usouPlano && agendamentoSelecionado.saldoMarmitasAposPedido != null ? (
