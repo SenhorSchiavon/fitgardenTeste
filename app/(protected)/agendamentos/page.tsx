@@ -575,7 +575,7 @@ export default function Agendamentos() {
       "",
       agendamento.valorPlanosComprados && agendamento.valorPlanosComprados > 0
         ? `*Valor do plano adquirido:* ${moneyBr(agendamento.valorPlanosComprados)}`
-        : `*Subtotal:* ${moneyBr(agendamento.valorPedidoProporcional ?? agendamento.valorPedido ?? 0)}`,
+        : `*Subtotal:* ${moneyBr(agendamento.valorPedido ?? 0)}`,
       `*Taxa de Entrega:* ${moneyBr(agendamento.valorTaxa || 0)}`,
       agendamento.valorDescontoVoucher && agendamento.valorDescontoVoucher > 0
         ? `*Desconto Voucher:* - ${moneyBr(agendamento.valorDescontoVoucher)}`
