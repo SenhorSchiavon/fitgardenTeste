@@ -57,5 +57,43 @@ export function useRelatorioPedidosDia() {
     }
   }, []);
 
-  return { downloading, error, downloadDocx };
+  const downloadCozinhaDocx = useCallback(async (params: { data: string }) => {
+    const dataStr = String(params.data || "").trim();
+
+    if (!validarDataISO(dataStr)) {
+      setError("Data inválida. Use YYYY-MM-DD.");
+      return false;
+    }
+
+    setDownloading(true);
+    setError(null);
+
+    try {
+      const qs = new URLSearchParams({ data: dataStr });
+      const res = await apiFetch(`${RESOURCE}/pedidos/cozinha/docx?${qs.toString()}`, { method: "GET" });
+
+      if (!res.ok) {
+        const json = await res.json().catch(() => null);
+        throw new Error(json?.message || "Erro ao gerar relatório da cozinha");
+      }
+
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `relatorio-cozinha-${dataStr}.docx`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+      return true;
+    } catch (e: any) {
+      setError(e?.message || "Erro ao gerar relatório da cozinha");
+      return false;
+    } finally {
+      setDownloading(false);
+    }
+  }, []);
+
+  return { downloading, error, downloadDocx, downloadCozinhaDocx };
 }
