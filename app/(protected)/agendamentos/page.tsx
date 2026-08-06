@@ -1262,7 +1262,7 @@ export default function Agendamentos() {
       nome: p.nome,
       tipo: "LEGUME" as const,
     }));
-  const feijoes = (opcoes ?? [])
+  const feijoes = preparos.map((preparo) => ({ ...preparo, categoria: preparo.tipo }))
     .filter((o: any) => {
       const categoria = (o.categoria ?? "").toUpperCase();
       return categoria === "FEIJAO" || categoria === "FEIJÃO";
