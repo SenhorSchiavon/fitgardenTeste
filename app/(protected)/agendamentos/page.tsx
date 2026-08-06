@@ -120,9 +120,11 @@ type Agendamento = {
   usouPlano?: boolean;
   saldoMarmitasAposPedido?: number | null;
   planosAtivos?: { tamanho: string; saldo: number }[];
+  saldoTaxasEntrega?: number;
 
   itens: {
     id?: string;
+    groupId?: string;
     tipoItem?: string;
     salgadoId?: string;
     nome: string;
@@ -506,7 +508,7 @@ export default function Agendamentos() {
     const horarioFormatado = faixaHorario.includes("-")
       ? faixaHorario.split("-").map((parte) => parte.trim()).filter(Boolean).join(" às ")
       : faixaHorario;
-    const grupos = new Map<string, { linhas: string[]; totalMarmitas: number; subtotal: number }>();
+    const grupos = new Map<string, { titulo: string; linhas: string[]; totalMarmitas: number; subtotal: number }>();
     agendamento.itens.forEach((item) => {
       const detalhes = [item.carbo, item.proteina, item.legume, item.feijao, item.complemento].filter(Boolean);
       const descricaoBase = detalhes.length ? detalhes.join(" + ") : item.nome;
@@ -537,23 +539,25 @@ export default function Agendamentos() {
       const grupo = [tituloTamanho, item.destinatarioNome]
         .filter(Boolean)
         .join(" - ");
-      const dadosGrupo = grupos.get(grupo) || { linhas: [], totalMarmitas: 0, subtotal: 0 };
+      const chaveGrupo = item.groupId || item.id || grupo;
+      const dadosGrupo = grupos.get(chaveGrupo) || { titulo: grupo, linhas: [], totalMarmitas: 0, subtotal: 0 };
       dadosGrupo.linhas.push(`    ${item.quantidade}x ${descricaoComArroz}`.toUpperCase());
       dadosGrupo.subtotal += Number(item.valor || 0);
       if (item.tipoItem !== "SALGADO") {
         dadosGrupo.totalMarmitas += Number(item.quantidade || 0);
       }
-      grupos.set(grupo, dadosGrupo);
+      grupos.set(chaveGrupo, dadosGrupo);
     });
     const itens = Array.from(grupos.entries())
-      .flatMap(([grupo, dados], indice) => [
-        grupos.size > 1 ? `*PEDIDO ${indice + 1} - ${grupo}*` : `*${grupo}*`,
+      .flatMap(([, dados], indice) => [
+        grupos.size > 1 ? `*PEDIDO ${indice + 1} - ${dados.titulo}*` : `*${dados.titulo}*`,
         dados.totalMarmitas > 0 ? `*Total de marmitas:* ${dados.totalMarmitas}` : null,
         `*Subtotal do pedido:* ${moneyBr(dados.subtotal)}`,
         ...dados.linhas,
       ].filter((linha): linha is string => !!linha))
       .join("\n");
     const planos = agendamento.planosAtivos || [];
+    const saldoTaxasEntrega = Number(agendamento.saldoTaxasEntrega || 0);
     const valorBasePlanosComprados = (agendamento.planosComprados || [])
       .reduce((total, plano) => total + Number(plano.valorPlano || 0), 0);
     const valorTaxasPlanosComprados = (agendamento.planosComprados || [])
@@ -610,8 +614,13 @@ export default function Agendamentos() {
           ), ""]
         : []),
       `*Forma de Pagamento:* ${getLabelPagamentoConfirmacao(agendamento)}`,
-      ...(planos.length
-        ? ["", "*Planos ativos — saldo restante:*", ...planos.map((plano) => `${plano.saldo} unidades - ${plano.tamanho}`)]
+      ...(planos.length || saldoTaxasEntrega > 0
+        ? [
+            "",
+            "*Planos ativos — saldo restante:*",
+            ...planos.map((plano) => `${plano.saldo} unidades - ${plano.tamanho}`),
+            ...(saldoTaxasEntrega > 0 ? [`${saldoTaxasEntrega} taxa${saldoTaxasEntrega === 1 ? "" : "s"} de entrega`] : []),
+          ]
         : []),
     ];
 
@@ -652,7 +661,7 @@ export default function Agendamentos() {
       pedido.itens.forEach((item) => {
         const destinatario = item.destinatarioNome?.trim() || pedido.cliente;
         const tamanho = item.tipoItem === "CONGELADA" ? `CONGELADAS ${item.tamanho || ""}`.trim() : item.tamanho || "ITENS";
-        const chave = `${destinatario.toUpperCase()}|${tamanho.toUpperCase()}`;
+        const chave = item.groupId || item.id || `${destinatario.toUpperCase()}|${tamanho.toUpperCase()}`;
         const grupo = gruposItens.get(chave) || { destinatario, tamanho, itens: [] };
         grupo.itens.push(item);
         gruposItens.set(chave, grupo);
@@ -706,7 +715,7 @@ export default function Agendamentos() {
         <h1>DADOS DO CLIENTE</h1>
         <p><b>CLIENTE:</b> ${escaparHtml(pedido.cliente.toUpperCase())}</p>
         <p><b>HORÁRIO ESTIMADO:</b> ${escaparHtml(`${getLabelTipoEntrega(pedido.tipoEntrega)} ${pedido.faixaHorario}`.toUpperCase())}</p>
-        <p><b>ENDEREÇO / TELEFONE:</b> ${escaparHtml(`${pedido.endereco} / ${pedido.telefone}`)}</p>
+        <p><b>${pedido.endereco ? "ENDEREÇO / TELEFONE" : "TELEFONE"}:</b> ${escaparHtml(pedido.endereco ? `${pedido.endereco} / ${pedido.telefone}` : pedido.telefone)}</p>
         <p><b>CONFERÊNCIA PAGAMENTO:</b> ${escaparHtml(getLabelPagamento(pedido.formaPagamento).toUpperCase())}</p>
         <div class="valores">${resumoFinanceiro}</div>
         <p><b>TAMANHO DAS MARMITAS (G):</b> ${escaparHtml(tamanhos)}</p>
@@ -875,6 +884,7 @@ export default function Agendamentos() {
 
         return {
           id: String(it.id),
+          groupId: String(it.grupoPedido || `item:${it.id}`),
           tipoItem: it.tipoItem,
           salgadoId: it.salgadoId != null ? String(it.salgadoId) : undefined,
           congeladaId: it.congeladaId != null ? String(it.congeladaId) : undefined,
@@ -1103,6 +1113,10 @@ export default function Agendamentos() {
     const planosAtivos = Array.from(saldosPorTamanho.entries())
       .map(([tamanho, saldo]) => ({ tamanho, saldo }))
       .sort((a, b) => Number(a.tamanho.replace(/\D/g, "")) - Number(b.tamanho.replace(/\D/g, "")));
+    const saldoTaxasEntrega = planosCliente.reduce(
+      (total: number, plano: any) => total + Math.max(0, Number(plano.saldoEntregas || 0)),
+      0,
+    );
     const saldoMarmitasAposPedido = usouPlano
       ? planosCliente.length > 0
         ? planosCliente.reduce((acc: number, plano: any) => acc + Number(plano.saldoUnidades || 0), 0)
@@ -1164,6 +1178,7 @@ export default function Agendamentos() {
       usouPlano,
       saldoMarmitasAposPedido,
       planosAtivos,
+      saldoTaxasEntrega,
       observacoes: row.pedido?.observacoes ?? row.observacoes ?? undefined,
       itens: itensUi,
       _raw: row,

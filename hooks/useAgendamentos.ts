@@ -91,6 +91,7 @@ export type AgendamentoItemInput = {
   quantidade: number;
 
   destinatarioNome?: string;
+  grupoPedido?: string;
   observacaoItem?: string;
 
   opcaoId?: number | null;
@@ -555,6 +556,7 @@ export function useAgendamentos(options?: { baseUrl?: string }) {
             quantidade: Number(it.quantidade),
 
             destinatarioNome: it.destinatarioNome?.trim() || undefined,
+            grupoPedido: it.grupoPedido?.trim() || undefined,
             observacaoItem: it.observacaoItem?.trim() || undefined,
 
             opcaoId: it.opcaoId != null ? Number(it.opcaoId) : null,
@@ -645,6 +647,7 @@ export function useAgendamentos(options?: { baseUrl?: string }) {
             quantidade: Number(it.quantidade),
 
             destinatarioNome: it.destinatarioNome?.trim() || undefined,
+            grupoPedido: it.grupoPedido?.trim() || undefined,
             observacaoItem: it.observacaoItem?.trim() || undefined,
 
             opcaoId: it.opcaoId != null && it.opcaoId !== "" ? Number(it.opcaoId) : null,

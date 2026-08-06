@@ -759,7 +759,7 @@ export function NovoAgendamentoNovoLayout({
 
         return ({
         id: it.id ? String(it.id) : uid(),
-        groupId: `tamanho:${String(it.tamanhoId || it.tamanho?.id || it.tamanhoLabel || it.tamanho?.pesagemGramas || it.tipoItem || "item")}`,
+        groupId: String(it.grupoPedido || `item:${it.id || uid()}`),
         tipoItem: it.tipoItem || (it.congeladaId || it.congelada ? "CONGELADA" : it.salgadoId || it.salgado ? "SALGADO" : it.opcaoId || it.opcao ? "PADRAO" : "PERSONALIZADA"),
         destinatarioNome: it.destinatarioNome || "",
         tamanhoId: String(it.tamanhoId || ""),
@@ -2832,7 +2832,7 @@ export function NovoAgendamentoNovoLayout({
         : null,
       congelarSubtipo: tipo === "CONGELAR" ? congelarSubtipo : null,
       faixaHorario: tipo === "RETIRADA" ? horario.inicio : `${horario.inicio}-${horario.fim}`,
-      endereco: ehEntrega ? endereco : tipo,
+      endereco: ehEntrega ? endereco : "",
       entregaLatitude: ehEntrega && enderecoSelecionado?.latitude != null ? Number(enderecoSelecionado.latitude) : undefined,
       entregaLongitude: ehEntrega && enderecoSelecionado?.longitude != null ? Number(enderecoSelecionado.longitude) : undefined,
       observacoes: observacoesPedido,
@@ -2853,6 +2853,7 @@ export function NovoAgendamentoNovoLayout({
       ...(ehEntrega && incluirTaxaEntrega && valorTaxa > 0 ? { valorTaxa } : {}),
       itens: itensComPrecoBruto.map(it => ({
          ...it,
+         grupoPedido: it.groupId || it.id,
          carboGramas: Number(it.carboGramas || 0),
          proteinaGramas: Number(it.proteinaGramas || 0),
          legumeGramas: Number(it.legumeGramas || 0),
@@ -3751,13 +3752,13 @@ export function NovoAgendamentoNovoLayout({
                         {avisoPagamentoAutomatico}
                       </p>
                     )}
-                    {(formaPagamento === "PIX" || formaPagamento === "LINK" || (formaPagamento === "VOUCHER" && formaPagamentoTaxaVoucher === "PIX")) && (
+                    {(formaPagamento === "PIX" || formaPagamento === "LINK") && (
                       <label className="flex cursor-pointer items-center gap-2 rounded-lg border p-3 text-sm font-medium">
                         <Checkbox
                           checked={pagamentoJaRealizado}
                           onCheckedChange={(checked) => setPagamentoJaRealizado(checked === true)}
                         />
-                        {formaPagamento === "VOUCHER" ? "Taxa PIX já foi paga" : "Já foi pago"}
+                        Já foi pago
                       </label>
                     )}
                   </div>
@@ -3795,6 +3796,15 @@ export function NovoAgendamentoNovoLayout({
                             <SelectItem value="VALE_REFEICAO">Vale Refeição</SelectItem>
                           </SelectContent>
                         </Select>
+                        {formaPagamentoTaxaVoucher === "PIX" && (
+                          <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-emerald-200 bg-white p-3 text-sm font-medium">
+                            <Checkbox
+                              checked={pagamentoJaRealizado}
+                              onCheckedChange={(checked) => setPagamentoJaRealizado(checked === true)}
+                            />
+                            Taxa PIX já foi paga
+                          </label>
+                        )}
                       </div>
                     </div>
                   )}

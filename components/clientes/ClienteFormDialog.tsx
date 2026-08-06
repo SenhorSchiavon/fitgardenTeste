@@ -765,7 +765,7 @@ export function ClienteFormDialog({
           principal: true,
           apelido: temEnderecoPrincipal ? (upper(form.apelidoPrincipal).trim() || "ENDEREÇO 01") : null,
           cep: form.cep?.trim() ? onlyDigits(form.cep) : null,
-          uf: "PR",
+          uf: temEnderecoPrincipal ? "PR" : null,
           cidade: form.cidade?.trim() || null,
           bairro: upper(form.bairro).trim() || null,
           logradouro: upper(form.logradouro).trim() || null,

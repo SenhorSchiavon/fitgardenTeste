@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -12,6 +12,10 @@ import { Plus, Search } from "lucide-react"
 import { Header } from "@/components/header"
 import { useTableSort } from "@/hooks/useTableSort"
 import { SortableHead } from "@/components/ui/sorttable"
+import { apiFetch } from "@/hooks/api"
+import { toast } from "sonner"
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3333/api"
 
 type Voucher = {
   id: string
@@ -21,13 +25,8 @@ type Voucher = {
 }
 
 export default function Vouchers() {
-  const [vouchers, setVouchers] = useState<Voucher[]>([
-    { id: "V001", numero: "2123456", data: "2023-05-10", baixado: true },
-    { id: "V002", numero: "2234567", data: "2023-05-15", baixado: true },
-    { id: "V003", numero: "2345678", data: "2023-05-20", baixado: false },
-    { id: "V004", numero: "2456789", data: "2023-05-25", baixado: false },
-    { id: "V005", numero: "2567890", data: "2023-05-30", baixado: false },
-  ])
+  const [vouchers, setVouchers] = useState<Voucher[]>([])
+  const [loading, setLoading] = useState(true)
 
   const [novoVoucher, setNovoVoucher] = useState<Partial<Voucher>>({
     numero: "",
@@ -38,29 +37,61 @@ export default function Vouchers() {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [searchTerm, setSearchTerm] = useState("")
 
-  const handleSave = () => {
-    if (novoVoucher.numero) {
-      const newId = `V${String(vouchers.length + 1).padStart(3, "0")}`
-      setVouchers([
-        ...vouchers,
-        {
-          id: newId,
-          numero: novoVoucher.numero,
-          data: novoVoucher.data || new Date().toISOString().split("T")[0],
-          baixado: novoVoucher.baixado || false,
-        },
-      ])
-      setNovoVoucher({
-        numero: "",
-        data: new Date().toISOString().split("T")[0],
-        baixado: false,
-      })
-      setDialogOpen(false)
+  const carregarVouchers = async () => {
+    try {
+      setLoading(true)
+      const response = await apiFetch(`${API_URL}/vouchers`)
+      const data = await response.json().catch(() => [])
+      if (!response.ok) throw new Error(data?.message || "Erro ao carregar vouchers")
+      setVouchers((data || []).map((voucher: any) => ({
+        id: String(voucher.id),
+        numero: String(voucher.codigo),
+        data: String(voucher.data),
+        baixado: !!voucher.usado,
+      })))
+    } catch (error: any) {
+      toast.error("Não foi possível carregar os vouchers", { description: error?.message })
+    } finally {
+      setLoading(false)
     }
   }
 
-  const handleToggleBaixado = (id: string) => {
-    setVouchers(vouchers.map((voucher) => (voucher.id === id ? { ...voucher, baixado: !voucher.baixado } : voucher)))
+  useEffect(() => {
+    void carregarVouchers()
+  }, [])
+
+  const handleSave = async () => {
+    if (novoVoucher.numero) {
+      try {
+        const response = await apiFetch(`${API_URL}/vouchers`, {
+          method: "POST",
+          body: JSON.stringify({ codigo: novoVoucher.numero, data: novoVoucher.data, usado: !!novoVoucher.baixado }),
+        })
+        const data = await response.json().catch(() => null)
+        if (!response.ok) throw new Error(data?.message || "Erro ao salvar voucher")
+        await carregarVouchers()
+        setNovoVoucher({ numero: "", data: new Date().toISOString().split("T")[0], baixado: false })
+        setDialogOpen(false)
+      } catch (error: any) {
+        toast.error("Não foi possível salvar o voucher", { description: error?.message })
+      }
+    }
+  }
+
+  const handleToggleBaixado = async (id: string) => {
+    const voucher = vouchers.find((item) => item.id === id)
+    if (!voucher) return
+    try {
+      const response = await apiFetch(`${API_URL}/vouchers/${id}/usado`, {
+        method: "PATCH",
+        body: JSON.stringify({ usado: !voucher.baixado }),
+      })
+      const data = await response.json().catch(() => null)
+      if (!response.ok) throw new Error(data?.message || "Erro ao atualizar voucher")
+      setVouchers((atuais) => atuais.map((item) => item.id === id ? { ...item, baixado: !!data.usado } : item))
+    } catch (error: any) {
+      toast.error("Não foi possível atualizar o voucher", { description: error?.message })
+    }
   }
 
   const handleNew = () => {
@@ -131,12 +162,15 @@ export default function Vouchers() {
                   </TableCell>
                 </TableRow>
               ))}
-              {filteredVouchers.length === 0 && (
+              {!loading && filteredVouchers.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={4} className="text-center py-4">
                     Nenhum voucher encontrado
                   </TableCell>
                 </TableRow>
+              )}
+              {loading && (
+                <TableRow><TableCell colSpan={4} className="text-center py-4">Carregando vouchers...</TableCell></TableRow>
               )}
             </TableBody>
           </Table>

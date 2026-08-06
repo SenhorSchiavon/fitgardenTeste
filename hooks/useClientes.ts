@@ -34,11 +34,27 @@ export type PlanoCliente = {
   saldoUnidades: number;
   saldoEntregas: number;
   tamanho?: { id: number; pesagemGramas: number };
+  itens?: Array<{
+    id: number;
+    saldoUnidades: number;
+    planoItem?: {
+      id: number;
+      unidades: number;
+      tamanho?: { id: number; pesagemGramas: number } | null;
+      pesoPersonalizadoGramas?: number | string | null;
+    } | null;
+  }>;
   plano?: {
     id: number;
     nome?: string | null;
     unidades?: number | null;
     tamanho?: { id: number; pesagemGramas: number } | null;
+    itens?: Array<{
+      id: number;
+      unidades: number;
+      tamanho?: { id: number; pesagemGramas: number } | null;
+      pesoPersonalizadoGramas?: number | string | null;
+    }>;
   } | null;
   createdAt?: string;
   updatedAt?: string;
