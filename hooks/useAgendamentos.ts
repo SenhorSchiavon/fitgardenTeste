@@ -120,6 +120,7 @@ export type AgendamentoItemInput = {
 
 export type CreateAgendamentoInput = {
   clienteId: number;
+  planosCompradosIds?: number[];
   tipo: PedidoTipo;
   data: Date | string;
   dataEntregaCongelada?: Date | string | null;
@@ -521,6 +522,7 @@ export function useAgendamentos(options?: { baseUrl?: string }) {
       try {
         const body = {
           clienteId: Number(payload.clienteId),
+          planosCompradosIds: (payload.planosCompradosIds || []).map(Number).filter((id) => Number.isFinite(id) && id > 0),
           tipo: payload.tipo,
           data:
             payload.data instanceof Date
@@ -542,6 +544,8 @@ export function useAgendamentos(options?: { baseUrl?: string }) {
           voucherCodigo: payload.voucherCodigo?.trim() || undefined,
           formaPagamentoTaxaVoucher: payload.formaPagamentoTaxaVoucher,
           pagamentoJaRealizado: !!payload.pagamentoJaRealizado,
+          valorDescontoManual: Number(payload.valorDescontoManual || 0),
+          motivoDescontoManual: payload.motivoDescontoManual?.trim() || undefined,
           abaterTaxaEntregaPlano: payload.abaterTaxaEntregaPlano,
           itens: (payload.itens || []).map((it) => ({
             tipoItem: it.tipoItem === "PERSONALIZADA" ? "PERSONALIZADA" : it.tipoItem === "SALGADO" ? "SALGADO" : it.tipoItem === "CONGELADA" ? "CONGELADA" : "PADRAO",

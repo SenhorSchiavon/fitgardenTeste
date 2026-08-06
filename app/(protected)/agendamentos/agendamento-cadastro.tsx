@@ -693,15 +693,37 @@ export function NovoAgendamentoNovoLayout({
       setDescontoManualOpen(descontoInicial > 0);
       const pagamentosIniciais = initialData.pagamentos || initialData.pedido?.pagamentos || [];
       setPagamentoJaRealizado(!!initialData.pagamentoJaRealizado);
+      const comprasPlanoRegistradas = pagamentosIniciais.filter((pagamento: any) =>
+        pagamento.forma === "PLANO" &&
+        pagamento.planoClienteId &&
+        Number(pagamento.consumoUnidades || 0) === 0 &&
+        Number(pagamento.consumoEntregas || 0) === 0 &&
+        Number(pagamento.valor || 0) > 0,
+      );
+      const comprasPlanoIds = new Set(comprasPlanoRegistradas.map((pagamento: any) => Number(pagamento.planoClienteId)));
+      const comprasPlanoLegadas = Array.from(
+        new Map(
+          pagamentosIniciais
+            .filter((pagamento: any) =>
+              pagamento.forma === "PLANO" &&
+              pagamento.planoClienteId &&
+              (Number(pagamento.consumoUnidades || 0) > 0 || Number(pagamento.consumoEntregas || 0) > 0) &&
+              pagamento.planoCliente?.pago === false &&
+              !comprasPlanoIds.has(Number(pagamento.planoClienteId)),
+            )
+            .map((pagamento: any) => [Number(pagamento.planoClienteId), pagamento]),
+        ).values(),
+      ).map((pagamento: any) => ({
+        ...pagamento,
+        valor:
+          Number(pagamento.planoCliente?.plano?.valor || 0) +
+          Number(pagamento.planoCliente?.valorTaxaEntrega || 0) * Number(pagamento.planoCliente?.taxasEntregaCompradas || 0),
+        status: "PENDENTE",
+        consumoUnidades: null,
+        consumoEntregas: null,
+      }));
       setPlanosComprados(
-        pagamentosIniciais
-          .filter((pagamento: any) =>
-            pagamento.forma === "PLANO" &&
-            pagamento.planoClienteId &&
-            Number(pagamento.consumoUnidades || 0) === 0 &&
-            Number(pagamento.consumoEntregas || 0) === 0 &&
-            Number(pagamento.valor || 0) > 0,
-          )
+        [...comprasPlanoRegistradas, ...comprasPlanoLegadas]
           .map((pagamento: any) => {
             const plano = pagamento.planoCliente?.plano;
             const valorTotal = Number(pagamento.valor || 0);
