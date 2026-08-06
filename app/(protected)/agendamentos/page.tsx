@@ -619,7 +619,7 @@ export default function Agendamentos() {
             "",
             "*Planos ativos — saldo restante:*",
             ...planos.map((plano) => `${plano.saldo} unidades - ${plano.tamanho}`),
-            ...(saldoTaxasEntrega > 0 ? [`${saldoTaxasEntrega} taxa${saldoTaxasEntrega === 1 ? "" : "s"} de entrega`] : []),
+            `${saldoTaxasEntrega} taxa${saldoTaxasEntrega === 1 ? "" : "s"} de entrega`,
           ]
         : []),
     ];
@@ -2244,11 +2244,14 @@ export default function Agendamentos() {
               voucherCodigo: payload.voucherCodigo,
               formaPagamentoTaxaVoucher: payload.formaPagamentoTaxaVoucher,
               pagamentoJaRealizado: payload.pagamentoJaRealizado,
+              valorDescontoManual: payload.valorDescontoManual,
+              motivoDescontoManual: payload.motivoDescontoManual,
               senhaAutorizacao: payload.senhaAutorizacao,
               abaterTaxaEntregaPlano: payload.abaterTaxaEntregaPlano,
               itens: payload.itens.map((it: any) => ({
                 tipoItem: it.tipoItem,
                 destinatarioNome: it.destinatarioNome,
+                grupoPedido: it.grupoPedido,
                 tamanhoId: it.tamanhoId ? Number(it.tamanhoId) : null,
                 salgadoId: it.salgadoId ? Number(it.salgadoId) : null,
                 congeladaId: it.congeladaId ? Number(it.congeladaId) : null,
@@ -2294,10 +2297,13 @@ export default function Agendamentos() {
               voucherCodigo: payload.voucherCodigo,
               formaPagamentoTaxaVoucher: payload.formaPagamentoTaxaVoucher,
               pagamentoJaRealizado: payload.pagamentoJaRealizado,
+              valorDescontoManual: payload.valorDescontoManual,
+              motivoDescontoManual: payload.motivoDescontoManual,
               abaterTaxaEntregaPlano: payload.abaterTaxaEntregaPlano,
               itens: payload.itens.map((it: any) => ({
                 tipoItem: it.tipoItem,
                 destinatarioNome: it.destinatarioNome,
+                grupoPedido: it.grupoPedido,
                 tamanhoId: it.tamanhoId ? Number(it.tamanhoId) : null,
                 salgadoId: it.salgadoId ? Number(it.salgadoId) : null,
                 congeladaId: it.congeladaId ? Number(it.congeladaId) : null,
