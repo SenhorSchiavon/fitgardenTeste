@@ -2312,39 +2312,6 @@ export function NovoAgendamentoNovoLayout({
     );
   }
 
-  function renderGramagemCompacta(
-    label: string,
-    nome: string,
-    gramasKey: "carboGramas" | "proteinaGramas" | "legumeGramas" | "feijaoGramas" | "complementoGramas",
-  ) {
-    return (
-      <label className="min-w-[76px] flex-1 space-y-1">
-        <span className="block truncate text-[10px] font-bold uppercase tracking-wide text-slate-500" title={nome}>
-          {label}
-        </span>
-        <div className="relative">
-          <Input
-            type="number"
-            min={0}
-            step="1"
-            value={Number(formItem[gramasKey] || 0)}
-            onChange={(event) => {
-              const gramas = Number(event.target.value || 0);
-              setFormItem((prev) => ({
-                ...prev,
-                [gramasKey]: gramas,
-                ...(gramasKey === "feijaoGramas" ? { adicionarFeijao: gramas > 0 } : {}),
-              }));
-            }}
-            className="h-9 bg-white pr-6 text-center text-sm font-semibold"
-            aria-label={`${label} em gramas`}
-          />
-          <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-slate-400">g</span>
-        </div>
-      </label>
-    );
-  }
-
   function getCategoriasPersonalizadaPendentes(item: NovoPedidoItem) {
     const categorias = [
       { nome: "carboidrato", gramas: item.carboGramas, ingredienteId: item.carboId },
@@ -4896,32 +4863,24 @@ export function NovoAgendamentoNovoLayout({
 
                               {selecionada && (
                                 <div className="border-t border-emerald-200 px-3 py-3">
-                                  <div className="flex flex-wrap items-end gap-2 xl:flex-nowrap">
-                                    {renderGramagemCompacta("Carb.", formItem.carboNome, "carboGramas")}
-                                    {renderGramagemCompacta("Prot.", formItem.proteinaNome, "proteinaGramas")}
-                                    {renderGramagemCompacta("Leg.", formItem.legumeNome, "legumeGramas")}
-                                    {renderGramagemCompacta("Feijão", formItem.feijaoNome, "feijaoGramas")}
-                                    {renderGramagemCompacta("Compl.", formItem.complementoNome, "complementoGramas")}
-                                    <div className="min-w-[72px] space-y-1 text-center">
-                                      <span className="block text-[10px] font-bold uppercase tracking-wide text-slate-500">Total</span>
-                                      <div className="flex h-9 items-center justify-center rounded-md border bg-white px-2 text-sm font-bold text-emerald-700">
-                                        {totalGramasPersonalizada}g
-                                      </div>
+                                  <div className="grid gap-3 md:grid-cols-2">
+                                    {renderIngredientePersonalizada({ label: "Carboidrato", items: carboidratos, idKey: "carboId", nomeKey: "carboNome", gramasKey: "carboGramas", optional: true })}
+                                    {renderIngredientePersonalizada({ label: "Proteína", items: proteinas, idKey: "proteinaId", nomeKey: "proteinaNome", gramasKey: "proteinaGramas", optional: true })}
+                                    {renderIngredientePersonalizada({ label: "Legumes", items: legumes, idKey: "legumeId", nomeKey: "legumeNome", gramasKey: "legumeGramas", optional: true })}
+                                    {renderIngredientePersonalizada({ label: "Feijão", items: feijoes, idKey: "feijaoId", nomeKey: "feijaoNome", gramasKey: "feijaoGramas", optional: true })}
+                                    {renderIngredientePersonalizada({ label: "Complemento", items: complementos, idKey: "complementoId", nomeKey: "complementoNome", gramasKey: "complementoGramas", optional: true })}
+                                  </div>
+                                  <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+                                    <div className="rounded-md border bg-white px-3 py-2 text-sm font-bold text-emerald-700">
+                                      Total: {totalGramasPersonalizada}g
                                     </div>
                                     {!formItem.id && (
-                                      <Button
-                                        type="button"
-                                        onClick={() => addPedidoNaLista(false)}
-                                        className="h-9 shrink-0 rounded-lg px-4"
-                                      >
+                                      <Button type="button" onClick={() => addPedidoNaLista(false)} className="h-9 rounded-lg px-4">
                                         <Plus className="mr-1.5 h-4 w-4" />
                                         Adicionar
                                       </Button>
                                     )}
                                   </div>
-                                  <p className="mt-2 truncate text-[10px] text-slate-500" title={[formItem.carboNome, formItem.proteinaNome, formItem.legumeNome, formItem.feijaoNome, formItem.complementoNome].filter(Boolean).join(" • ")}>
-                                    {[formItem.carboNome, formItem.proteinaNome, formItem.legumeNome, formItem.feijaoNome, formItem.complementoNome].filter(Boolean).join(" • ")}
-                                  </p>
                                 </div>
                               )}
                             </div>
