@@ -487,6 +487,7 @@ export function NovoAgendamentoNovoLayout({
     ids: string[];
     unidades: number;
   } | null>(null);
+  const [itensImportadosAguardandoPlano, setItensImportadosAguardandoPlano] = useState<string[]>([]);
   const [modalTrocasOpen, setModalTrocasOpen] = useState(false);
   const [buscaMarmita, setBuscaMarmita] = useState("");
   const [filtroCatalogo, setFiltroCatalogo] = useState<"TODAS" | "PEDIDO">("TODAS");
@@ -1189,7 +1190,8 @@ export function NovoAgendamentoNovoLayout({
     );
   }
 
-  function getItensElegiveisParaAplicarPlano() {
+  function getItensElegiveisParaAplicarPlano(idsPermitidos?: string[]) {
+    const permitidos = idsPermitidos ? new Set(idsPermitidos) : null;
     const saldoRestantePorChave = new Map<string, number>();
 
     for (const item of itens) {
@@ -1209,6 +1211,7 @@ export function NovoAgendamentoNovoLayout({
     const ids: string[] = [];
     let unidades = 0;
     for (const item of itens) {
+      if (permitidos && !permitidos.has(item.id)) continue;
       if (item.usarPlano || item.tipoItem === "SALGADO" || item.tipoItem === "CONGELADA") continue;
       if (!(clienteSelecionado?.planos || []).some((plano: any) => planoClienteTemItemCompativel(plano, item))) continue;
 
@@ -1224,6 +1227,17 @@ export function NovoAgendamentoNovoLayout({
 
     return { ids, unidades };
   }
+
+  useEffect(() => {
+    if (!itensImportadosAguardandoPlano.length || !clienteSelecionado) return;
+
+    const itensElegiveis = getItensElegiveisParaAplicarPlano(itensImportadosAguardandoPlano);
+    setItensImportadosAguardandoPlano([]);
+
+    if (itensElegiveis.ids.length > 0) {
+      setConfirmacaoAplicarPlano(itensElegiveis);
+    }
+  }, [itensImportadosAguardandoPlano, clienteSelecionado, itens]);
 
   function canUsePlanoForItem(item: NovoPedidoItem) {
     if (!item.usarPlano || item.tipoItem === "SALGADO" || item.tipoItem === "CONGELADA") return true;
@@ -2970,9 +2984,11 @@ export function NovoAgendamentoNovoLayout({
         feijaoGramas: Number(personalizada.feijaoGramas || 0),
         legumeGramas: Number(personalizada.legumeGramas || 0),
         complementoGramas: Number(personalizada.complementoGramas || 0),
+        usarPlano: false,
       };
         });
     setItens((prev) => [...prev, ...importados]);
+    setItensImportadosAguardandoPlano(importados.map((item) => item.id));
     const itemSemCarboidratoComAdicao = importados.find((itemImportado) => {
       if (!itemImportado.adicionarArroz || !itemImportado.opcaoId) return false;
       const opcaoImportada = opcoesPadrao.find(
