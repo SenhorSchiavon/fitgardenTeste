@@ -1872,6 +1872,16 @@ export default function Agendamentos() {
                         <span className="text-sm font-bold text-emerald-600">- R$ {agendamentoSelecionado.valorDescontoPlanoItens.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
                       </div>
                     ) : null}
+                    {agendamentoSelecionado?.valorDescontoManual && agendamentoSelecionado.valorDescontoManual > 0 ? (
+                      <div className="flex justify-between items-center gap-3 py-1 border-b border-dashed border-amber-100 pb-3">
+                        <span className="text-sm text-amber-700 font-medium">
+                          Desconto{agendamentoSelecionado.motivoDescontoManual ? ` (${agendamentoSelecionado.motivoDescontoManual})` : ""}
+                        </span>
+                        <span className="shrink-0 text-sm font-bold text-amber-700">
+                          - R$ {agendamentoSelecionado.valorDescontoManual.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                        </span>
+                      </div>
+                    ) : null}
                     {agendamentoSelecionado?.usouPlano && agendamentoSelecionado.saldoMarmitasAposPedido != null ? (
                       <div className="flex justify-between items-center py-1 border-b border-dashed border-slate-100 pb-3">
                         <span className="text-sm text-slate-600">Marmitas após pedido</span>
