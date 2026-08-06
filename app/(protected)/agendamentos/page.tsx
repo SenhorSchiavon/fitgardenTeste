@@ -115,7 +115,7 @@ type Agendamento = {
   valorTotalFinal?: number;
   valorPlanosComprados?: number;
   valorPlanosCompradosPendente?: number;
-  planosComprados?: { nome: string; valor: number }[];
+  planosComprados?: { nome: string; valor: number; valorPlano: number; valorTaxas: number }[];
   taxaEntregaAbatidaPlano?: boolean;
   usouPlano?: boolean;
   saldoMarmitasAposPedido?: number | null;
@@ -553,6 +553,10 @@ export default function Agendamentos() {
       ].filter((linha): linha is string => !!linha))
       .join("\n");
     const planos = agendamento.planosAtivos || [];
+    const valorBasePlanosComprados = (agendamento.planosComprados || [])
+      .reduce((total, plano) => total + Number(plano.valorPlano || 0), 0);
+    const valorTaxasPlanosComprados = (agendamento.planosComprados || [])
+      .reduce((total, plano) => total + Number(plano.valorTaxas || 0), 0);
     const tipoConfirmacao = agendamento.tipoEntrega === "CONGELAR"
       ? [
           "CONGELAR",
@@ -574,9 +578,13 @@ export default function Agendamentos() {
       itens,
       "",
       agendamento.valorPlanosComprados && agendamento.valorPlanosComprados > 0
-        ? `*Valor do plano adquirido:* ${moneyBr(agendamento.valorPlanosComprados)}`
+        ? `*Valor do plano adquirido:* ${moneyBr(valorBasePlanosComprados)}`
         : `*Subtotal:* ${moneyBr(Math.max(Number(agendamento.valorPedido || 0), Number(agendamento.valorDescontoPlanoItens || 0)))}`,
-      `*Taxa de Entrega:* ${moneyBr(agendamento.valorTaxa || 0)}`,
+      agendamento.valorPlanosComprados && agendamento.valorPlanosComprados > 0
+        ? valorTaxasPlanosComprados > 0
+          ? `*Entrega incluída no plano:* ${moneyBr(valorTaxasPlanosComprados)}`
+          : null
+        : `*Taxa de Entrega:* ${moneyBr(agendamento.valorTaxa || 0)}`,
       agendamento.valorDescontoVoucher && agendamento.valorDescontoVoucher > 0
         ? `*Desconto Voucher:* - ${moneyBr(agendamento.valorDescontoVoucher)}`
         : null,
@@ -594,7 +602,11 @@ export default function Agendamentos() {
         : agendamento.valorTotalFinal ?? agendamento.valorTotal ?? 0)}`,
       "",
       ...(agendamento.planosComprados?.length
-        ? ["*Plano adquirido:*", ...agendamento.planosComprados.map((plano) => `${plano.nome} - ${moneyBr(plano.valor)}`), ""]
+        ? ["*Plano adquirido:*", ...agendamento.planosComprados.map((plano) =>
+            plano.valorTaxas > 0
+              ? `${plano.nome} - ${moneyBr(plano.valorPlano)} + ${moneyBr(plano.valorTaxas)} de entrega = ${moneyBr(plano.valor)}`
+              : `${plano.nome} - ${moneyBr(plano.valor)}`,
+          ), ""]
         : []),
       `*Forma de Pagamento:* ${getLabelPagamentoConfirmacao(agendamento)}`,
       ...(planos.length
@@ -959,6 +971,8 @@ export default function Agendamentos() {
     const planosComprados = pagamentosCompraPlano.map((p: any) => ({
       nome: String(p.planoCliente?.plano?.nome || `Plano #${p.planoClienteId}`),
       valor: Number(p.valor || 0),
+      valorPlano: Number(p.planoCliente?.plano?.valor || p.valor || 0),
+      valorTaxas: Math.max(0, Number(p.valor || 0) - Number(p.planoCliente?.plano?.valor || p.valor || 0)),
     }));
     const valorPlanosCompradosPendente = pagamentosCompraPlano
       .filter((p: any) => p.planoCliente?.pago === false || (!p.planoCliente && p.status === "PENDENTE"))
