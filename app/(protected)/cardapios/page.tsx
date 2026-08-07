@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Pencil, Trash, Check, Power, ImageIcon, Upload, ExternalLink, Phone } from "lucide-react";
+import { Plus, Pencil, Trash, Check, Power, ImageIcon, Upload, ExternalLink, Phone, Globe2, Factory, PauseCircle, PlayCircle } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -66,6 +66,8 @@ export default function CardapiosPage() {
     fetchCardapios,
     fetchTelefones,
     saveTelefones,
+    configuracaoOperacional,
+    saveConfiguracaoOperacional,
   } = useCardapios();
 
   const { opcoes, loading: loadingOpcoes } = useOpcoes();
@@ -309,6 +311,57 @@ export default function CardapiosPage() {
           <Plus className="mr-2 h-4 w-4" /> Criar Cardápio
         </Button>
       </div>
+
+      <Card className="mb-6 border-emerald-200">
+        <CardHeader>
+          <CardTitle>Publicação e produção</CardTitle>
+          <p className="text-sm text-muted-foreground">
+            O cardápio do site pode ser diferente do utilizado nas rotas e relatórios. Toda segunda-feira, o publicado passa automaticamente a ser o cardápio em produção.
+          </p>
+        </CardHeader>
+        <CardContent className="grid gap-4 md:grid-cols-[1fr_1fr_auto] md:items-end">
+          <div className="space-y-2">
+            <Label className="flex items-center gap-2"><Globe2 className="h-4 w-4" /> Publicado no site</Label>
+            <Select
+              value={configuracaoOperacional?.publicadoId ? String(configuracaoOperacional.publicadoId) : undefined}
+              onValueChange={(value) => saveConfiguracaoOperacional({ publicadoId: Number(value) })}
+              disabled={saving || !configuracaoOperacional}
+            >
+              <SelectTrigger><SelectValue placeholder="Selecione o cardápio público" /></SelectTrigger>
+              <SelectContent>
+                {cardapios.map((cardapio) => <SelectItem key={cardapio.id} value={String(cardapio.id)}>{cardapio.nome}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label className="flex items-center gap-2"><Factory className="h-4 w-4" /> Em produção</Label>
+            <Select
+              value={configuracaoOperacional?.producaoId ? String(configuracaoOperacional.producaoId) : undefined}
+              onValueChange={(value) => saveConfiguracaoOperacional({ producaoId: Number(value) })}
+              disabled={saving || !configuracaoOperacional}
+            >
+              <SelectTrigger><SelectValue placeholder="Selecione o cardápio da produção" /></SelectTrigger>
+              <SelectContent>
+                {cardapios.map((cardapio) => <SelectItem key={cardapio.id} value={String(cardapio.id)}>{cardapio.nome}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <Button
+            type="button"
+            variant={configuracaoOperacional?.publicoPausado ? "default" : "destructive"}
+            onClick={() => saveConfiguracaoOperacional({ publicoPausado: !configuracaoOperacional?.publicoPausado })}
+            disabled={saving || !configuracaoOperacional}
+          >
+            {configuracaoOperacional?.publicoPausado ? (
+              <><PlayCircle className="mr-2 h-4 w-4" /> Liberar site</>
+            ) : (
+              <><PauseCircle className="mr-2 h-4 w-4" /> Pausar site</>
+            )}
+          </Button>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>

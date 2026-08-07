@@ -60,6 +60,13 @@ export type CardapioTelefones = {
   alternativo: string;
 };
 
+export type CardapioConfiguracaoOperacional = {
+  publicadoId: number | null;
+  producaoId: number | null;
+  publicoPausado: boolean;
+  semanaProducao: string;
+};
+
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3333";
 const RESOURCE = `${API_URL}/cardapios`;
 
@@ -68,6 +75,7 @@ export function useCardapios() {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [configuracaoOperacional, setConfiguracaoOperacional] = useState<CardapioConfiguracaoOperacional | null>(null);
 
   const fetchCardapios = useCallback(async () => {
     try {
@@ -98,6 +106,38 @@ export function useCardapios() {
   useEffect(() => {
     fetchCardapios();
   }, [fetchCardapios]);
+
+  const fetchConfiguracaoOperacional = useCallback(async () => {
+    const res = await apiFetch(`${RESOURCE}/configuracao-operacional`, { method: "GET" });
+    if (!res.ok) throw new Error((await safeReadMessage(res)) || "Falha ao carregar configuração operacional");
+    const data = (await res.json()) as CardapioConfiguracaoOperacional;
+    setConfiguracaoOperacional(data);
+    return data;
+  }, []);
+
+  useEffect(() => {
+    void fetchConfiguracaoOperacional().catch((err) => {
+      toast.error("Erro ao carregar publicação dos cardápios", { description: err instanceof Error ? err.message : "Tente novamente." });
+    });
+  }, [fetchConfiguracaoOperacional]);
+
+  async function saveConfiguracaoOperacional(input: Partial<Pick<CardapioConfiguracaoOperacional, "publicadoId" | "producaoId" | "publicoPausado">>) {
+    try {
+      setSaving(true);
+      const res = await apiFetch(`${RESOURCE}/configuracao-operacional`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(input),
+      });
+      if (!res.ok) throw new Error((await safeReadMessage(res)) || "Falha ao salvar configuração operacional");
+      const data = (await res.json()) as CardapioConfiguracaoOperacional;
+      setConfiguracaoOperacional(data);
+      toast.success("Configuração dos cardápios atualizada");
+      return data;
+    } finally {
+      setSaving(false);
+    }
+  }
 
   async function createCardapio(input: NovoCardapioInput) {
     try {
@@ -372,6 +412,9 @@ export function useCardapios() {
     deleteCardapioImagem,
     fetchTelefones,
     saveTelefones,
+    configuracaoOperacional,
+    fetchConfiguracaoOperacional,
+    saveConfiguracaoOperacional,
   };
 }
 
