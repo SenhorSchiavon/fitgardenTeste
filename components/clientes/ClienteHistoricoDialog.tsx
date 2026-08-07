@@ -54,7 +54,7 @@ export function ClienteHistoricoDialog({
     const { data, loading, error, getHistorico } = useClienteHistorico();
     const [page, setPage] = useState(1);
     const [planoEmEdicao, setPlanoEmEdicao] = useState<number | null>(null);
-    const [usosEmEdicao, setUsosEmEdicao] = useState({ unidades: 0, entregas: 0 });
+    const [usosEmEdicao, setUsosEmEdicao] = useState<{ unidades: number; entregas: number; itens: Record<number, number> }>({ unidades: 0, entregas: 0, itens: {} });
     const [salvandoUsos, setSalvandoUsos] = useState(false);
     const [erroUsos, setErroUsos] = useState("");
     const pageSize = 10;
@@ -77,6 +77,7 @@ export function ClienteHistoricoDialog({
         setUsosEmEdicao({
             unidades: Math.max(0, plano.quantidade - plano.saldoUnidades),
             entregas: Math.max(0, plano.taxasEntregaCompradas - plano.saldoEntregas),
+            itens: Object.fromEntries((plano.itens || []).map((item) => [item.id, Math.max(0, item.quantidade - item.saldoUnidades)])),
         });
         setErroUsos("");
     };
@@ -85,7 +86,11 @@ export function ClienteHistoricoDialog({
         if (!cliente?.id) return;
         const unidades = Math.floor(Number(usosEmEdicao.unidades || 0));
         const entregas = Math.floor(Number(usosEmEdicao.entregas || 0));
-        if (unidades < 0 || unidades > plano.quantidade || entregas < 0 || entregas > plano.taxasEntregaCompradas) {
+        const itensInvalidos = (plano.itens || []).some((item) => {
+            const usados = Math.floor(Number(usosEmEdicao.itens[item.id] || 0));
+            return usados < 0 || usados > item.quantidade;
+        });
+        if (unidades < 0 || unidades > plano.quantidade || entregas < 0 || entregas > plano.taxasEntregaCompradas || itensInvalidos) {
             setErroUsos("Informe usos entre zero e o total contratado no plano.");
             return;
         }
@@ -96,8 +101,14 @@ export function ClienteHistoricoDialog({
                 method: "PATCH",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
-                    saldoUnidades: plano.quantidade - unidades,
+                    saldoUnidades: plano.itens?.length ? undefined : plano.quantidade - unidades,
                     saldoEntregas: plano.taxasEntregaCompradas - entregas,
+                    saldosItens: plano.itens?.length
+                        ? plano.itens.map((item) => ({
+                            id: item.id,
+                            saldoUnidades: item.quantidade - Math.floor(Number(usosEmEdicao.itens[item.id] || 0)),
+                        }))
+                        : undefined,
                 }),
             });
             const json = await res.json().catch(() => null);
@@ -221,6 +232,9 @@ export function ClienteHistoricoDialog({
                                 <div className="space-y-3">
                                     {planos.map((plano) => {
                                         const pesagem = plano.pesagemGramas != null ? `${plano.pesagemGramas}g` : "-";
+                                        const resumoPlano = plano.itens?.length
+                                            ? plano.itens.map((item) => `${item.quantidade}x${item.personalizado ? "Personalizado" : `${item.pesagemGramas || "-"}g`}`).join(" + ")
+                                            : `${plano.quantidade}x${pesagem}`;
 
                                         return (
                                             <Collapsible key={plano.id}>
@@ -228,7 +242,7 @@ export function ClienteHistoricoDialog({
                                                     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                                                         <div className="min-w-0 space-y-1">
                                                             <div className="text-sm font-medium">
-                                                                Plano: {plano.quantidade}x{pesagem}
+                                                                Plano: {resumoPlano}
                                                             </div>
                                                             <div className="text-xs text-muted-foreground">
                                                                 Adquirido em: {formatDate(plano.adquiridoEm)}
@@ -265,6 +279,32 @@ export function ClienteHistoricoDialog({
                                                     {planoEmEdicao === plano.id && (
                                                         <div className="mt-4 rounded-md border bg-muted/30 p-3">
                                                             <div className="grid gap-3 sm:grid-cols-2">
+                                                                {plano.itens?.length ? (
+                                                                    <div className="space-y-2 sm:col-span-2">
+                                                                        <Label>Marmitas utilizadas por categoria</Label>
+                                                                        <div className="grid gap-3 sm:grid-cols-2">
+                                                                            {plano.itens.map((item) => (
+                                                                                <div key={item.id} className="space-y-1">
+                                                                                    <Label htmlFor={`usos-item-${item.id}`} className="text-xs">
+                                                                                        {item.personalizado ? "Personalizado" : `${item.pesagemGramas || "-"}g`} — total {item.quantidade}
+                                                                                    </Label>
+                                                                                    <Input
+                                                                                        id={`usos-item-${item.id}`}
+                                                                                        type="number"
+                                                                                        min={0}
+                                                                                        max={item.quantidade}
+                                                                                        step={1}
+                                                                                        value={usosEmEdicao.itens[item.id] || 0}
+                                                                                        onChange={(event) => setUsosEmEdicao((atual) => ({
+                                                                                            ...atual,
+                                                                                            itens: { ...atual.itens, [item.id]: Number(event.target.value || 0) },
+                                                                                        }))}
+                                                                                    />
+                                                                                </div>
+                                                                            ))}
+                                                                        </div>
+                                                                    </div>
+                                                                ) : (
                                                                 <div className="space-y-1.5">
                                                                     <Label htmlFor={`usos-unidades-${plano.id}`}>Marmitas utilizadas</Label>
                                                                     <Input
@@ -281,6 +321,7 @@ export function ClienteHistoricoDialog({
                                                                     />
                                                                     <p className="text-xs text-muted-foreground">Total contratado: {plano.quantidade}</p>
                                                                 </div>
+                                                                )}
                                                                 <div className="space-y-1.5">
                                                                     <Label htmlFor={`usos-entregas-${plano.id}`}>Taxinhas utilizadas</Label>
                                                                     <Input

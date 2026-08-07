@@ -54,6 +54,14 @@ export type ClientePlanoHistorico = {
     saldoEntregas: number;
     taxasEntregaCompradas: number;
     valorTaxaEntrega: number;
+    itens: Array<{
+        id: number;
+        planoItemId: number;
+        quantidade: number;
+        saldoUnidades: number;
+        pesagemGramas: number | null;
+        personalizado: boolean;
+    }>;
     usos: ClientePlanoHistoricoUso[];
     usosEntregas: ClientePlanoHistoricoUsoEntrega[];
 };

@@ -2204,7 +2204,14 @@ export default function Agendamentos() {
             enderecoPrincipal: enderecoTexto,
             enderecos: c.enderecos,
             tags: c.tags,
-            planos: c.planos,
+            planos: (c.planos || []).filter((plano: any) => {
+              if (plano.pago === false) return false;
+              const possuiSaldosDetalhados = Array.isArray(plano.itens) && plano.itens.length > 0;
+              const saldoMarmitas = possuiSaldosDetalhados
+                ? plano.itens.reduce((total: number, item: any) => total + Math.max(0, Number(item.saldoUnidades || 0)), 0)
+                : Math.max(0, Number(plano.saldoUnidades || 0));
+              return saldoMarmitas > 0 || Number(plano.saldoEntregas || 0) > 0;
+            }),
           };
         })}
         tamanhos={tamanhos.map((t) => ({
