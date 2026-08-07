@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -8,12 +8,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Plus, Search } from "lucide-react"
+import { Copy, Download, Plus, Search } from "lucide-react"
 import { Header } from "@/components/header"
 import { useTableSort } from "@/hooks/useTableSort"
 import { SortableHead } from "@/components/ui/sorttable"
 import { apiFetch } from "@/hooks/api"
 import { toast } from "sonner"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3333/api"
 
@@ -36,6 +37,9 @@ export default function Vouchers() {
 
   const [dialogOpen, setDialogOpen] = useState(false)
   const [searchTerm, setSearchTerm] = useState("")
+  const [statusFiltro, setStatusFiltro] = useState<"TODOS" | "DISPONIVEIS" | "BAIXADOS">("TODOS")
+  const [dataInicial, setDataInicial] = useState("")
+  const [dataFinal, setDataFinal] = useState("")
 
   const carregarVouchers = async () => {
     try {
@@ -108,9 +112,35 @@ export default function Vouchers() {
     return date.toLocaleDateString("pt-BR")
   }
 
-  const filteredVouchers = vouchers.filter(
-    (voucher) => voucher.numero.includes(searchTerm) || formatDate(voucher.data).includes(searchTerm),
+  const filteredVouchers = useMemo(() => vouchers.filter((voucher) => {
+    const correspondeBusca = voucher.numero.includes(searchTerm.trim()) || formatDate(voucher.data).includes(searchTerm.trim())
+    const correspondeStatus = statusFiltro === "TODOS" || (statusFiltro === "BAIXADOS" ? voucher.baixado : !voucher.baixado)
+    const dataVoucher = String(voucher.data).slice(0, 10)
+    const correspondeInicio = !dataInicial || dataVoucher >= dataInicial
+    const correspondeFim = !dataFinal || dataVoucher <= dataFinal
+    return correspondeBusca && correspondeStatus && correspondeInicio && correspondeFim
+  }), [vouchers, searchTerm, statusFiltro, dataInicial, dataFinal])
+
+  const textoExportacao = useMemo(
+    () => Array.from(new Set(filteredVouchers.map((voucher) => voucher.numero.trim()).filter(Boolean))).join(","),
+    [filteredVouchers],
   )
+
+  const copiarCodigos = async () => {
+    if (!textoExportacao) return toast.error("Nenhum voucher para copiar")
+    await navigator.clipboard.writeText(textoExportacao)
+    toast.success(`${filteredVouchers.length} voucher(es) copiado(s)`, { description: "Códigos separados por vírgula, sem espaços." })
+  }
+
+  const baixarTxt = () => {
+    if (!textoExportacao) return toast.error("Nenhum voucher para exportar")
+    const url = URL.createObjectURL(new Blob([textoExportacao], { type: "text/plain;charset=utf-8" }))
+    const link = document.createElement("a")
+    link.href = url
+    link.download = `vouchers-${new Date().toISOString().slice(0, 10)}.txt`
+    link.click()
+    URL.revokeObjectURL(url)
+  }
 
   const { sort, onSort, sortedRows } = useTableSort(filteredVouchers)
 
@@ -118,7 +148,7 @@ export default function Vouchers() {
     <div className="container mx-auto p-6">
       <Header title="Vouchers" subtitle="Gerencie os vouchers do sistema" />
 
-      <div className="flex items-center justify-between mb-6">
+      <div className="mb-6 grid gap-3 lg:grid-cols-[minmax(240px,1fr)_180px_160px_160px_auto]">
         <div className="relative w-full max-w-md">
           <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
@@ -128,9 +158,29 @@ export default function Vouchers() {
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
-        <Button onClick={handleNew}>
+        <Select value={statusFiltro} onValueChange={(value: typeof statusFiltro) => setStatusFiltro(value)}>
+          <SelectTrigger><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="TODOS">Todos os vouchers</SelectItem>
+            <SelectItem value="DISPONIVEIS">Não baixados</SelectItem>
+            <SelectItem value="BAIXADOS">Baixados</SelectItem>
+          </SelectContent>
+        </Select>
+        <Input type="date" value={dataInicial} onChange={(event) => setDataInicial(event.target.value)} title="Data inicial" />
+        <Input type="date" value={dataFinal} onChange={(event) => setDataFinal(event.target.value)} title="Data final" />
+        <Button onClick={handleNew} className="whitespace-nowrap">
           <Plus className="mr-2 h-4 w-4" /> Novo Voucher
         </Button>
+      </div>
+
+      <div className="mb-6 flex flex-wrap items-center gap-2">
+        <Button variant="outline" onClick={copiarCodigos} disabled={!filteredVouchers.length}>
+          <Copy className="mr-2 h-4 w-4" /> Copiar códigos
+        </Button>
+        <Button variant="outline" onClick={baixarTxt} disabled={!filteredVouchers.length}>
+          <Download className="mr-2 h-4 w-4" /> Baixar TXT
+        </Button>
+        <span className="text-sm text-muted-foreground">{filteredVouchers.length} voucher(es) no filtro</span>
       </div>
 
       <Card>
