@@ -1003,6 +1003,11 @@ export default function Agendamentos() {
     const comprasRegistradasIds = new Set(
       pagamentosCompraPlanoRegistrados.map((p: any) => Number(p.planoClienteId)),
     );
+    const planoLegadoFoiCompradoNestePedido = (pagamento: any) => {
+      const criadoPlano = new Date(pagamento.planoCliente?.createdAt || 0).getTime();
+      const criadoPedido = new Date(row.pedido?.createdAt ?? row.createdAt ?? 0).getTime();
+      return criadoPlano > 0 && criadoPedido > 0 && Math.abs(criadoPlano - criadoPedido) <= 10 * 60 * 1000;
+    };
     const pagamentosCompraPlanoLegados = Array.from(
       new Map(
         pagamentos
@@ -1011,6 +1016,7 @@ export default function Agendamentos() {
             p.planoClienteId &&
             Number(p.consumoUnidades || 0) > 0 &&
             p.planoCliente?.pago === false &&
+            planoLegadoFoiCompradoNestePedido(p) &&
             !comprasRegistradasIds.has(Number(p.planoClienteId)),
           )
           .map((p: any) => [Number(p.planoClienteId), p]),
