@@ -1000,9 +1000,7 @@ export default function Agendamentos() {
         Number(p.consumoEntregas || 0) === 0 &&
         Number(p.valor || 0) > 0,
     );
-    const temPagamentoNaoPlanoNoPedido = pagamentos.some((p: any) => p.forma !== "PLANO");
-    const pagamentosCompraPlanoLegados = temPagamentoNaoPlanoNoPedido
-      ? pagamentos
+    const pagamentosCompraPlanoLegados = pagamentos
           .filter((p: any) => {
             if (p.forma !== "PLANO" || !p.planoClienteId || !p.planoCliente || p.planoCliente.pago) return false;
             if (Number(p.consumoUnidades || 0) <= 0) return false;
@@ -1013,8 +1011,7 @@ export default function Agendamentos() {
             valor: Number(p.planoCliente?.plano?.valor || 0) +
               Number(p.planoCliente?.valorTaxaEntrega || 0) * Number(p.planoCliente?.taxasEntregaCompradas || 0),
             status: "PENDENTE",
-          }))
-      : [];
+          }));
     const pagamentosCompraPlano = [
       ...pagamentosCompraPlanoAtuais,
       ...pagamentosCompraPlanoLegados.filter((legado: any) =>
