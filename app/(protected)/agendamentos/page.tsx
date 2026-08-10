@@ -992,7 +992,7 @@ export default function Agendamentos() {
           Number(p.consumoUnidades || 0) > 0,
       )
       .reduce((acc: number, p: any) => acc + Number(p.valor || 0), 0);
-    const pagamentosCompraPlanoRegistrados = pagamentos.filter(
+    const pagamentosCompraPlano = pagamentos.filter(
       (p: any) =>
         p.forma === "PLANO" &&
         p.planoClienteId &&
@@ -1000,40 +1000,6 @@ export default function Agendamentos() {
         Number(p.consumoEntregas || 0) === 0 &&
         Number(p.valor || 0) > 0,
     );
-    const comprasRegistradasIds = new Set(
-      pagamentosCompraPlanoRegistrados.map((p: any) => Number(p.planoClienteId)),
-    );
-    const planoLegadoFoiCompradoNestePedido = (pagamento: any) => {
-      const criadoPlano = new Date(pagamento.planoCliente?.createdAt || 0).getTime();
-      const criadoPedido = new Date(row.pedido?.createdAt ?? row.createdAt ?? 0).getTime();
-      return criadoPlano > 0 && criadoPedido > 0 && Math.abs(criadoPlano - criadoPedido) <= 10 * 60 * 1000;
-    };
-    const pagamentosCompraPlanoLegados = Array.from(
-      new Map(
-        pagamentos
-          .filter((p: any) =>
-            p.forma === "PLANO" &&
-            p.planoClienteId &&
-            Number(p.consumoUnidades || 0) > 0 &&
-            p.planoCliente?.pago === false &&
-            planoLegadoFoiCompradoNestePedido(p) &&
-            !comprasRegistradasIds.has(Number(p.planoClienteId)),
-          )
-          .map((p: any) => [Number(p.planoClienteId), p]),
-      ).values(),
-    ).map((p: any) => ({
-      ...p,
-      valor:
-        Number(p.planoCliente?.plano?.valor || 0) +
-        Number(p.planoCliente?.valorTaxaEntrega || 0) * Number(p.planoCliente?.taxasEntregaCompradas || 0),
-      status: "PENDENTE",
-      consumoUnidades: null,
-      consumoEntregas: null,
-    }));
-    const pagamentosCompraPlano = [
-      ...pagamentosCompraPlanoRegistrados,
-      ...pagamentosCompraPlanoLegados,
-    ];
     const valorPlanosComprados = pagamentosCompraPlano
       .reduce((acc: number, p: any) => acc + Number(p.valor || 0), 0);
     const planosComprados = pagamentosCompraPlano.map((p: any) => ({
@@ -1043,7 +1009,7 @@ export default function Agendamentos() {
       valorTaxas: Math.max(0, Number(p.valor || 0) - Number(p.planoCliente?.plano?.valor || p.valor || 0)),
     }));
     const valorPlanosCompradosPendente = pagamentosCompraPlano
-      .filter((p: any) => p.planoCliente?.pago === false || (!p.planoCliente && p.status === "PENDENTE"))
+      .filter((p: any) => p.status === "PENDENTE")
       .reduce((acc: number, p: any) => acc + Number(p.valor || 0), 0);
     const valorPlanoProporcional = valorPlanoUnidadesRegistrado > 0
       ? valorPlanoUnidadesRegistrado
