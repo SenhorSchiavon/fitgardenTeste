@@ -1545,6 +1545,9 @@ export default function Agendamentos() {
               <Badge variant="secondary" className="bg-white border-slate-200 text-slate-600 font-bold px-3">
                 {agendamentos.length} pedidos
               </Badge>
+              <Badge variant="secondary" className="bg-white border-slate-200 text-slate-600 font-bold px-3">
+                {totalMarmitasAgendadas} marmitas
+              </Badge>
             </div>
           </CardHeader>
           <CardContent className="p-0">
