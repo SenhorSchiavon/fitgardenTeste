@@ -29,10 +29,13 @@ export function useRelatorioPedidosDia() {
     setError(null);
 
     try {
-      const qs = new URLSearchParams({ data: dataStr });
-
-      const res = await apiFetch(`${RESOURCE}/pedidos/docx?${qs.toString()}`, {
-        method: "GET",
+      const res = await apiFetch(`${RESOURCE}/pedidos/docx`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          data: dataStr,
+          valoresExibidos: params.valoresExibidos || {},
+        }),
       });
 
       if (!res.ok) {
