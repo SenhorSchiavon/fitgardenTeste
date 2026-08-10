@@ -1358,7 +1358,16 @@ export default function Agendamentos() {
                 className="rounded-lg cursor-pointer gap-2 py-2.5"
                 onClick={() => {
                   const dateISO = utils.toISODateOnly(selectedDate);
-                  downloadPedidosDocx({ data: dateISO });
+                  downloadPedidosDocx({
+                    data: dateISO,
+                    valoresExibidos: Object.fromEntries(agendamentos.map((agendamento) => [
+                      String(agendamento.pedidoId || agendamento.id),
+                      {
+                        valorTotalFinal: Number(agendamento.valorTotalFinal ?? agendamento.valorTotal ?? 0),
+                        formaPagamento: String(agendamento.formaPagamento || "-"),
+                      },
+                    ])),
+                  });
                 }}
                 disabled={downloadingPedidos}
               >

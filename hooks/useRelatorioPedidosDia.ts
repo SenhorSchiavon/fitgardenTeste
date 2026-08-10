@@ -14,7 +14,10 @@ export function useRelatorioPedidosDia() {
   const [downloading, setDownloading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const downloadDocx = useCallback(async (params: { data: string }) => {
+  const downloadDocx = useCallback(async (params: {
+    data: string;
+    valoresExibidos?: Record<string, { valorTotalFinal: number; formaPagamento: string }>;
+  }) => {
     const dataStr = String(params.data || "").trim();
 
     if (!validarDataISO(dataStr)) {
@@ -70,6 +73,9 @@ export function useRelatorioPedidosDia() {
 
     try {
       const qs = new URLSearchParams({ data: dataStr });
+      if (params.valoresExibidos) {
+        qs.set("valoresExibidos", JSON.stringify(params.valoresExibidos));
+      }
       const res = await apiFetch(`${RESOURCE}/pedidos/cozinha/docx?${qs.toString()}`, { method: "GET" });
 
       if (!res.ok) {
