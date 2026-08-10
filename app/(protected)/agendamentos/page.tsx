@@ -992,7 +992,7 @@ export default function Agendamentos() {
           Number(p.consumoUnidades || 0) > 0,
       )
       .reduce((acc: number, p: any) => acc + Number(p.valor || 0), 0);
-    const pagamentosCompraPlano = pagamentos.filter(
+    const pagamentosCompraPlanoAtuais = pagamentos.filter(
       (p: any) =>
         p.forma === "PLANO" &&
         p.planoClienteId &&
@@ -1000,6 +1000,32 @@ export default function Agendamentos() {
         Number(p.consumoEntregas || 0) === 0 &&
         Number(p.valor || 0) > 0,
     );
+    const temPagamentoNaoPlanoNoPedido = pagamentos.some((p: any) => p.forma !== "PLANO");
+    const pagamentosCompraPlanoLegados = temPagamentoNaoPlanoNoPedido
+      ? pagamentos
+          .filter((p: any) => {
+            if (p.forma !== "PLANO" || !p.planoClienteId || !p.planoCliente || p.planoCliente.pago) return false;
+            if (Number(p.consumoUnidades || 0) <= 0) return false;
+            const criadoPagamento = new Date(p.createdAt || 0).getTime();
+            const criadoPlano = new Date(p.planoCliente.createdAt || 0).getTime();
+            const criadoPedido = new Date(row.pedido?.createdAt ?? row.createdAt ?? 0).getTime();
+            return criadoPagamento > 0 && criadoPlano > 0 && criadoPedido > 0 &&
+              Math.abs(criadoPlano - criadoPagamento) <= 10 * 60 * 1000 &&
+              Math.abs(criadoPagamento - criadoPedido) <= 10 * 60 * 1000;
+          })
+          .map((p: any) => ({
+            ...p,
+            valor: Number(p.planoCliente?.plano?.valor || 0) +
+              Number(p.planoCliente?.valorTaxaEntrega || 0) * Number(p.planoCliente?.taxasEntregaCompradas || 0),
+            status: "PENDENTE",
+          }))
+      : [];
+    const pagamentosCompraPlano = [
+      ...pagamentosCompraPlanoAtuais,
+      ...pagamentosCompraPlanoLegados.filter((legado: any) =>
+        !pagamentosCompraPlanoAtuais.some((atual: any) => Number(atual.planoClienteId) === Number(legado.planoClienteId)),
+      ),
+    ];
     const valorPlanosComprados = pagamentosCompraPlano
       .reduce((acc: number, p: any) => acc + Number(p.valor || 0), 0);
     const planosComprados = pagamentosCompraPlano.map((p: any) => ({
@@ -1109,6 +1135,8 @@ export default function Agendamentos() {
     const formaPagamentoExibida =
       valorDescontoVoucher > 0
         ? "VOUCHER"
+        : valorPlanosCompradosPendente > 0
+        ? "PLANO"
         : usouPlano && valorTotalFinal <= 0
         ? "PLANO"
         : pagamentoNaoPlanoRelevante?.forma ??
