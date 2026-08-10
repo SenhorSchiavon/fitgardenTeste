@@ -145,6 +145,7 @@ type Agendamento = {
     complemento?: string;
     complementoGramas?: number;
     adicionarFeijao?: boolean;
+    adicionarPure?: boolean;
     adicionarArroz?: boolean;
     trocas?: string;
   }[];
@@ -512,9 +513,11 @@ export default function Agendamentos() {
     agendamento.itens.forEach((item) => {
       const detalhes = [item.carbo, item.proteina, item.legume, item.feijao, item.complemento].filter(Boolean);
       const descricaoBase = detalhes.length ? detalhes.join(" + ") : item.nome;
-      const descricao = item.adicionarFeijao && item.tipoItem !== "PERSONALIZADA"
-        ? `${descricaoBase} + FEIJÃO ADICIONAL`
-        : descricaoBase;
+      const descricao = [
+        descricaoBase,
+        item.adicionarFeijao && item.tipoItem !== "PERSONALIZADA" ? "FEIJÃO ADICIONAL" : null,
+        item.adicionarPure && item.tipoItem !== "PERSONALIZADA" ? "PURÊ ADICIONAL" : null,
+      ].filter(Boolean).join(" + ");
       const descricaoComArroz = item.adicionarArroz && item.tipoItem !== "PERSONALIZADA"
         ? `${descricao} + ARROZ ADICIONAL`
         : descricao;
@@ -784,7 +787,7 @@ export default function Agendamentos() {
 
     const valores = itens.map((it) => {
       const qtd = Math.max(1, Number(it.quantidade || 1));
-      const adicionalTrocas = it.tipoItem === "PADRAO" ? contarTrocasItem(it) * 2 + (it.adicionarFeijao ? 2 : 0) + (it.adicionarArroz ? 2 : 0) : 0;
+      const adicionalTrocas = it.tipoItem === "PADRAO" ? contarTrocasItem(it) * 2 + (it.adicionarFeijao ? 2 : 0) + (it.adicionarPure ? 2 : 0) + (it.adicionarArroz ? 2 : 0) : 0;
       if (it.usarPlano) return { tipoItem: it.tipoItem, valor: adicionalTrocas * qtd };
 
       if (it.tipoItem === "PADRAO") {
@@ -880,6 +883,7 @@ export default function Agendamentos() {
           it.trocaLegume?.nome ? `Troca Leg.: ${it.trocaLegume.nome}` : null,
           it.zerarLegume ? "Sem Legumes" : null,
           it.adicionarFeijao ? "Com Feijão" : null,
+          it.adicionarPure ? "Com Purê" : null,
         ].filter(Boolean).join(", ");
 
         return {
@@ -927,6 +931,7 @@ export default function Agendamentos() {
           complemento: it.complemento?.nome || it.complementoNome || "",
           complementoGramas: Number(it.complementoGramas || 0),
           adicionarFeijao: !!it.adicionarFeijao,
+          adicionarPure: !!it.adicionarPure,
           adicionarArroz: !!it.adicionarArroz,
           trocas: [
             it.trocaCarbo?.nome || it.trocaCarboNome,
@@ -970,7 +975,7 @@ export default function Agendamentos() {
           it.trocaProteinaId || it.trocaProteina?.id || it.trocaProteinaNome,
           !it.zerarLegume && (it.trocaLegumeId || it.trocaLegume?.id || it.trocaLegumeNome),
         ].filter(Boolean).length;
-        const valorAdicionais = (quantidadeTrocas * 2 + (it.adicionarFeijao ? 2 : 0) + (it.adicionarArroz ? 2 : 0)) * quantidade;
+        const valorAdicionais = (quantidadeTrocas * 2 + (it.adicionarFeijao ? 2 : 0) + (it.adicionarPure ? 2 : 0) + (it.adicionarArroz ? 2 : 0)) * quantidade;
         return acc + Math.max(0, valorItem - valorAdicionais);
       }, 0);
 
@@ -2286,6 +2291,7 @@ export default function Agendamentos() {
 
                 zerarLegume: !!it.zerarLegume,
                 adicionarFeijao: !!it.adicionarFeijao,
+                adicionarPure: !!it.adicionarPure,
                 adicionarArroz: !!it.adicionarArroz,
                 carboGramas: Number(it.carboGramas || 0),
                 proteinaGramas: Number(it.proteinaGramas || 0),
@@ -2338,6 +2344,7 @@ export default function Agendamentos() {
 
                 zerarLegume: !!it.zerarLegume,
                 adicionarFeijao: !!it.adicionarFeijao,
+                adicionarPure: !!it.adicionarPure,
                 adicionarArroz: !!it.adicionarArroz,
                 carboGramas: Number(it.carboGramas || 0),
                 proteinaGramas: Number(it.proteinaGramas || 0),

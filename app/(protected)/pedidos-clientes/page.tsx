@@ -15,7 +15,7 @@ import { apiFetch } from "@/hooks/api";
 import { ClienteFormDialog } from "@/components/clientes/ClienteFormDialog";
 import { useClientes } from "@/hooks/useClientes";
 
-type Escolha = { opcaoId: number; nome: string; quantidade: number; adicionarFeijao?: boolean };
+type Escolha = { opcaoId: number; nome: string; quantidade: number; adicionarFeijao?: boolean; adicionarPure?: boolean };
 type PedidoPublico = {
   id: number;
   nome: string;
@@ -108,6 +108,7 @@ export default function PedidosClientesPage() {
         tamanhoLabel: pedido.tamanhoLabel,
         destinatarioNome: pedido.nome,
         adicionarFeijao: !!item.adicionarFeijao,
+        adicionarPure: !!item.adicionarPure,
         carboGramas: Number(personalizada.carboGramas || 0),
         proteinaGramas: Number(personalizada.proteinaGramas || 0),
         feijaoGramas: Number(personalizada.feijaoGramas || 0),
@@ -221,7 +222,7 @@ export default function PedidosClientesPage() {
           {selecionado ? <div className="space-y-4">
             <div className="grid gap-3 rounded-md bg-slate-50 p-4 sm:grid-cols-2"><div><p className="text-xs text-muted-foreground">Telefone</p><p className="font-medium">{selecionado.telefone}</p></div><div><p className="text-xs text-muted-foreground">Cliente no sistema</p><p className="font-medium">{selecionado.cliente?.nome || "Não encontrado — selecione ou cadastre no agendamento"}</p></div></div>
             {!selecionado.cliente && selecionado.status === "PENDENTE" ? <Button variant="outline" className="w-full border-emerald-300 text-emerald-700 hover:bg-emerald-50" onClick={() => abrirCadastroCliente(selecionado)}><UserPlus className="mr-2 h-4 w-4" />Cadastrar cliente com os dados deste pedido</Button> : null}
-            <div className="divide-y rounded-md border">{(selecionado.itens?.escolhas || []).map((item) => <div key={item.opcaoId} className="flex justify-between p-3"><span>{item.nome}{item.adicionarFeijao ? " + feijão" : ""}</span><strong>{item.quantidade}x</strong></div>)}</div>
+            <div className="divide-y rounded-md border">{(selecionado.itens?.escolhas || []).map((item) => <div key={item.opcaoId} className="flex justify-between p-3"><span>{item.nome}{item.adicionarFeijao ? " + feijão" : ""}{item.adicionarPure ? " + purê" : ""}</span><strong>{item.quantidade}x</strong></div>)}</div>
             {selecionado.observacoes ? <div><p className="text-xs text-muted-foreground">Observações</p><p className="whitespace-pre-wrap">{selecionado.observacoes}</p></div> : null}
             {selecionado.motivoDescarte ? <div className="rounded-md border border-red-200 bg-red-50 p-3"><p className="text-xs font-bold uppercase text-red-700">Motivo do descarte</p><p className="mt-1 text-red-900">{selecionado.motivoDescarte}</p></div> : null}
             <Button className="w-full bg-emerald-600 hover:bg-emerald-700" onClick={() => iniciarAgendamento(selecionado)} disabled={selecionado.status !== "PENDENTE"}><CalendarPlus className="mr-2 h-4 w-4" />Levar para o agendamento</Button>

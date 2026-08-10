@@ -184,6 +184,7 @@ type NovoPedidoItem = {
 
   zerarLegume: boolean;
   adicionarFeijao: boolean;
+  adicionarPure: boolean;
   adicionarArroz?: boolean;
   observacaoItem: string;
 
@@ -544,6 +545,7 @@ export function NovoAgendamentoNovoLayout({
 
     zerarLegume: false,
     adicionarFeijao: false,
+    adicionarPure: false,
     adicionarArroz: false,
     observacaoItem: "",
     trocaCarboId: "",
@@ -788,6 +790,7 @@ export function NovoAgendamentoNovoLayout({
         complementoNome: it.complemento?.nome || (personalizada ? complementoOpcao?.nome : "") || "",
         zerarLegume: !!it.zerarLegume,
         adicionarFeijao: !!it.adicionarFeijao,
+        adicionarPure: !!it.adicionarPure,
         adicionarArroz: !!it.adicionarArroz,
         observacaoItem: it.observacaoItem || "",
         precoUnit: Number(it.valor || it.precoUnit || 0) / Math.max(1, Number(it.quantidade || 1)),
@@ -1010,7 +1013,8 @@ export function NovoAgendamentoNovoLayout({
         item.trocaProteinaId ||
         item.trocaLegumeId ||
         item.zerarLegume ||
-        item.adicionarFeijao
+        item.adicionarFeijao ||
+        item.adicionarPure
       ) return acc;
       acc[item.opcaoId] = (acc[item.opcaoId] || 0) + Number(item.quantidade || 0);
       return acc;
@@ -1462,6 +1466,9 @@ export function NovoAgendamentoNovoLayout({
         if (item.adicionarFeijao && item.tipoItem !== "PERSONALIZADA") {
           detalhes.push(`${marmita}: feijão adicional (+ R$ ${valorAdicional})`);
         }
+        if (item.adicionarPure && item.tipoItem !== "PERSONALIZADA") {
+          detalhes.push(`${marmita}: purê adicional (+ R$ ${valorAdicional})`);
+        }
         if (item.adicionarArroz) {
           detalhes.push(`${marmita}: arroz adicional (+ R$ ${valorAdicional})`);
         }
@@ -1564,6 +1571,7 @@ export function NovoAgendamentoNovoLayout({
       complementoNome: "",
       zerarLegume: false,
       adicionarFeijao: false,
+      adicionarPure: false,
       observacaoItem: "",
       precoUnit: 0,
       trocaCarboId: "",
@@ -1604,6 +1612,7 @@ export function NovoAgendamentoNovoLayout({
       complementoNome: "",
       zerarLegume: false,
       adicionarFeijao: false,
+      adicionarPure: false,
       observacaoItem: "",
       precoUnit: 0,
       trocaCarboId: "",
@@ -1638,6 +1647,7 @@ export function NovoAgendamentoNovoLayout({
       complementoId: "",
       complementoNome: "",
       adicionarFeijao: false,
+      adicionarPure: false,
       observacaoItem: "",
     }));
   }
@@ -1999,6 +2009,7 @@ export function NovoAgendamentoNovoLayout({
         : null,
       item.zerarLegume ? "Sem legume" : null,
       item.adicionarFeijao ? "Com feijão" : null,
+      item.adicionarPure ? "Com purê" : null,
       item.adicionarArroz ? "Com arroz adicional" : null,
     ].filter(Boolean);
 
@@ -2015,7 +2026,8 @@ export function NovoAgendamentoNovoLayout({
 
   function getAdicionaisUnitarios(item: NovoPedidoItem) {
     const adicionalFeijao = item.tipoItem === "PADRAO" && item.adicionarFeijao ? 2 : 0;
-    return contarTrocasItem(item) * 2 + adicionalFeijao + (item.adicionarArroz ? 2 : 0);
+    const adicionalPure = item.tipoItem === "PADRAO" && item.adicionarPure ? 2 : 0;
+    return contarTrocasItem(item) * 2 + adicionalFeijao + adicionalPure + (item.adicionarArroz ? 2 : 0);
   }
 
   function calcularPrecoPersonalizada(item: NovoPedidoItem) {
@@ -2057,7 +2069,7 @@ export function NovoAgendamentoNovoLayout({
   }
 
   function itemTemTroca(item: NovoPedidoItem) {
-    return contarTrocasItem(item) > 0 || !!item.zerarLegume || !!item.adicionarFeijao || !!item.adicionarArroz;
+    return contarTrocasItem(item) > 0 || !!item.zerarLegume || !!item.adicionarFeijao || !!item.adicionarPure || !!item.adicionarArroz;
   }
 
   function selecionarOpcaoPersonalizada(opcao: OpcaoCardapio) {
@@ -2084,6 +2096,7 @@ export function NovoAgendamentoNovoLayout({
       complementoId: complemento?.preparoId || "",
       complementoNome: complemento?.nome || "",
       adicionarFeijao: false,
+      adicionarPure: false,
     }));
   }
 
@@ -2134,6 +2147,7 @@ export function NovoAgendamentoNovoLayout({
       observacaoItem: String(item.observacaoItem || ""),
       zerarLegume: !!item.zerarLegume,
       adicionarFeijao: !!item.adicionarFeijao || Number(item.feijaoGramas || 0) > 0,
+      adicionarPure: !!item.adicionarPure,
       adicionarArroz: !!item.adicionarArroz,
       usarPlano: !!item.usarPlano,
     };
@@ -2219,6 +2233,7 @@ export function NovoAgendamentoNovoLayout({
         : null,
       item.zerarLegume ? "Sem legume" : null,
       item.adicionarFeijao ? "Com feijão" : null,
+      item.adicionarPure ? "Com purê" : null,
       item.adicionarArroz ? "Com arroz adicional" : null,
     ].filter(Boolean).join(" • ");
   }
@@ -2630,7 +2645,8 @@ export function NovoAgendamentoNovoLayout({
         !item.trocaProteinaId &&
         !item.trocaLegumeId &&
         !item.zerarLegume &&
-        !item.adicionarFeijao,
+        !item.adicionarFeijao &&
+        !item.adicionarPure,
     );
 
     if (itemExistente) {
@@ -2663,6 +2679,7 @@ export function NovoAgendamentoNovoLayout({
       trocaLegumeNome: "",
       zerarLegume: false,
       adicionarFeijao: false,
+      adicionarPure: false,
     };
 
     if (!canUsePlanoForItem(novo)) {
@@ -2705,6 +2722,7 @@ export function NovoAgendamentoNovoLayout({
       trocaLegumeNome: editandoMesmaOpcao ? prev.trocaLegumeNome : "",
       zerarLegume: editandoMesmaOpcao ? prev.zerarLegume : false,
       adicionarFeijao: editandoMesmaOpcao ? prev.adicionarFeijao : false,
+      adicionarPure: editandoMesmaOpcao ? prev.adicionarPure : false,
       adicionarArroz: editandoMesmaOpcao ? prev.adicionarArroz : false,
     }));
     setModalTrocasOpen(true);
@@ -2968,6 +2986,7 @@ export function NovoAgendamentoNovoLayout({
         opcaoId: String(item.opcaoId || ""),
         opcaoNome: item.nome || opcao?.nome || "",
         adicionarFeijao: !!item.adicionarFeijao,
+        adicionarPure: !!item.adicionarPure,
         adicionarArroz: !!item.adicionarArroz,
         carboId: customizado ? carbo?.preparoId || "" : formItem.carboId,
         carboNome: customizado ? carbo?.nome || "" : formItem.carboNome,
@@ -5043,6 +5062,7 @@ export function NovoAgendamentoNovoLayout({
                               !it.zerarLegume && it.trocaLegumeNome ? `Troca legume: ${it.trocaLegumeNome}` : null,
                               it.zerarLegume ? "Sem legume" : null,
                               it.adicionarFeijao ? "Com feijão" : null,
+                              it.adicionarPure ? "Com purê" : null,
                               it.adicionarArroz ? "Com arroz adicional" : null,
                             ].filter(Boolean);
                             return (
@@ -5294,6 +5314,18 @@ export function NovoAgendamentoNovoLayout({
                 }
               />
               <Label className="m-0">Adicionar feijão</Label>
+            </div>
+            <div className="flex items-center gap-3 rounded-lg border p-3">
+              <Checkbox
+                checked={formItem.adicionarPure}
+                onCheckedChange={(checked) =>
+                  setFormItem((prev) => ({
+                    ...prev,
+                    adicionarPure: !!checked,
+                  }))
+                }
+              />
+              <Label className="m-0">Adicionar purê</Label>
             </div>
 
             <div className="flex items-center gap-3 rounded-lg border p-3">

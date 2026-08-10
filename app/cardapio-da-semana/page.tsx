@@ -9,7 +9,6 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 
 type OpcaoPublica = {
@@ -99,16 +98,15 @@ function categoryStyle(category: string) {
 
 function montarMensagem({
   nome,
-  observacoes,
   telefone,
   personalizada,
   opcoes,
   itensPedido,
   feijaoOpcional,
+  pureOpcional,
   tamanhoSelecionado,
 }: {
   nome: string;
-  observacoes: string;
   telefone: string;
   personalizada: {
     carboGramas: string;
@@ -119,6 +117,7 @@ function montarMensagem({
   opcoes: OpcaoPublica[];
   itensPedido: Record<string, number>;
   feijaoOpcional: Record<string, boolean>;
+  pureOpcional: Record<string, boolean>;
   tamanhoSelecionado: TamanhoSelecionado;
 }) {
   const escolhidas = opcoes
@@ -128,7 +127,10 @@ function montarMensagem({
       const adicionalFeijao = tamanhoSelecionado !== "PERSONALIZADO" && feijaoOpcional[opcao.id]
         ? " + feijão opcional (+R$2/unidade)"
         : "";
-      return `${quantidade}x ${opcao.nome}${adicionalFeijao}`;
+      const adicionalPure = tamanhoSelecionado !== "PERSONALIZADO" && pureOpcional[opcao.id]
+        ? " + purê opcional (+R$2/unidade)"
+        : "";
+      return `${quantidade}x ${opcao.nome}${adicionalFeijao}${adicionalPure}`;
     });
 
   const linhasPersonalizada = tamanhoSelecionado === "PERSONALIZADO"
@@ -145,6 +147,9 @@ function montarMensagem({
   const totalFeijao = opcoes.reduce((acc, opcao) => (
     acc + (tamanhoSelecionado !== "PERSONALIZADO" && feijaoOpcional[opcao.id] ? Number(itensPedido[opcao.id] || 0) : 0)
   ), 0);
+  const totalPure = opcoes.reduce((acc, opcao) => (
+    acc + (tamanhoSelecionado !== "PERSONALIZADO" && pureOpcional[opcao.id] ? Number(itensPedido[opcao.id] || 0) : 0)
+  ), 0);
 
   return [
     "PEDIDO:",
@@ -153,11 +158,11 @@ function montarMensagem({
     `Telefone: ${telefone || "-"}`,
     `Tamanho do pedido: ${tamanhoSelecionado}`,
     ...linhasPersonalizada,
-    observacoes.trim() ? `Observação: ${observacoes.trim()}` : null,
     "",
     "Marmitas:",
     ...escolhidas,
     totalFeijao ? `Adicional de feijão: ${totalFeijao} unidade(s) (+R$2 cada)` : null,
+    totalPure ? `Adicional de purê: ${totalPure} unidade(s) (+R$2 cada)` : null,
     "",
     `Total de marmitas: ${total}`,
   ].filter(Boolean).join("\n");
@@ -170,10 +175,10 @@ export default function CardapioDaSemanaPage() {
   const [error, setError] = useState("");
   const [itensPedido, setItensPedido] = useState<Record<string, number>>({});
   const [feijaoOpcional, setFeijaoOpcional] = useState<Record<string, boolean>>({});
+  const [pureOpcional, setPureOpcional] = useState<Record<string, boolean>>({});
   const [tamanhoSelecionado, setTamanhoSelecionado] = useState<TamanhoSelecionado>("");
   const [nome, setNome] = useState("");
   const [telefone, setTelefone] = useState("");
-  const [observacoes, setObservacoes] = useState("");
   const [enviando, setEnviando] = useState(false);
   const [erroEnvio, setErroEnvio] = useState("");
   const [personalizada, setPersonalizada] = useState({
@@ -224,6 +229,12 @@ export default function CardapioDaSemanaPage() {
       acc + (feijaoOpcional[opcao.id] ? Number(itensPedido[opcao.id] || 0) : 0)
     ), 0);
   }, [feijaoOpcional, itensPedido, opcoes, tamanhoSelecionado]);
+  const totalPureOpcional = useMemo(() => {
+    if (tamanhoSelecionado === "PERSONALIZADO") return 0;
+    return opcoes.reduce((acc, opcao) => (
+      acc + (pureOpcional[opcao.id] ? Number(itensPedido[opcao.id] || 0) : 0)
+    ), 0);
+  }, [pureOpcional, itensPedido, opcoes, tamanhoSelecionado]);
 
   const grupos = useMemo(() => {
     const map = new Map<string, OpcaoPublica[]>();
@@ -255,6 +266,7 @@ export default function CardapioDaSemanaPage() {
       const proximo = Math.max(0, atual + delta);
       if (proximo === 0) {
         setFeijaoOpcional((feijaoPrev) => ({ ...feijaoPrev, [id]: false }));
+        setPureOpcional((purePrev) => ({ ...purePrev, [id]: false }));
       }
       return {
         ...prev,
@@ -266,6 +278,11 @@ export default function CardapioDaSemanaPage() {
   function toggleFeijaoOpcional(id: string, checked: boolean) {
     if (!getItemPedido(id)) return;
     setFeijaoOpcional((prev) => ({ ...prev, [id]: checked }));
+  }
+
+  function togglePureOpcional(id: string, checked: boolean) {
+    if (!getItemPedido(id)) return;
+    setPureOpcional((prev) => ({ ...prev, [id]: checked }));
   }
 
   function enviarPedido() {
@@ -281,12 +298,12 @@ export default function CardapioDaSemanaPage() {
 
     const text = montarMensagem({
       nome,
-      observacoes,
       telefone,
       personalizada: personalizadaSanitizada,
       opcoes,
       itensPedido,
       feijaoOpcional,
+      pureOpcional,
       tamanhoSelecionado,
     });
 
@@ -308,13 +325,13 @@ export default function CardapioDaSemanaPage() {
           nome,
           telefone,
           tamanhoLabel: tamanhoSelecionado,
-          observacoes,
           personalizada: personalizadaSanitizada,
           itens: opcoes
             .map((opcao) => ({
               opcaoId: Number(opcao.id),
               quantidade: Number(itensPedido[opcao.id] || 0),
               adicionarFeijao: tamanhoSelecionado !== "PERSONALIZADO" && !!feijaoOpcional[opcao.id],
+              adicionarPure: tamanhoSelecionado !== "PERSONALIZADO" && !!pureOpcional[opcao.id],
             }))
             .filter((item) => item.quantidade > 0),
         }),
@@ -444,15 +461,6 @@ export default function CardapioDaSemanaPage() {
                   </div>
                 )}
               </div>
-              <div className="mt-4 space-y-2">
-                <Label>Observação (opcional)</Label>
-                <Textarea
-                  value={observacoes}
-                  onChange={(event) => setObservacoes(event.target.value)}
-                  placeholder="Alguma observação?"
-                  className="min-h-10 resize-none"
-                />
-              </div>
             </section>
 
             <section className="mt-6 grid gap-4 lg:grid-cols-2">
@@ -489,7 +497,8 @@ export default function CardapioDaSemanaPage() {
                               </button>
                             </div>
                             {quantidade > 0 && tamanhoSelecionado !== "PERSONALIZADO" ? (
-                              <label className="flex items-center gap-2 rounded-lg bg-[#fff7f2] px-3 py-2 text-xs font-bold text-[#b85b36] sm:col-start-2 sm:col-span-2">
+                              <div className="grid gap-2 sm:col-start-2 sm:col-span-2">
+                              <label className="flex items-center gap-2 rounded-lg bg-[#fff7f2] px-3 py-2 text-xs font-bold text-[#b85b36]">
                                 <input
                                   type="checkbox"
                                   checked={!!feijaoOpcional[opcao.id]}
@@ -498,6 +507,16 @@ export default function CardapioDaSemanaPage() {
                                 />
                                 Adicionar feijão opcional nesta marmita (+R$2 por unidade)
                               </label>
+                              <label className="flex items-center gap-2 rounded-lg bg-[#fff7f2] px-3 py-2 text-xs font-bold text-[#b85b36]">
+                                <input
+                                  type="checkbox"
+                                  checked={!!pureOpcional[opcao.id]}
+                                  onChange={(event) => togglePureOpcional(opcao.id, event.target.checked)}
+                                  className="h-4 w-4 accent-[#b85b36]"
+                                />
+                                Adicionar purê opcional nesta marmita (+R$2 por unidade)
+                              </label>
+                              </div>
                             ) : null}
                           </div>
                         );
@@ -530,6 +549,11 @@ export default function CardapioDaSemanaPage() {
               {totalFeijaoOpcional ? (
                 <p className="mt-1 text-center text-sm font-bold text-[#b85b36]">
                   Feijão opcional: {totalFeijaoOpcional} unidade(s) (+R$2 cada)
+                </p>
+              ) : null}
+              {totalPureOpcional ? (
+                <p className="mt-1 text-center text-sm font-bold text-[#b85b36]">
+                  Purê opcional: {totalPureOpcional} unidade(s) (+R$2 cada)
                 </p>
               ) : null}
               {total > 0 ? (
