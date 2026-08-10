@@ -1006,12 +1006,7 @@ export default function Agendamentos() {
           .filter((p: any) => {
             if (p.forma !== "PLANO" || !p.planoClienteId || !p.planoCliente || p.planoCliente.pago) return false;
             if (Number(p.consumoUnidades || 0) <= 0) return false;
-            const criadoPagamento = new Date(p.createdAt || 0).getTime();
-            const criadoPlano = new Date(p.planoCliente.createdAt || 0).getTime();
-            const criadoPedido = new Date(row.pedido?.createdAt ?? row.createdAt ?? 0).getTime();
-            return criadoPagamento > 0 && criadoPlano > 0 && criadoPedido > 0 &&
-              Math.abs(criadoPlano - criadoPagamento) <= 10 * 60 * 1000 &&
-              Math.abs(criadoPagamento - criadoPedido) <= 10 * 60 * 1000;
+            return true;
           })
           .map((p: any) => ({
             ...p,
