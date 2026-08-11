@@ -2231,7 +2231,9 @@ export default function Agendamentos() {
             enderecos: c.enderecos,
             tags: c.tags,
             planos: (c.planos || []).filter((plano: any) => {
-              if (plano.pago === false) return false;
+              const clienteDoAgendamentoEmEdicao = modoEdicao &&
+                String(c.id) === String(dadosEdicao?.clienteId || dadosEdicao?.pedido?.clienteId || "");
+              if (plano.pago === false && !clienteDoAgendamentoEmEdicao) return false;
               const possuiSaldosDetalhados = Array.isArray(plano.itens) && plano.itens.length > 0;
               const saldoMarmitas = possuiSaldosDetalhados
                 ? plano.itens.reduce((total: number, item: any) => total + Math.max(0, Number(item.saldoUnidades || 0)), 0)
