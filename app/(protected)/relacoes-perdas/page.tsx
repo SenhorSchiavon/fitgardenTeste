@@ -11,6 +11,11 @@ import { toast } from "sonner";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3333/api";
 
+function parseNumero(value: string) {
+  const normalizado = String(value || "").trim().replace(/\s/g, "").replace(",", ".");
+  return Number(normalizado);
+}
+
 export default function RelacoesPerdasPage() {
   const [multiplicador, setMultiplicador] = useState("1");
   const [loading, setLoading] = useState(true);
@@ -32,7 +37,7 @@ export default function RelacoesPerdasPage() {
   }, []);
 
   const salvar = async () => {
-    const valor = Number(multiplicador);
+    const valor = parseNumero(multiplicador);
     if (!Number.isFinite(valor) || valor < 0) return toast.error("Informe um valor maior ou igual a zero");
     try {
       setSaving(true);
@@ -64,9 +69,8 @@ export default function RelacoesPerdasPage() {
             <Label htmlFor="multiplicador-perda">Multiplicador</Label>
             <Input
               id="multiplicador-perda"
-              type="number"
-              min="0"
-              step="0.001"
+              type="text"
+              inputMode="decimal"
               value={multiplicador}
               onChange={(event) => setMultiplicador(event.target.value)}
               disabled={loading || saving}

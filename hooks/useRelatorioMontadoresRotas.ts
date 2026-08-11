@@ -14,7 +14,7 @@ export function useRelatorioMontadoresRotas() {
   const [downloading, setDownloading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const abrirCupomElgin = useCallback(async (params: { data: string }) => {
+  const abrirCupomElgin = useCallback(async (params: { data: string; formato?: "a4" | "bobina" }) => {
     const dataStr = String(params.data || "").trim();
 
     if (!validarDataISO(dataStr)) {
@@ -26,7 +26,7 @@ export function useRelatorioMontadoresRotas() {
     setError(null);
 
     try {
-      const qs = new URLSearchParams({ data: dataStr });
+      const qs = new URLSearchParams({ data: dataStr, formato: params.formato || "a4" });
       const res = await apiFetch(`${RESOURCE}/montadores-rotas/elgin?${qs.toString()}`, {
         method: "GET",
       });

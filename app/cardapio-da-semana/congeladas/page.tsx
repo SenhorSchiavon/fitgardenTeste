@@ -57,11 +57,7 @@ export default function CardapioCongeladasPage() {
     const itens = dados.congeladas
       .filter((item) => Number(quantidades[item.id] || 0) > 0)
       .map((item) => ({ congeladaId: Number(item.id), quantidade: Number(quantidades[item.id]), nome: item.nome, tamanhoGramas: item.tamanhoGramas }));
-    const mensagem = [
-      "PEDIDO DE CONGELADAS:", "", `Nome: ${nome}`, `Telefone: ${telefone}`, "", "Itens:",
-      ...itens.map((item) => `${item.quantidade}x ${item.nome} - ${item.tamanhoGramas}g`),
-      "", `Total: ${total} marmita(s)`, observacoes.trim() ? `Observação: ${observacoes.trim()}` : null,
-    ].filter(Boolean).join("\n");
+    const whatsappWindow = window.open("about:blank", "_blank");
     setEnviando(true);
     setErro("");
     try {
@@ -73,8 +69,13 @@ export default function CardapioCongeladasPage() {
       const json = await res.json().catch(() => null);
       if (!res.ok) throw new Error(json?.message || "Não foi possível registrar o pedido.");
       const numero = String(dados.whatsappNumber || "").replace(/\D/g, "");
-      if (numero) window.open(`https://wa.me/${numero}?text=${encodeURIComponent(mensagem)}`, "_blank");
+      const mensagem = `Olá, fiz um novo pedido pelo site! 😎\nPedido #${json.id}`;
+      const whatsappUrl = `https://wa.me/${numero}?text=${encodeURIComponent(mensagem)}`;
+      if (numero && whatsappWindow) whatsappWindow.location.href = whatsappUrl;
+      else if (numero) window.location.href = whatsappUrl;
+      else whatsappWindow?.close();
     } catch (e: any) {
+      whatsappWindow?.close();
       setErro(e?.message || "Erro ao enviar pedido.");
     } finally {
       setEnviando(false);

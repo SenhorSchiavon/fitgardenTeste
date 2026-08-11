@@ -725,8 +725,23 @@ export function NovoAgendamentoNovoLayout({
         consumoUnidades: null,
         consumoEntregas: null,
       }));
+      const planosCompradosExibidos = Array.isArray(initialData.planosCompradosExibidos)
+        ? initialData.planosCompradosExibidos
+            .filter((plano: any) => Number(plano.id) > 0)
+            .map((plano: any) => ({
+              id: Number(plano.id),
+              nome: String(plano.nome || `Plano #${plano.id}`),
+              resumo: "Plano lançado neste pedido",
+              valorPlano: Number(plano.valorPlano || plano.valor || 0),
+              valorTaxas: Number(plano.valorTaxas || 0),
+              valorTotal: Number(plano.valor || 0),
+              pago: false,
+            }))
+        : [];
       setPlanosComprados(
-        [...comprasPlanoRegistradas, ...comprasPlanoLegadas]
+        planosCompradosExibidos.length > 0
+          ? planosCompradosExibidos
+          : [...comprasPlanoRegistradas, ...comprasPlanoLegadas]
           .map((pagamento: any) => {
             const plano = pagamento.planoCliente?.plano;
             const valorTotal = Number(pagamento.valor || 0);
@@ -3761,6 +3776,13 @@ export function NovoAgendamentoNovoLayout({
                     <Select
                       value={formaPagamento}
                       onValueChange={(v: FormaPagamento) => {
+                        if (formaPagamento === "PLANO" && v !== "PLANO") {
+                          setItens((atuais) => atuais.map((item) => item.usarPlano ? { ...item, usarPlano: false } : item));
+                          setAbaterTaxaEntregaPlano(false);
+                          toast.info("Plano removido do pagamento", {
+                            description: "As marmitas serão cobradas pela nova forma e o saldo do plano será devolvido ao salvar.",
+                          });
+                        }
                         setFormaPagamento(v);
                         setPagamentoJaRealizado(false);
                       }}

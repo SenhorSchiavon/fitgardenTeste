@@ -96,78 +96,6 @@ function categoryStyle(category: string) {
   return { icon: Star, color: "text-[#b85b36]", bg: "bg-[#fff7f2]", border: "border-[#f1d7c8]" };
 }
 
-function montarMensagem({
-  nome,
-  telefone,
-  personalizada,
-  opcoes,
-  itensPedido,
-  feijaoOpcional,
-  pureOpcional,
-  tamanhoSelecionado,
-}: {
-  nome: string;
-  telefone: string;
-  personalizada: {
-    carboGramas: string;
-    proteinaGramas: string;
-    feijaoGramas: string;
-    legumeGramas: string;
-  };
-  opcoes: OpcaoPublica[];
-  itensPedido: Record<string, number>;
-  feijaoOpcional: Record<string, boolean>;
-  pureOpcional: Record<string, boolean>;
-  tamanhoSelecionado: TamanhoSelecionado;
-}) {
-  const escolhidas = opcoes
-    .filter((opcao) => Number(itensPedido[opcao.id] || 0) > 0)
-    .map((opcao) => {
-      const quantidade = Number(itensPedido[opcao.id] || 0);
-      const adicionalFeijao = tamanhoSelecionado !== "PERSONALIZADO" && feijaoOpcional[opcao.id]
-        ? " + feijão opcional (+R$2/unidade)"
-        : "";
-      const adicionalPure = tamanhoSelecionado !== "PERSONALIZADO" && pureOpcional[opcao.id]
-        ? " + purê opcional (+R$2/unidade)"
-        : "";
-      return `${quantidade}x ${opcao.nome}${adicionalFeijao}${adicionalPure}`;
-    });
-
-  const linhasPersonalizada = tamanhoSelecionado === "PERSONALIZADO"
-    ? [
-        "Pesagem personalizada do pedido:",
-        `- Carbo: ${personalizada.carboGramas || "-"}g`,
-        `- Proteína: ${personalizada.proteinaGramas || "-"}g`,
-        `- Feijão: ${personalizada.feijaoGramas || "-"}g`,
-        `- Legumes: ${personalizada.legumeGramas || "-"}g`,
-      ]
-    : [];
-
-  const total = escolhidas.reduce((acc, linha) => acc + Number(linha.split("x")[0] || 0), 0);
-  const totalFeijao = opcoes.reduce((acc, opcao) => (
-    acc + (tamanhoSelecionado !== "PERSONALIZADO" && feijaoOpcional[opcao.id] ? Number(itensPedido[opcao.id] || 0) : 0)
-  ), 0);
-  const totalPure = opcoes.reduce((acc, opcao) => (
-    acc + (tamanhoSelecionado !== "PERSONALIZADO" && pureOpcional[opcao.id] ? Number(itensPedido[opcao.id] || 0) : 0)
-  ), 0);
-
-  return [
-    "PEDIDO:",
-    "",
-    `Nome: ${nome || "-"}`,
-    `Telefone: ${telefone || "-"}`,
-    `Tamanho do pedido: ${tamanhoSelecionado}`,
-    ...linhasPersonalizada,
-    "",
-    "Marmitas:",
-    ...escolhidas,
-    totalFeijao ? `Adicional de feijão: ${totalFeijao} unidade(s) (+R$2 cada)` : null,
-    totalPure ? `Adicional de purê: ${totalPure} unidade(s) (+R$2 cada)` : null,
-    "",
-    `Total de marmitas: ${total}`,
-  ].filter(Boolean).join("\n");
-}
-
 export default function CardapioDaSemanaPage() {
   const dadosSectionRef = useRef<HTMLElement>(null);
   const [cardapio, setCardapio] = useState<CardapioPublico | null>(null);
@@ -296,21 +224,9 @@ export default function CardapioDaSemanaPage() {
       legumeGramas: cleanGramas(personalizada.legumeGramas),
     };
 
-    const text = montarMensagem({
-      nome,
-      telefone,
-      personalizada: personalizadaSanitizada,
-      opcoes,
-      itensPedido,
-      feijaoOpcional,
-      pureOpcional,
-      tamanhoSelecionado,
-    });
-
-    // O WhatsApp é o fluxo principal e abre sem depender da API de registro.
-    const whatsappUrl = `https://wa.me/${whatsappNumber}?text=${encodeURIComponent(text)}`;
-    const whatsappWindow = window.open(whatsappUrl, "_blank");
-    if (!whatsappWindow) window.location.href = whatsappUrl;
+    // Abre no clique para o navegador não bloquear; a URL final recebe o número
+    // retornado pelo cadastro do pedido.
+    const whatsappWindow = window.open("about:blank", "_blank");
 
     void (async () => {
     try {
@@ -338,8 +254,13 @@ export default function CardapioDaSemanaPage() {
       });
       const data = await res.json().catch(() => null);
       if (!res.ok) throw new Error(data?.message || "Não foi possível registrar o pedido.");
+      const text = `Olá, fiz um novo pedido pelo site! 😎\nPedido #${data.id}`;
+      const whatsappUrl = `https://wa.me/${whatsappNumber}?text=${encodeURIComponent(text)}`;
+      if (whatsappWindow) whatsappWindow.location.href = whatsappUrl;
+      else window.location.href = whatsappUrl;
     } catch {
-      setErroEnvio("O WhatsApp foi aberto, mas o pedido não pôde ser registrado no sistema agora.");
+      whatsappWindow?.close();
+      setErroEnvio("O pedido não pôde ser registrado no sistema agora.");
     } finally {
       setEnviando(false);
     }
