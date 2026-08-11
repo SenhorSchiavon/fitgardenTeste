@@ -43,6 +43,7 @@ export default function RelacoesPerdasPage() {
       setSaving(true);
       const response = await apiFetch(`${API_URL}/relacoes-perdas`, {
         method: "PUT",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ multiplicador: valor }),
       });
       const data = await response.json();
