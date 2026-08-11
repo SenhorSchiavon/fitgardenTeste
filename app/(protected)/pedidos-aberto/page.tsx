@@ -180,7 +180,7 @@ export default function PedidosAberto() {
 
   async function load(date = dataFiltro) {
     const [resp, conciliacaoResp, planosResp] = await Promise.all([
-      getPedidosPendentes({ page: 1, pageSize: 50 }),
+      getPedidosPendentes({ date, page: 1, pageSize: 50 }),
       getPagamentosParaConciliar({ date, page: 1, pageSize: 50 }),
       listPlanosNaoPagos(),
     ]);

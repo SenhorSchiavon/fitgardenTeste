@@ -25,6 +25,7 @@ export const SCREEN_DEFINITIONS: ScreenDefinition[] = [
   { key: "montadores", label: "Montadores", path: "/montadores" },
   { key: "tamanhos-valores", label: "Tamanhos e Valores", path: "/tamanhos-valores" },
   { key: "regras-personalizada", label: "Regra Personalizada", path: "/regras-personalizada" },
+  { key: "relacoes-perdas", label: "Relações de Perdas", path: "/relacoes-perdas" },
   { key: "planos", label: "Planos", path: "/planos" },
   { key: "clientes", label: "Clientes", path: "/clientes" },
   { key: "agendamentos", label: "Agendamentos", path: "/agendamentos" },

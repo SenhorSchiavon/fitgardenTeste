@@ -23,6 +23,7 @@ type Voucher = {
   numero: string
   data: string
   baixado: boolean
+  telefoneCliente?: string | null
 }
 
 export default function Vouchers() {
@@ -52,6 +53,7 @@ export default function Vouchers() {
         numero: String(voucher.codigo),
         data: String(voucher.data),
         baixado: !!voucher.usado,
+        telefoneCliente: voucher.telefoneCliente ? String(voucher.telefoneCliente) : null,
       })))
     } catch (error: any) {
       toast.error("Não foi possível carregar os vouchers", { description: error?.message })
@@ -112,24 +114,38 @@ export default function Vouchers() {
     return date.toLocaleDateString("pt-BR")
   }
 
-  const filteredVouchers = useMemo(() => vouchers.filter((voucher) => {
-    const correspondeBusca = voucher.numero.includes(searchTerm.trim()) || formatDate(voucher.data).includes(searchTerm.trim())
+  const filteredVouchers = useMemo(() => {
+    const termo = searchTerm.trim()
+    const somenteDigitos = termo.replace(/\D/g, "")
+    const blocosSeparados = termo.split(/\D+/).filter((bloco) => bloco.length === 7)
+    const blocosVoucher = blocosSeparados.length > 0
+      ? blocosSeparados
+      : somenteDigitos.length >= 7 && somenteDigitos.length % 7 === 0
+        ? somenteDigitos.match(/.{7}/g) || []
+        : []
+
+    return vouchers.filter((voucher) => {
+    const numeroNormalizado = voucher.numero.replace(/\D/g, "")
+    const correspondeBusca = !termo || (blocosVoucher.length > 0
+      ? blocosVoucher.includes(numeroNormalizado)
+      : voucher.numero.includes(termo) || formatDate(voucher.data).includes(termo) || String(voucher.telefoneCliente || "").includes(termo))
     const correspondeStatus = statusFiltro === "TODOS" || (statusFiltro === "BAIXADOS" ? voucher.baixado : !voucher.baixado)
     const dataVoucher = String(voucher.data).slice(0, 10)
     const correspondeInicio = !dataInicial || dataVoucher >= dataInicial
     const correspondeFim = !dataFinal || dataVoucher <= dataFinal
     return correspondeBusca && correspondeStatus && correspondeInicio && correspondeFim
-  }), [vouchers, searchTerm, statusFiltro, dataInicial, dataFinal])
+    })
+  }, [vouchers, searchTerm, statusFiltro, dataInicial, dataFinal])
 
   const textoExportacao = useMemo(
-    () => Array.from(new Set(filteredVouchers.map((voucher) => voucher.numero.trim()).filter(Boolean))).join(","),
+    () => Array.from(new Set(filteredVouchers.map((voucher) => voucher.numero.trim()).filter(Boolean))).join(" "),
     [filteredVouchers],
   )
 
   const copiarCodigos = async () => {
     if (!textoExportacao) return toast.error("Nenhum voucher para copiar")
     await navigator.clipboard.writeText(textoExportacao)
-    toast.success(`${filteredVouchers.length} voucher(es) copiado(s)`, { description: "Códigos separados por vírgula, sem espaços." })
+    toast.success(`${filteredVouchers.length} voucher(es) copiado(s)`, { description: "Códigos separados por espaço." })
   }
 
   const baixarTxt = () => {
@@ -152,7 +168,7 @@ export default function Vouchers() {
         <div className="relative w-full max-w-md">
           <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Buscar por número ou data..."
+            placeholder="Cole códigos em blocos de 7 dígitos..."
             className="pl-8"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
@@ -193,6 +209,7 @@ export default function Vouchers() {
               <TableRow>
                 <SortableHead label="Número" field="numero" sort={sort} onSort={onSort} />
                 <SortableHead label="Data" field="data" sort={sort} onSort={onSort} />
+                <SortableHead label="Telefone do cliente" field="telefoneCliente" sort={sort} onSort={onSort} />
                 <SortableHead label="Baixado" field="baixado" sort={sort} onSort={onSort} />
                 <TableHead className="text-right">Ações</TableHead>
               </TableRow>
@@ -202,6 +219,7 @@ export default function Vouchers() {
                 <TableRow key={voucher.id}>
                   <TableCell>{voucher.numero}</TableCell>
                   <TableCell>{formatDate(voucher.data)}</TableCell>
+                  <TableCell>{voucher.telefoneCliente || "-"}</TableCell>
                   <TableCell>
                     <Checkbox checked={voucher.baixado} onCheckedChange={() => handleToggleBaixado(voucher.id)} />
                   </TableCell>
@@ -214,13 +232,13 @@ export default function Vouchers() {
               ))}
               {!loading && filteredVouchers.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={4} className="text-center py-4">
+                  <TableCell colSpan={5} className="text-center py-4">
                     Nenhum voucher encontrado
                   </TableCell>
                 </TableRow>
               )}
               {loading && (
-                <TableRow><TableCell colSpan={4} className="text-center py-4">Carregando vouchers...</TableCell></TableRow>
+                <TableRow><TableCell colSpan={5} className="text-center py-4">Carregando vouchers...</TableCell></TableRow>
               )}
             </TableBody>
           </Table>

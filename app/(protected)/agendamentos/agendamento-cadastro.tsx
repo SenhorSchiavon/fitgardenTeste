@@ -1199,7 +1199,7 @@ export function NovoAgendamentoNovoLayout({
     const saldoRestantePorChave = new Map<string, number>();
 
     for (const item of itens) {
-      if (item.tipoItem === "SALGADO" || item.tipoItem === "CONGELADA") continue;
+      if (item.tipoItem === "SALGADO") continue;
       const chave = getPlanoConsumoKey(item);
       if (!saldoRestantePorChave.has(chave)) {
         saldoRestantePorChave.set(chave, getSaldoPlanoParaItem(item));
@@ -1216,7 +1216,7 @@ export function NovoAgendamentoNovoLayout({
     let unidades = 0;
     for (const item of itens) {
       if (permitidos && !permitidos.has(item.id)) continue;
-      if (item.usarPlano || item.tipoItem === "SALGADO" || item.tipoItem === "CONGELADA") continue;
+      if (item.usarPlano || item.tipoItem === "SALGADO") continue;
       if (!(clienteSelecionado?.planos || []).some((plano: any) => planoClienteTemItemCompativel(plano, item))) continue;
 
       const chave = getPlanoConsumoKey(item);
@@ -1244,12 +1244,12 @@ export function NovoAgendamentoNovoLayout({
   }, [itensImportadosAguardandoPlano, clienteSelecionado, itens]);
 
   function canUsePlanoForItem(item: NovoPedidoItem) {
-    if (!item.usarPlano || item.tipoItem === "SALGADO" || item.tipoItem === "CONGELADA") return true;
+    if (!item.usarPlano || item.tipoItem === "SALGADO") return true;
     return (clienteSelecionado?.planos || []).some((plano: any) => planoClienteTemItemCompativel(plano, item));
   }
 
   function temSaldoPlanoSuficienteParaItem(item: NovoPedidoItem) {
-    if (item.tipoItem === "SALGADO" || item.tipoItem === "CONGELADA") return false;
+    if (item.tipoItem === "SALGADO") return false;
     const chave = getPlanoConsumoKey(item);
     const reservadoNoPedido = itens
       .filter((atual) => atual.id !== item.id && atual.usarPlano && getPlanoConsumoKey(atual) === chave)
@@ -1832,7 +1832,7 @@ export function NovoAgendamentoNovoLayout({
         tamanhoId: tamanho?.id || "",
         tamanhoLabel: `${congelada.tamanhoGramas}g`,
         precoUnit: tamanho ? getPrecoUnitPorQuantidade(tamanho, totalMarmitas || 1) : 0,
-        usarPlano: false,
+        usarPlano: !!formItem.usarPlano,
       };
     });
     setItens((atuais) => [...atuais, ...novas]);
@@ -2447,7 +2447,7 @@ export function NovoAgendamentoNovoLayout({
           const tamanhoCongelada = tamanhos.find((item) => Number.parseInt(item.nome, 10) === Number(congelada.tamanhoGramas));
           return tamanhoCongelada ? getPrecoUnitPorQuantidade(tamanhoCongelada, totalMarmitas || 1) : 0;
         })(),
-        usarPlano: false,
+        usarPlano: !!formItem.usarPlano,
       };
 
       if (isEdit) {
@@ -4472,7 +4472,7 @@ export function NovoAgendamentoNovoLayout({
                       <div className="space-y-2 md:col-span-2">
                         <Label>Quantidade por congelada</Label>
                         <div className="divide-y overflow-hidden rounded-xl border bg-background">
-                          {congeladas.map((congelada) => (
+                          {congeladas.filter((congelada) => Number(congelada.quantidade || 0) > 0).map((congelada) => (
                             <div key={congelada.id} className="grid grid-cols-[minmax(0,1fr)_110px] items-center gap-4 p-3 hover:bg-slate-50">
                               <div>
                                 <Label htmlFor={`qtd-congelada-${congelada.id}`} className="text-sm font-bold">
@@ -4516,7 +4516,7 @@ export function NovoAgendamentoNovoLayout({
                             <SelectValue placeholder="Selecione a congelada" />
                           </SelectTrigger>
                           <SelectContent>
-                            {congeladas.map((congelada) => (
+                            {congeladas.filter((congelada) => Number(congelada.quantidade || 0) > 0 || congelada.id === formItem.congeladaId).map((congelada) => (
                               <SelectItem key={congelada.id} value={congelada.id}>
                                 {congelada.tamanhoGramas}g - {congelada.nome} - estoque {congelada.quantidade}
                               </SelectItem>
@@ -4625,7 +4625,7 @@ export function NovoAgendamentoNovoLayout({
                   </div>
                   
                   {(() => {
-                    if (formItem.tipoItem === "SALGADO" || formItem.tipoItem === "CONGELADA") return null;
+                    if (formItem.tipoItem === "SALGADO") return null;
                     const temPlanoCompativel = clienteSelecionado?.planos?.some((p: any) =>
                       planoClienteTemItemCompativel(p, formItem),
                     );
@@ -4942,7 +4942,7 @@ export function NovoAgendamentoNovoLayout({
                   </div>
                 )}
 
-                <div className="space-y-2">
+                {formItem.tipoItem !== "CONGELADA" && <div className="space-y-2">
                   <Label>Observação para a cozinha</Label>
                   <Textarea
                     value={formItem.observacaoItem}
@@ -4954,7 +4954,7 @@ export function NovoAgendamentoNovoLayout({
                     }
                     placeholder="Ex.: sem cebola, carne mais passada, separar talher..."
                   />
-                </div>
+                </div>}
               </div>
 
               {/* LADO DIREITO: RESUMO DO PEDIDO (SIDEBAR) */}

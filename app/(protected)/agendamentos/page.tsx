@@ -1247,6 +1247,10 @@ export default function Agendamentos() {
       year: "numeric",
     });
   };
+  const formatKg = (value: number) => Number(value).toLocaleString("pt-BR", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 3,
+  });
 
 
   const tamanhos = (opcoes ?? []).reduce((acc: any[], opcao: any) => {
@@ -2075,16 +2079,14 @@ export default function Agendamentos() {
                               <TableRow key={row.preparoId}>
                                 <TableCell>{row.nome}</TableCell>
                                 <TableCell className="text-right font-medium">
-                                  {Number(row.kgPronto ?? 0).toFixed(1)} kg
+                                  {formatKg(Number(row.kgPronto ?? 0))} kg
                                 </TableCell>
                               </TableRow>
                             ))}
                             <TableRow>
                               <TableCell className="font-bold text-slate-800">TOTAL</TableCell>
                               <TableCell className="text-right font-black text-slate-800">
-                                {(
-                                  relatorioPreparos!.prontos.reduce((acc, r) => acc + Number(r.kgPronto ?? 0), 0)
-                                ).toFixed(1)} kg
+                                {formatKg(relatorioPreparos!.prontos.reduce((acc, r) => acc + Number(r.kgPronto ?? 0), 0))} kg
                               </TableCell>
                             </TableRow>
                           </>
@@ -2114,16 +2116,14 @@ export default function Agendamentos() {
                               <TableRow key={row.ingredienteId}>
                                 <TableCell>{row.nome}</TableCell>
                                 <TableCell className="text-right font-medium text-emerald-700">
-                                  {Number(row.kgCru ?? 0).toFixed(1)} kg
+                                  {formatKg(Number(row.kgCru ?? 0))} kg
                                 </TableCell>
                               </TableRow>
                             ))}
                             <TableRow>
                               <TableCell className="font-bold text-slate-800">TOTAL</TableCell>
                               <TableCell className="text-right font-black text-slate-800">
-                                {(
-                                  relatorioPreparos!.crus.reduce((acc, r) => acc + Number(r.kgCru ?? 0), 0)
-                                ).toFixed(1)} kg
+                                {formatKg(relatorioPreparos!.crus.reduce((acc, r) => acc + Number(r.kgCru ?? 0), 0))} kg
                               </TableCell>
                             </TableRow>
                           </>
