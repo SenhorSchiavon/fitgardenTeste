@@ -777,6 +777,9 @@ export function NovoAgendamentoNovoLayout({
       );
       
       const rawItens = initialData.itens || initialData.pedido?.itens || [];
+      const grupoPedidoPublico = initialData.pedidoPublicoId
+        ? `pedido-publico:${initialData.pedidoPublicoId}:tamanho:${initialData.tamanhoId || initialData.tamanhoLabel || "unico"}`
+        : null;
       const mappedItens: NovoPedidoItem[] = rawItens.map((it: any) => {
         const opcaoCardapio = opcoesPadrao.find((opcao) => String(opcao.id) === String(it.opcaoId || it.opcao?.id || ""));
         const preparoDaOpcao = (tipo: "CARBOIDRATO" | "PROTEINA" | "LEGUMES" | "FEIJAO" | "COMPLEMENTO") =>
@@ -790,7 +793,7 @@ export function NovoAgendamentoNovoLayout({
 
         return ({
         id: it.id ? String(it.id) : uid(),
-        groupId: String(it.grupoPedido || `item:${it.id || uid()}`),
+        groupId: String(it.grupoPedido || grupoPedidoPublico || `item:${it.id || uid()}`),
         tipoItem: it.tipoItem || (it.congeladaId || it.congelada ? "CONGELADA" : it.salgadoId || it.salgado ? "SALGADO" : it.opcaoId || it.opcao ? "PADRAO" : "PERSONALIZADA"),
         destinatarioNome: it.destinatarioNome || "",
         tamanhoId: String(it.tamanhoId || ""),

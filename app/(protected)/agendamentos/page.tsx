@@ -1129,7 +1129,7 @@ export default function Agendamentos() {
       valorDescontoVoucher > 0
         ? "VOUCHER"
         : valorPlanosCompradosPendente > 0
-        ? "PLANO"
+        ? pagamentosCompraPlano.find((pagamento: any) => pagamento.status === "PENDENTE")?.forma || "PLANO"
         : usouPlano && valorTotalFinal <= 0
         ? "PLANO"
         : pagamentoNaoPlanoRelevante?.forma ??

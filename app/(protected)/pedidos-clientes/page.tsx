@@ -100,6 +100,7 @@ export default function PedidosClientesPage() {
       formaPagamento: "A_DEFINIR",
       tipo: "NAO_DEFINIR",
       itens: (pedido.itens?.escolhas || []).map((item) => ({
+        grupoPedido: `pedido-publico:${pedido.id}:tamanho:${customizado ? "personalizado" : pedido.tamanhoId || pedido.tamanhoLabel}`,
         tipoItem: customizado ? "PERSONALIZADA" : "PADRAO",
         opcaoId: item.opcaoId,
         nome: item.nome,
