@@ -294,8 +294,8 @@ function currency(value: number) {
   return Number(value || 0).toFixed(2);
 }
 
-function arredondarParaUmaCasa(value: number) {
-  return Math.round((Number(value || 0) + 1e-9) * 10) / 10;
+function arredondarParaCentavos(value: number) {
+  return Math.round((Number(value || 0) + 1e-9) * 100) / 100;
 }
 
 function normalizarBusca(value: string) {
@@ -402,6 +402,20 @@ function toISODateOnlyLocal(date?: Date | null) {
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const day = String(date.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
+}
+
+function parseDateOnlyLocal(value?: Date | string | null) {
+  if (!value) return null;
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? null : value;
+  }
+  const match = String(value).match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (match) {
+    const parsed = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
 function startOfLocalDay(date: Date) {
@@ -671,8 +685,8 @@ export function NovoAgendamentoNovoLayout({
             : [],
       );
       setTipo(initialData.tipoEntrega || initialData.tipo || "NAO_DEFINIR");
-      setData(initialData.data ? new Date(initialData.data) : getDefaultAgendamentoDate());
-      setDataEntregaCongelada(initialData.dataEntregaCongelada ? new Date(initialData.dataEntregaCongelada) : getDefaultAgendamentoDate());
+      setData(parseDateOnlyLocal(initialData.data) || getDefaultAgendamentoDate());
+      setDataEntregaCongelada(parseDateOnlyLocal(initialData.dataEntregaCongelada) || getDefaultAgendamentoDate());
       setCongelarSubtipo(initialData.congelarSubtipo === "ENTREGA" ? "ENTREGA" : "RETIRADA");
       
       const faixa = initialData.faixaHorario || "13:00-14:00";
@@ -697,7 +711,6 @@ export function NovoAgendamentoNovoLayout({
       const pagamentosIniciais = initialData.pagamentos || initialData.pedido?.pagamentos || [];
       setPagamentoJaRealizado(!!initialData.pagamentoJaRealizado);
       const comprasPlanoRegistradas = pagamentosIniciais.filter((pagamento: any) =>
-        pagamento.forma === "PLANO" &&
         pagamento.planoClienteId &&
         Number(pagamento.consumoUnidades || 0) === 0 &&
         Number(pagamento.consumoEntregas || 0) === 0 &&
@@ -1387,7 +1400,7 @@ export function NovoAgendamentoNovoLayout({
     if (regrasVolume.length > 0) {
       const pct = Number(regrasVolume[0].preco);
       const baseComDesconto = Math.max(0, totalBrutoPersonalizadas - totalAdicionaisPersonalizadas);
-      return arredondarParaUmaCasa(
+      return arredondarParaCentavos(
         totalBrutoPadrao + baseComDesconto * (1 - pct / 100) + totalAdicionaisPersonalizadas + totalBrutoSalgados,
       );
     }
@@ -3776,13 +3789,6 @@ export function NovoAgendamentoNovoLayout({
                     <Select
                       value={formaPagamento}
                       onValueChange={(v: FormaPagamento) => {
-                        if (formaPagamento === "PLANO" && v !== "PLANO") {
-                          setItens((atuais) => atuais.map((item) => item.usarPlano ? { ...item, usarPlano: false } : item));
-                          setAbaterTaxaEntregaPlano(false);
-                          toast.info("Plano removido do pagamento", {
-                            description: "As marmitas serão cobradas pela nova forma e o saldo do plano será devolvido ao salvar.",
-                          });
-                        }
                         setFormaPagamento(v);
                         setPagamentoJaRealizado(false);
                       }}

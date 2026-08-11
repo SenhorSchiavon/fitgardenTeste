@@ -995,7 +995,6 @@ export default function Agendamentos() {
       .reduce((acc: number, p: any) => acc + Number(p.valor || 0), 0);
     const pagamentosCompraPlanoAtuais = pagamentos.filter(
       (p: any) =>
-        p.forma === "PLANO" &&
         p.planoClienteId &&
         Number(p.consumoUnidades || 0) === 0 &&
         Number(p.consumoEntregas || 0) === 0 &&
