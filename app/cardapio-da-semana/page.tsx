@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { isMobileWhatsAppDevice, openWhatsApp } from "@/lib/open-whatsapp";
 import { cn } from "@/lib/utils";
 
 type OpcaoPublica = {
@@ -226,7 +227,7 @@ export default function CardapioDaSemanaPage() {
 
     // Abre no clique para o navegador não bloquear; a URL final recebe o número
     // retornado pelo cadastro do pedido.
-    const whatsappWindow = window.open("about:blank", "_blank");
+    const whatsappWindow = isMobileWhatsAppDevice() ? null : window.open("about:blank", "_blank");
 
     void (async () => {
     try {
@@ -255,9 +256,7 @@ export default function CardapioDaSemanaPage() {
       const data = await res.json().catch(() => null);
       if (!res.ok) throw new Error(data?.message || "Não foi possível registrar o pedido.");
       const text = `Olá, fiz um novo pedido pelo site! 😎\nPedido #${data.id}`;
-      const whatsappUrl = `https://wa.me/${whatsappNumber}?text=${encodeURIComponent(text)}`;
-      if (whatsappWindow) whatsappWindow.location.href = whatsappUrl;
-      else window.location.href = whatsappUrl;
+      openWhatsApp({ phone: whatsappNumber, message: text, desktopWindow: whatsappWindow });
     } catch {
       whatsappWindow?.close();
       setErroEnvio("O pedido não pôde ser registrado no sistema agora.");

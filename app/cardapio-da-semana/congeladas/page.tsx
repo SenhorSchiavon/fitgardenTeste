@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { isMobileWhatsAppDevice, openWhatsApp } from "@/lib/open-whatsapp";
 
 type CongeladaPublica = { id: string; nome: string; tamanhoGramas: number; quantidade: number };
 type DadosPublicos = { id: number; whatsappNumber?: string | null; destinoWhatsApp?: string; congeladas: CongeladaPublica[] };
@@ -57,7 +58,7 @@ export default function CardapioCongeladasPage() {
     const itens = dados.congeladas
       .filter((item) => Number(quantidades[item.id] || 0) > 0)
       .map((item) => ({ congeladaId: Number(item.id), quantidade: Number(quantidades[item.id]), nome: item.nome, tamanhoGramas: item.tamanhoGramas }));
-    const whatsappWindow = window.open("about:blank", "_blank");
+    const whatsappWindow = isMobileWhatsAppDevice() ? null : window.open("about:blank", "_blank");
     setEnviando(true);
     setErro("");
     try {
@@ -70,9 +71,7 @@ export default function CardapioCongeladasPage() {
       if (!res.ok) throw new Error(json?.message || "Não foi possível registrar o pedido.");
       const numero = String(dados.whatsappNumber || "").replace(/\D/g, "");
       const mensagem = `Olá, fiz um novo pedido pelo site! 😎\nPedido #${json.id}`;
-      const whatsappUrl = `https://wa.me/${numero}?text=${encodeURIComponent(mensagem)}`;
-      if (numero && whatsappWindow) whatsappWindow.location.href = whatsappUrl;
-      else if (numero) window.location.href = whatsappUrl;
+      if (numero) openWhatsApp({ phone: numero, message: mensagem, desktopWindow: whatsappWindow });
       else whatsappWindow?.close();
     } catch (e: any) {
       whatsappWindow?.close();
