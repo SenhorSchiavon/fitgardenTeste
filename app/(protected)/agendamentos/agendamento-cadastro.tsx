@@ -3789,6 +3789,33 @@ export function NovoAgendamentoNovoLayout({
                     <Select
                       value={formaPagamento}
                       onValueChange={(v: FormaPagamento) => {
+                        if (v === "PLANO" && !itens.some((item) => item.usarPlano)) {
+                          const elegiveis = getItensElegiveisParaAplicarPlano();
+                          if (elegiveis.ids.length > 0) {
+                            const ids = new Set(elegiveis.ids);
+                            setItens((atuais) => atuais.map((item) => ids.has(item.id) ? { ...item, usarPlano: true } : item));
+
+                            const planoRecuperavel = (clienteSelecionado?.planos || []).find((plano: any) =>
+                              plano.pago === false && itens.some((item) => ids.has(item.id) && planoClienteTemItemCompativel(plano, item)),
+                            );
+                            if (planoRecuperavel && !planosComprados.some((plano) => plano.id === Number(planoRecuperavel.id))) {
+                              const valorPlano = Number(planoRecuperavel.plano?.valor || 0);
+                              const valorTaxas = Number(planoRecuperavel.valorTaxaEntrega || 0) * Number(planoRecuperavel.taxasEntregaCompradas || 0);
+                              setPlanosComprados((atuais) => [...atuais, {
+                                id: Number(planoRecuperavel.id),
+                                nome: String(planoRecuperavel.plano?.nome || `Plano #${planoRecuperavel.id}`),
+                                resumo: planoRecuperavel.plano?.unidades ? `${planoRecuperavel.plano.unidades} marmitas` : "Plano lançado neste pedido",
+                                valorPlano,
+                                valorTaxas,
+                                valorTotal: valorPlano + valorTaxas,
+                                pago: false,
+                              }]);
+                            }
+                            toast.success("Plano reaplicado ao agendamento", {
+                              description: `${elegiveis.unidades} marmitas continuarão abatidas do plano.`,
+                            });
+                          }
+                        }
                         setFormaPagamento(v);
                         setPagamentoJaRealizado(false);
                       }}
