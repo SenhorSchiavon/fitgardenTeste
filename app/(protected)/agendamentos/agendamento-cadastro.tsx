@@ -776,7 +776,9 @@ export function NovoAgendamentoNovoLayout({
         ),
       );
       setIncluirTaxaEntrega(
-        Number(initialData.valorTaxa ?? initialData.pedido?.valorTaxa ?? 0) > 0,
+        initialData.cobrarTaxaEntrega ??
+          initialData.pedido?.cobrarTaxaEntrega ??
+          Number(initialData.valorTaxa ?? initialData.pedido?.valorTaxa ?? 0) > 0,
       );
       
       const rawItens = initialData.itens || initialData.pedido?.itens || [];

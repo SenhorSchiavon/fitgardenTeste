@@ -106,6 +106,7 @@ type Agendamento = {
   valorPedido?: number;
   valorPedidoProporcional?: number;
   valorTaxa?: number;
+  cobrarTaxaEntrega?: boolean;
   valorTotal?: number;
   valorDescontos?: number;
   valorDescontoPlanoItens?: number;
@@ -1174,6 +1175,7 @@ export default function Agendamentos() {
       valorPedido,
       valorPedidoProporcional,
       valorTaxa,
+      cobrarTaxaEntrega: row.pedido?.cobrarTaxaEntrega ?? row.cobrarTaxaEntrega ?? valorTaxa > 0,
       valorTotal: valorTotalOriginal,
       valorDescontos,
       valorDescontoPlanoItens: valorItensCobertosPlano,
