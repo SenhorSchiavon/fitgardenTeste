@@ -145,6 +145,7 @@ export type CreateAgendamentoInput = {
 };
 
 export type UpdateAgendamentoInput = Partial<{
+  planosCompradosIds: number[];
   tipo: PedidoTipo;
   data: Date | string;
   dataEntregaCongelada: Date | string | null;

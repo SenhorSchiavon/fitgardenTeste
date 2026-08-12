@@ -716,28 +716,6 @@ export function NovoAgendamentoNovoLayout({
         Number(pagamento.consumoEntregas || 0) === 0 &&
         Number(pagamento.valor || 0) > 0,
       );
-      const comprasPlanoIds = new Set(comprasPlanoRegistradas.map((pagamento: any) => Number(pagamento.planoClienteId)));
-      const comprasPlanoLegadas = Array.from(
-        new Map(
-          pagamentosIniciais
-            .filter((pagamento: any) =>
-              pagamento.forma === "PLANO" &&
-              pagamento.planoClienteId &&
-              Number(pagamento.consumoUnidades || 0) > 0 &&
-              pagamento.planoCliente?.pago === false &&
-              !comprasPlanoIds.has(Number(pagamento.planoClienteId)),
-            )
-            .map((pagamento: any) => [Number(pagamento.planoClienteId), pagamento]),
-        ).values(),
-      ).map((pagamento: any) => ({
-        ...pagamento,
-        valor:
-          Number(pagamento.planoCliente?.plano?.valor || 0) +
-          Number(pagamento.planoCliente?.valorTaxaEntrega || 0) * Number(pagamento.planoCliente?.taxasEntregaCompradas || 0),
-        status: "PENDENTE",
-        consumoUnidades: null,
-        consumoEntregas: null,
-      }));
       const planosCompradosExibidos = Array.isArray(initialData.planosCompradosExibidos)
         ? initialData.planosCompradosExibidos
             .filter((plano: any) => Number(plano.id) > 0)
@@ -754,7 +732,7 @@ export function NovoAgendamentoNovoLayout({
       setPlanosComprados(
         planosCompradosExibidos.length > 0
           ? planosCompradosExibidos
-          : [...comprasPlanoRegistradas, ...comprasPlanoLegadas]
+          : comprasPlanoRegistradas
           .map((pagamento: any) => {
             const plano = pagamento.planoCliente?.plano;
             const valorTotal = Number(pagamento.valor || 0);
@@ -866,8 +844,13 @@ export function NovoAgendamentoNovoLayout({
 
     const principalId = String(principal.id ?? "0");
     if (!enderecoSelecionadoId) {
-      setEnderecoSelecionadoId(principalId);
-      setEndereco(formatEnderecoCliente(principal));
+      const enderecoNormalizado = endereco.trim().toLocaleLowerCase("pt-BR");
+      const enderecoSalvo = enderecosDisponiveis.find(
+        (item) => formatEnderecoCliente(item).trim().toLocaleLowerCase("pt-BR") === enderecoNormalizado,
+      );
+      const enderecoInicial = enderecoSalvo || principal;
+      setEnderecoSelecionadoId(String(enderecoInicial.id ?? "0"));
+      setEndereco(formatEnderecoCliente(enderecoInicial));
       return;
     }
 

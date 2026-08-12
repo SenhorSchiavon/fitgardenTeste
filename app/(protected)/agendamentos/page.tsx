@@ -1000,24 +1000,7 @@ export default function Agendamentos() {
         Number(p.consumoEntregas || 0) === 0 &&
         Number(p.valor || 0) > 0,
     );
-    const pagamentosCompraPlanoLegados = pagamentos
-          .filter((p: any) => {
-            if (p.forma !== "PLANO" || !p.planoClienteId || !p.planoCliente || p.planoCliente.pago) return false;
-            if (Number(p.consumoUnidades || 0) <= 0) return false;
-            return true;
-          })
-          .map((p: any) => ({
-            ...p,
-            valor: Number(p.planoCliente?.plano?.valor || 0) +
-              Number(p.planoCliente?.valorTaxaEntrega || 0) * Number(p.planoCliente?.taxasEntregaCompradas || 0),
-            status: "PENDENTE",
-          }));
-    const pagamentosCompraPlano = [
-      ...pagamentosCompraPlanoAtuais,
-      ...pagamentosCompraPlanoLegados.filter((legado: any) =>
-        !pagamentosCompraPlanoAtuais.some((atual: any) => Number(atual.planoClienteId) === Number(legado.planoClienteId)),
-      ),
-    ];
+    const pagamentosCompraPlano = pagamentosCompraPlanoAtuais;
     const valorPlanosComprados = pagamentosCompraPlano
       .reduce((acc: number, p: any) => acc + Number(p.valor || 0), 0);
     const planosComprados = pagamentosCompraPlano.map((p: any) => ({
@@ -1130,10 +1113,11 @@ export default function Agendamentos() {
         ? "VOUCHER"
         : valorPlanosCompradosPendente > 0
         ? pagamentosCompraPlano.find((pagamento: any) => pagamento.status === "PENDENTE")?.forma || "PLANO"
+        : pagamentoNaoPlanoRelevante?.forma
+        ? pagamentoNaoPlanoRelevante.forma
         : usouPlano && valorTotalFinal <= 0
         ? "PLANO"
-        : pagamentoNaoPlanoRelevante?.forma ??
-          pagamentos.find((p: any) => p.forma === "PLANO")?.forma ??
+        : pagamentos.find((p: any) => p.forma === "PLANO")?.forma ??
           row.formaPagamento ??
           "-";
 
@@ -2276,6 +2260,7 @@ export default function Agendamentos() {
           let agendamentoCriadoId: number | null = null;
           if (modoEdicao && agendamentoEditandoId) {
             await updateAgendamento(agendamentoEditandoId, {
+              planosCompradosIds: payload.planosCompradosIds,
               tipo: payload.tipo,
               data: payload.data,
               dataEntregaCongelada: payload.dataEntregaCongelada,
