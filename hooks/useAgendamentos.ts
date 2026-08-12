@@ -141,6 +141,7 @@ export type CreateAgendamentoInput = {
   pagamentoJaRealizado?: boolean;
   valorDescontoManual?: number;
   motivoDescontoManual?: string;
+  cobrarTaxaEntrega?: boolean;
   abaterTaxaEntregaPlano?: boolean;
   itens: AgendamentoItemInput[];
 };
@@ -163,6 +164,7 @@ export type UpdateAgendamentoInput = Partial<{
   pagamentoJaRealizado: boolean;
   valorDescontoManual: number;
   motivoDescontoManual: string | null;
+  cobrarTaxaEntrega: boolean;
   senhaAutorizacao: string;
   abaterTaxaEntregaPlano: boolean;
   itens: AgendamentoItemInput[];
@@ -551,6 +553,7 @@ export function useAgendamentos(options?: { baseUrl?: string }) {
           pagamentoJaRealizado: !!payload.pagamentoJaRealizado,
           valorDescontoManual: Number(payload.valorDescontoManual || 0),
           motivoDescontoManual: payload.motivoDescontoManual?.trim() || undefined,
+          cobrarTaxaEntrega: payload.cobrarTaxaEntrega,
           abaterTaxaEntregaPlano: payload.abaterTaxaEntregaPlano,
           itens: (payload.itens || []).map((it) => ({
             tipoItem: it.tipoItem === "PERSONALIZADA" ? "PERSONALIZADA" : it.tipoItem === "SALGADO" ? "SALGADO" : it.tipoItem === "CONGELADA" ? "CONGELADA" : "PADRAO",

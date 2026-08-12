@@ -17,6 +17,11 @@ const dmSerif = DM_Serif_Display({
 export const metadata: Metadata = {
   title: "FitGarden - Sistema de Gestão",
   description: "Sistema de gestão para marmitas fit",
+  icons: {
+    icon: [{ url: "/icon.svg", type: "image/svg+xml" }],
+    shortcut: "/icon.svg",
+    apple: "/icon.svg",
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

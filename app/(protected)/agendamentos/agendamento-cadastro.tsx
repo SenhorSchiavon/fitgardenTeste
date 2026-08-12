@@ -467,6 +467,7 @@ export function NovoAgendamentoNovoLayout({
   const [importarPedidoOpen, setImportarPedidoOpen] = useState(false);
   const [pedidosPendentesCliente, setPedidosPendentesCliente] = useState<any[]>([]);
   const [buscaImportacao, setBuscaImportacao] = useState("");
+  const [nomesImportacao, setNomesImportacao] = useState<Record<number, string>>({});
   const [carregandoPedidosPendentes, setCarregandoPedidosPendentes] = useState(false);
   const [pedidosPublicosIds, setPedidosPublicosIds] = useState<number[]>([]);
   const [dadosClientePedidoImportado, setDadosClientePedidoImportado] = useState<{ nome: string; telefone: string } | null>(null);
@@ -774,6 +775,9 @@ export function NovoAgendamentoNovoLayout({
           (pagamento: any) => pagamento.forma === "PLANO" && Number(pagamento.consumoEntregas || 0) > 0,
         ),
       );
+      setIncluirTaxaEntrega(
+        Number(initialData.valorTaxa ?? initialData.pedido?.valorTaxa ?? 0) > 0,
+      );
       
       const rawItens = initialData.itens || initialData.pedido?.itens || [];
       const grupoPedidoPublico = initialData.pedidoPublicoId
@@ -850,9 +854,9 @@ export function NovoAgendamentoNovoLayout({
   );
 
   useEffect(() => {
-    if (!open || !ehEntrega || saldoEntregasPlano <= 0) return;
+    if (!open || initialData || !ehEntrega || saldoEntregasPlano <= 0) return;
     setAbaterTaxaEntregaPlano(true);
-  }, [open, clienteId, ehEntrega, saldoEntregasPlano]);
+  }, [open, initialData, clienteId, ehEntrega, saldoEntregasPlano]);
 
   useEffect(() => {
     if (!clienteSelecionado || !ehEntrega) return;
@@ -2932,6 +2936,7 @@ export function NovoAgendamentoNovoLayout({
         : false,
       valorDescontoManual: Math.max(0, Number(valorDescontoManual || 0)),
       motivoDescontoManual: motivoDescontoManual.trim(),
+      cobrarTaxaEntrega: ehEntrega && incluirTaxaEntrega,
       abaterTaxaEntregaPlano: ehEntrega && incluirTaxaEntrega && abaterTaxaEntregaPlano,
       ...(ehEntrega && incluirTaxaEntrega && valorTaxa > 0 ? { valorTaxa } : {}),
       itens: itensComPrecoBruto.map(it => ({
@@ -2953,6 +2958,7 @@ export function NovoAgendamentoNovoLayout({
 
   async function abrirImportacaoPedido() {
     setBuscaImportacao("");
+    setNomesImportacao({});
     setImportarPedidoOpen(true);
     setCarregandoPedidosPendentes(true);
     try {
@@ -2980,6 +2986,11 @@ export function NovoAgendamentoNovoLayout({
   }, [buscaImportacao, pedidosPendentesCliente]);
 
   function importarPedidoPublico(pedido: any) {
+    const nomeImportado = String(nomesImportacao[Number(pedido.id)] ?? pedido.nome ?? clienteSelecionado?.nome ?? "").trim();
+    if (!nomeImportado) {
+      toast.error("Nome não informado", { description: "Informe o nome para a etiqueta antes de importar o pedido." });
+      return;
+    }
     const telefonePedido = normalizarTelefoneComparacao(pedido.telefone);
     const personalizada = pedido.itens?.personalizada || {};
     const customizado = String(pedido.tamanhoLabel).toUpperCase() === "PERSONALIZADO";
@@ -3006,7 +3017,7 @@ export function NovoAgendamentoNovoLayout({
             id: uid(),
             groupId: `pedido-publico:${pedido.id}:congeladas`,
             tipoItem: "CONGELADA",
-            destinatarioNome: pedido.nome || clienteSelecionado?.nome || "",
+            destinatarioNome: nomeImportado,
             congeladaId: String(item.congeladaId || ""),
             congeladaNome: item.nome || congelada?.nome || "Congelada",
             tamanhoId: tamanho?.id || "",
@@ -3031,7 +3042,7 @@ export function NovoAgendamentoNovoLayout({
         id: uid(),
         groupId,
         tipoItem: customizado ? "PERSONALIZADA" : "PADRAO",
-        destinatarioNome: pedido.nome || clienteSelecionado?.nome || "",
+        destinatarioNome: nomeImportado,
         tamanhoId: customizado ? tamanhoPersonalizado?.id || "" : pedido.tamanhoId ? String(pedido.tamanhoId) : "",
         tamanhoLabel: customizado && pesoPersonalizado > 0 ? `${pesoPersonalizado}g` : pedido.tamanhoLabel || "",
         quantidade: Math.max(1, Number(item.quantidade || 1)),
@@ -5475,11 +5486,32 @@ export function NovoAgendamentoNovoLayout({
           <div className="min-h-0 flex-1 space-y-2 overflow-y-auto px-6 py-4">
             {pedidosPendentesFiltrados.map((pedido) => {
               const importado = pedidosPublicosIds.includes(Number(pedido.id));
+              const nomeImportacao = nomesImportacao[Number(pedido.id)] ?? String(pedido.nome || "");
               return (
-              <button key={pedido.id} type="button" disabled={importado} onClick={() => importarPedidoPublico(pedido)} className={cn("flex w-full items-center justify-between rounded-lg border p-3 text-left hover:border-emerald-400 hover:bg-emerald-50", importado && "border-emerald-300 bg-emerald-50 opacity-70")}>
-                <div className="min-w-0"><p className="font-bold">Pedido #{pedido.id} · {pedido.tamanhoLabel}</p><p className="truncate text-sm font-medium">{pedido.nome || "Sem nome"} · {pedido.telefone || "Sem telefone"}</p><p className="text-xs text-muted-foreground">{new Date(pedido.createdAt).toLocaleString("pt-BR")}</p></div>
-                <Badge>{importado ? "Importado" : `${([...(pedido.itens?.escolhas || []), ...(pedido.itens?.congeladas || [])]).reduce((acc: number, item: any) => acc + Number(item.quantidade || 0), 0)} marmitas`}</Badge>
-              </button>
+              <div key={pedido.id} className={cn("space-y-3 rounded-lg border p-3", importado && "border-emerald-300 bg-emerald-50 opacity-70")}>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0"><p className="font-bold">Pedido #{pedido.id} · {pedido.tamanhoLabel}</p><p className="truncate text-sm font-medium">{pedido.nome || "Sem nome"} · {pedido.telefone || "Sem telefone"}</p><p className="text-xs text-muted-foreground">{new Date(pedido.createdAt).toLocaleString("pt-BR")}</p></div>
+                  <Badge>{importado ? "Importado" : `${([...(pedido.itens?.escolhas || []), ...(pedido.itens?.congeladas || [])]).reduce((acc: number, item: any) => acc + Number(item.quantidade || 0), 0)} marmitas`}</Badge>
+                </div>
+                <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+                  <div className="space-y-1">
+                    <Label htmlFor={`nome-importacao-${pedido.id}`} className="text-xs">Nome na etiqueta / subpedido</Label>
+                    <Input
+                      id={`nome-importacao-${pedido.id}`}
+                      value={nomeImportacao}
+                      disabled={importado}
+                      onChange={(event) => setNomesImportacao((atual) => ({
+                        ...atual,
+                        [Number(pedido.id)]: event.target.value,
+                      }))}
+                      placeholder="Informe o nome para a etiqueta"
+                    />
+                  </div>
+                  <Button type="button" disabled={importado || !nomeImportacao.trim()} onClick={() => importarPedidoPublico(pedido)}>
+                    {importado ? "Importado" : "Importar"}
+                  </Button>
+                </div>
+              </div>
             )})}
           </div>
           <div className="shrink-0 border-t bg-slate-50 px-6 py-3"><p className="text-xs text-muted-foreground">Você pode importar vários pedidos. Todos sairão dos pendentes após salvar o agendamento.</p></div>

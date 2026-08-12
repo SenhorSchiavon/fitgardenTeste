@@ -460,12 +460,21 @@ export default function Agendamentos() {
   }, [agendamentos, buscaAgendamento]);
 
   const agendamentosPorRota = useMemo(() => {
-    const grupos = ROTAS_ENTREGA.map((rota) => ({
-      ...rota,
-      agendamentos: ordenarAgendamentosRota(
+    const contarMarmitas = (lista: Agendamento[]) => lista.reduce((total, agendamento) => (
+      total + agendamento.itens
+        .filter((item) => item.tipoItem !== "SALGADO")
+        .reduce((subtotal, item) => subtotal + Number(item.quantidade || 0), 0)
+    ), 0);
+    const grupos = ROTAS_ENTREGA.map((rota) => {
+      const agendamentosRota = ordenarAgendamentosRota(
         agendamentosFiltrados.filter((agendamento) => getRotaAgendamento(agendamento)?.id === rota.id),
-      ),
-    })).filter((grupo) => grupo.agendamentos.length > 0);
+      );
+      return {
+        ...rota,
+        agendamentos: agendamentosRota,
+        totalMarmitas: contarMarmitas(agendamentosRota),
+      };
+    }).filter((grupo) => grupo.agendamentos.length > 0);
     const semRota = ordenarAgendamentosRota(
       agendamentosFiltrados.filter((agendamento) => !getRotaAgendamento(agendamento)),
     );
@@ -478,6 +487,7 @@ export default function Agendamentos() {
         end: 0,
         color: "#94a3b8",
         agendamentos: semRota,
+        totalMarmitas: contarMarmitas(semRota),
       });
     }
     return grupos;
@@ -522,7 +532,16 @@ export default function Agendamentos() {
       : faixaHorario;
     const grupos = new Map<string, { titulo: string; linhas: string[]; totalMarmitas: number; subtotal: number }>();
     agendamento.itens.forEach((item) => {
-      const detalhes = [item.carbo, item.proteina, item.legume, item.feijao, item.complemento].filter(Boolean);
+      const personalizada = item.tipoItem === "PERSONALIZADA";
+      const detalhes = personalizada
+        ? [
+            [item.carbo, item.carboGramas],
+            [item.proteina, item.proteinaGramas],
+            [item.legume, item.legumeGramas],
+            [item.feijao, item.feijaoGramas],
+            [item.complemento, item.complementoGramas],
+          ].filter(([nome, gramas]) => !!nome && Number(gramas || 0) > 0).map(([nome]) => nome)
+        : [item.carbo, item.proteina, item.legume, item.feijao, item.complemento].filter(Boolean);
       const descricaoBase = detalhes.length ? detalhes.join(" + ") : item.nome;
       const descricao = [
         descricaoBase,
@@ -532,7 +551,6 @@ export default function Agendamentos() {
       const descricaoComArroz = item.adicionarArroz && item.tipoItem !== "PERSONALIZADA"
         ? `${descricao} + ARROZ ADICIONAL`
         : descricao;
-      const personalizada = item.tipoItem === "PERSONALIZADA";
       const pesagens = personalizada
         ? [
             [item.carbo, item.carboGramas],
@@ -1550,8 +1568,9 @@ export default function Agendamentos() {
                       <Printer className="mr-2 h-4 w-4 text-slate-500" />
                       <div className="flex flex-1 items-center justify-between gap-3">
                         <span className="font-medium">{grupo.label}</span>
-                        <span className="text-xs text-slate-400">
-                          {grupo.agendamentos.length} pedido{grupo.agendamentos.length === 1 ? "" : "s"}
+                        <span className="text-right text-xs text-slate-400">
+                          <span className="block">{grupo.agendamentos.length} pedido{grupo.agendamentos.length === 1 ? "" : "s"}</span>
+                          <span className="block">{grupo.totalMarmitas} marmita{grupo.totalMarmitas === 1 ? "" : "s"}</span>
                         </span>
                       </div>
                     </DropdownMenuItem>
@@ -1584,9 +1603,14 @@ export default function Agendamentos() {
                           <h3 className="text-sm font-black uppercase tracking-widest text-slate-600">{grupo.label}</h3>
                           <span className="text-xs text-slate-400">{grupo.intervalo}</span>
                         </div>
-                        <Badge variant="outline" className="border-slate-200 text-slate-500">
-                          {grupo.agendamentos.length} pedido{grupo.agendamentos.length === 1 ? "" : "s"}
-                        </Badge>
+                        <div className="flex items-center gap-2">
+                          <Badge variant="outline" className="border-slate-200 text-slate-500">
+                            {grupo.agendamentos.length} pedido{grupo.agendamentos.length === 1 ? "" : "s"}
+                          </Badge>
+                          <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-700">
+                            {grupo.totalMarmitas} marmita{grupo.totalMarmitas === 1 ? "" : "s"}
+                          </Badge>
+                        </div>
                       </div>
 
                       {grupo.agendamentos.map((agendamento) => (
@@ -2316,6 +2340,7 @@ export default function Agendamentos() {
               valorDescontoManual: payload.valorDescontoManual,
               motivoDescontoManual: payload.motivoDescontoManual,
               senhaAutorizacao: payload.senhaAutorizacao,
+              cobrarTaxaEntrega: payload.cobrarTaxaEntrega,
               abaterTaxaEntregaPlano: payload.abaterTaxaEntregaPlano,
               itens: payload.itens.map((it: any) => ({
                 tipoItem: it.tipoItem,
@@ -2390,6 +2415,7 @@ export default function Agendamentos() {
               pagamentoJaRealizado: payload.pagamentoJaRealizado,
               valorDescontoManual: payload.valorDescontoManual,
               motivoDescontoManual: payload.motivoDescontoManual,
+              cobrarTaxaEntrega: payload.cobrarTaxaEntrega,
               abaterTaxaEntregaPlano: payload.abaterTaxaEntregaPlano,
               itens: payload.itens.map((it: any) => ({
                 tipoItem: it.tipoItem,
