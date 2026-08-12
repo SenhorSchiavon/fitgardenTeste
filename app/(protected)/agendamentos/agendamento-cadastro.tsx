@@ -226,6 +226,7 @@ type Props = {
   onCreateCliente?: (payload: any) => Promise<any> | any;
   onUpdateCliente?: (id: number, payload: any) => Promise<any> | any;
   savingCliente?: boolean;
+  modoOrcamento?: boolean;
 };
 
 type HorarioIntervalo = {
@@ -451,6 +452,7 @@ export function NovoAgendamentoNovoLayout({
   onCreateCliente,
   onUpdateCliente,
   savingCliente = false,
+  modoOrcamento = false,
   initialData,
 }: Props) {
   const { regras } = useRegrasPersonalizadas();
@@ -2890,6 +2892,19 @@ export function NovoAgendamentoNovoLayout({
     }
 
     const payload: any = {
+      orcamentoResumo: {
+        clienteNome: clienteSelecionado?.nome || dadosClientePedidoImportado?.nome || "Cliente",
+        subtotal: subtotalPedido,
+        taxaEntrega: valorTaxaEntregaResumo,
+        desconto: valorDescontoManualAplicado + valorDescontoVoucherResumo,
+        total: Math.max(0, valorAntesDescontoManual - valorDescontoManualAplicado),
+        itens: itensComPrecoFinal.map((item) => ({
+          quantidade: Number(item.quantidade || 0),
+          nome: getNomeItem(item),
+          detalhe: getDetalheListaItem(item),
+          valor: Number(item.precoUnit || 0) * Number(item.quantidade || 0),
+        })),
+      },
       pedidosPublicosIds,
       planosCompradosIds: planosComprados.map((plano) => plano.id),
       clienteId,
@@ -3871,7 +3886,7 @@ export function NovoAgendamentoNovoLayout({
                         <SelectItem value="VOUCHER">Voucher</SelectItem>
                         <SelectItem value="TROCA">Troca</SelectItem>
                         <SelectItem value="BONIFICACAO">Bonificação</SelectItem>
-                        <SelectItem value="PLANO">Plano</SelectItem>
+                        {!modoOrcamento && <SelectItem value="PLANO">Plano</SelectItem>}
                       </SelectContent>
                     </Select>
                     {avisoPagamentoAutomatico && (
@@ -4181,7 +4196,7 @@ export function NovoAgendamentoNovoLayout({
               </div>
             </Button>
 
-            {podeAdicionarPlano && (
+            {podeAdicionarPlano && !modoOrcamento && (
               <Button
                 type="button"
                 variant="outline"

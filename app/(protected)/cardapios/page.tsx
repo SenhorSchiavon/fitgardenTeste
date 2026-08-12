@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Pencil, Trash, Check, Power, ImageIcon, Upload, ExternalLink, Phone, Globe2, Factory, PauseCircle, PlayCircle } from "lucide-react";
+import { Plus, Pencil, Trash, Check, Power, ImageIcon, Upload, ExternalLink, Phone, Globe2, Factory, PauseCircle, PlayCircle, Snowflake } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -264,6 +264,9 @@ export default function CardapiosPage() {
     return destino === "alternativo" ? `${base}?destino=alternativo` : base;
   };
 
+  const congeladasFormLink = () =>
+    typeof window === "undefined" ? "/congeladas-da-semana" : `${window.location.origin}/congeladas-da-semana`;
+
   const openTelefonesDialog = async () => {
     setTelefonesDialogOpen(true);
     setLoadingTelefones(true);
@@ -302,6 +305,11 @@ export default function CardapiosPage() {
         <Button variant="outline" asChild>
           <a href={publicFormLink("alternativo")} target="_blank" rel="noreferrer">
             Alternativo <ExternalLink className="h-4 w-4" />
+          </a>
+        </Button>
+        <Button variant="outline" asChild>
+          <a href={congeladasFormLink()} target="_blank" rel="noreferrer">
+            <Snowflake className="mr-2 h-4 w-4" /> Congeladas <ExternalLink className="h-4 w-4" />
           </a>
         </Button>
         <Button variant="outline" onClick={openTelefonesDialog} disabled={saving}>

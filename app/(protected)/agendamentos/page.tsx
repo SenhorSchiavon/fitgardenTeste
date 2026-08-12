@@ -395,6 +395,16 @@ export default function Agendamentos() {
     number | null
   >(null);
   const [dadosEdicao, setDadosEdicao] = useState<any>(null);
+  const [modoOrcamento, setModoOrcamento] = useState(false);
+
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("orcamento") !== "1") return;
+    setModoOrcamento(true);
+    setModoEdicao(false);
+    setAgendamentoEditandoId(null);
+    setDadosEdicao(null);
+    setCadastroOpen(true);
+  }, []);
 
   useEffect(() => {
     const raw = sessionStorage.getItem("fitgarden:pedido-publico-agendamento");
@@ -2188,11 +2198,16 @@ export default function Agendamentos() {
       </Sheet>
 
       <NovoAgendamentoNovoLayout
+        modoOrcamento={modoOrcamento}
         open={cadastroOpen}
         onOpenChange={(open) => {
           setCadastroOpen(open);
 
           if (!open) {
+            if (modoOrcamento) {
+              setModoOrcamento(false);
+              window.history.replaceState({}, "", "/agendamentos");
+            }
             setModoEdicao(false);
             setAgendamentoEditandoId(null);
             setDadosEdicao(null);
@@ -2256,6 +2271,30 @@ export default function Agendamentos() {
         onCreateCliente={createCliente}
         onUpdateCliente={updateCliente}
         onSubmit={async (payload) => {
+          if (modoOrcamento) {
+            const resumo = payload.orcamentoResumo || {};
+            const dinheiro = (valor: number) => Number(valor || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+            const linhasItens = (resumo.itens || []).map((item: any) =>
+              `• ${item.quantidade}x ${item.nome}${item.detalhe ? ` — ${item.detalhe}` : ""}: ${dinheiro(item.valor)}`,
+            );
+            const mensagem = [
+              `Olá, ${String(resumo.clienteNome || "cliente").split(" ")[0]}! Segue o orçamento solicitado:`,
+              "",
+              ...linhasItens,
+              "",
+              `Subtotal: ${dinheiro(resumo.subtotal)}`,
+              Number(resumo.taxaEntrega || 0) > 0 ? `Taxa de entrega: ${dinheiro(resumo.taxaEntrega)}` : null,
+              Number(resumo.desconto || 0) > 0 ? `Desconto: - ${dinheiro(resumo.desconto)}` : null,
+              `*Total: ${dinheiro(resumo.total)}*`,
+              "",
+              "Este orçamento não reserva data nem estoque. Para confirmar, responda esta mensagem.",
+            ].filter((linha): linha is string => linha !== null).join("\n");
+            await navigator.clipboard.writeText(mensagem);
+            toast({ title: "Orçamento copiado", description: "A mensagem está pronta para enviar ao cliente." });
+            setModoOrcamento(false);
+            window.history.replaceState({}, "", "/agendamentos");
+            return;
+          }
           let pedidoCriadoId: number | null = null;
           let agendamentoCriadoId: number | null = null;
           if (modoEdicao && agendamentoEditandoId) {

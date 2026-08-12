@@ -69,6 +69,7 @@ const cadastroItems: NavItem[] = [
 
 const pedidosItems: NavItem[] = [
   { href: "/pedidos-clientes", label: "Pedidos de clientes", icon: ShoppingCart, screen: "pedidos-clientes" },
+  { href: "/orcamento", label: "Orçamento", icon: ClipboardList, screen: "agendamentos" },
   { href: "/agendamentos", label: "Agendamentos", icon: Calendar, screen: "agendamentos" },
   { href: "/pedidos-aberto", label: "Em Aberto", icon: CreditCard, screen: "pedidos-aberto" },
   { href: "/historico-pedidos", label: "Histórico", icon: ClipboardList, screen: "historico-pedidos" },
