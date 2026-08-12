@@ -122,6 +122,7 @@ export type AgendamentoItemInput = {
 
 export type CreateAgendamentoInput = {
   clienteId: number;
+  pedidosPublicosIds?: number[];
   planosCompradosIds?: number[];
   tipo: PedidoTipo;
   data: Date | string;
@@ -525,6 +526,7 @@ export function useAgendamentos(options?: { baseUrl?: string }) {
       try {
         const body = {
           clienteId: Number(payload.clienteId),
+          pedidosPublicosIds: (payload.pedidosPublicosIds || []).map(Number).filter((id) => Number.isFinite(id) && id > 0),
           planosCompradosIds: (payload.planosCompradosIds || []).map(Number).filter((id) => Number.isFinite(id) && id > 0),
           tipo: payload.tipo,
           data:

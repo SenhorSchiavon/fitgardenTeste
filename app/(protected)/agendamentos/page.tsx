@@ -2311,9 +2311,30 @@ export default function Agendamentos() {
                 usarPlano: !!it.usarPlano,
               })),
             });
+            const pedidosPublicosImportadosIds = Array.from(new Set([
+              ...(Array.isArray(payload.pedidosPublicosIds) ? payload.pedidosPublicosIds : []),
+              ...(Array.isArray(dadosEdicao?.pedidosPublicosIds) ? dadosEdicao.pedidosPublicosIds : []),
+              ...(dadosEdicao?.pedidoPublicoId ? [dadosEdicao.pedidoPublicoId] : []),
+            ].map(Number).filter(Boolean)));
+            await Promise.all(pedidosPublicosImportadosIds.map((pedidoPublicoImportadoId) =>
+              apiFetch(`${String(process.env.NEXT_PUBLIC_API_URL || "http://localhost:3333/api").replace(/\/+$/, "")}/pedidos-publicos/${pedidoPublicoImportadoId}`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  clienteId: Number(payload.clienteId),
+                  status: "AGENDADO",
+                  agendamentoId: agendamentoEditandoId,
+                }),
+              })
+            ));
           } else {
             const criado = await createAgendamento({
               clienteId: Number(payload.clienteId),
+              pedidosPublicosIds: Array.from(new Set([
+                ...(Array.isArray(payload.pedidosPublicosIds) ? payload.pedidosPublicosIds : []),
+                ...(Array.isArray(dadosEdicao?.pedidosPublicosIds) ? dadosEdicao.pedidosPublicosIds : []),
+                ...(dadosEdicao?.pedidoPublicoId ? [dadosEdicao.pedidoPublicoId] : []),
+              ].map(Number).filter(Boolean))),
               tipo: payload.tipo,
               data: payload.data,
               dataEntregaCongelada: payload.dataEntregaCongelada,

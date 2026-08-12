@@ -1,8 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import Link from "next/link";
-import { CheckCircle2, ChevronDown, ClipboardList, Leaf, MessageCircle, Minus, Plus, Send, ShoppingBasket, Snowflake, Soup, Star, User, Utensils } from "lucide-react";
+import { CheckCircle2, ChevronDown, ClipboardList, Leaf, MessageCircle, Minus, Plus, Send, ShoppingBasket, Soup, Star, User, Utensils } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -97,6 +96,11 @@ function categoryStyle(category: string) {
   return { icon: Star, color: "text-[#b85b36]", bg: "bg-[#fff7f2]", border: "border-[#f1d7c8]" };
 }
 
+function naoPermitePersonalizacao(opcao: OpcaoPublica) {
+  const texto = `${normalize(opcao.nome)} ${normalize(opcao.categoria)}`;
+  return /\b(?:SOPA|SOPAS|CANJA|CALDO|CALDOS)\b/.test(texto);
+}
+
 export default function CardapioDaSemanaPage() {
   const dadosSectionRef = useRef<HTMLElement>(null);
   const [cardapio, setCardapio] = useState<CardapioPublico | null>(null);
@@ -189,6 +193,8 @@ export default function CardapioDaSemanaPage() {
 
   function changeQuantity(id: string, delta: number) {
     if (!tamanhoSelecionado) return;
+    const opcao = opcoes.find((item) => item.id === id);
+    if (tamanhoSelecionado === "PERSONALIZADO" && opcao && naoPermitePersonalizacao(opcao)) return;
 
     setItensPedido((prev) => {
       const atual = Number(prev[id] || 0);
@@ -303,9 +309,6 @@ export default function CardapioDaSemanaPage() {
             <p className="mt-2 text-sm font-medium text-[#47625d] sm:text-base">
               Monte seu pedido escolhendo o tamanho e a quantidade de cada marmita.
             </p>
-            <Link href="/cardapio-da-semana/congeladas" className="mt-4 inline-flex items-center rounded-xl bg-sky-100 px-4 py-2 text-sm font-black uppercase text-sky-800 hover:bg-sky-200">
-              <Snowflake className="mr-2 h-4 w-4" /> Ver marmitas congeladas
-            </Link>
           </div>
 
         </header>
@@ -350,7 +353,16 @@ export default function CardapioDaSemanaPage() {
                   <Label className="text-base font-black uppercase text-[#14332f]">Tamanho do pedido</Label>
                   <select
                     value={tamanhoSelecionado}
-                    onChange={(event) => setTamanhoSelecionado(event.target.value as TamanhoSelecionado)}
+                    onChange={(event) => {
+                      const tamanho = event.target.value as TamanhoSelecionado;
+                      setTamanhoSelecionado(tamanho);
+                      if (tamanho === "PERSONALIZADO") {
+                        const bloqueados = new Set(opcoes.filter(naoPermitePersonalizacao).map((opcao) => opcao.id));
+                        setItensPedido((atuais) => Object.fromEntries(
+                          Object.entries(atuais).filter(([id]) => !bloqueados.has(id)),
+                        ));
+                      }
+                    }}
                     className="h-11 w-full rounded-xl border border-[#d8cbbd] bg-[#fffdf8] px-3 text-sm font-black text-[#14332f]"
                   >
                     <option value="" disabled>
@@ -403,16 +415,19 @@ export default function CardapioDaSemanaPage() {
                             </Badge>
                             <div className="min-w-0">
                               <div className="text-sm font-semibold leading-snug text-[#253f3a]">{opcao.nome}</div>
+                              {tamanhoSelecionado === "PERSONALIZADO" && naoPermitePersonalizacao(opcao) ? (
+                                <p className="mt-1 text-xs font-bold text-orange-700">Não disponível como personalizada.</p>
+                              ) : null}
                               {opcao.descricao?.trim() ? (
                                 <p className="mt-1 text-xs font-medium leading-snug text-[#60746f]">{opcao.descricao}</p>
                               ) : null}
                             </div>
                             <div className="grid grid-cols-[34px_34px_34px] justify-end overflow-hidden rounded-lg border bg-white sm:grid-cols-[38px_38px_38px]">
                               <div className="grid place-items-center text-sm font-black tabular-nums text-[#14332f]">{quantidade}</div>
-                              <button type="button" disabled={!tamanhoSelecionado} className="grid place-items-center border-l text-[#14332f] transition hover:bg-[#f6e4d8] disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-300" onClick={() => changeQuantity(opcao.id, -1)}>
+                              <button type="button" disabled={!tamanhoSelecionado || (tamanhoSelecionado === "PERSONALIZADO" && naoPermitePersonalizacao(opcao))} className="grid place-items-center border-l text-[#14332f] transition hover:bg-[#f6e4d8] disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-300" onClick={() => changeQuantity(opcao.id, -1)}>
                                 <Minus className="h-4 w-4" />
                               </button>
-                              <button type="button" disabled={!tamanhoSelecionado} className="grid place-items-center border-l text-[#14332f] transition hover:bg-[#dceee5] disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-300" onClick={() => changeQuantity(opcao.id, 1)}>
+                              <button type="button" disabled={!tamanhoSelecionado || (tamanhoSelecionado === "PERSONALIZADO" && naoPermitePersonalizacao(opcao))} className="grid place-items-center border-l text-[#14332f] transition hover:bg-[#dceee5] disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-300" onClick={() => changeQuantity(opcao.id, 1)}>
                                 <Plus className="h-4 w-4" />
                               </button>
                             </div>

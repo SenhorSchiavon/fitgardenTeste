@@ -580,6 +580,25 @@ export function NovoAgendamentoNovoLayout({
     complementoGramas: 0,
   });
 
+  const ingredientePadraoPersonalizada = (items: OpcaoCardapio[], nome: string) => {
+    const normalizar = (valor: string) => valor.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLowerCase();
+    const procurado = normalizar(nome);
+    return items.find((item) => normalizar(item.nome) === procurado) || null;
+  };
+
+  const defaultsPersonalizada = () => {
+    const legume = ingredientePadraoPersonalizada(legumes, "Mix de legumes");
+    const feijao = ingredientePadraoPersonalizada(feijoes, "Feijão");
+    return {
+      legumeId: legume?.id || "",
+      legumeNome: legume?.nome || "",
+      legumeGramas: 0,
+      feijaoId: feijao?.id || "",
+      feijaoNome: feijao?.nome || "",
+      feijaoGramas: 0,
+    };
+  };
+
   const clienteSelecionado = useMemo(
     () => clientes.find((c) => c.id === clienteId) || null,
     [clientes, clienteId]
@@ -2094,6 +2113,7 @@ export function NovoAgendamentoNovoLayout({
     const legume = componente("LEGUMES");
     const feijao = componente("FEIJAO");
     const complemento = componente("COMPLEMENTO");
+    const defaults = defaultsPersonalizada();
 
     setFormItem((prev) => ({
       ...prev,
@@ -2103,10 +2123,12 @@ export function NovoAgendamentoNovoLayout({
       carboNome: carbo?.nome || "",
       proteinaId: proteina?.preparoId || "",
       proteinaNome: proteina?.nome || "",
-      legumeId: legume?.preparoId || "",
-      legumeNome: legume?.nome || "",
-      feijaoId: feijao?.preparoId || "",
-      feijaoNome: feijao?.nome || "",
+      legumeId: defaults.legumeId || legume?.preparoId || "",
+      legumeNome: defaults.legumeNome || legume?.nome || "",
+      feijaoId: defaults.feijaoId || feijao?.preparoId || "",
+      feijaoNome: defaults.feijaoNome || feijao?.nome || "",
+      legumeGramas: prev.legumeGramas || 0,
+      feijaoGramas: prev.feijaoGramas || 0,
       complementoId: complemento?.preparoId || "",
       complementoNome: complemento?.nome || "",
       adicionarFeijao: false,
@@ -2987,6 +3009,7 @@ export function NovoAgendamentoNovoLayout({
       const legume = componente("LEGUMES");
       const feijao = componente("FEIJAO");
       const complemento = componente("COMPLEMENTO");
+      const defaults = defaultsPersonalizada();
 
       return {
         ...formItem,
@@ -3006,10 +3029,10 @@ export function NovoAgendamentoNovoLayout({
         carboNome: customizado ? carbo?.nome || "" : formItem.carboNome,
         proteinaId: customizado ? proteina?.preparoId || "" : formItem.proteinaId,
         proteinaNome: customizado ? proteina?.nome || "" : formItem.proteinaNome,
-        legumeId: customizado ? legume?.preparoId || "" : formItem.legumeId,
-        legumeNome: customizado ? legume?.nome || "" : formItem.legumeNome,
-        feijaoId: customizado && Number(personalizada.feijaoGramas || 0) > 0 ? feijao?.preparoId || "" : "",
-        feijaoNome: customizado && Number(personalizada.feijaoGramas || 0) > 0 ? feijao?.nome || "" : "",
+        legumeId: customizado ? defaults.legumeId || legume?.preparoId || "" : formItem.legumeId,
+        legumeNome: customizado ? defaults.legumeNome || legume?.nome || "" : formItem.legumeNome,
+        feijaoId: customizado ? defaults.feijaoId || feijao?.preparoId || "" : formItem.feijaoId,
+        feijaoNome: customizado ? defaults.feijaoNome || feijao?.nome || "" : formItem.feijaoNome,
         complementoId: customizado ? complemento?.preparoId || "" : formItem.complementoId,
         complementoNome: customizado ? complemento?.nome || "" : formItem.complementoNome,
         carboGramas: Number(personalizada.carboGramas || 0),
@@ -3190,18 +3213,16 @@ export function NovoAgendamentoNovoLayout({
                         <span className="sr-only">{clienteSelecionado ? "Editar cliente" : "Cadastrar cliente"}</span>
                       </Button>
                     </div>
-                    {!initialData ? (
-                      <Button
+                    <Button
                         type="button"
                         className="mt-2 w-full bg-blue-600 text-white hover:bg-blue-700"
                         onClick={() => void abrirImportacaoPedido()}
                       >
                         <Package className="mr-2 h-4 w-4" />
                         {pedidosPublicosIds.length
-                          ? `Importar mais pedidos})`
+                          ? "Importar mais pedidos"
                           : "Importar pedidos"}
                       </Button>
-                    ) : null}
                   </div>
 
                   {checandoDuplicidade && clienteId && data && !initialData && (
@@ -3568,9 +3589,39 @@ export function NovoAgendamentoNovoLayout({
                               <div className="mt-1 text-sm font-bold text-foreground">{plano.nome}</div>
                               <div className="text-[11px] text-muted-foreground">{plano.resumo}</div>
                             </div>
-                            <div className="shrink-0 text-left sm:text-right">
+                            <div className="flex shrink-0 items-center gap-2 text-left sm:text-right">
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 rounded-full text-red-600 hover:bg-red-50 hover:text-red-700"
+                                title="Excluir compra de plano"
+                                onClick={() => {
+                                  const usaPlano = itens.some((item) => item.usarPlano);
+                                  const aviso = usaPlano
+                                    ? `Cancelar a compra de ${plano.nome}? As marmitas sairão do plano e precisarão ser cobradas em outra forma de pagamento.`
+                                    : `Remover a compra de ${plano.nome} deste agendamento?`;
+                                  if (window.confirm(aviso)) {
+                                    setPlanosComprados((atuais) => atuais.filter((item) => item.id !== plano.id));
+                                    if (usaPlano) {
+                                      setItens((atuais) => atuais.map((item) => item.usarPlano ? { ...item, usarPlano: false } : item));
+                                      setAbaterTaxaEntregaPlano(false);
+                                    }
+                                    if (formaPagamento === "PLANO") setFormaPagamento("A_DEFINIR");
+                                    toast.success("Compra de plano removida", {
+                                      description: usaPlano
+                                        ? "As marmitas foram retiradas do plano. Escolha outra forma de pagamento antes de salvar."
+                                        : "A compra será cancelada ao salvar a edição.",
+                                    });
+                                  }
+                                }}
+                              >
+                                <Trash className="h-4 w-4" />
+                              </Button>
+                              <div>
                               <div className="text-[9px] font-black uppercase tracking-widest text-emerald-700">Valor</div>
                               <div className="text-sm font-extrabold text-emerald-800">R$ {currency(plano.valorTotal)}</div>
+                              </div>
                             </div>
                           </div>
                         </div>
@@ -4574,6 +4625,7 @@ export function NovoAgendamentoNovoLayout({
                             if (v === "__personalizado__") {
                               setFormItem((prev) => ({
                                 ...prev,
+                                ...defaultsPersonalizada(),
                                 tipoItem: "PERSONALIZADA",
                                 tamanhoId: "",
                                 tamanhoLabel: "",

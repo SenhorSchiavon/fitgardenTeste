@@ -15,6 +15,7 @@ export type Ingrediente = {
   categoriaDescricao: string;
   medida: Medida;
   precoCusto: number;
+  ehArroz: boolean;
 };
 
 type NovoIngredienteInput = {
@@ -22,6 +23,7 @@ type NovoIngredienteInput = {
   categoriaId: number;
   medidaId: number;
   precoCusto: number;
+  ehArroz?: boolean;
 };
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3333";

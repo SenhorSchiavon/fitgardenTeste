@@ -1,7 +1,6 @@
 "use client";
 
-import Link from "next/link";
-import { ArrowLeft, Minus, Plus, Send, ShoppingBasket, Snowflake } from "lucide-react";
+import { Minus, Plus, Send, ShoppingBasket, Snowflake } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -33,6 +32,7 @@ export default function CardapioCongeladasPage() {
   const [observacoes, setObservacoes] = useState("");
   const [erro, setErro] = useState("");
   const [enviando, setEnviando] = useState(false);
+  const [tamanhoSelecionado, setTamanhoSelecionado] = useState("");
 
   useEffect(() => {
     fetch(apiUrl("/public/cardapio-semana"), { cache: "no-store" })
@@ -45,6 +45,16 @@ export default function CardapioCongeladasPage() {
   }, []);
 
   const total = useMemo(() => Object.values(quantidades).reduce((soma, quantidade) => soma + Number(quantidade || 0), 0), [quantidades]);
+  const tamanhos = useMemo(
+    () => Array.from(new Set((dados?.congeladas || []).filter((item) => item.quantidade > 0).map((item) => item.tamanhoGramas))).sort((a, b) => a - b),
+    [dados],
+  );
+  const congeladasVisiveis = useMemo(
+    () => tamanhoSelecionado
+      ? (dados?.congeladas || []).filter((item) => item.quantidade > 0 && String(item.tamanhoGramas) === tamanhoSelecionado)
+      : [],
+    [dados, tamanhoSelecionado],
+  );
 
   function alterar(item: CongeladaPublica, delta: number) {
     setQuantidades((atual) => ({
@@ -73,6 +83,7 @@ export default function CardapioCongeladasPage() {
       const mensagem = `Olá, fiz um novo pedido pelo site! 😎\nPedido #${json.id}`;
       if (numero) openWhatsApp({ phone: numero, message: mensagem, desktopWindow: whatsappWindow });
       else whatsappWindow?.close();
+      setQuantidades({});
     } catch (e: any) {
       whatsappWindow?.close();
       setErro(e?.message || "Erro ao enviar pedido.");
@@ -84,14 +95,21 @@ export default function CardapioCongeladasPage() {
   return (
     <main className="min-h-screen bg-[#eef7f8] px-3 py-5 text-[#15332f] sm:px-6">
       <div className="mx-auto max-w-4xl rounded-[28px] border border-sky-100 bg-white p-4 shadow-xl sm:p-8">
-        <Link href="/cardapio-da-semana" className="inline-flex items-center text-sm font-bold text-[#47625d]"><ArrowLeft className="mr-2 h-4 w-4" /> Cardápio da semana</Link>
-        <header className="mt-5 flex items-center gap-4 border-b pb-5">
+        <header className="flex items-center gap-4 border-b pb-5">
           <div className="grid h-14 w-14 place-items-center rounded-2xl bg-sky-100 text-sky-700"><Snowflake className="h-8 w-8" /></div>
           <div><p className="text-xs font-black uppercase tracking-widest text-sky-700">Estoque disponível</p><h1 className="text-3xl font-black">Marmitas congeladas</h1></div>
         </header>
         {erro ? <p className="mt-5 rounded-xl bg-red-50 p-3 font-semibold text-red-700">{erro}</p> : null}
-        <section className="mt-6 divide-y overflow-hidden rounded-2xl border">
-          {(dados?.congeladas || []).map((item) => (
+        <section className="mt-6 space-y-3">
+          <div>
+            <Label htmlFor="tamanho-congelada" className="font-black">Selecione um tamanho</Label>
+            <select id="tamanho-congelada" className="mt-2 h-12 w-full rounded-xl border bg-white px-3 font-bold" value={tamanhoSelecionado} onChange={(event) => { setTamanhoSelecionado(event.target.value); setQuantidades({}); }}>
+              <option value="">Selecione um tamanho</option>
+              {tamanhos.map((tamanho) => <option key={tamanho} value={String(tamanho)}>{tamanho}g</option>)}
+            </select>
+          </div>
+          <div className="divide-y overflow-hidden rounded-2xl border">
+          {congeladasVisiveis.map((item) => (
             <div key={item.id} className="grid grid-cols-[1fr_auto] items-center gap-4 p-4">
               <div><p className="font-bold">{item.nome}</p><p className="text-sm text-[#60746f]">{item.tamanhoGramas}g · estoque {item.quantidade}</p></div>
               <div className="grid grid-cols-3 overflow-hidden rounded-xl border">
@@ -102,6 +120,9 @@ export default function CardapioCongeladasPage() {
             </div>
           ))}
           {dados && dados.congeladas.length === 0 ? <p className="p-8 text-center text-[#60746f]">Nenhuma congelada disponível no momento.</p> : null}
+          {dados && dados.congeladas.length > 0 && !tamanhoSelecionado ? <p className="p-8 text-center text-[#60746f]">Selecione um tamanho para ver as opções com estoque.</p> : null}
+          {tamanhoSelecionado && congeladasVisiveis.length === 0 ? <p className="p-8 text-center text-[#60746f]">Nenhuma congelada deste tamanho está disponível.</p> : null}
+          </div>
         </section>
         <section className="mt-6 space-y-4 rounded-2xl border p-4">
           <div className="flex items-center gap-2 font-black"><ShoppingBasket className="h-5 w-5" /> Seu pedido: {total} marmita(s)</div>

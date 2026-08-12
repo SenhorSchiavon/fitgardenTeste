@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
   Select,
@@ -53,6 +54,7 @@ type NovoIngredienteForm = {
   categoriaId: string;
   medidaId: string;
   precoCusto: string;
+  ehArroz: boolean;
 };
 
 export default function IngredientesPage() {
@@ -73,6 +75,7 @@ export default function IngredientesPage() {
     categoriaId: "",
     medidaId: "",
     precoCusto: "",
+    ehArroz: false,
   });
 
   const [editandoId, setEditandoId] = useState<number | null>(null);
@@ -104,6 +107,7 @@ export default function IngredientesPage() {
       categoriaId: "",
       medidaId: "",
       precoCusto: "",
+      ehArroz: false,
     });
     setEditandoId(null);
   };
@@ -139,6 +143,7 @@ export default function IngredientesPage() {
       categoriaId: String(ingrediente.categoriaId ?? ""),
       medidaId: String(ingrediente.medida?.id ?? ""),
       precoCusto: String(ingrediente.precoCusto),
+      ehArroz: !!ingrediente.ehArroz,
     });
     setEditandoId(ingrediente.id);
     setDialogOpen(true);
@@ -183,6 +188,7 @@ export default function IngredientesPage() {
       categoriaId: categoriaIdNumero,
       medidaId: Number(novoIngrediente.medidaId),
       precoCusto: Number.isFinite(preco) ? preco : 0,
+      ehArroz: novoIngrediente.ehArroz,
     };
 
     try {
@@ -255,6 +261,7 @@ export default function IngredientesPage() {
                   <SortableHead label="Categoria" field="categoriaDescricao" sort={sort} onSort={onSort} />
                   <SortableHead label="Preço de Custo" field="precoCusto" sort={sort} onSort={onSort} />
                   <SortableHead label="Medida" field="medida.nome" sort={sort} onSort={onSort} />
+                  <SortableHead label="É arroz" field="ehArroz" sort={sort} onSort={onSort} />
                   <TableHead className="text-right text-gray-700">Ações</TableHead>
                 </TableRow>
               </TableHeader>
@@ -280,6 +287,7 @@ export default function IngredientesPage() {
                     <TableCell className="text-gray-700">
                       {ingrediente.medida?.nome}
                     </TableCell>
+                    <TableCell className="text-gray-700">{ingrediente.ehArroz ? "Sim" : "Não"}</TableCell>
                     <TableCell className="text-right">
                       <Button
                         variant="ghost"
@@ -307,7 +315,7 @@ export default function IngredientesPage() {
                 {ingredientesFiltrados.length === 0 && !isLoading && (
                   <TableRow>
                     <TableCell
-                      colSpan={6}
+                      colSpan={7}
                       className="text-center text-sm text-gray-500 py-4"
                     >
                       Nenhum ingrediente cadastrado.
@@ -460,6 +468,17 @@ export default function IngredientesPage() {
                 className="border-gray-200"
               />
             </div>
+
+            <label className="flex cursor-pointer items-center gap-3 rounded-lg border border-gray-200 p-3">
+              <Checkbox
+                checked={novoIngrediente.ehArroz}
+                onCheckedChange={(checked) => setNovoIngrediente((p) => ({ ...p, ehArroz: checked === true }))}
+              />
+              <span>
+                <span className="block font-medium text-gray-800">É arroz</span>
+                <span className="block text-xs text-gray-500">Inclui os preparos que usam este ingrediente na estação de arroz.</span>
+              </span>
+            </label>
 
             <div className="flex justify-end space-x-2 pt-4">
               <Button
