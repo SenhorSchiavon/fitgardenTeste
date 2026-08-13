@@ -3095,10 +3095,25 @@ export function NovoAgendamentoNovoLayout({
     setDadosClientePedidoImportado({ nome: String(pedido.nome || ""), telefone: String(pedido.telefone || "") });
     setPedidosPendentesCliente((prev) => prev.filter((item) => Number(item.id) !== Number(pedido.id)));
     if (!clienteId) {
-      const clientePeloTelefone = clientes.find(
-        (cliente) => normalizarTelefoneComparacao(cliente.telefone) === telefonePedido,
+      const clientesPeloTelefone = clientes.filter(
+        (cliente) =>
+          !!telefonePedido &&
+          normalizarTelefoneComparacao(cliente.telefone) === telefonePedido,
       );
-      const clienteEncontradoId = pedido.cliente?.id || clientePeloTelefone?.id;
+      // Pedidos publicos antigos podem estar ligados a um cadastro duplicado do
+      // cliente. Nesse caso, prioriza o cadastro do mesmo telefone que possui o
+      // plano ativo, para que o saldo correto apareca no novo agendamento.
+      const clienteComPlano = clientesPeloTelefone.find(
+        (cliente) => Array.isArray(cliente.planos) && cliente.planos.length > 0,
+      );
+      const clienteVinculadoAoPedido = clientesPeloTelefone.find(
+        (cliente) => String(cliente.id) === String(pedido.cliente?.id || ""),
+      );
+      const clienteEncontradoId =
+        clienteComPlano?.id ||
+        clienteVinculadoAoPedido?.id ||
+        clientesPeloTelefone[0]?.id ||
+        pedido.cliente?.id;
       if (clienteEncontradoId) setClienteId(String(clienteEncontradoId));
     }
     setObservacoesPedido((prev) => [prev, pedido.observacoes].filter(Boolean).join("\n"));
