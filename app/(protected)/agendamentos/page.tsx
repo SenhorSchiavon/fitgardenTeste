@@ -148,6 +148,10 @@ type Agendamento = {
     adicionarFeijao?: boolean;
     adicionarPure?: boolean;
     adicionarArroz?: boolean;
+    trocaCarbo?: string;
+    trocaProteina?: string;
+    trocaLegume?: string;
+    zerarLegume?: boolean;
     trocas?: string;
   }[];
   _raw?: any;
@@ -552,6 +556,17 @@ export default function Agendamentos() {
       const descricaoComArroz = item.adicionarArroz && item.tipoItem !== "PERSONALIZADA"
         ? `${descricao} + ARROZ ADICIONAL`
         : descricao;
+      const substituicoes = personalizada
+        ? []
+        : [
+            item.trocaCarbo ? `TROCA DE CARBOIDRATO: ${item.trocaCarbo}` : null,
+            item.trocaProteina ? `TROCA DE PROTEÍNA: ${item.trocaProteina}` : null,
+            item.zerarLegume
+              ? "RETIRAR LEGUMES"
+              : item.trocaLegume
+                ? `TROCA DE LEGUMES/PURÊ: ${item.trocaLegume}`
+                : null,
+          ].filter((linha): linha is string => !!linha);
       const pesagens = personalizada
         ? [
             [item.carbo, item.carboGramas],
@@ -575,6 +590,7 @@ export default function Agendamentos() {
       const chaveGrupo = item.groupId || item.id || grupo;
       const dadosGrupo = grupos.get(chaveGrupo) || { titulo: grupo, linhas: [], totalMarmitas: 0, subtotal: 0 };
       dadosGrupo.linhas.push(`    ${item.quantidade}x ${descricaoComArroz}`.toUpperCase());
+      substituicoes.forEach((substituicao) => dadosGrupo.linhas.push(`      ↳ ${substituicao}`.toUpperCase()));
       dadosGrupo.subtotal += Number(item.valor || 0);
       if (item.tipoItem !== "SALGADO") {
         dadosGrupo.totalMarmitas += Number(item.quantidade || 0);
@@ -963,6 +979,10 @@ export default function Agendamentos() {
           adicionarFeijao: !!it.adicionarFeijao,
           adicionarPure: !!it.adicionarPure,
           adicionarArroz: !!it.adicionarArroz,
+          trocaCarbo: it.trocaCarbo?.nome || it.trocaCarboNome || "",
+          trocaProteina: it.trocaProteina?.nome || it.trocaProteinaNome || "",
+          trocaLegume: it.trocaLegume?.nome || it.trocaLegumeNome || "",
+          zerarLegume: !!it.zerarLegume,
           trocas: [
             it.trocaCarbo?.nome || it.trocaCarboNome,
             it.trocaProteina?.nome || it.trocaProteinaNome,
