@@ -46,6 +46,17 @@ export type PedidoPendenteRow = {
   observacoes?: string | null;
   valorTotal: number;
   valorTotalFinal?: number;
+  pagamentos?: Array<{
+    id: number;
+    valor: number | string;
+    status: string;
+    forma: string;
+    planoClienteId?: number | null;
+    consumoUnidades?: number | null;
+    consumoEntregas?: number | null;
+    consumoAdicionais?: number | null;
+    planoCliente?: any;
+  }>;
   itens: { nome: string; tamanho: string; quantidade: number }[];
   data: string;
 };

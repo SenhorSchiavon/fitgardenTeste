@@ -159,23 +159,35 @@ export default function PedidosAberto() {
   }, [planosNaoPagos, dataFiltro]);
 
   const planosPendentesPedidoSelecionado = useMemo(() => {
-    if (!pedidoSelecionado?.clienteId) return [];
-    return planosNaoPagos.filter(
-      (plano) => Number(plano.clienteId) === Number(pedidoSelecionado.clienteId),
-    );
-  }, [pedidoSelecionado, planosNaoPagos]);
+    return (pedidoSelecionado?.pagamentos || [])
+      .filter((pagamento) =>
+        pagamento.status === "PENDENTE" &&
+        pagamento.planoClienteId &&
+        Number(pagamento.consumoUnidades || 0) === 0 &&
+        Number(pagamento.consumoEntregas || 0) === 0 &&
+        Number(pagamento.consumoAdicionais || 0) === 0,
+      )
+      .map((pagamento) => ({
+        ...pagamento.planoCliente,
+        id: Number(pagamento.planoClienteId),
+        pagamentoId: pagamento.id,
+        valorPendente: Number(pagamento.valor || 0),
+      }));
+  }, [pedidoSelecionado]);
 
   const valorPlanosPendentesPedidoSelecionado = useMemo(() => {
     return planosPendentesPedidoSelecionado.reduce((total, plano) => {
-      const qtdTaxas = Number(plano.taxasEntregaCompradas || 0);
-      const valorTaxas = qtdTaxas * Number(plano.valorTaxaEntrega || 0);
-      return total + Number(plano.plano?.valor || 0) + valorTaxas;
+      return total + Number(plano.valorPendente || 0);
     }, 0);
   }, [planosPendentesPedidoSelecionado]);
 
   const valorTotalPedidoSelecionado = Number(pedidoSelecionado?.valorTotal ?? 0);
   const valorPedidoSelecionado = Number(
     pedidoSelecionado?.valorTotalFinal ?? pedidoSelecionado?.valorTotal ?? 0,
+  );
+  const valorPedidoTaxaPendente = Math.max(
+    0,
+    valorPedidoSelecionado - valorPlanosPendentesPedidoSelecionado,
   );
 
   async function load(date = dataFiltro) {
@@ -860,12 +872,10 @@ export default function PedidosAberto() {
                 </div>
                 <div className="flex items-center justify-between">
                   <span>Pedido e taxa pendente</span>
-                  <span className="font-semibold">{moneyBr(valorPedidoSelecionado)}</span>
+                  <span className="font-semibold">{moneyBr(valorPedidoTaxaPendente)}</span>
                 </div>
                 {planosPendentesPedidoSelecionado.map((plano) => {
-                  const qtdTaxas = Number(plano.taxasEntregaCompradas || 0);
-                  const valorTaxas = qtdTaxas * Number(plano.valorTaxaEntrega || 0);
-                  const valorPlano = Number(plano.plano?.valor || 0) + valorTaxas;
+                  const valorPlano = Number(plano.valorPendente || 0);
                   return (
                     <div key={plano.id} className="flex items-center justify-between text-amber-800">
                       <span>{plano.plano?.nome || "Plano"} pendente</span>
@@ -880,7 +890,7 @@ export default function PedidosAberto() {
               <Label>Total a receber</Label>
               <div className="text-2xl font-bold">
                 {pedidoSelecionado
-                  ? moneyBr(valorPedidoSelecionado + valorPlanosPendentesPedidoSelecionado)
+                  ? moneyBr(valorPedidoSelecionado)
                   : "-"}
               </div>
             </div>
