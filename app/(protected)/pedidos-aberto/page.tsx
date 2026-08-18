@@ -130,13 +130,26 @@ export default function PedidosAberto() {
   const [senhaAutorizacaoPagamento, setSenhaAutorizacaoPagamento] = useState("");
 
   const pedidosAbertoFiltrados = useMemo(() => {
+    const pedidosComDebitoForaDaCompraDoPlano = pedidosAberto.filter((pedido) => {
+      const valorComprasPlanoPendentes = (pedido.pagamentos || [])
+        .filter((pagamento) =>
+          pagamento.status === "PENDENTE" &&
+          pagamento.planoClienteId &&
+          Number(pagamento.consumoUnidades || 0) === 0 &&
+          Number(pagamento.consumoEntregas || 0) === 0 &&
+          Number(pagamento.consumoAdicionais || 0) === 0,
+        )
+        .reduce((total, pagamento) => total + Number(pagamento.valor || 0), 0);
+      const valorPendenteTotal = Number(pedido.valorTotalFinal ?? pedido.valorTotal ?? 0);
+      return Math.max(0, valorPendenteTotal - valorComprasPlanoPendentes) > 0.009;
+    });
     if (filtroPendentes === "a-definir") {
-      return pedidosAberto.filter((pedido) => pedido.formaPagamento === "A_DEFINIR" || pedido.tipoEntrega === "NAO_DEFINIR");
+      return pedidosComDebitoForaDaCompraDoPlano.filter((pedido) => pedido.formaPagamento === "A_DEFINIR" || pedido.tipoEntrega === "NAO_DEFINIR");
     }
     if (filtroPendentes === "definidos") {
-      return pedidosAberto.filter((pedido) => pedido.formaPagamento !== "A_DEFINIR" && pedido.tipoEntrega !== "NAO_DEFINIR");
+      return pedidosComDebitoForaDaCompraDoPlano.filter((pedido) => pedido.formaPagamento !== "A_DEFINIR" && pedido.tipoEntrega !== "NAO_DEFINIR");
     }
-    return pedidosAberto;
+    return pedidosComDebitoForaDaCompraDoPlano;
   }, [filtroPendentes, pedidosAberto]);
 
   const pagamentosConciliarFiltrados = useMemo(() => {
@@ -150,10 +163,23 @@ export default function PedidosAberto() {
   }, [filtroConciliacao, pagamentosConciliar]);
 
   const planosNaoPagosDoDia = useMemo(() => {
-    return planosNaoPagos.filter((plano) => {
-      if (!plano.createdAt) return false;
-      return toISODateOnly(new Date(plano.createdAt)) === dataFiltro;
-    });
+    return planosNaoPagos
+      .map((plano) => {
+        const pagamentoCompra = (plano.pagamentos || []).find((pagamento: any) =>
+          Number(pagamento.consumoUnidades || 0) === 0 &&
+          Number(pagamento.consumoEntregas || 0) === 0 &&
+          Number(pagamento.consumoAdicionais || 0) === 0 &&
+          Number(pagamento.valor || 0) > 0,
+        );
+        const dataEntrega = pagamentoCompra?.pedido?.agendamento?.data || null;
+        return {
+          ...plano,
+          pagamentoCompra,
+          dataReferencia: dataEntrega || plano.createdAt,
+          dataEhEntrega: !!dataEntrega,
+        };
+      })
+      .filter((plano) => plano.dataReferencia && toISODateOnly(new Date(plano.dataReferencia)) === dataFiltro);
   }, [planosNaoPagos, dataFiltro]);
 
   const planosPendentesPedidoSelecionado = useMemo(() => {
@@ -622,7 +648,8 @@ export default function PedidosAberto() {
                     const telefone = plano.cliente?.telefone || "";
                     const qtdTaxas = Number(plano.taxasEntregaCompradas || 0);
                     const valorTaxas = qtdTaxas * Number(plano.valorTaxaEntrega || 0);
-                    const valorTotal = Number(plano.plano?.valor || 0) + valorTaxas;
+                    const valorAdicionais = Number(plano.adicionaisComprados || 0) * 2;
+                    const valorTotal = Number(plano.pagamentoCompra?.valor || 0) || Number(plano.plano?.valor || 0) + valorAdicionais + valorTaxas;
                     const primeiroNome = String(plano.cliente?.nome || "").split(" ")[0] || "cliente";
                     const msgCobranca = `Olá ${primeiroNome}! Tudo bem? O pagamento do seu plano ${nomePlano}${gramas}${valorTotal > 0 ? ` no valor de ${moneyBr(valorTotal)}` : ""} ainda não foi identificado. Assim que realizar o pagamento, por favor envie o comprovante por aqui. Obrigado(a)!`;
                     const whatsappUrl = getWhatsappUrl(telefone, msgCobranca);
@@ -637,8 +664,9 @@ export default function PedidosAberto() {
                             </div>
                             <div className="text-sm text-muted-foreground">{nomePlano}{gramas}</div>
                             <div className="text-sm text-muted-foreground">
-                              {telefone || "Sem telefone"} • {plano.createdAt ? new Date(plano.createdAt).toLocaleDateString("pt-BR") : ""}
+                              {telefone || "Sem telefone"} • {plano.dataEhEntrega ? "Entrega" : "Cadastro"}: {plano.dataReferencia ? new Date(plano.dataReferencia).toLocaleDateString("pt-BR") : ""}
                               {qtdTaxas > 0 ? ` • ${qtdTaxas} taxa${qtdTaxas === 1 ? "" : "s"} de entrega` : ""}
+                              {Number(plano.adicionaisComprados || 0) > 0 ? ` • ${plano.adicionaisComprados} adicionais` : ""}
                             </div>
                           </div>
                           <div className="flex flex-col gap-2 sm:items-end">

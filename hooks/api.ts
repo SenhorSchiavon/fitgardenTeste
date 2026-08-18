@@ -6,7 +6,11 @@ export async function apiFetch(url: string, options: RequestInit = {}) {
     ...(options.headers || {}),
   };
 
-  const response = await fetch(url, { ...options, headers });
+  const response = await fetch(url, {
+    ...options,
+    headers,
+    cache: options.cache ?? "no-store",
+  });
 
   if (response.status === 401) {
     localStorage.removeItem("token");

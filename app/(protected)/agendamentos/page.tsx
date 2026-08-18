@@ -2392,8 +2392,9 @@ export default function Agendamentos() {
           }
           let pedidoCriadoId: number | null = null;
           let agendamentoCriadoId: number | null = null;
+          let agendamentoAtualizadoApi: any = null;
           if (modoEdicao && agendamentoEditandoId) {
-            await updateAgendamento(agendamentoEditandoId, {
+            agendamentoAtualizadoApi = await updateAgendamento(agendamentoEditandoId, {
               planosCompradosIds: payload.planosCompradosIds,
               tipo: payload.tipo,
               data: payload.data,
@@ -2447,6 +2448,16 @@ export default function Agendamentos() {
                 usarPlano: !!it.usarPlano,
               })),
             });
+            if (agendamentoAtualizadoApi) {
+              const atualizadoUi = mapApiToUi(agendamentoAtualizadoApi);
+              const dataSelecionadaAtual = utils.toISODateOnly(selectedDate);
+              const dataAtualizada = String(atualizadoUi.data || "").slice(0, 10);
+              setAgendamentos((atuais) => {
+                const semAntigo = atuais.filter((item) => item.id !== atualizadoUi.id);
+                return dataAtualizada === dataSelecionadaAtual ? [...semAntigo, atualizadoUi] : semAntigo;
+              });
+              setAgendamentoSelecionado((atual) => atual?.id === atualizadoUi.id ? atualizadoUi : atual);
+            }
             const pedidosPublicosImportadosIds = Array.from(new Set([
               ...(Array.isArray(payload.pedidosPublicosIds) ? payload.pedidosPublicosIds : []),
               ...(Array.isArray(dadosEdicao?.pedidosPublicosIds) ? dadosEdicao.pedidosPublicosIds : []),
@@ -2544,9 +2555,7 @@ export default function Agendamentos() {
             ));
           }
 
-          const date = payload.data instanceof Date
-            ? utils.toISODateOnly(payload.data)
-            : String(payload.data).slice(0, 10);
+          const date = utils.toISODateOnly(selectedDate);
           const res = await getAgendamentos({ date, page: 1, pageSize: 200 });
           const agendamentosAtualizados = (res.rows || []).map(mapApiToUi);
           setAgendamentos(agendamentosAtualizados);
