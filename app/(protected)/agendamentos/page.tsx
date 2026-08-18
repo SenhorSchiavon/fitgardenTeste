@@ -1295,7 +1295,9 @@ export default function Agendamentos() {
   }
 
   const handleDeleteAgendamento = async (id: string) => {
-    await deleteAgendamento(Number(id));
+    const senhaExclusao = window.prompt("Informe a senha para excluir este pedido:") || "";
+    if (!senhaExclusao.trim()) return;
+    await deleteAgendamento(Number(id), senhaExclusao);
 
     const date = utils.toISODateOnly(selectedDate);
     const res = await getAgendamentos({ date, page: 1, pageSize: 200 });

@@ -717,12 +717,14 @@ export function useAgendamentos(options?: { baseUrl?: string }) {
   );
 
   const deleteAgendamento = useCallback(
-    async (id: number) => {
+    async (id: number, senhaExclusao: string) => {
       setLoading(true);
       setError("");
       try {
         return await fetchJson<{ success: boolean }>(`${baseUrl}/${id}`, {
           method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ senhaExclusao }),
         });
       } catch (e: any) {
         const msg = e?.message || "Erro ao remover agendamento";

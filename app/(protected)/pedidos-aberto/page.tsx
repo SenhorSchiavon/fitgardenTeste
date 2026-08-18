@@ -29,7 +29,6 @@ import {
   CreditCard,
   MapPin,
   Phone,
-  Trash,
   TruckIcon,
   User,
   CalendarIcon,
@@ -107,7 +106,6 @@ export default function PedidosAberto() {
     finalizarPagamento,
     conciliarPagamento,
     marcarPagamentoNaoPago,
-    deleteAgendamento,
   } = useAgendamentos();
   const {
     listPlanosNaoPagos,
@@ -210,14 +208,6 @@ export default function PedidosAberto() {
     setDetalhesDialogOpen(true);
   };
 
-  const handleDeletePedido = async (agendamentoId: number) => {
-    await deleteAgendamento(agendamentoId);
-    setPedidosAberto((prev) =>
-      prev.filter((p) => p.agendamentoId !== agendamentoId),
-    );
-    setDetalhesDialogOpen(false);
-    toast.success("Pedido removido");
-  };
   const getFaixaHorarioColor = (faixa: string) => {
     switch (faixa) {
       case "13-15":
@@ -443,6 +433,8 @@ export default function PedidosAberto() {
                         </span>
                         <span className="mx-2">-</span>
                         <span>{pedido.cliente}</span>
+                        <span className="mx-2">•</span>
+                        <span className="text-sm text-muted-foreground">{pedido.telefone || "Sem telefone"}</span>
                       </div>
                       <div className="flex items-center text-sm text-muted-foreground mt-1">
                         <Badge
@@ -531,6 +523,7 @@ export default function PedidosAberto() {
                           <span className="font-medium">{pedido.numeroPedido}</span>
                           <span>-</span>
                           <span className="truncate">{pedido.cliente}</span>
+                          <span className="text-sm text-muted-foreground">{pedido.telefone || "Sem telefone"}</span>
                           <Badge
                             variant="outline"
                             className={pedido.formaPagamento === "A_DEFINIR" ? "border-red-300 bg-red-50 text-red-700" : undefined}
@@ -774,15 +767,6 @@ export default function PedidosAberto() {
               )}
 
               <div className="flex justify-end space-x-2 pt-4">
-                <Button
-                  variant="destructive"
-                  onClick={() =>
-                    pedidoSelecionado &&
-                    handleDeletePedido(pedidoSelecionado.agendamentoId)
-                  }
-                >
-                  <Trash className="mr-2 h-4 w-4" /> Excluir Pedido
-                </Button>
                 <Button onClick={handlePagamento}>
                   <CreditCard className="mr-2 h-4 w-4" /> Realizar Pagamento
                 </Button>
