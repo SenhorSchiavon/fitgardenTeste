@@ -116,7 +116,7 @@ type Agendamento = {
   valorTotalFinal?: number;
   valorPlanosComprados?: number;
   valorPlanosCompradosPendente?: number;
-  planosComprados?: { id?: number; nome: string; valor: number; valorPlano: number; valorTaxas: number }[];
+  planosComprados?: { id?: number; nome: string; valor: number; valorPlano: number; valorTaxas: number; pago: boolean }[];
   taxaEntregaAbatidaPlano?: boolean;
   usouPlano?: boolean;
   saldoMarmitasAposPedido?: number | null;
@@ -1058,6 +1058,7 @@ export default function Agendamentos() {
       valor: Number(p.valor || 0),
       valorPlano: Number(p.planoCliente?.plano?.valor || p.valor || 0),
       valorTaxas: Math.max(0, Number(p.valor || 0) - Number(p.planoCliente?.plano?.valor || p.valor || 0)),
+      pago: p.status === "CONFIRMADO",
     }));
     const valorPlanosCompradosPendente = pagamentosCompraPlano
       .filter((p: any) => p.status === "PENDENTE")

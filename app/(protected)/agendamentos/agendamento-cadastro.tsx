@@ -748,7 +748,7 @@ export function NovoAgendamentoNovoLayout({
               valorPlano: Number(plano.valorPlano || plano.valor || 0),
               valorTaxas: Number(plano.valorTaxas || 0),
               valorTotal: Number(plano.valor || 0),
-              pago: false,
+              pago: plano.pago === true,
             }))
         : [];
       setPlanosComprados(
@@ -846,33 +846,6 @@ export function NovoAgendamentoNovoLayout({
       });
       setItens(mappedItens);
 
-      // Em pedidos antigos, o vínculo do plano pode ter sido criado e consumido,
-      // mas o lançamento financeiro da compra não ficou associado ao pedido.
-      // Ao reabrir a edição, recupera o plano não pago compatível para que seu
-      // valor volte ao total e seja persistido em planosCompradosIds ao salvar.
-      if (planosCompradosExibidos.length === 0 && comprasPlanoRegistradas.length === 0) {
-        const clienteInicialId = String(initialData.pedido?.clienteId || initialData.clienteId || "");
-        const clienteInicial = clientes.find((cliente) => cliente.id === clienteInicialId);
-        const planosRecuperaveis = (clienteInicial?.planos || []).filter((plano: any) =>
-          plano.pago === false &&
-          mappedItens.some((item) => item.usarPlano && planoClienteTemItemCompativel(plano, item)),
-        );
-        if (planosRecuperaveis.length > 0) {
-          setPlanosComprados(planosRecuperaveis.map((plano: any) => {
-            const valorPlano = Number(plano.plano?.valor || 0);
-            const valorTaxas = Number(plano.valorTaxaEntrega || 0) * Number(plano.taxasEntregaCompradas || 0);
-            return {
-              id: Number(plano.id),
-              nome: String(plano.plano?.nome || `Plano #${plano.id}`),
-              resumo: plano.plano?.unidades ? `${plano.plano.unidades} marmitas` : "Plano lançado neste pedido",
-              valorPlano,
-              valorTaxas,
-              valorTotal: valorPlano + valorTaxas,
-              pago: false,
-            };
-          }));
-        }
-      }
     } else if (open && !initialData) {
       resetForm();
     }
@@ -1200,6 +1173,9 @@ export function NovoAgendamentoNovoLayout({
 
   function getSaldoPlanoParaItem(item: NovoPedidoItem) {
     return (clienteSelecionado?.planos || []).reduce((acc: number, plano: any) => {
+      // O backend só permite consumir saldo de planos pagos. Manter a mesma
+      // regra aqui evita o resumo prometer um abatimento que não será salvo.
+      if (plano.pago !== true) return acc;
       const saldos = plano.itens || [];
       if (saldos.length > 0) {
         return acc + saldos.reduce((subAcc: number, saldo: any) => {
@@ -2021,7 +1997,8 @@ export function NovoAgendamentoNovoLayout({
         valorPlano: valorPlanoSelecionado,
         valorTaxas: valorTaxasPlanoTotal,
         valorTotal: valorTotalPlanoCliente,
-        pago: planoPago,
+        // Usa a resposta persistida pelo backend como fonte de verdade.
+        pago: vinculo.pago === true,
       },
     ]);
 
