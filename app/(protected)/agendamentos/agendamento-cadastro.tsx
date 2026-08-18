@@ -523,6 +523,7 @@ export function NovoAgendamentoNovoLayout({
   const [quantidadesConsumidasPorItem, setQuantidadesConsumidasPorItem] = useState<Record<number, number>>({});
   const [incluirTaxaPlano, setIncluirTaxaPlano] = useState(false);
   const [quantidadeTaxasPlano, setQuantidadeTaxasPlano] = useState(1);
+  const [quantidadeAdicionaisPlano, setQuantidadeAdicionaisPlano] = useState(0);
   const [planosComprados, setPlanosComprados] = useState<Array<{
     id: number;
     nome: string;
@@ -1123,13 +1124,16 @@ export function NovoAgendamentoNovoLayout({
 
   const valorPlanoSelecionado = Number(planoSelecionado?.valor || 0);
   const unidadesPlanoSelecionado = Number(planoSelecionado?.unidades || 0);
+  const quantidadeAdicionaisPlanoFinal = Math.max(0, Math.floor(Number(quantidadeAdicionaisPlano || 0)));
+  const valorAdicionaisPlano = quantidadeAdicionaisPlanoFinal * 2;
+  const valorPlanoCliente = valorPlanoSelecionado + valorAdicionaisPlano;
   const quantidadeTaxasPlanoFinal =
     incluirTaxaPlano
       ? Math.max(1, Math.floor(Number(quantidadeTaxasPlano || 1)))
       : 0;
   const valorTaxaPlanoUnitario = Number(valorTaxa || 0) > 0 ? Number(valorTaxa) : Number(valorTaxaPlano || 0);
   const valorTaxasPlanoTotal = quantidadeTaxasPlanoFinal * valorTaxaPlanoUnitario;
-  const valorTotalPlanoCliente = valorPlanoSelecionado + valorTaxasPlanoTotal;
+  const valorTotalPlanoCliente = valorPlanoCliente + valorTaxasPlanoTotal;
   const valorPlanosNaoPagosResumo = planosComprados
     .filter((plano) => !plano.pago)
     .reduce((acc, plano) => acc + plano.valorTotal, 0);
@@ -1941,6 +1945,7 @@ export function NovoAgendamentoNovoLayout({
     setQuantidadesConsumidasPorItem({});
     setIncluirTaxaPlano(ehEntrega && valorTaxa > 0);
     setQuantidadeTaxasPlano(1);
+    setQuantidadeAdicionaisPlano(0);
 
     try {
       const planos = await listPlanos();
@@ -1995,6 +2000,7 @@ export function NovoAgendamentoNovoLayout({
     const vinculo = await vincularPlano(Number(clienteId), Number(planoSelecionado.id), planoPago, {
       quantidadeTaxasEntrega: quantidadeTaxasPlanoFinal,
       valorTaxaEntrega: quantidadeTaxasPlanoFinal > 0 ? valorTaxaPlanoUnitario : 0,
+      quantidadeAdicionais: quantidadeAdicionaisPlanoFinal,
       quantidadeConsumida,
       consumosItens,
       senhaAutorizacao,
@@ -2010,7 +2016,7 @@ export function NovoAgendamentoNovoLayout({
         id: Number(vinculo.id),
         nome: planoSelecionado.nome || `Plano #${planoSelecionado.id}`,
         resumo: getPlanoCatalogoResumo(planoSelecionado),
-        valorPlano: valorPlanoSelecionado,
+        valorPlano: valorPlanoCliente,
         valorTaxas: valorTaxasPlanoTotal,
         valorTotal: valorTotalPlanoCliente,
         // Usa a resposta persistida pelo backend como fonte de verdade.
@@ -4299,7 +4305,7 @@ export function NovoAgendamentoNovoLayout({
               compatível(is) neste agendamento.
             </p>
             <p>
-              Deseja marcar todos esses itens para usar o saldo do plano? Adicionais e trocas continuam sendo cobrados normalmente.
+              Deseja marcar todos esses itens para usar o saldo do plano? Adicionais e trocas usam os créditos contratados e só o excedente será cobrado.
             </p>
           </div>
           <DialogFooter className="gap-2 sm:gap-0">
@@ -4348,6 +4354,7 @@ export function NovoAgendamentoNovoLayout({
                   setPlanoJaConsumido(false);
                   setQuantidadeConsumidaPlano(0);
                   setQuantidadesConsumidasPorItem({});
+                  setQuantidadeAdicionaisPlano(0);
                 }}
                 disabled={savingPlano || !clienteSelecionado || planosCatalogo.length === 0}
               >
@@ -4396,6 +4403,37 @@ export function NovoAgendamentoNovoLayout({
                 onCheckedChange={(v) => setPlanoPago(!!v)}
                 disabled={savingPlano}
               />
+            </div>
+
+            <div className="rounded-xl border border-blue-100 bg-blue-50/40 p-3 space-y-3">
+              <div>
+                <Label htmlFor="quantidadeAdicionaisPlano" className="text-sm font-semibold">
+                  Quantidade de adicionais incluídos
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  Crédito genérico para qualquer adicional. Valor: R$ 2,00 cada.
+                </p>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-[160px_1fr] gap-3 items-end">
+                <div className="space-y-1.5">
+                  <Label htmlFor="quantidadeAdicionaisPlano" className="text-xs text-muted-foreground">Quantidade</Label>
+                  <Input
+                    id="quantidadeAdicionaisPlano"
+                    type="number"
+                    min={0}
+                    step={1}
+                    value={quantidadeAdicionaisPlano}
+                    onChange={(e) => setQuantidadeAdicionaisPlano(Math.max(0, Math.floor(Number(e.target.value || 0))))}
+                    disabled={savingPlano}
+                  />
+                </div>
+                <div className="rounded-lg bg-blue-50 border border-blue-100 px-3 py-2 text-sm">
+                  <div className="text-xs text-blue-700 font-semibold">Adicionais</div>
+                  <div className="font-bold text-primary">
+                    {`${quantidadeAdicionaisPlanoFinal} x R$ 2,00 = R$ ${currency(valorAdicionaisPlano)}`}
+                  </div>
+                </div>
+              </div>
             </div>
 
             <div className="rounded-xl border border-border/70 p-3 space-y-3">
@@ -4548,6 +4586,12 @@ export function NovoAgendamentoNovoLayout({
                 <div className="mt-1 flex items-center justify-between text-sm">
                   <span className="text-muted-foreground">Taxas de entrega</span>
                   <span className="font-semibold">R$ {currency(valorTaxasPlanoTotal)}</span>
+                </div>
+              )}
+              {valorAdicionaisPlano > 0 && (
+                <div className="mt-1 flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">Adicionais incluídos</span>
+                  <span className="font-semibold">R$ {currency(valorAdicionaisPlano)}</span>
                 </div>
               )}
               <div className="mt-3 flex items-center justify-between border-t border-primary/10 pt-3">

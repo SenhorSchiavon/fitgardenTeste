@@ -62,7 +62,6 @@ type PlanoItemForm = {
 
 type PlanoForm = {
   nome: string;
-  quantidadeAdicionais: string;
   ativo: boolean;
   itens: PlanoItemForm[];
 };
@@ -167,7 +166,6 @@ export default function PlanosPage() {
 
   const [form, setForm] = useState<PlanoForm>({
     nome: "",
-    quantidadeAdicionais: "0",
     ativo: true,
     itens: [novaLinhaPlano()],
   });
@@ -175,7 +173,6 @@ export default function PlanosPage() {
   const resetForm = () => {
     setForm({
       nome: "",
-      quantidadeAdicionais: "0",
       ativo: true,
       itens: [novaLinhaPlano()],
     });
@@ -243,8 +240,7 @@ export default function PlanosPage() {
     });
   }, [form.itens, regras, tamanhos]);
 
-  const quantidadeAdicionaisPlano = Math.max(0, Math.floor(toNumber(form.quantidadeAdicionais, 0)));
-  const valorTotalPlano = itensCalculados.reduce((acc, item) => acc + Number(item.valorTotal || 0), 0) + quantidadeAdicionaisPlano * 2;
+  const valorTotalPlano = itensCalculados.reduce((acc, item) => acc + Number(item.valorTotal || 0), 0);
   const unidadesTotalPlano = itensCalculados.reduce((acc, item) => acc + Number(item.unidades || 0), 0);
 
   const planosFiltrados = useMemo(() => {
@@ -296,7 +292,6 @@ export default function PlanosPage() {
 
     setForm({
       nome: plano.nome,
-      quantidadeAdicionais: String(plano.quantidadeAdicionais || 0),
       ativo: !!plano.ativo,
       itens,
     });
@@ -315,7 +310,6 @@ export default function PlanosPage() {
       tamanhoId: primeiroTamanho ? toNumber(primeiroTamanho.tamanhoId) : null,
       unidades: unidadesTotalPlano,
       entregasInclusas: 0,
-      quantidadeAdicionais: quantidadeAdicionaisPlano,
       valor: valorTotalPlano,
       ativo: !!form.ativo,
       itens: form.itens.map((item) => ({
@@ -387,7 +381,6 @@ export default function PlanosPage() {
                   <SortableHead label="Nome" field="nome" sort={sort} onSort={onSort} />
                   <SortableHead label="Composições" field="tamanho.pesagemGramas" sort={sort} onSort={onSort} />
                   <SortableHead label="Unidades" field="unidades" sort={sort} onSort={onSort} />
-                  <TableHead className="text-gray-700">Adicionais</TableHead>
                   <SortableHead label="Valor" field="valor" sort={sort} onSort={onSort} />
                   <SortableHead label="Ativo" field="ativo" sort={sort} onSort={onSort} />
                   <TableHead className="text-right text-gray-700">Ações</TableHead>
@@ -435,9 +428,6 @@ export default function PlanosPage() {
                       {Number(plano.unidades || 0)}
                     </TableCell>
 
-                    <TableCell className="text-gray-700">
-                      {Number(plano.quantidadeAdicionais || 0)}
-                    </TableCell>
 
                     <TableCell className="text-gray-700">
                       {moneyBr(Number(plano.valor || 0))}
@@ -824,22 +814,6 @@ export default function PlanosPage() {
               </div>
             </div>
 
-            <div className="space-y-2">
-              <Label className="text-gray-700">Quantidade de adicionais incluídos</Label>
-              <Input
-                type="number"
-                min={0}
-                step={1}
-                value={form.quantidadeAdicionais}
-                onChange={(e) => setForm((p) => ({ ...p, quantidadeAdicionais: e.target.value }))}
-                className="border-gray-200"
-                disabled={saving}
-              />
-              <p className="text-xs text-gray-500">
-                Crédito genérico para feijão, purê, legumes, arroz ou trocas. R$ 2,00 por adicional.
-              </p>
-            </div>
-
             <div className="rounded-md border border-emerald-100 bg-emerald-50 p-3">
               <div className="text-xs font-semibold uppercase text-emerald-700">
                 Total automático
@@ -848,7 +822,7 @@ export default function PlanosPage() {
                 {moneyBr(valorTotalPlano)}
               </div>
               <div className="text-xs text-emerald-700">
-                {unidadesTotalPlano} marmitas e {quantidadeAdicionaisPlano} adicionais no plano
+                {unidadesTotalPlano} marmitas no plano
               </div>
             </div>
 

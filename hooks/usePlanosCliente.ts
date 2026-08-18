@@ -34,7 +34,6 @@ export type PlanoCatalogo = {
   tamanhoId?: number | null;
   unidades: number;
   entregas?: number | null;
-  quantidadeAdicionais?: number | null;
   valor?: number | string | null;
   tamanho?: Tamanho;
   itens?: PlanoCatalogoItem[];
@@ -154,6 +153,7 @@ export function usePlanosCliente() {
       extras?: {
         quantidadeTaxasEntrega?: number;
         valorTaxaEntrega?: number;
+        quantidadeAdicionais?: number;
         quantidadeConsumida?: number;
         consumosItens?: Array<{ planoItemId: number; quantidadeConsumida: number }>;
         senhaAutorizacao?: string;
@@ -169,6 +169,9 @@ export function usePlanosCliente() {
             pago,
             quantidadeTaxasEntrega: Math.max(0, Math.floor(Number(extras?.quantidadeTaxasEntrega || 0))),
             valorTaxaEntrega: Math.max(0, Number(extras?.valorTaxaEntrega || 0)),
+            quantidadeAdicionais: extras?.quantidadeAdicionais !== undefined
+              ? Math.max(0, Math.floor(Number(extras.quantidadeAdicionais || 0)))
+              : undefined,
             quantidadeConsumida: Math.max(0, Math.floor(Number(extras?.quantidadeConsumida || 0))),
             consumosItens: extras?.consumosItens?.map((item) => ({
               planoItemId: Number(item.planoItemId),
