@@ -34,6 +34,8 @@ export type PlanoCliente = {
   planoId?: number;
   saldoUnidades: number;
   saldoEntregas: number;
+  saldoAdicionais?: number;
+  adicionaisComprados?: number;
   tamanho?: { id: number; pesagemGramas: number };
   itens?: Array<{
     id: number;

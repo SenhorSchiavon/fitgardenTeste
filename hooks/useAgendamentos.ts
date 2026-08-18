@@ -109,6 +109,7 @@ export type AgendamentoItemInput = {
   zerarLegume?: boolean;
   adicionarFeijao?: boolean;
   adicionarPure?: boolean;
+  adicionarLegumes?: boolean;
   adicionarArroz?: boolean;
   carboGramas?: number | null;
   proteinaGramas?: number | null;
@@ -581,6 +582,7 @@ export function useAgendamentos(options?: { baseUrl?: string }) {
             zerarLegume: !!it.zerarLegume,
             adicionarFeijao: !!it.adicionarFeijao,
             adicionarPure: !!it.adicionarPure,
+            adicionarLegumes: !!it.adicionarLegumes,
             adicionarArroz: !!it.adicionarArroz,
 
             carboGramas: Number(it.carboGramas || 0),
@@ -673,6 +675,7 @@ export function useAgendamentos(options?: { baseUrl?: string }) {
             zerarLegume: !!it.zerarLegume,
             adicionarFeijao: !!it.adicionarFeijao,
             adicionarPure: !!it.adicionarPure,
+            adicionarLegumes: !!it.adicionarLegumes,
             adicionarArroz: !!it.adicionarArroz,
 
             carboGramas: Number(it.carboGramas || 0),

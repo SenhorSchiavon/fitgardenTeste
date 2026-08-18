@@ -45,6 +45,14 @@ export type ClientePlanoHistoricoUsoEntrega = {
     agendamentoId: number | null;
 };
 
+export type ClientePlanoHistoricoUsoAdicional = {
+    id: number;
+    adicionais: number;
+    data: string | null;
+    pedidoId: number | null;
+    agendamentoId: number | null;
+};
+
 export type ClientePlanoHistorico = {
     id: number;
     quantidade: number;
@@ -52,6 +60,8 @@ export type ClientePlanoHistorico = {
     adquiridoEm: string | null;
     saldoUnidades: number;
     saldoEntregas: number;
+    saldoAdicionais: number;
+    adicionaisComprados: number;
     taxasEntregaCompradas: number;
     valorTaxaEntrega: number;
     itens: Array<{
@@ -64,6 +74,7 @@ export type ClientePlanoHistorico = {
     }>;
     usos: ClientePlanoHistoricoUso[];
     usosEntregas: ClientePlanoHistoricoUsoEntrega[];
+    usosAdicionais: ClientePlanoHistoricoUsoAdicional[];
 };
 
 export type ClienteHistoricoResponse = {

@@ -108,7 +108,7 @@ export default function CardapioDaSemanaPage() {
   const [error, setError] = useState("");
   const [itensPedido, setItensPedido] = useState<Record<string, number>>({});
   const [feijaoOpcional, setFeijaoOpcional] = useState<Record<string, boolean>>({});
-  const [pureOpcional, setPureOpcional] = useState<Record<string, boolean>>({});
+  const [legumesOpcional, setLegumesOpcional] = useState<Record<string, boolean>>({});
   const [tamanhoSelecionado, setTamanhoSelecionado] = useState<TamanhoSelecionado>("");
   const [nome, setNome] = useState("");
   const [telefone, setTelefone] = useState("");
@@ -162,12 +162,12 @@ export default function CardapioDaSemanaPage() {
       acc + (feijaoOpcional[opcao.id] ? Number(itensPedido[opcao.id] || 0) : 0)
     ), 0);
   }, [feijaoOpcional, itensPedido, opcoes, tamanhoSelecionado]);
-  const totalPureOpcional = useMemo(() => {
+  const totalLegumesOpcional = useMemo(() => {
     if (tamanhoSelecionado === "PERSONALIZADO") return 0;
     return opcoes.reduce((acc, opcao) => (
-      acc + (pureOpcional[opcao.id] ? Number(itensPedido[opcao.id] || 0) : 0)
+      acc + (legumesOpcional[opcao.id] ? Number(itensPedido[opcao.id] || 0) : 0)
     ), 0);
-  }, [pureOpcional, itensPedido, opcoes, tamanhoSelecionado]);
+  }, [legumesOpcional, itensPedido, opcoes, tamanhoSelecionado]);
 
   const grupos = useMemo(() => {
     const map = new Map<string, OpcaoPublica[]>();
@@ -201,7 +201,7 @@ export default function CardapioDaSemanaPage() {
       const proximo = Math.max(0, atual + delta);
       if (proximo === 0) {
         setFeijaoOpcional((feijaoPrev) => ({ ...feijaoPrev, [id]: false }));
-        setPureOpcional((purePrev) => ({ ...purePrev, [id]: false }));
+        setLegumesOpcional((legumesPrev) => ({ ...legumesPrev, [id]: false }));
       }
       return {
         ...prev,
@@ -215,9 +215,9 @@ export default function CardapioDaSemanaPage() {
     setFeijaoOpcional((prev) => ({ ...prev, [id]: checked }));
   }
 
-  function togglePureOpcional(id: string, checked: boolean) {
+  function toggleLegumesOpcional(id: string, checked: boolean) {
     if (!getItemPedido(id)) return;
-    setPureOpcional((prev) => ({ ...prev, [id]: checked }));
+    setLegumesOpcional((prev) => ({ ...prev, [id]: checked }));
   }
 
   function enviarPedido() {
@@ -254,7 +254,7 @@ export default function CardapioDaSemanaPage() {
               opcaoId: Number(opcao.id),
               quantidade: Number(itensPedido[opcao.id] || 0),
               adicionarFeijao: tamanhoSelecionado !== "PERSONALIZADO" && !!feijaoOpcional[opcao.id],
-              adicionarPure: tamanhoSelecionado !== "PERSONALIZADO" && !!pureOpcional[opcao.id],
+              adicionarLegumes: tamanhoSelecionado !== "PERSONALIZADO" && !!legumesOpcional[opcao.id],
             }))
             .filter((item) => item.quantidade > 0),
         }),
@@ -445,11 +445,11 @@ export default function CardapioDaSemanaPage() {
                               <label className="flex items-center gap-2 rounded-lg bg-[#fff7f2] px-3 py-2 text-xs font-bold text-[#b85b36]">
                                 <input
                                   type="checkbox"
-                                  checked={!!pureOpcional[opcao.id]}
-                                  onChange={(event) => togglePureOpcional(opcao.id, event.target.checked)}
+                                  checked={!!legumesOpcional[opcao.id]}
+                                  onChange={(event) => toggleLegumesOpcional(opcao.id, event.target.checked)}
                                   className="h-4 w-4 accent-[#b85b36]"
                                 />
-                                Adicionar purê opcional nesta marmita (+R$2 por unidade)
+                                Adicionar legumes nesta marmita (+R$2 por unidade)
                               </label>
                               </div>
                             ) : null}
@@ -486,9 +486,9 @@ export default function CardapioDaSemanaPage() {
                   Feijão opcional: {totalFeijaoOpcional} unidade(s) (+R$2 cada)
                 </p>
               ) : null}
-              {totalPureOpcional ? (
+              {totalLegumesOpcional ? (
                 <p className="mt-1 text-center text-sm font-bold text-[#b85b36]">
-                  Purê opcional: {totalPureOpcional} unidade(s) (+R$2 cada)
+                  Legumes adicionais: {totalLegumesOpcional} unidade(s) (+R$2 cada)
                 </p>
               ) : null}
               {total > 0 ? (

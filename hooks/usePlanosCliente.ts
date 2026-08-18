@@ -34,6 +34,7 @@ export type PlanoCatalogo = {
   tamanhoId?: number | null;
   unidades: number;
   entregas?: number | null;
+  quantidadeAdicionais?: number | null;
   valor?: number | string | null;
   tamanho?: Tamanho;
   itens?: PlanoCatalogoItem[];
@@ -46,6 +47,8 @@ export type PlanoClienteVinculo = {
   planoId: number;
   saldoUnidades?: number | null;
   saldoEntregas?: number | null;
+  saldoAdicionais?: number | null;
+  adicionaisComprados?: number | null;
   taxasEntregaCompradas?: number | null;
   valorTaxaEntrega?: number | string | null;
   plano?: PlanoCatalogo & { tamanho?: Tamanho };

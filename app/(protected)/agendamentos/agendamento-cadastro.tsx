@@ -185,6 +185,7 @@ type NovoPedidoItem = {
   zerarLegume: boolean;
   adicionarFeijao: boolean;
   adicionarPure: boolean;
+  adicionarLegumes: boolean;
   adicionarArroz?: boolean;
   observacaoItem: string;
 
@@ -496,6 +497,7 @@ export function NovoAgendamentoNovoLayout({
   const [valorDescontoManual, setValorDescontoManual] = useState(0);
   const [motivoDescontoManual, setMotivoDescontoManual] = useState("");
   const [usarPlanoEscolhidoManualmente, setUsarPlanoEscolhidoManualmente] = useState(false);
+  const [incluirComplementoPersonalizada, setIncluirComplementoPersonalizada] = useState(true);
 
   const [currentGroupId, setCurrentGroupId] = useState("");
   const [modalNovoPedidoOpen, setModalNovoPedidoOpen] = useState(false);
@@ -563,6 +565,7 @@ export function NovoAgendamentoNovoLayout({
     zerarLegume: false,
     adicionarFeijao: false,
     adicionarPure: false,
+    adicionarLegumes: false,
     adicionarArroz: false,
     observacaoItem: "",
     trocaCarboId: "",
@@ -736,6 +739,7 @@ export function NovoAgendamentoNovoLayout({
         pagamento.planoClienteId &&
         Number(pagamento.consumoUnidades || 0) === 0 &&
         Number(pagamento.consumoEntregas || 0) === 0 &&
+        Number(pagamento.consumoAdicionais || 0) === 0 &&
         Number(pagamento.valor || 0) > 0,
       );
       const planosCompradosExibidos = Array.isArray(initialData.planosCompradosExibidos)
@@ -827,6 +831,7 @@ export function NovoAgendamentoNovoLayout({
         zerarLegume: !!it.zerarLegume,
         adicionarFeijao: !!it.adicionarFeijao,
         adicionarPure: !!it.adicionarPure,
+        adicionarLegumes: !!it.adicionarLegumes,
         adicionarArroz: !!it.adicionarArroz,
         observacaoItem: it.observacaoItem || "",
         precoUnit: Number(it.valor || it.precoUnit || 0) / Math.max(1, Number(it.quantidade || 1)),
@@ -853,6 +858,10 @@ export function NovoAgendamentoNovoLayout({
 
   const saldoEntregasPlano = (clienteSelecionado?.planos || []).reduce(
     (total: number, plano: any) => total + Math.max(0, Number(plano.saldoEntregas || 0)),
+    0,
+  );
+  const saldoAdicionaisPlano = (clienteSelecionado?.planos || []).reduce(
+    (total: number, plano: any) => total + Math.max(0, Number(plano.saldoAdicionais || 0)),
     0,
   );
 
@@ -1056,7 +1065,8 @@ export function NovoAgendamentoNovoLayout({
         item.trocaLegumeId ||
         item.zerarLegume ||
         item.adicionarFeijao ||
-        item.adicionarPure
+        item.adicionarPure ||
+        item.adicionarLegumes
       ) return acc;
       acc[item.opcaoId] = (acc[item.opcaoId] || 0) + Number(item.quantidade || 0);
       return acc;
@@ -1511,6 +1521,9 @@ export function NovoAgendamentoNovoLayout({
         if (item.adicionarPure && item.tipoItem !== "PERSONALIZADA") {
           detalhes.push(`${marmita}: purê adicional (+ R$ ${valorAdicional})`);
         }
+        if (item.adicionarLegumes && item.tipoItem !== "PERSONALIZADA") {
+          detalhes.push(`${marmita}: legumes adicionais (+ R$ ${valorAdicional})`);
+        }
         if (item.adicionarArroz) {
           detalhes.push(`${marmita}: arroz adicional (+ R$ ${valorAdicional})`);
         }
@@ -1588,6 +1601,7 @@ export function NovoAgendamentoNovoLayout({
 
   function resetFormItem() {
     setUsarPlanoEscolhidoManualmente(false);
+    setIncluirComplementoPersonalizada(true);
     setFormItem({
       id: "",
       tipoItem: "PADRAO",
@@ -1614,6 +1628,7 @@ export function NovoAgendamentoNovoLayout({
       zerarLegume: false,
       adicionarFeijao: false,
       adicionarPure: false,
+      adicionarLegumes: false,
       observacaoItem: "",
       precoUnit: 0,
       trocaCarboId: "",
@@ -1634,6 +1649,7 @@ export function NovoAgendamentoNovoLayout({
   }
 
   function resetFormItemPartial() {
+    setIncluirComplementoPersonalizada(true);
     setFormItem((prev) => ({
       ...prev,
       id: "",
@@ -1655,6 +1671,7 @@ export function NovoAgendamentoNovoLayout({
       zerarLegume: false,
       adicionarFeijao: false,
       adicionarPure: false,
+      adicionarLegumes: false,
       observacaoItem: "",
       precoUnit: 0,
       trocaCarboId: "",
@@ -1690,6 +1707,8 @@ export function NovoAgendamentoNovoLayout({
       complementoNome: "",
       adicionarFeijao: false,
       adicionarPure: false,
+      adicionarLegumes: false,
+      adicionarLegumes: false,
       observacaoItem: "",
     }));
   }
@@ -2053,6 +2072,7 @@ export function NovoAgendamentoNovoLayout({
       item.zerarLegume ? "Sem legume" : null,
       item.adicionarFeijao ? "Com feijão" : null,
       item.adicionarPure ? "Com purê" : null,
+      item.adicionarLegumes ? "Com legumes adicionais" : null,
       item.adicionarArroz ? "Com arroz adicional" : null,
     ].filter(Boolean);
 
@@ -2070,7 +2090,8 @@ export function NovoAgendamentoNovoLayout({
   function getAdicionaisUnitarios(item: NovoPedidoItem) {
     const adicionalFeijao = item.tipoItem === "PADRAO" && item.adicionarFeijao ? 2 : 0;
     const adicionalPure = item.tipoItem === "PADRAO" && item.adicionarPure ? 2 : 0;
-    return contarTrocasItem(item) * 2 + adicionalFeijao + adicionalPure + (item.adicionarArroz ? 2 : 0);
+    const adicionalLegumes = item.tipoItem === "PADRAO" && item.adicionarLegumes ? 2 : 0;
+    return contarTrocasItem(item) * 2 + adicionalFeijao + adicionalPure + adicionalLegumes + (item.adicionarArroz ? 2 : 0);
   }
 
   function calcularPrecoPersonalizada(item: NovoPedidoItem) {
@@ -2112,7 +2133,7 @@ export function NovoAgendamentoNovoLayout({
   }
 
   function itemTemTroca(item: NovoPedidoItem) {
-    return contarTrocasItem(item) > 0 || !!item.zerarLegume || !!item.adicionarFeijao || !!item.adicionarPure || !!item.adicionarArroz;
+    return contarTrocasItem(item) > 0 || !!item.zerarLegume || !!item.adicionarFeijao || !!item.adicionarPure || !!item.adicionarLegumes || !!item.adicionarArroz;
   }
 
   function selecionarOpcaoPersonalizada(opcao: OpcaoCardapio) {
@@ -2124,6 +2145,7 @@ export function NovoAgendamentoNovoLayout({
     const feijao = componente("FEIJAO");
     const complemento = componente("COMPLEMENTO");
     const defaults = defaultsPersonalizada();
+    setIncluirComplementoPersonalizada(true);
 
     setFormItem((prev) => ({
       ...prev,
@@ -2194,10 +2216,14 @@ export function NovoAgendamentoNovoLayout({
       zerarLegume: !!item.zerarLegume,
       adicionarFeijao: !!item.adicionarFeijao || Number(item.feijaoGramas || 0) > 0,
       adicionarPure: !!item.adicionarPure,
+      adicionarLegumes: !!item.adicionarLegumes,
       adicionarArroz: !!item.adicionarArroz,
       usarPlano: !!item.usarPlano,
     };
     setUsarPlanoEscolhidoManualmente(true);
+    setIncluirComplementoPersonalizada(
+      !!itemNormalizado.complementoId || Number(itemNormalizado.complementoGramas || 0) > 0,
+    );
     setFormItem(itemNormalizado);
     setCurrentGroupId(itemNormalizado.groupId || "");
     setBuscaMarmita("");
@@ -2280,6 +2306,7 @@ export function NovoAgendamentoNovoLayout({
       item.zerarLegume ? "Sem legume" : null,
       item.adicionarFeijao ? "Com feijão" : null,
       item.adicionarPure ? "Com purê" : null,
+      item.adicionarLegumes ? "Com legumes adicionais" : null,
       item.adicionarArroz ? "Com arroz adicional" : null,
     ].filter(Boolean).join(" • ");
   }
@@ -2692,7 +2719,8 @@ export function NovoAgendamentoNovoLayout({
         !item.trocaLegumeId &&
         !item.zerarLegume &&
         !item.adicionarFeijao &&
-        !item.adicionarPure,
+        !item.adicionarPure &&
+        !item.adicionarLegumes,
     );
 
     if (itemExistente) {
@@ -2769,6 +2797,7 @@ export function NovoAgendamentoNovoLayout({
       zerarLegume: editandoMesmaOpcao ? prev.zerarLegume : false,
       adicionarFeijao: editandoMesmaOpcao ? prev.adicionarFeijao : false,
       adicionarPure: editandoMesmaOpcao ? prev.adicionarPure : false,
+      adicionarLegumes: editandoMesmaOpcao ? prev.adicionarLegumes : false,
       adicionarArroz: editandoMesmaOpcao ? prev.adicionarArroz : false,
     }));
     setModalTrocasOpen(true);
@@ -3054,6 +3083,7 @@ export function NovoAgendamentoNovoLayout({
         opcaoNome: item.nome || opcao?.nome || "",
         adicionarFeijao: !!item.adicionarFeijao,
         adicionarPure: !!item.adicionarPure,
+        adicionarLegumes: !!item.adicionarLegumes,
         adicionarArroz: !!item.adicionarArroz,
         carboId: customizado ? carbo?.preparoId || "" : formItem.carboId,
         carboNome: customizado ? carbo?.nome || "" : formItem.carboNome,
@@ -3316,6 +3346,11 @@ export function NovoAgendamentoNovoLayout({
                         </div>
                         {clienteSelecionado.planos && clienteSelecionado.planos.length > 0 && (
                           <div className="flex flex-col gap-1 mt-1">
+                            {saldoAdicionaisPlano > 0 && (
+                              <div className="text-xs font-semibold text-blue-700 bg-blue-50 px-2 py-1 rounded border border-blue-100">
+                                {saldoAdicionaisPlano} adicional{saldoAdicionaisPlano === 1 ? "" : "is"} disponível{saldoAdicionaisPlano === 1 ? "" : "is"} no plano
+                              </div>
+                            )}
                             {clienteSelecionado.planos.map((plano: any) => {
                               if (plano.itens?.length) {
                                 return plano.itens.map((saldo: any) => {
@@ -5051,7 +5086,52 @@ export function NovoAgendamentoNovoLayout({
                                     {renderIngredientePersonalizada({ label: "Proteína", items: proteinas, idKey: "proteinaId", nomeKey: "proteinaNome", gramasKey: "proteinaGramas", optional: true })}
                                     {renderIngredientePersonalizada({ label: "Legumes", items: legumes, idKey: "legumeId", nomeKey: "legumeNome", gramasKey: "legumeGramas", optional: true })}
                                     {renderIngredientePersonalizada({ label: "Feijão", items: feijoes, idKey: "feijaoId", nomeKey: "feijaoNome", gramasKey: "feijaoGramas", optional: true })}
-                                    {renderIngredientePersonalizada({ label: "Complemento", items: complementos, idKey: "complementoId", nomeKey: "complementoNome", gramasKey: "complementoGramas", optional: true })}
+                                    <div className="space-y-3">
+                                      <div className="space-y-2">
+                                        <Label>Complemento?</Label>
+                                        <Select
+                                          value={incluirComplementoPersonalizada ? "SIM" : "NAO"}
+                                          onValueChange={(value) => {
+                                            const incluir = value === "SIM";
+                                            setIncluirComplementoPersonalizada(incluir);
+                                            setFormItem((prev) => {
+                                              if (!incluir) {
+                                                return {
+                                                  ...prev,
+                                                  complementoId: "",
+                                                  complementoNome: "",
+                                                  complementoGramas: 0,
+                                                };
+                                              }
+
+                                              const opcaoAtual = opcoesPadrao.find((opcaoAtual) => String(opcaoAtual.id) === String(prev.opcaoId));
+                                              const complementoPadrao = opcaoAtual?.preparos?.find((preparo) => preparo.tipo === "COMPLEMENTO");
+                                              return {
+                                                ...prev,
+                                                complementoId: complementoPadrao?.preparoId || prev.complementoId || "",
+                                                complementoNome: complementoPadrao?.nome || prev.complementoNome || "",
+                                              };
+                                            });
+                                          }}
+                                        >
+                                          <SelectTrigger className="h-11 bg-white">
+                                            <SelectValue />
+                                          </SelectTrigger>
+                                          <SelectContent>
+                                            <SelectItem value="SIM">Sim</SelectItem>
+                                            <SelectItem value="NAO">Não</SelectItem>
+                                          </SelectContent>
+                                        </Select>
+                                      </div>
+                                      {incluirComplementoPersonalizada && renderIngredientePersonalizada({
+                                        label: "Complemento",
+                                        items: complementos,
+                                        idKey: "complementoId",
+                                        nomeKey: "complementoNome",
+                                        gramasKey: "complementoGramas",
+                                        optional: true,
+                                      })}
+                                    </div>
                                   </div>
                                   <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
                                     <div className="rounded-md border bg-white px-3 py-2 text-sm font-bold text-emerald-700">
@@ -5201,6 +5281,7 @@ export function NovoAgendamentoNovoLayout({
                               it.zerarLegume ? "Sem legume" : null,
                               it.adicionarFeijao ? "Com feijão" : null,
                               it.adicionarPure ? "Com purê" : null,
+                              it.adicionarLegumes ? "Com legumes adicionais" : null,
                               it.adicionarArroz ? "Com arroz adicional" : null,
                             ].filter(Boolean);
                             return (

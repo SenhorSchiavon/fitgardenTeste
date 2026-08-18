@@ -54,7 +54,7 @@ export function ClienteHistoricoDialog({
     const { data, loading, error, getHistorico } = useClienteHistorico();
     const [page, setPage] = useState(1);
     const [planoEmEdicao, setPlanoEmEdicao] = useState<number | null>(null);
-    const [usosEmEdicao, setUsosEmEdicao] = useState<{ unidades: number; entregas: number; itens: Record<number, number> }>({ unidades: 0, entregas: 0, itens: {} });
+    const [usosEmEdicao, setUsosEmEdicao] = useState<{ unidades: number; entregas: number; adicionais: number; itens: Record<number, number> }>({ unidades: 0, entregas: 0, adicionais: 0, itens: {} });
     const [salvandoUsos, setSalvandoUsos] = useState(false);
     const [erroUsos, setErroUsos] = useState("");
     const pageSize = 10;
@@ -77,6 +77,7 @@ export function ClienteHistoricoDialog({
         setUsosEmEdicao({
             unidades: Math.max(0, plano.quantidade - plano.saldoUnidades),
             entregas: Math.max(0, plano.taxasEntregaCompradas - plano.saldoEntregas),
+            adicionais: Math.max(0, plano.adicionaisComprados - plano.saldoAdicionais),
             itens: Object.fromEntries((plano.itens || []).map((item) => [item.id, Math.max(0, item.quantidade - item.saldoUnidades)])),
         });
         setErroUsos("");
@@ -86,11 +87,12 @@ export function ClienteHistoricoDialog({
         if (!cliente?.id) return;
         const unidades = Math.floor(Number(usosEmEdicao.unidades || 0));
         const entregas = Math.floor(Number(usosEmEdicao.entregas || 0));
+        const adicionais = Math.floor(Number(usosEmEdicao.adicionais || 0));
         const itensInvalidos = (plano.itens || []).some((item) => {
             const usados = Math.floor(Number(usosEmEdicao.itens[item.id] || 0));
             return usados < 0 || usados > item.quantidade;
         });
-        if (unidades < 0 || unidades > plano.quantidade || entregas < 0 || entregas > plano.taxasEntregaCompradas || itensInvalidos) {
+        if (unidades < 0 || unidades > plano.quantidade || entregas < 0 || entregas > plano.taxasEntregaCompradas || adicionais < 0 || adicionais > plano.adicionaisComprados || itensInvalidos) {
             setErroUsos("Informe usos entre zero e o total contratado no plano.");
             return;
         }
@@ -103,6 +105,7 @@ export function ClienteHistoricoDialog({
                 body: JSON.stringify({
                     saldoUnidades: plano.itens?.length ? undefined : plano.quantidade - unidades,
                     saldoEntregas: plano.taxasEntregaCompradas - entregas,
+                    saldoAdicionais: plano.adicionaisComprados - adicionais,
                     saldosItens: plano.itens?.length
                         ? plano.itens.map((item) => ({
                             id: item.id,
@@ -254,6 +257,9 @@ export function ClienteHistoricoDialog({
                                                                 Taxinhas de entrega: {plano.saldoEntregas} de {plano.taxasEntregaCompradas} restantes
                                                                 {plano.valorTaxaEntrega > 0 ? ` (${moneyBr(plano.valorTaxaEntrega)} cada)` : ""}
                                                             </div>
+                                                            <div className="text-xs text-muted-foreground">
+                                                                Adicionais: {plano.saldoAdicionais} de {plano.adicionaisComprados} restantes
+                                                            </div>
                                                         </div>
 
                                                         <div className="flex flex-wrap gap-2">
@@ -338,6 +344,22 @@ export function ClienteHistoricoDialog({
                                                                     />
                                                                     <p className="text-xs text-muted-foreground">Total contratado: {plano.taxasEntregaCompradas}</p>
                                                                 </div>
+                                                                <div className="space-y-1.5">
+                                                                    <Label htmlFor={`usos-adicionais-${plano.id}`}>Adicionais utilizados</Label>
+                                                                    <Input
+                                                                        id={`usos-adicionais-${plano.id}`}
+                                                                        type="number"
+                                                                        min={0}
+                                                                        max={plano.adicionaisComprados}
+                                                                        step={1}
+                                                                        value={usosEmEdicao.adicionais}
+                                                                        onChange={(event) => setUsosEmEdicao((atual) => ({
+                                                                            ...atual,
+                                                                            adicionais: Number(event.target.value || 0),
+                                                                        }))}
+                                                                    />
+                                                                    <p className="text-xs text-muted-foreground">Total contratado: {plano.adicionaisComprados}</p>
+                                                                </div>
                                                             </div>
                                                             {erroUsos && <p className="mt-2 text-sm text-red-600">{erroUsos}</p>}
                                                             <div className="mt-3 flex justify-end gap-2">
@@ -396,6 +418,23 @@ export function ClienteHistoricoDialog({
                                                                             className="rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-800"
                                                                         >
                                                                             Utilizado {uso.entregas} taxa{uso.entregas === 1 ? "" : "s"} de entrega - {formatDate(uso.data)}
+                                                                            {uso.pedidoId ? ` - Pedido #${uso.pedidoId}` : ""}
+                                                                        </div>
+                                                                    ))}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                        <div className="mt-4 border-t pt-3">
+                                                            <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                                                                Uso dos adicionais
+                                                            </div>
+                                                            {plano.usosAdicionais.length === 0 ? (
+                                                                <div className="text-sm text-muted-foreground">Nenhum adicional utilizado ainda.</div>
+                                                            ) : (
+                                                                <div className="space-y-2">
+                                                                    {plano.usosAdicionais.map((uso) => (
+                                                                        <div key={uso.id} className="rounded-md bg-blue-50 px-3 py-2 text-sm text-blue-800">
+                                                                            Utilizado {uso.adicionais} adicional{uso.adicionais === 1 ? "" : "is"} - {formatDate(uso.data)}
                                                                             {uso.pedidoId ? ` - Pedido #${uso.pedidoId}` : ""}
                                                                         </div>
                                                                     ))}

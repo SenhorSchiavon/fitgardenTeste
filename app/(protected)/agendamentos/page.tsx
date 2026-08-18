@@ -122,6 +122,8 @@ type Agendamento = {
   saldoMarmitasAposPedido?: number | null;
   planosAtivos?: { tamanho: string; saldo: number }[];
   saldoTaxasEntrega?: number;
+  adicionaisConsumidosPlano?: number;
+  saldoAdicionaisPlano?: number;
 
   itens: {
     id?: string;
@@ -147,6 +149,7 @@ type Agendamento = {
     complementoGramas?: number;
     adicionarFeijao?: boolean;
     adicionarPure?: boolean;
+    adicionarLegumes?: boolean;
     adicionarArroz?: boolean;
     trocaCarbo?: string;
     trocaProteina?: string;
@@ -552,6 +555,7 @@ export default function Agendamentos() {
         descricaoBase,
         item.adicionarFeijao && item.tipoItem !== "PERSONALIZADA" ? "FEIJÃO ADICIONAL" : null,
         item.adicionarPure && item.tipoItem !== "PERSONALIZADA" ? "PURÊ ADICIONAL" : null,
+        item.adicionarLegumes && item.tipoItem !== "PERSONALIZADA" ? "LEGUMES ADICIONAIS" : null,
       ].filter(Boolean).join(" + ");
       const descricaoComArroz = item.adicionarArroz && item.tipoItem !== "PERSONALIZADA"
         ? `${descricao} + ARROZ ADICIONAL`
@@ -611,6 +615,27 @@ export default function Agendamentos() {
       .reduce((total, plano) => total + Number(plano.valorPlano || 0), 0);
     const valorTaxasPlanosComprados = (agendamento.planosComprados || [])
       .reduce((total, plano) => total + Number(plano.valorTaxas || 0), 0);
+    const valorTotalAdicionais = agendamento.itens
+      .filter((item) => item.tipoItem === "PADRAO" || item.tipoItem === "PERSONALIZADA")
+      .reduce((total, item) => {
+        const quantidade = Math.max(1, Number(item.quantidade || 1));
+        const quantidadeTrocas = [
+          item.trocaCarbo,
+          item.trocaProteina,
+          !item.zerarLegume ? item.trocaLegume : null,
+        ].filter(Boolean).length;
+        const adicionaisUnitarios =
+          quantidadeTrocas * 2 +
+          (item.adicionarFeijao ? 2 : 0) +
+          (item.adicionarPure ? 2 : 0) +
+          (item.adicionarLegumes ? 2 : 0) +
+          (item.adicionarArroz ? 2 : 0);
+        return total + adicionaisUnitarios * quantidade;
+      }, 0);
+    const valorAdicionaisForaDoPlano = Math.max(
+      0,
+      valorTotalAdicionais - Number(agendamento.adicionaisConsumidosPlano || 0) * 2,
+    );
     const tipoConfirmacao = agendamento.tipoEntrega === "CONGELAR"
       ? [
           "CONGELAR",
@@ -648,6 +673,12 @@ export default function Agendamentos() {
       (!agendamento.valorPlanosComprados || agendamento.valorPlanosComprados <= 0) &&
       agendamento.valorDescontoPlanoItens && agendamento.valorDescontoPlanoItens > 0
         ? `*Desconto do Plano:* - ${moneyBr(agendamento.valorDescontoPlanoItens)}`
+        : null,
+      valorAdicionaisForaDoPlano > 0
+        ? `*Adicionais a pagar:* ${moneyBr(valorAdicionaisForaDoPlano)}`
+        : null,
+      Number(agendamento.adicionaisConsumidosPlano || 0) > 0
+        ? `*Adicionais usados do plano:* ${agendamento.adicionaisConsumidosPlano}`
         : null,
       `*Total:* ${moneyBr(agendamento.valorPlanosComprados && agendamento.valorPlanosComprados > 0
         ? Math.max(0, Math.max(Number(agendamento.valorPedido || 0), Number(agendamento.valorDescontoPlanoItens || 0)) - Number(agendamento.valorDescontoPlanoItens || 0)) +
@@ -833,7 +864,7 @@ export default function Agendamentos() {
 
     const valores = itens.map((it) => {
       const qtd = Math.max(1, Number(it.quantidade || 1));
-      const adicionalTrocas = it.tipoItem === "PADRAO" ? contarTrocasItem(it) * 2 + (it.adicionarFeijao ? 2 : 0) + (it.adicionarPure ? 2 : 0) + (it.adicionarArroz ? 2 : 0) : 0;
+      const adicionalTrocas = it.tipoItem === "PADRAO" ? contarTrocasItem(it) * 2 + (it.adicionarFeijao ? 2 : 0) + (it.adicionarPure ? 2 : 0) + (it.adicionarLegumes ? 2 : 0) + (it.adicionarArroz ? 2 : 0) : 0;
       if (it.usarPlano) return { tipoItem: it.tipoItem, valor: adicionalTrocas * qtd };
 
       if (it.tipoItem === "PADRAO") {
@@ -930,6 +961,7 @@ export default function Agendamentos() {
           it.zerarLegume ? "Sem Legumes" : null,
           it.adicionarFeijao ? "Com Feijão" : null,
           it.adicionarPure ? "Com Purê" : null,
+          it.adicionarLegumes ? "Com legumes adicionais" : null,
         ].filter(Boolean).join(", ");
 
         return {
@@ -978,6 +1010,7 @@ export default function Agendamentos() {
           complementoGramas: Number(it.complementoGramas || 0),
           adicionarFeijao: !!it.adicionarFeijao,
           adicionarPure: !!it.adicionarPure,
+          adicionarLegumes: !!it.adicionarLegumes,
           adicionarArroz: !!it.adicionarArroz,
           trocaCarbo: it.trocaCarbo?.nome || it.trocaCarboNome || "",
           trocaProteina: it.trocaProteina?.nome || it.trocaProteinaNome || "",
@@ -1025,7 +1058,7 @@ export default function Agendamentos() {
           it.trocaProteinaId || it.trocaProteina?.id || it.trocaProteinaNome,
           !it.zerarLegume && (it.trocaLegumeId || it.trocaLegume?.id || it.trocaLegumeNome),
         ].filter(Boolean).length;
-        const valorAdicionais = (quantidadeTrocas * 2 + (it.adicionarFeijao ? 2 : 0) + (it.adicionarPure ? 2 : 0) + (it.adicionarArroz ? 2 : 0)) * quantidade;
+        const valorAdicionais = (quantidadeTrocas * 2 + (it.adicionarFeijao ? 2 : 0) + (it.adicionarPure ? 2 : 0) + (it.adicionarLegumes ? 2 : 0) + (it.adicionarArroz ? 2 : 0)) * quantidade;
         return acc + Math.max(0, valorItem - valorAdicionais);
       }, 0);
 
@@ -1047,6 +1080,7 @@ export default function Agendamentos() {
         p.planoClienteId &&
         Number(p.consumoUnidades || 0) === 0 &&
         Number(p.consumoEntregas || 0) === 0 &&
+        Number(p.consumoAdicionais || 0) === 0 &&
         Number(p.valor || 0) > 0,
     );
     const pagamentosCompraPlano = pagamentosCompraPlanoAtuais;
@@ -1146,6 +1180,13 @@ export default function Agendamentos() {
       (total: number, plano: any) => total + Math.max(0, Number(plano.saldoEntregas || 0)),
       0,
     );
+    const saldoAdicionaisPlano = planosCliente.reduce(
+      (total: number, plano: any) => total + Math.max(0, Number(plano.saldoAdicionais || 0)),
+      0,
+    );
+    const adicionaisConsumidosPlano = pagamentos
+      .filter((pagamento: any) => pagamento.forma === "PLANO" && Number(pagamento.consumoAdicionais || 0) > 0)
+      .reduce((total: number, pagamento: any) => total + Number(pagamento.consumoAdicionais || 0), 0);
     const saldoMarmitasAposPedido = usouPlano
       ? planosCliente.length > 0
         ? planosCliente.reduce((acc: number, plano: any) => acc + Number(plano.saldoUnidades || 0), 0)
@@ -1212,6 +1253,8 @@ export default function Agendamentos() {
       saldoMarmitasAposPedido,
       planosAtivos,
       saldoTaxasEntrega,
+      adicionaisConsumidosPlano,
+      saldoAdicionaisPlano,
       observacoes: row.pedido?.observacoes ?? row.observacoes ?? undefined,
       itens: itensUi,
       _raw: row,
@@ -2281,7 +2324,7 @@ export default function Agendamentos() {
               const saldoMarmitas = possuiSaldosDetalhados
                 ? plano.itens.reduce((total: number, item: any) => total + Math.max(0, Number(item.saldoUnidades || 0)), 0)
                 : Math.max(0, Number(plano.saldoUnidades || 0));
-              return saldoMarmitas > 0 || Number(plano.saldoEntregas || 0) > 0;
+              return saldoMarmitas > 0 || Number(plano.saldoEntregas || 0) > 0 || Number(plano.saldoAdicionais || 0) > 0;
             }),
           };
         })}
@@ -2384,6 +2427,7 @@ export default function Agendamentos() {
                 zerarLegume: !!it.zerarLegume,
                 adicionarFeijao: !!it.adicionarFeijao,
                 adicionarPure: !!it.adicionarPure,
+                adicionarLegumes: !!it.adicionarLegumes,
                 adicionarArroz: !!it.adicionarArroz,
                 carboGramas: Number(it.carboGramas || 0),
                 proteinaGramas: Number(it.proteinaGramas || 0),
@@ -2459,6 +2503,7 @@ export default function Agendamentos() {
                 zerarLegume: !!it.zerarLegume,
                 adicionarFeijao: !!it.adicionarFeijao,
                 adicionarPure: !!it.adicionarPure,
+                adicionarLegumes: !!it.adicionarLegumes,
                 adicionarArroz: !!it.adicionarArroz,
                 carboGramas: Number(it.carboGramas || 0),
                 proteinaGramas: Number(it.proteinaGramas || 0),

@@ -19,6 +19,7 @@ export type Plano = {
   unidades: number;
   entregasInclusas: number;
   entregas?: number | null;
+  quantidadeAdicionais?: number;
 
   valor: number;
   ativo: boolean;
@@ -45,6 +46,7 @@ export type NovoPlanoInput = {
   tamanhoId?: number | null;
   unidades?: number;
   entregasInclusas: number;
+  quantidadeAdicionais: number;
   valor?: number;
   ativo: boolean;
   itens?: Array<{
@@ -138,6 +140,7 @@ export function usePlanos() {
         tamanhoId: input.tamanhoId == null ? null : toNumber(input.tamanhoId),
         unidades: toNumber(input.unidades),
         entregasInclusas: toNumber(input.entregasInclusas),
+        quantidadeAdicionais: Math.max(0, Math.floor(toNumber(input.quantidadeAdicionais))),
         valor: input.valor == null ? undefined : toNumber(input.valor),
         ativo: !!input.ativo,
         itens: input.itens,
@@ -181,6 +184,7 @@ export function usePlanos() {
         tamanhoId: input.tamanhoId == null ? null : toNumber(input.tamanhoId),
         unidades: toNumber(input.unidades),
         entregasInclusas: toNumber(input.entregasInclusas),
+        quantidadeAdicionais: Math.max(0, Math.floor(toNumber(input.quantidadeAdicionais))),
         valor: input.valor == null ? undefined : toNumber(input.valor),
         ativo: !!input.ativo,
         itens: input.itens,
