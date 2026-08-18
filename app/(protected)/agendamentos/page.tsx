@@ -681,7 +681,8 @@ export default function Agendamentos() {
         ? `*Adicionais usados do plano:* ${agendamento.adicionaisConsumidosPlano}`
         : null,
       `*Total:* ${moneyBr(agendamento.valorPlanosComprados && agendamento.valorPlanosComprados > 0
-        ? Math.max(0, Math.max(Number(agendamento.valorPedido || 0), Number(agendamento.valorDescontoPlanoItens || 0)) - Number(agendamento.valorDescontoPlanoItens || 0)) +
+        ? Math.max(0, Math.max(Number(agendamento.valorPedido || 0), Number(agendamento.valorDescontoPlanoItens || 0)) - Number(agendamento.valorDescontoPlanoItens || 0)) -
+          Number(agendamento.adicionaisConsumidosPlano || 0) * 2 +
           (agendamento.taxaEntregaAbatidaPlano ? 0 : Number(agendamento.valorTaxa || 0)) +
           Number(agendamento.valorPlanosComprados) - Number(agendamento.valorDescontoManual || 0)
         : agendamento.valorTotalFinal ?? agendamento.valorTotal ?? 0)}`,
@@ -1075,6 +1076,10 @@ export default function Agendamentos() {
           Number(p.consumoUnidades || 0) > 0,
       )
       .reduce((acc: number, p: any) => acc + Number(p.valor || 0), 0);
+    const adicionaisConsumidosPlano = pagamentos
+      .filter((pagamento: any) => pagamento.forma === "PLANO" && Number(pagamento.consumoAdicionais || 0) > 0)
+      .reduce((total: number, pagamento: any) => total + Number(pagamento.consumoAdicionais || 0), 0);
+    const valorPlanoAdicionaisRegistrado = adicionaisConsumidosPlano * 2;
     const pagamentosCompraPlanoAtuais = pagamentos.filter(
       (p: any) =>
         p.planoClienteId &&
@@ -1128,7 +1133,7 @@ export default function Agendamentos() {
       ? valorDescontoItens
       : valorPlanoUnidadesRegistrado;
     const valorEntregaCobertaPlano = taxaEntregaAbatidaPlano ? valorTaxa : 0;
-    const valorDescontos = valorItensCobertosPlano + valorEntregaCobertaPlano;
+    const valorDescontos = valorItensCobertosPlano + valorEntregaCobertaPlano + valorPlanoAdicionaisRegistrado;
 
     // O backend já reconcilia o pagamento pendente ao editar o pedido. Esse é o
     // valor efetivamente devido e precisa prevalecer, inclusive quando for zero.
@@ -1184,9 +1189,6 @@ export default function Agendamentos() {
       (total: number, plano: any) => total + Math.max(0, Number(plano.saldoAdicionais || 0)),
       0,
     );
-    const adicionaisConsumidosPlano = pagamentos
-      .filter((pagamento: any) => pagamento.forma === "PLANO" && Number(pagamento.consumoAdicionais || 0) > 0)
-      .reduce((total: number, pagamento: any) => total + Number(pagamento.consumoAdicionais || 0), 0);
     const saldoMarmitasAposPedido = usouPlano
       ? planosCliente.length > 0
         ? planosCliente.reduce((acc: number, plano: any) => acc + Number(plano.saldoUnidades || 0), 0)
@@ -1986,6 +1988,16 @@ export default function Agendamentos() {
                         <span className="text-sm font-bold text-emerald-600">- R$ {agendamentoSelecionado.valorDescontoPlanoItens.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
                       </div>
                     ) : null}
+                    {Number(agendamentoSelecionado?.adicionaisConsumidosPlano || 0) > 0 ? (
+                      <div className="flex justify-between items-center py-1 border-b border-dashed border-blue-100 pb-3">
+                        <span className="text-sm text-blue-700 font-medium">
+                          Adicionais usados do plano ({agendamentoSelecionado?.adicionaisConsumidosPlano})
+                        </span>
+                        <span className="text-sm font-bold text-blue-700">
+                          - R$ {(Number(agendamentoSelecionado?.adicionaisConsumidosPlano || 0) * 2).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                        </span>
+                      </div>
+                    ) : null}
                     {agendamentoSelecionado?.valorDescontoManual && agendamentoSelecionado.valorDescontoManual > 0 ? (
                       <div className="flex justify-between items-center gap-3 py-1 border-b border-dashed border-amber-100 pb-3">
                         <span className="text-sm text-amber-700 font-medium">
@@ -2319,13 +2331,7 @@ export default function Agendamentos() {
             enderecoPrincipal: enderecoTexto,
             enderecos: c.enderecos,
             tags: c.tags,
-            planos: (c.planos || []).filter((plano: any) => {
-              const possuiSaldosDetalhados = Array.isArray(plano.itens) && plano.itens.length > 0;
-              const saldoMarmitas = possuiSaldosDetalhados
-                ? plano.itens.reduce((total: number, item: any) => total + Math.max(0, Number(item.saldoUnidades || 0)), 0)
-                : Math.max(0, Number(plano.saldoUnidades || 0));
-              return saldoMarmitas > 0 || Number(plano.saldoEntregas || 0) > 0 || Number(plano.saldoAdicionais || 0) > 0;
-            }),
+            planos: c.planos || [],
           };
         })}
         tamanhos={tamanhos.map((t) => ({

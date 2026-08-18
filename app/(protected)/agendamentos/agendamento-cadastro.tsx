@@ -857,11 +857,19 @@ export function NovoAgendamentoNovoLayout({
     }
   }, [open, initialData]);
 
-  const saldoEntregasPlano = (clienteSelecionado?.planos || []).reduce(
+  const planosDoPedidoEmEdicao = (initialData?.pagamentos || initialData?.pedido?.pagamentos || [])
+    .map((pagamento: any) => pagamento.planoCliente)
+    .filter(Boolean);
+  const planosVisiveisCliente = Array.from(new Map(
+    [...(clienteSelecionado?.planos || []), ...planosDoPedidoEmEdicao]
+      .map((plano: any) => [Number(plano.id), plano]),
+  ).values()) as any[];
+
+  const saldoEntregasPlano = planosVisiveisCliente.reduce(
     (total: number, plano: any) => total + Math.max(0, Number(plano.saldoEntregas || 0)),
     0,
   );
-  const saldoAdicionaisPlano = (clienteSelecionado?.planos || []).reduce(
+  const saldoAdicionaisPlano = planosVisiveisCliente.reduce(
     (total: number, plano: any) => total + Math.max(0, Number(plano.saldoAdicionais || 0)),
     0,
   );
@@ -1140,7 +1148,7 @@ export function NovoAgendamentoNovoLayout({
 
   function getSaldoPlanoPorTamanho(tamanhoId?: string) {
     if (!tamanhoId) return 0;
-    return (clienteSelecionado?.planos || []).reduce((acc: number, plano: any) => {
+    return planosVisiveisCliente.reduce((acc: number, plano: any) => {
       const planoTamanhoId = String(plano.plano?.tamanhoId ?? plano.tamanhoId ?? "");
       if (planoTamanhoId !== String(tamanhoId)) return acc;
       return acc + Number(plano.saldoUnidades || 0);
@@ -1186,7 +1194,7 @@ export function NovoAgendamentoNovoLayout({
   }
 
   function getSaldoPlanoParaItem(item: NovoPedidoItem) {
-    return (clienteSelecionado?.planos || []).reduce((acc: number, plano: any) => {
+    return planosVisiveisCliente.reduce((acc: number, plano: any) => {
       const saldos = plano.itens || [];
       if (saldos.length > 0) {
         return acc + saldos.reduce((subAcc: number, saldo: any) => {
@@ -1273,7 +1281,7 @@ export function NovoAgendamentoNovoLayout({
     for (const item of itens) {
       if (permitidos && !permitidos.has(item.id)) continue;
       if (item.usarPlano || item.tipoItem === "SALGADO") continue;
-      if (!(clienteSelecionado?.planos || []).some((plano: any) => planoClienteTemItemCompativel(plano, item))) continue;
+      if (!planosVisiveisCliente.some((plano: any) => planoClienteTemItemCompativel(plano, item))) continue;
 
       const chave = getPlanoConsumoKey(item);
       const quantidade = Math.max(1, Number(item.quantidade || 1));
@@ -1301,7 +1309,7 @@ export function NovoAgendamentoNovoLayout({
 
   function canUsePlanoForItem(item: NovoPedidoItem) {
     if (!item.usarPlano || item.tipoItem === "SALGADO") return true;
-    return (clienteSelecionado?.planos || []).some((plano: any) => planoClienteTemItemCompativel(plano, item));
+    return planosVisiveisCliente.some((plano: any) => planoClienteTemItemCompativel(plano, item));
   }
 
   function temSaldoPlanoSuficienteParaItem(item: NovoPedidoItem) {
@@ -1559,12 +1567,18 @@ export function NovoAgendamentoNovoLayout({
       (total, item) => total + getAdicionaisUnitarios(item) * Math.max(1, Number(item.quantidade || 1)),
       0,
     );
+  const quantidadeAdicionaisSelecionadosResumo = Math.round(valorAdicionaisVoucherResumo / 2);
+  const quantidadeAdicionaisCobertosResumo = Math.min(
+    quantidadeAdicionaisSelecionadosResumo,
+    saldoAdicionaisPlano,
+  );
+  const valorAdicionaisCobertosResumo = quantidadeAdicionaisCobertosResumo * 2;
   const valorDescontoVoucherResumo = isVoucherForma(formaPagamento)
     ? Math.max(0, subtotalPedido - valorAdicionaisVoucherResumo)
     : 0;
   const valorAntesDescontoManual = Math.max(
     0,
-    subtotalPedido - valorDescontoVoucherResumo + valorTaxaEntregaResumo + valorPlanosNaoPagosResumo,
+    subtotalPedido - valorDescontoVoucherResumo - valorAdicionaisCobertosResumo + valorTaxaEntregaResumo + valorPlanosNaoPagosResumo,
   );
   const valorDescontoManualAplicado = Math.min(
     Math.max(0, Number(valorDescontoManual || 0)),
@@ -3338,7 +3352,7 @@ export function NovoAgendamentoNovoLayout({
                         <div className="flex items-center justify-between">
                           <div>
                             <span className="font-medium">Plano Ativo:</span>{" "}
-                            {clienteSelecionado.planos && clienteSelecionado.planos.length > 0 ? (
+                            {planosVisiveisCliente.length > 0 ? (
                               <Badge className="bg-green-500 hover:bg-green-600">Sim</Badge>
                             ) : (
                               <Badge variant="outline">Não</Badge>
@@ -3350,16 +3364,23 @@ export function NovoAgendamentoNovoLayout({
                             </Button>
                           </Link>
                         </div>
-                        {clienteSelecionado.planos && clienteSelecionado.planos.length > 0 && (
+                        {planosVisiveisCliente.length > 0 && (
                           <div className="flex flex-col gap-1 mt-1">
                             {saldoAdicionaisPlano > 0 && (
                               <div className="text-xs font-semibold text-blue-700 bg-blue-50 px-2 py-1 rounded border border-blue-100">
-                                {saldoAdicionaisPlano} adicional{saldoAdicionaisPlano === 1 ? "" : "is"} disponível{saldoAdicionaisPlano === 1 ? "" : "is"} no plano
+                                {saldoAdicionaisPlano} {saldoAdicionaisPlano === 1 ? "adicional disponível" : "adicionais disponíveis"} no plano
                               </div>
                             )}
-                            {clienteSelecionado.planos.map((plano: any) => {
+                            {planosVisiveisCliente.map((plano: any) => {
+                              const statusPlano = plano.pago === true ? "PAGO" : "NÃO PAGO";
                               if (plano.itens?.length) {
-                                return plano.itens.map((saldo: any) => {
+                                return (
+                                  <div key={plano.id} className="rounded border border-gray-100 px-2 py-1.5">
+                                    <div className="mb-1 flex items-center justify-between gap-2 text-[10px] font-bold">
+                                      <span>{plano.plano?.nome || `Plano #${plano.id}`}</span>
+                                      <Badge variant="outline" className={plano.pago === true ? "border-green-200 text-green-700" : "border-amber-300 text-amber-700"}>{statusPlano}</Badge>
+                                    </div>
+                                    {plano.itens.map((saldo: any) => {
                                   const planoItem = saldo.planoItem || {};
                                   const peso = planoItem.tamanho?.pesagemGramas || planoItem.pesoPersonalizadoGramas;
                                   const label = planoItem.pesoPersonalizadoGramas
@@ -3380,15 +3401,21 @@ export function NovoAgendamentoNovoLayout({
                                       {saldo.saldoUnidades} marmitas - {label}
                                     </div>
                                   );
-                                });
+                                    })}
+                                  </div>
+                                );
                               }
                               const peso = plano.tamanho?.pesagemGramas || plano.plano?.tamanho?.pesagemGramas;
                               const pTamanhoId = plano.plano?.tamanhoId || plano.tamanhoId;
                               const isInUse = itens.some(it => it.usarPlano && Number(it.tamanhoId) === Number(pTamanhoId));
                               
                               return (
-                                <div key={plano.id} className={`text-xs font-medium ${isInUse ? "text-green-600 bg-green-50 px-1 rounded-sm border border-green-100" : "text-muted-foreground"}`}>
-                                  {plano.saldoUnidades} marmitas{peso ? ` - ${peso}g` : ""}
+                                <div key={plano.id} className={`rounded border px-2 py-1.5 text-xs font-medium ${isInUse ? "text-green-600 bg-green-50 border-green-100" : "text-muted-foreground border-gray-100"}`}>
+                                  <div className="mb-1 flex items-center justify-between gap-2 text-[10px] font-bold">
+                                    <span>{plano.plano?.nome || `Plano #${plano.id}`}</span>
+                                    <Badge variant="outline" className={plano.pago === true ? "border-green-200 text-green-700" : "border-amber-300 text-amber-700"}>{statusPlano}</Badge>
+                                  </div>
+                                  <div>{plano.saldoUnidades} marmitas{peso ? ` - ${peso}g` : ""}</div>
                                 </div>
                               );
                             })}
@@ -3918,7 +3945,7 @@ export function NovoAgendamentoNovoLayout({
                             const ids = new Set(elegiveis.ids);
                             setItens((atuais) => atuais.map((item) => ids.has(item.id) ? { ...item, usarPlano: true } : item));
 
-                            const planoRecuperavel = (clienteSelecionado?.planos || []).find((plano: any) =>
+                            const planoRecuperavel = planosVisiveisCliente.find((plano: any) =>
                               plano.pago === false && itens.some((item) => ids.has(item.id) && planoClienteTemItemCompativel(plano, item)),
                             );
                             if (planoRecuperavel && !planosComprados.some((plano) => plano.id === Number(planoRecuperavel.id))) {
@@ -4843,7 +4870,7 @@ export function NovoAgendamentoNovoLayout({
                   
                   {(() => {
                     if (formItem.tipoItem === "SALGADO") return null;
-                    const temPlanoCompativel = clienteSelecionado?.planos?.some((p: any) =>
+                    const temPlanoCompativel = planosVisiveisCliente.some((p: any) =>
                       planoClienteTemItemCompativel(p, formItem),
                     );
                     // Na edição, mantém o controle visível para permitir devolver um
