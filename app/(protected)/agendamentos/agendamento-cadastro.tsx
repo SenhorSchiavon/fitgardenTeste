@@ -1175,7 +1175,9 @@ export function NovoAgendamentoNovoLayout({
     return (clienteSelecionado?.planos || []).reduce((acc: number, plano: any) => {
       // O backend só permite consumir saldo de planos pagos. Manter a mesma
       // regra aqui evita o resumo prometer um abatimento que não será salvo.
-      if (plano.pago !== true) return acc;
+      // Algumas respostas resumidas antigas não trazem `pago`. Excluímos
+      // somente quando o backend informa explicitamente que está pendente.
+      if (plano.pago === false) return acc;
       const saldos = plano.itens || [];
       if (saldos.length > 0) {
         return acc + saldos.reduce((subAcc: number, saldo: any) => {

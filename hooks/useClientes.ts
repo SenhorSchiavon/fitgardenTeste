@@ -29,6 +29,7 @@ export type EnderecoCliente = {
 export type PlanoCliente = {
   id: number;
   clienteId: number;
+  pago?: boolean;
   tamanhoId?: number;
   planoId?: number;
   saldoUnidades: number;
