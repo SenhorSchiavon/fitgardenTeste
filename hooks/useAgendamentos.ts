@@ -146,6 +146,8 @@ export type CreateAgendamentoInput = {
   entregaLongitude?: number | null;
   regiao?: RegiaoEntrega;
   observacoes?: string;
+  precisaTroco?: boolean;
+  trocoPara?: number | null;
   formaPagamento: FormaPagamento;
   senhaAutorizacao?: string;
   voucherCodigo?: string;
@@ -170,6 +172,8 @@ export type UpdateAgendamentoInput = Partial<{
   entregaLongitude: number | null;
   regiao: RegiaoEntrega | null;
   observacoes: string | null;
+  precisaTroco: boolean;
+  trocoPara: number | null;
   formaPagamento: FormaPagamento;
   voucherCodigo: string;
   formaPagamentoTaxaVoucher: FormaPagamento;

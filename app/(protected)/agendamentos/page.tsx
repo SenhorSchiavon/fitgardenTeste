@@ -77,6 +77,7 @@ import { usePlanosCliente } from "@/hooks/usePlanosCliente";
 import { useRegrasPersonalizadas } from "@/hooks/useRegrasPersonalizadas";
 type Agendamento = {
   id: string;
+  pedidoId?: number | string;
   numeroPedido: string;
   cliente: string;
   tipoEntrega: "NAO_DEFINIR" | "ENTREGA" | "RETIRADA" | "CONGELAR";
@@ -102,6 +103,8 @@ type Agendamento = {
   voucherCodigo?: string;
   entregador: string;
   observacoes?: string;
+  precisaTroco?: boolean;
+  trocoPara?: number | null;
 
   valorPedido?: number;
   valorPedidoProporcional?: number;
@@ -279,6 +282,8 @@ function montarDadosEdicaoAgendamento(agendamento: Agendamento) {
     endereco: raw.endereco ?? agendamento.endereco,
     regiao: raw.regiao ?? agendamento.zona ?? null,
     observacoes: pedido.observacoes ?? agendamento.observacoes ?? "",
+    precisaTroco: pedido.precisaTroco ?? agendamento.precisaTroco ?? false,
+    trocoPara: pedido.trocoPara ?? agendamento.trocoPara ?? null,
     formaPagamento,
     formaPagamentoTaxaVoucher,
     voucherCodigo,
@@ -695,6 +700,11 @@ export default function Agendamentos() {
           ), ""]
         : []),
       `*Forma de Pagamento:* ${getLabelPagamentoConfirmacao(agendamento)}`,
+      agendamento.formaPagamento === "DINHEIRO"
+        ? agendamento.precisaTroco && Number(agendamento.trocoPara || 0) > 0
+          ? `*Troco para:* ${moneyBr(Number(agendamento.trocoPara))}`
+          : "*Troco:* Não precisa"
+        : null,
       ...(planos.length || saldoTaxasEntrega > 0
         ? [
             "",
@@ -1258,6 +1268,8 @@ export default function Agendamentos() {
       adicionaisConsumidosPlano,
       saldoAdicionaisPlano,
       observacoes: row.pedido?.observacoes ?? row.observacoes ?? undefined,
+      precisaTroco: !!(row.pedido?.precisaTroco ?? row.precisaTroco),
+      trocoPara: row.pedido?.trocoPara != null ? Number(row.pedido.trocoPara) : row.trocoPara != null ? Number(row.trocoPara) : null,
       itens: itensUi,
       _raw: row,
     };
@@ -2022,12 +2034,22 @@ export default function Agendamentos() {
                         R$ {(agendamentoSelecionado?.valorTotalFinal ?? agendamentoSelecionado?.valorTotal ?? 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                       </span>
                     </div>
+                    {agendamentoSelecionado?.formaPagamento === "DINHEIRO" && (
+                      <div className="flex justify-between items-center border-t border-dashed border-slate-100 pt-3">
+                        <span className="text-sm text-slate-600">Troco</span>
+                        <span className="text-sm font-bold text-slate-800">
+                          {agendamentoSelecionado.precisaTroco && Number(agendamentoSelecionado.trocoPara || 0) > 0
+                            ? `Para ${moneyBr(Number(agendamentoSelecionado.trocoPara))}`
+                            : "Não precisa"}
+                        </span>
+                      </div>
+                    )}
                   </div>
                 </section>
 
                 {agendamentoSelecionado?.observacoes && (
                   <div className="p-4 bg-amber-50 rounded-xl border border-amber-100">
-                    <p className="text-xs font-bold text-amber-800 uppercase mb-1">Observações do Pedido</p>
+                    <p className="text-xs font-bold text-amber-800 uppercase mb-1">Comentário interno</p>
                     <p className="text-sm text-amber-900 leading-relaxed italic">"{agendamentoSelecionado.observacoes}"</p>
                   </div>
                 )}
@@ -2118,6 +2140,30 @@ export default function Agendamentos() {
             </Button>
 
             <div className="flex gap-2">
+              <Button
+                variant="outline"
+                className="rounded-xl px-4 border-amber-200 text-amber-700 hover:bg-amber-50"
+                onClick={async () => {
+                  if (!agendamentoSelecionado) return;
+                  const comentario = window.prompt("Comentário interno do pedido:", agendamentoSelecionado.observacoes || "");
+                  if (comentario === null) return;
+                  try {
+                    const agendamentoId = Number(agendamentoSelecionado._raw?.agendamentoId ?? agendamentoSelecionado.id);
+                    await apiFetch(`/agendamentos/${agendamentoId}/comentario`, {
+                      method: "PATCH",
+                      body: JSON.stringify({ observacoes: comentario }),
+                    });
+                    const observacoes = comentario.trim() || undefined;
+                    setAgendamentos((atuais) => atuais.map((item) => item.id === agendamentoSelecionado.id ? { ...item, observacoes } : item));
+                    setAgendamentoSelecionado((atual) => atual ? { ...atual, observacoes } : atual);
+                    toast({ title: "Comentário salvo" });
+                  } catch (erro: any) {
+                    toast({ title: "Não foi possível salvar", description: erro?.message, variant: "destructive" });
+                  }
+                }}
+              >
+                <MessageCircle className="mr-2 h-4 w-4" /> Comentário interno
+              </Button>
               <Button
                 variant="outline"
                 className="rounded-xl px-6 border-emerald-200 text-emerald-700 hover:bg-emerald-50"
@@ -2405,6 +2451,8 @@ export default function Agendamentos() {
               entregaLatitude: payload.entregaLatitude,
               entregaLongitude: payload.entregaLongitude,
               observacoes: payload.observacoes ?? null,
+              precisaTroco: payload.precisaTroco,
+              trocoPara: payload.trocoPara,
               formaPagamento: payload.formaPagamento,
               voucherCodigo: payload.voucherCodigo,
               formaPagamentoTaxaVoucher: payload.formaPagamentoTaxaVoucher,
@@ -2491,6 +2539,8 @@ export default function Agendamentos() {
               entregaLatitude: payload.entregaLatitude,
               entregaLongitude: payload.entregaLongitude,
               observacoes: payload.observacoes ?? null,
+              precisaTroco: payload.precisaTroco,
+              trocoPara: payload.trocoPara,
               formaPagamento: payload.formaPagamento,
               senhaAutorizacao: payload.senhaAutorizacao,
               voucherCodigo: payload.voucherCodigo,

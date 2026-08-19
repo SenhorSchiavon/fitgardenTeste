@@ -490,6 +490,8 @@ export function NovoAgendamentoNovoLayout({
   const [enderecoSelecionadoId, setEnderecoSelecionadoId] = useState("");
   const [observacoesPedido, setObservacoesPedido] = useState("");
   const [formaPagamento, setFormaPagamento] = useState<FormaPagamento>("A_DEFINIR");
+  const [precisaTroco, setPrecisaTroco] = useState(false);
+  const [trocoPara, setTrocoPara] = useState(0);
   const [formaPagamentoTaxaVoucher, setFormaPagamentoTaxaVoucher] = useState<FormaPagamento>("A_DEFINIR");
   const [voucherCodigo, setVoucherCodigo] = useState("");
   const [pagamentoJaRealizado, setPagamentoJaRealizado] = useState(false);
@@ -721,6 +723,8 @@ export function NovoAgendamentoNovoLayout({
       
       setEndereco(initialData.endereco || "");
       setObservacoesPedido(initialData.observacoes || "");
+      setPrecisaTroco(!!(initialData.precisaTroco ?? initialData.pedido?.precisaTroco));
+      setTrocoPara(Number(initialData.trocoPara ?? initialData.pedido?.trocoPara ?? 0));
       const formaInicial = initialData.formaPagamento || "A_DEFINIR";
       setFormaPagamento(isVoucherForma(formaInicial) ? "VOUCHER" : formaInicial);
       setFormaPagamentoTaxaVoucher(
@@ -1597,6 +1601,8 @@ export function NovoAgendamentoNovoLayout({
     setEndereco("");
     setObservacoesPedido("");
     setFormaPagamento("A_DEFINIR");
+    setPrecisaTroco(false);
+    setTrocoPara(0);
     setPagamentoJaRealizado(false);
     setDescontoManualOpen(false);
     setValorDescontoManual(0);
@@ -1725,7 +1731,6 @@ export function NovoAgendamentoNovoLayout({
       complementoNome: "",
       adicionarFeijao: false,
       adicionarPure: false,
-      adicionarLegumes: false,
       adicionarLegumes: false,
       observacaoItem: "",
     }));
@@ -2900,6 +2905,11 @@ export function NovoAgendamentoNovoLayout({
 
     const formaPagamentoPayload: FormaPagamento = formaPagamento;
 
+    if (formaPagamentoPayload === "DINHEIRO" && precisaTroco && Number(trocoPara || 0) <= 0) {
+      toast.error("Informe o valor para o troco");
+      return;
+    }
+
     if (formaPagamentoPayload === "PLANO" && !itens.some((it) => it.usarPlano)) {
       toast.error("Plano não selecionado", {
         description: "Forma de pagamento Plano precisa ter um plano vinculado ao pedido.",
@@ -2976,6 +2986,8 @@ export function NovoAgendamentoNovoLayout({
       entregaLatitude: ehEntrega && enderecoSelecionado?.latitude != null ? Number(enderecoSelecionado.latitude) : undefined,
       entregaLongitude: ehEntrega && enderecoSelecionado?.longitude != null ? Number(enderecoSelecionado.longitude) : undefined,
       observacoes: observacoesPedido,
+      precisaTroco: formaPagamentoPayload === "DINHEIRO" && precisaTroco,
+      trocoPara: formaPagamentoPayload === "DINHEIRO" && precisaTroco ? Number(trocoPara) : null,
       formaPagamento: formaPagamentoPayload,
       senhaAutorizacao,
       voucherCodigo: isVoucherForma(formaPagamentoPayload) ? voucherCodigo.trim() : undefined,
@@ -3967,6 +3979,10 @@ export function NovoAgendamentoNovoLayout({
                           }
                         }
                         setFormaPagamento(v);
+                        if (v !== "DINHEIRO") {
+                          setPrecisaTroco(false);
+                          setTrocoPara(0);
+                        }
                         setPagamentoJaRealizado(false);
                       }}
                     >
@@ -4000,6 +4016,34 @@ export function NovoAgendamentoNovoLayout({
                         />
                         Já foi pago
                       </label>
+                    )}
+                    {formaPagamento === "DINHEIRO" && (
+                      <div className="space-y-3 rounded-lg border border-amber-200 bg-amber-50/50 p-3">
+                        <label className="flex cursor-pointer items-center gap-2 text-sm font-medium">
+                          <Checkbox
+                            checked={precisaTroco}
+                            onCheckedChange={(checked) => {
+                              setPrecisaTroco(checked === true);
+                              if (checked !== true) setTrocoPara(0);
+                            }}
+                          />
+                          Precisa de troco
+                        </label>
+                        {precisaTroco && (
+                          <div className="space-y-2">
+                            <Label htmlFor="trocoPara">Troco para quanto?</Label>
+                            <Input
+                              id="trocoPara"
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              value={trocoPara || ""}
+                              onChange={(e) => setTrocoPara(Number(e.target.value || 0))}
+                              placeholder="Ex.: 100,00"
+                            />
+                          </div>
+                        )}
+                      </div>
                     )}
                   </div>
 
