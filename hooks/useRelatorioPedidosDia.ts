@@ -63,7 +63,10 @@ export function useRelatorioPedidosDia() {
     }
   }, []);
 
-  const downloadCozinhaDocx = useCallback(async (params: { data: string }) => {
+  const downloadCozinhaDocx = useCallback(async (params: {
+    data: string;
+    valoresExibidos?: Record<string, { valorTotalFinal: number; formaPagamento: string }>;
+  }) => {
     const dataStr = String(params.data || "").trim();
 
     if (!validarDataISO(dataStr)) {

@@ -1100,17 +1100,16 @@ export default function Agendamentos() {
     );
     const pagamentosCompraPlano = pagamentosCompraPlanoAtuais;
     const valorPlanosComprados = pagamentosCompraPlano
-      .reduce((acc: number, p: any) => acc + Number(p.valor || 0), 0);
-    const planosComprados = pagamentosCompraPlano.map((p: any) => ({
+          const planosComprados = pagamentosCompraPlano.map((p: any) => ({
       id: Number(p.planoClienteId),
       nome: String(p.planoCliente?.plano?.nome || `Plano #${p.planoClienteId}`),
       valor: Number(p.valor || 0),
       valorPlano: Number(p.planoCliente?.plano?.valor || p.valor || 0),
       valorTaxas: Math.max(0, Number(p.valor || 0) - Number(p.planoCliente?.plano?.valor || p.valor || 0)),
-      pago: p.status === "CONFIRMADO",
+      pago: p.status === "CONFIRMADO" || p.planoCliente?.pago === true,
     }));
     const valorPlanosCompradosPendente = pagamentosCompraPlano
-      .filter((p: any) => p.status === "PENDENTE")
+      .filter((p: any) => p.status === "PENDENTE" || p.planoCliente?.pago === false)
       .reduce((acc: number, p: any) => acc + Number(p.valor || 0), 0);
     const valorPlanoProporcional = valorPlanoUnidadesRegistrado > 0
       ? valorPlanoUnidadesRegistrado
@@ -1167,7 +1166,7 @@ export default function Agendamentos() {
     ];
     const valorTotalFinal = usouPlano
       ? valorTotalPelaCoberturaAtual + valorPlanosCompradosPendente
-      : Math.max(0, Math.min(...candidatosTotal));
+      : Math.max(0, Math.min(...candidatosTotal) + valorPlanosCompradosPendente);
     const planosClienteAtivos = row.pedido?.cliente?.planos ?? row.cliente?.planos ?? [];
     // O plano comprado neste pedido ainda pode estar como não pago, mas seu saldo
     // pós-pedido precisa aparecer imediatamente na confirmação do cliente.
