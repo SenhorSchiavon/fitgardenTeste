@@ -1100,7 +1100,8 @@ export default function Agendamentos() {
     );
     const pagamentosCompraPlano = pagamentosCompraPlanoAtuais;
     const valorPlanosComprados = pagamentosCompraPlano
-          const planosComprados = pagamentosCompraPlano.map((p: any) => ({
+      .reduce((acc: number, p: any) => acc + Number(p.valor || 0), 0);
+    const planosComprados = pagamentosCompraPlano.map((p: any) => ({
       id: Number(p.planoClienteId),
       nome: String(p.planoCliente?.plano?.nome || `Plano #${p.planoClienteId}`),
       valor: Number(p.valor || 0),
@@ -1108,9 +1109,32 @@ export default function Agendamentos() {
       valorTaxas: Math.max(0, Number(p.valor || 0) - Number(p.planoCliente?.plano?.valor || p.valor || 0)),
       pago: p.status === "CONFIRMADO" || p.planoCliente?.pago === true,
     }));
-    const valorPlanosCompradosPendente = pagamentosCompraPlano
-      .filter((p: any) => p.status === "PENDENTE" || p.planoCliente?.pago === false)
-      .reduce((acc: number, p: any) => acc + Number(p.valor || 0), 0);
+
+    const planosClienteAtivos = row.pedido?.cliente?.planos ?? row.cliente?.planos ?? [];
+    const planosCompradosNoPedido = pagamentosCompraPlano
+      .map((pagamento: any) => pagamento.planoCliente)
+      .filter(Boolean);
+    const planosCliente = Array.from(
+      new Map(
+        [...planosClienteAtivos, ...planosCompradosNoPedido].map((plano: any) => [Number(plano.id), plano]),
+      ).values(),
+    );
+
+    const valorPlanosNaoPagosCliente = planosCliente
+      .filter((plano: any) => !plano.pago)
+      .reduce((acc: number, plano: any) => {
+        const valorPlano = Number(plano.plano?.valor || plano.valor || 0);
+        const valorTaxas = Number(plano.valorTaxaEntrega || 0) * Number(plano.taxasEntregaCompradas || 0);
+        return acc + valorPlano + valorTaxas;
+      }, 0);
+
+    const valorPlanosCompradosPendente = Math.max(
+      pagamentosCompraPlano
+        .filter((p: any) => p.status === "PENDENTE" || p.planoCliente?.pago === false)
+        .reduce((acc: number, p: any) => acc + Number(p.valor || 0), 0),
+      valorPlanosNaoPagosCliente,
+    );
+
     const valorPlanoProporcional = valorPlanoUnidadesRegistrado > 0
       ? valorPlanoUnidadesRegistrado
       : valorDescontoItens;
