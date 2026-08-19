@@ -5,7 +5,6 @@ import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { isMobileWhatsAppDevice, openWhatsApp } from "@/lib/open-whatsapp";
 
 type CongeladaPublica = { id: string; nome: string; tamanhoGramas: number; quantidade: number };
@@ -29,7 +28,6 @@ export default function CardapioCongeladasPage() {
   const [quantidades, setQuantidades] = useState<Record<string, number>>({});
   const [nome, setNome] = useState("");
   const [telefone, setTelefone] = useState("");
-  const [observacoes, setObservacoes] = useState("");
   const [erro, setErro] = useState("");
   const [enviando, setEnviando] = useState(false);
   const [tamanhoSelecionado, setTamanhoSelecionado] = useState("");
@@ -75,7 +73,7 @@ export default function CardapioCongeladasPage() {
       const res = await fetch(apiUrl("/public/pedidos"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ cardapioId: dados.id, tipoPedido: "CONGELADAS", origem: dados.destinoWhatsApp || "principal", nome, telefone, tamanhoLabel: "CONGELADAS", observacoes, itens }),
+        body: JSON.stringify({ cardapioId: dados.id, tipoPedido: "CONGELADAS", origem: dados.destinoWhatsApp || "principal", nome, telefone, tamanhoLabel: "CONGELADAS", itens }),
       });
       const json = await res.json().catch(() => null);
       if (!res.ok) throw new Error(json?.message || "Não foi possível registrar o pedido.");
@@ -127,7 +125,6 @@ export default function CardapioCongeladasPage() {
         <section className="mt-6 space-y-4 rounded-2xl border p-4">
           <div className="flex items-center gap-2 font-black"><ShoppingBasket className="h-5 w-5" /> Seu pedido: {total} marmita(s)</div>
           <div className="grid gap-4 sm:grid-cols-2"><div><Label>Nome completo</Label><Input value={nome} onChange={(e) => setNome(e.target.value)} /></div><div><Label>Telefone</Label><Input value={telefone} onChange={(e) => setTelefone(telefoneFormatado(e.target.value))} /></div></div>
-          <div><Label>Observação</Label><Textarea value={observacoes} onChange={(e) => setObservacoes(e.target.value)} /></div>
           <Button className="h-12 w-full bg-[#c24f2f] font-black text-white hover:bg-[#a94329]" onClick={enviar} disabled={enviando || !total || !nome.trim() || !telefone.trim()}><Send className="mr-2 h-5 w-5" />{enviando ? "Enviando..." : "Enviar pedido de congeladas"}</Button>
         </section>
       </div>

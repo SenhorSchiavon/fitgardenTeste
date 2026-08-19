@@ -16,6 +16,7 @@ import { ClienteFormDialog } from "@/components/clientes/ClienteFormDialog";
 import { useClientes } from "@/hooks/useClientes";
 
 type Escolha = { opcaoId: number; nome: string; quantidade: number; adicionarFeijao?: boolean; adicionarPure?: boolean; adicionarLegumes?: boolean };
+type EscolhaCongelada = { congeladaId: number; nome: string; tamanhoGramas: number; quantidade: number };
 type PedidoPublico = {
   id: number;
   nome: string;
@@ -34,7 +35,12 @@ type PedidoPublico = {
   status: "PENDENTE" | "AGENDADO" | "DESCARTADO";
   agendamentoId?: number | null;
   motivoDescarte?: string | null;
-  itens: { escolhas?: Escolha[]; personalizada?: Record<string, string> | null };
+  itens: {
+    escolhas?: Escolha[];
+    personalizada?: Record<string, string> | null;
+    congeladas?: EscolhaCongelada[];
+    estoqueReservado?: boolean;
+  };
   cliente?: { id: number; nome: string; telefone: string } | null;
   cardapio: { id: number; nome: string };
   createdAt: string;
@@ -85,12 +91,46 @@ export default function PedidosClientesPage() {
 
   useEffect(() => { carregar(); }, [carregar]);
 
-  const totalMarmitas = (pedido: PedidoPublico) =>
-    (pedido.itens?.escolhas || []).reduce((total, item) => total + Number(item.quantidade || 0), 0);
+  const totalMarmitas = (pedido: PedidoPublico) => {
+    if (Array.isArray(pedido.itens?.congeladas) && pedido.itens.congeladas.length > 0) {
+      return pedido.itens.congeladas.reduce((total, item) => total + Number(item.quantidade || 0), 0);
+    }
+    return (pedido.itens?.escolhas || []).reduce((total, item) => total + Number(item.quantidade || 0), 0);
+  };
 
   const iniciarAgendamento = (pedido: PedidoPublico) => {
     const personalizada = pedido.itens?.personalizada || {};
     const customizado = pedido.tamanhoLabel === "PERSONALIZADO";
+    const ehCongeladas = Array.isArray(pedido.itens?.congeladas) && pedido.itens.congeladas.length > 0;
+
+    const itensAgendamento = ehCongeladas
+      ? (pedido.itens.congeladas || []).map((item) => ({
+          grupoPedido: `pedido-publico:${pedido.id}:congelada:${item.congeladaId}`,
+          tipoItem: "CONGELADA",
+          congeladaId: item.congeladaId,
+          nome: item.nome,
+          quantidade: item.quantidade,
+          tamanhoLabel: `${item.tamanhoGramas}g`,
+          destinatarioNome: pedido.nome,
+        }))
+      : (pedido.itens?.escolhas || []).map((item) => ({
+          grupoPedido: `pedido-publico:${pedido.id}:tamanho:${customizado ? "personalizado" : pedido.tamanhoId || pedido.tamanhoLabel}`,
+          tipoItem: customizado ? "PERSONALIZADA" : "PADRAO",
+          opcaoId: item.opcaoId,
+          nome: item.nome,
+          quantidade: item.quantidade,
+          tamanhoId: pedido.tamanhoId || null,
+          tamanhoLabel: pedido.tamanhoLabel,
+          destinatarioNome: pedido.nome,
+          adicionarFeijao: !!item.adicionarFeijao,
+          adicionarPure: !!item.adicionarPure,
+          adicionarLegumes: !!item.adicionarLegumes,
+          carboGramas: Number(personalizada.carboGramas || 0),
+          proteinaGramas: Number(personalizada.proteinaGramas || 0),
+          feijaoGramas: Number(personalizada.feijaoGramas || 0),
+          legumeGramas: Number(personalizada.legumeGramas || 0),
+        }));
+
     const payload = {
       pedidoPublicoId: pedido.id,
       clienteId: pedido.cliente?.id || "",
@@ -99,23 +139,7 @@ export default function PedidosClientesPage() {
       ].filter(Boolean).join("\n"),
       formaPagamento: "A_DEFINIR",
       tipo: "NAO_DEFINIR",
-      itens: (pedido.itens?.escolhas || []).map((item) => ({
-        grupoPedido: `pedido-publico:${pedido.id}:tamanho:${customizado ? "personalizado" : pedido.tamanhoId || pedido.tamanhoLabel}`,
-        tipoItem: customizado ? "PERSONALIZADA" : "PADRAO",
-        opcaoId: item.opcaoId,
-        nome: item.nome,
-        quantidade: item.quantidade,
-        tamanhoId: pedido.tamanhoId || null,
-        tamanhoLabel: pedido.tamanhoLabel,
-        destinatarioNome: pedido.nome,
-        adicionarFeijao: !!item.adicionarFeijao,
-        adicionarPure: !!item.adicionarPure,
-        adicionarLegumes: !!item.adicionarLegumes,
-        carboGramas: Number(personalizada.carboGramas || 0),
-        proteinaGramas: Number(personalizada.proteinaGramas || 0),
-        feijaoGramas: Number(personalizada.feijaoGramas || 0),
-        legumeGramas: Number(personalizada.legumeGramas || 0),
-      })),
+      itens: itensAgendamento,
     };
     sessionStorage.setItem("fitgarden:pedido-publico-agendamento", JSON.stringify(payload));
     router.push(`/agendamentos?pedidoPublico=${pedido.id}`);
@@ -206,7 +230,7 @@ export default function PedidosClientesPage() {
             <Card key={pedido.id} className="cursor-pointer transition hover:border-emerald-300 hover:shadow-sm" onClick={() => setSelecionado(pedido)}>
               <CardContent className="grid gap-3 p-4 md:grid-cols-[auto_1fr_180px_180px_auto] md:items-center">
                 <div onClick={(event) => event.stopPropagation()}>{pedido.status !== "DESCARTADO" ? <Checkbox checked={selecionados.includes(pedido.id)} onCheckedChange={(value) => setSelecionados((atuais) => value === true ? Array.from(new Set([...atuais, pedido.id])) : atuais.filter((id) => id !== pedido.id))} aria-label={`Selecionar pedido ${pedido.id}`} /> : null}</div>
-                <div><div className="flex flex-wrap items-center gap-2"><p className="font-bold">#{pedido.id} · {pedido.nome}</p><Badge variant={pedido.origem === "ALTERNATIVO" ? "secondary" : "default"}>{pedido.origem === "ALTERNATIVO" ? "Alternativo" : "Principal"}</Badge>{pedido.status === "DESCARTADO" ? <Badge variant="destructive">Descartado</Badge> : !pedido.cliente ? <Badge variant="destructive">Cliente não encontrado</Badge> : <Badge className="bg-emerald-600">{pedido.cliente.nome}</Badge>}</div><p className="mt-1 text-sm text-muted-foreground"><Phone className="mr-1 inline h-3.5 w-3.5" />{pedido.telefone} · {pedido.cardapio.nome}</p>{pedido.motivoDescarte ? <p className="mt-1 text-sm font-medium text-red-700">Motivo: {pedido.motivoDescarte}</p> : null}</div>
+                <div><div className="flex flex-wrap items-center gap-2"><p className="font-bold">#{pedido.id} · {pedido.nome}</p><Badge variant={pedido.origem === "ALTERNATIVO" ? "secondary" : "default"}>{pedido.origem === "ALTERNATIVO" ? "Alternativo" : "Principal"}</Badge>{pedido.status === "DESCARTADO" ? <Badge variant="destructive">Descartado</Badge> : !pedido.cliente ? <Badge variant="destructive">Cliente não encontrado</Badge> : <Badge className="bg-emerald-600">{pedido.cliente.nome}</Badge>}</div><p className="mt-1 text-sm text-muted-foreground"><Phone className="mr-1 inline h-3.5 w-3.5" />{pedido.telefone} · {pedido.cardapio?.nome || "Congeladas"}</p>{pedido.motivoDescarte ? <p className="mt-1 text-sm font-medium text-red-700">Motivo: {pedido.motivoDescarte}</p> : null}</div>
                 <div className="text-sm"><ShoppingBasket className="mr-1 inline h-4 w-4" /><strong>{totalMarmitas(pedido)}</strong> marmitas · {pedido.tamanhoLabel}</div>
                 <div className="text-sm text-muted-foreground">{new Date(pedido.createdAt).toLocaleString("pt-BR")}</div>
                 <Button size="sm" variant="outline"><Eye className="mr-2 h-4 w-4" />Abrir</Button>
@@ -224,7 +248,26 @@ export default function PedidosClientesPage() {
           {selecionado ? <div className="space-y-4">
             <div className="grid gap-3 rounded-md bg-slate-50 p-4 sm:grid-cols-2"><div><p className="text-xs text-muted-foreground">Telefone</p><p className="font-medium">{selecionado.telefone}</p></div><div><p className="text-xs text-muted-foreground">Cliente no sistema</p><p className="font-medium">{selecionado.cliente?.nome || "Não encontrado — selecione ou cadastre no agendamento"}</p></div></div>
             {!selecionado.cliente && selecionado.status === "PENDENTE" ? <Button variant="outline" className="w-full border-emerald-300 text-emerald-700 hover:bg-emerald-50" onClick={() => abrirCadastroCliente(selecionado)}><UserPlus className="mr-2 h-4 w-4" />Cadastrar cliente com os dados deste pedido</Button> : null}
-            <div className="divide-y rounded-md border">{(selecionado.itens?.escolhas || []).map((item) => <div key={item.opcaoId} className="flex justify-between p-3"><span>{item.nome}{item.adicionarFeijao ? " + feijão" : ""}{item.adicionarPure ? " + purê" : ""}{item.adicionarLegumes ? " + legumes" : ""}</span><strong>{item.quantidade}x</strong></div>)}</div>
+            <div className="divide-y rounded-md border">
+              {Array.isArray(selecionado.itens?.congeladas) && selecionado.itens.congeladas.length > 0
+                ? selecionado.itens.congeladas.map((item) => (
+                    <div key={item.congeladaId} className="flex justify-between p-3">
+                      <span>{item.nome} ({item.tamanhoGramas}g)</span>
+                      <strong>{item.quantidade}x</strong>
+                    </div>
+                  ))
+                : (selecionado.itens?.escolhas || []).map((item) => (
+                    <div key={item.opcaoId} className="flex justify-between p-3">
+                      <span>
+                        {item.nome}
+                        {item.adicionarFeijao ? " + feijão" : ""}
+                        {item.adicionarPure ? " + purê" : ""}
+                        {item.adicionarLegumes ? " + legumes" : ""}
+                      </span>
+                      <strong>{item.quantidade}x</strong>
+                    </div>
+                  ))}
+            </div>
             {selecionado.observacoes ? <div><p className="text-xs text-muted-foreground">Observações</p><p className="whitespace-pre-wrap">{selecionado.observacoes}</p></div> : null}
             {selecionado.motivoDescarte ? <div className="rounded-md border border-red-200 bg-red-50 p-3"><p className="text-xs font-bold uppercase text-red-700">Motivo do descarte</p><p className="mt-1 text-red-900">{selecionado.motivoDescarte}</p></div> : null}
             <Button className="w-full bg-emerald-600 hover:bg-emerald-700" onClick={() => iniciarAgendamento(selecionado)} disabled={selecionado.status !== "PENDENTE"}><CalendarPlus className="mr-2 h-4 w-4" />Levar para o agendamento</Button>
