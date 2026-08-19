@@ -519,9 +519,10 @@ export default function Agendamentos() {
     setDetalhesDialogOpen(true);
   };
 
-  const formatIngrediente = (nome?: string, gramas?: number | null) => {
+  const formatIngrediente = (nome?: string, gramas?: number | null, isPersonalizada?: boolean) => {
     if (!nome) return "";
     const qtd = Number(gramas || 0);
+    if (isPersonalizada && qtd <= 0) return "";
     return qtd > 0 ? `${nome} ${qtd}g` : nome;
   };
 
@@ -2113,13 +2114,27 @@ export default function Agendamentos() {
                           </div>
                         )}
                         
-                        {(item.carbo || item.proteina || item.legume || item.feijao || item.complemento) && (
+                        {((item.carbo && (item.tipoItem !== "PERSONALIZADA" || Number(item.carboGramas || 0) > 0)) ||
+                          (item.proteina && (item.tipoItem !== "PERSONALIZADA" || Number(item.proteinaGramas || 0) > 0)) ||
+                          (item.legume && (item.tipoItem !== "PERSONALIZADA" || Number(item.legumeGramas || 0) > 0)) ||
+                          (item.feijao && (item.tipoItem !== "PERSONALIZADA" || Number(item.feijaoGramas || 0) > 0)) ||
+                          (item.complemento && (item.tipoItem !== "PERSONALIZADA" || Number(item.complementoGramas || 0) > 0))) && (
                           <div className="bg-slate-50 p-2 rounded-lg grid grid-cols-2 gap-x-4 gap-y-1 text-[11px]">
-                            {item.carbo && <div className="text-slate-500">• {formatIngrediente(item.carbo, item.carboGramas)}</div>}
-                            {item.proteina && <div className="text-slate-500">• {formatIngrediente(item.proteina, item.proteinaGramas)}</div>}
-                            {item.legume && <div className="text-slate-500">• {formatIngrediente(item.legume, item.legumeGramas)}</div>}
-                            {item.feijao && <div className="text-slate-500">• {formatIngrediente(item.feijao, item.feijaoGramas)}</div>}
-                            {item.complemento && <div className="text-slate-500">• {formatIngrediente(item.complemento, item.complementoGramas)}</div>}
+                            {item.carbo && (item.tipoItem !== "PERSONALIZADA" || Number(item.carboGramas || 0) > 0) && (
+                              <div className="text-slate-500">• {formatIngrediente(item.carbo, item.carboGramas, item.tipoItem === "PERSONALIZADA")}</div>
+                            )}
+                            {item.proteina && (item.tipoItem !== "PERSONALIZADA" || Number(item.proteinaGramas || 0) > 0) && (
+                              <div className="text-slate-500">• {formatIngrediente(item.proteina, item.proteinaGramas, item.tipoItem === "PERSONALIZADA")}</div>
+                            )}
+                            {item.legume && (item.tipoItem !== "PERSONALIZADA" || Number(item.legumeGramas || 0) > 0) && (
+                              <div className="text-slate-500">• {formatIngrediente(item.legume, item.legumeGramas, item.tipoItem === "PERSONALIZADA")}</div>
+                            )}
+                            {item.feijao && (item.tipoItem !== "PERSONALIZADA" || Number(item.feijaoGramas || 0) > 0) && (
+                              <div className="text-slate-500">• {formatIngrediente(item.feijao, item.feijaoGramas, item.tipoItem === "PERSONALIZADA")}</div>
+                            )}
+                            {item.complemento && (item.tipoItem !== "PERSONALIZADA" || Number(item.complementoGramas || 0) > 0) && (
+                              <div className="text-slate-500">• {formatIngrediente(item.complemento, item.complementoGramas, item.tipoItem === "PERSONALIZADA")}</div>
+                            )}
                           </div>
                         )}
 
