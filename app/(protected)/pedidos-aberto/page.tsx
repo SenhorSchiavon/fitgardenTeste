@@ -361,7 +361,80 @@ export default function PedidosAberto() {
     if (forma === "PLANO") return "Plano";
     if (forma === "TROCA") return "Troca";
     if (forma === "BONIFICACAO") return "Bonificação";
+    if (forma === "VOUCHER") return "Voucher";
+    if (forma === "VOUCHER_TAXA_DINHEIRO") return "Voucher + Dinheiro";
+    if (forma === "VOUCHER_TAXA_CARTAO") return "Voucher + Cartão";
+    if (forma === "VOUCHER_TAXA_PIX") return "Voucher + PIX";
     return forma || "-";
+  };
+
+  const getVoucherCodigo = (pedido: PedidoPendenteRow): string | null => {
+    if (pedido.voucherCodigo) return String(pedido.voucherCodigo);
+    const pagVoucher = (pedido.pagamentos || []).find(
+      (pg) => (pg.forma === "VOUCHER" || pg.voucherId) && (pg.voucherCodigo || (pg as any).voucher?.codigo),
+    );
+    if (pagVoucher?.voucherCodigo) return String(pagVoucher.voucherCodigo);
+    if ((pagVoucher as any)?.voucher?.codigo) return String((pagVoucher as any).voucher.codigo);
+    return null;
+  };
+
+  const getBadgesPagamento = (pedido: PedidoPendenteRow) => {
+    const formaStr = String(pedido.formaPagamento || "");
+    const isVoucherForma =
+      formaStr === "VOUCHER" ||
+      formaStr.startsWith("VOUCHER_") ||
+      (pedido.pagamentos || []).some((pg) => pg.forma === "VOUCHER" || pg.voucherId);
+
+    if (isVoucherForma) {
+      const codigo = getVoucherCodigo(pedido);
+      const labelVoucher = codigo ? `VOUCHER #${codigo}` : "VOUCHER";
+
+      let taxaForma: string | null = pedido.formaPagamentoTaxaVoucher || null;
+
+      if (!taxaForma) {
+        if (formaStr === "VOUCHER_TAXA_PIX" || (pedido.pagamentos || []).some((pg) => pg.forma === "PIX" && Number(pg.valor) > 0)) {
+          taxaForma = "PIX";
+        } else if (formaStr === "VOUCHER_TAXA_DINHEIRO" || (pedido.pagamentos || []).some((pg) => pg.forma === "DINHEIRO" && Number(pg.valor) > 0)) {
+          taxaForma = "DINHEIRO";
+        } else if (formaStr === "VOUCHER_TAXA_CARTAO" || (pedido.pagamentos || []).some((pg) => (pg.forma === "CREDITO" || pg.forma === "DEBITO") && Number(pg.valor) > 0)) {
+          taxaForma = "CREDITO";
+        } else {
+          const pagTaxa = (pedido.pagamentos || []).find(
+            (pg) => pg.forma !== "VOUCHER" && pg.forma !== "PLANO" && Number(pg.valor) > 0,
+          );
+          if (pagTaxa) taxaForma = pagTaxa.forma;
+        }
+      }
+
+      const badges = [
+        {
+          key: "voucher",
+          label: labelVoucher,
+          variant: "outline" as const,
+          className: "border-blue-300 bg-blue-50 text-blue-800 font-bold",
+        },
+      ];
+
+      if (taxaForma && taxaForma !== "VOUCHER" && taxaForma !== "PLANO" && taxaForma !== "A_DEFINIR") {
+        badges.push({
+          key: "taxa",
+          label: formatFormaPagamento(taxaForma),
+          variant: "outline" as const,
+          className: "border-emerald-300 bg-emerald-50 text-emerald-800 font-bold",
+        });
+      }
+
+      return badges;
+    }
+
+    return [
+      {
+        key: "padrao",
+        label: formatFormaPagamento(pedido.formaPagamento),
+        variant: "outline" as const,
+        className: pedido.formaPagamento === "A_DEFINIR" ? "border-red-300 bg-red-50 text-red-700" : undefined,
+      },
+    ];
   };
 
   const getItemResumo = (item: any) => ({
@@ -477,7 +550,7 @@ export default function PedidosAberto() {
                         <span className="mx-2">•</span>
                         <span>{pedido.quantidade} itens</span>
                         <span className="mx-2">•</span>
-                        <span>{formatFormaPagamento(pedido.formaPagamento)}</span>
+                        <span>{getBadgesPagamento(pedido).map((b) => b.label).join(" + ")}</span>
                         <span className="mx-2">•</span>
                         <span className="font-semibold text-emerald-700">
                           Total: {moneyBr(Number(pedido.valorTotal ?? 0))}
@@ -493,6 +566,11 @@ export default function PedidosAberto() {
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
+                      {getBadgesPagamento(pedido).map((b) => (
+                        <Badge key={b.key} variant={b.variant} className={b.className}>
+                          {b.label}
+                        </Badge>
+                      ))}
                       {pedido.formaPagamento === "A_DEFINIR" ? (
                         <Badge className="bg-red-100 text-red-700 hover:bg-red-100">Pagamento não definido</Badge>
                       ) : (
@@ -550,12 +628,11 @@ export default function PedidosAberto() {
                           <span>-</span>
                           <span className="truncate">{pedido.cliente}</span>
                           <span className="text-sm text-muted-foreground">{pedido.telefone || "Sem telefone"}</span>
-                          <Badge
-                            variant="outline"
-                            className={pedido.formaPagamento === "A_DEFINIR" ? "border-red-300 bg-red-50 text-red-700" : undefined}
-                          >
-                            {formatFormaPagamento(pedido.formaPagamento)}
-                          </Badge>
+                          {getBadgesPagamento(pedido).map((b) => (
+                            <Badge key={b.key} variant={b.variant} className={b.className}>
+                              {b.label}
+                            </Badge>
+                          ))}
                           {pedido.conciliado ? (
                             <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100">
                               Conciliado
@@ -766,14 +843,13 @@ export default function PedidosAberto() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1">
                   <div className="text-sm font-medium">Forma de Pagamento</div>
-                  <div className="flex items-center">
-                    <CreditCard className="h-4 w-4 mr-2 text-muted-foreground" />
-                    <Badge
-                      variant={pedidoSelecionado?.formaPagamento === "A_DEFINIR" ? "outline" : "destructive"}
-                      className={pedidoSelecionado?.formaPagamento === "A_DEFINIR" ? "border-red-300 bg-red-50 text-red-700" : undefined}
-                    >
-                      {formatFormaPagamento(pedidoSelecionado?.formaPagamento)}
-                    </Badge>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <CreditCard className="h-4 w-4 mr-1 text-muted-foreground" />
+                    {pedidoSelecionado && getBadgesPagamento(pedidoSelecionado).map((b) => (
+                      <Badge key={b.key} variant={b.variant} className={b.className}>
+                        {b.label}
+                      </Badge>
+                    ))}
                   </div>
                 </div>
                 <div className="space-y-1">

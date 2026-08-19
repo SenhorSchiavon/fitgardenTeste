@@ -36,6 +36,8 @@ export type PedidoPendenteRow = {
 
   quantidade: number;
   formaPagamento: FormaPagamento | string;
+  formaPagamentoTaxaVoucher?: string | null;
+  voucherCodigo?: string | null;
   pagamentoId?: number | null;
   statusPagamento?: string | null;
   pagoEm?: string | null;
@@ -51,6 +53,9 @@ export type PedidoPendenteRow = {
     valor: number | string;
     status: string;
     forma: string;
+    voucherId?: number | null;
+    voucherCodigo?: string | null;
+    voucher?: { id: number; codigo: string } | null;
     planoClienteId?: number | null;
     consumoUnidades?: number | null;
     consumoEntregas?: number | null;
