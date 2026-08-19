@@ -760,10 +760,46 @@ export function NovoAgendamentoNovoLayout({
               pago: plano.pago === true,
             }))
         : [];
+      // Versões anteriores da edição podiam remover o lançamento financeiro
+      // da compra e deixar apenas os pagamentos de consumo do plano. Nesse caso o
+      // plano continua não pago e vinculado a este pedido, portanto deve voltar para
+      // a lista de compras para que seu valor seja recriado ao salvar.
+      const idsComprasRegistradas = new Set(
+        comprasPlanoRegistradas.map((pagamento: any) => Number(pagamento.planoClienteId)),
+      );
+      const planosNaoPagosConsumidos = Array.from(
+        new Map(
+          pagamentosIniciais
+            .filter((pagamento: any) =>
+              pagamento.planoClienteId &&
+              (
+                Number(pagamento.consumoUnidades || 0) > 0 ||
+                Number(pagamento.consumoEntregas || 0) > 0 ||
+                Number(pagamento.consumoAdicionais || 0) > 0
+              ) &&
+              pagamento.planoCliente?.pago === false &&
+              !idsComprasRegistradas.has(Number(pagamento.planoClienteId)),
+            )
+            .map((pagamento: any) => [Number(pagamento.planoClienteId), pagamento.planoCliente]),
+        ).values(),
+      ).map((planoCliente: any) => {
+        const valorPlano = Number(planoCliente.plano?.valor || 0);
+        const valorTaxas = Number(planoCliente.valorTaxaEntrega || 0) * Number(planoCliente.taxasEntregaCompradas || 0);
+        const valorAdicionais = Number(planoCliente.adicionaisComprados || 0) * 2;
+        return {
+          id: Number(planoCliente.id),
+          nome: String(planoCliente.plano?.nome || `Plano #${planoCliente.id}`),
+          resumo: planoCliente.plano?.unidades ? `${planoCliente.plano.unidades} marmitas` : "Plano lançado neste pedido",
+          valorPlano: valorPlano + valorAdicionais,
+          valorTaxas,
+          valorTotal: valorPlano + valorAdicionais + valorTaxas,
+          pago: false,
+        };
+      });
       setPlanosComprados(
         planosCompradosExibidos.length > 0
           ? planosCompradosExibidos
-          : comprasPlanoRegistradas
+          : [...comprasPlanoRegistradas
           .map((pagamento: any) => {
             const plano = pagamento.planoCliente?.plano;
             const valorTotal = Number(pagamento.valor || 0);
@@ -777,7 +813,7 @@ export function NovoAgendamentoNovoLayout({
               valorTotal,
               pago: pagamento.status === "CONFIRMADO",
             };
-          }),
+          }), ...planosNaoPagosConsumidos],
       );
       setAbaterTaxaEntregaPlano(
         pagamentosIniciais.some(
