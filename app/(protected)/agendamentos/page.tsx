@@ -1191,17 +1191,6 @@ export default function Agendamentos() {
     const valorTotalFinal = usouPlano
       ? valorTotalPelaCoberturaAtual + valorPlanosCompradosPendente
       : Math.max(0, Math.min(...candidatosTotal) + valorPlanosCompradosPendente);
-    const planosClienteAtivos = row.pedido?.cliente?.planos ?? row.cliente?.planos ?? [];
-    // O plano comprado neste pedido ainda pode estar como não pago, mas seu saldo
-    // pós-pedido precisa aparecer imediatamente na confirmação do cliente.
-    const planosCompradosNoPedido = pagamentosCompraPlano
-      .map((pagamento: any) => pagamento.planoCliente)
-      .filter(Boolean);
-    const planosCliente = Array.from(
-      new Map(
-        [...planosClienteAtivos, ...planosCompradosNoPedido].map((plano: any) => [Number(plano.id), plano]),
-      ).values(),
-    );
     const saldosPorTamanho = new Map<string, number>();
     planosCliente.forEach((plano: any) => {
       (plano.itens || []).forEach((saldo: any) => {
