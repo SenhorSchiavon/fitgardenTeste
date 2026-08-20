@@ -206,7 +206,17 @@ function getWhatsappUrl(telefone: string, mensagem: string) {
   return `https://wa.me/${phone}?text=${encodeURIComponent(mensagem)}`;
 }
 
-function getLabelPagamento(forma: string) {
+function getLabelPagamento(forma: string, agendamento?: any) {
+  const voucherCodigo = agendamento?.voucherCodigo ? String(agendamento.voucherCodigo).trim() : "";
+  const isVoucher = forma === "VOUCHER" || forma?.startsWith("VOUCHER_") || agendamento?.formaPagamento === "VOUCHER";
+
+  if (isVoucher) {
+    const sufixoCodigo = voucherCodigo ? ` #${voucherCodigo}` : "";
+    const taxaForma = agendamento?.formaPagamentoTaxaVoucher || (forma === "VOUCHER_TAXA_PIX" ? "PIX" : forma === "VOUCHER_TAXA_DINHEIRO" ? "DINHEIRO" : forma === "VOUCHER_TAXA_CARTAO" ? "CREDITO" : null);
+    const sufixoTaxa = taxaForma && taxaForma !== "A_DEFINIR" ? ` + ${taxaForma === "CREDITO" ? "Cartão" : taxaForma}` : "";
+    return `VOUCHER${sufixoCodigo}${sufixoTaxa}`;
+  }
+
   const labels: Record<string, string> = {
     A_DEFINIR: "Não definido",
     DINHEIRO: "Dinheiro",
@@ -220,9 +230,9 @@ function getLabelPagamento(forma: string) {
     PLANO: "Plano",
     TROCA: "Troca",
     BONIFICACAO: "Bonificação",
-    VOUCHER_TAXA_DINHEIRO: "Voucher + taxa em dinheiro",
-    VOUCHER_TAXA_CARTAO: "Voucher + taxa no cartão",
-    VOUCHER_TAXA_PIX: "Voucher + taxa no PIX",
+    VOUCHER_TAXA_DINHEIRO: "Voucher + Dinheiro",
+    VOUCHER_TAXA_CARTAO: "Voucher + Cartão",
+    VOUCHER_TAXA_PIX: "Voucher + PIX",
   };
   return labels[forma] || forma || "-";
 }
@@ -1792,7 +1802,7 @@ export default function Agendamentos() {
                                   agendamento.formaPagamento === "A_DEFINIR" ? "text-red-700" : "text-slate-700"
                                 }`}>
                                   <Wallet className="h-3 w-3 text-slate-400" />
-                                  {getLabelPagamento(agendamento.formaPagamento)}
+                                  {getLabelPagamento(agendamento.formaPagamento, agendamento)}
                                 </div>
                                 {(agendamento.valorTotalFinal ?? 0) > 0 && (
                                   <span className="text-sm font-black text-emerald-700">R$ {(agendamento.valorTotalFinal ?? 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
@@ -1984,7 +1994,7 @@ export default function Agendamentos() {
                             : "font-semibold text-slate-700"
                         }
                       >
-                        {getLabelPagamento(agendamentoSelecionado?.formaPagamento || "")}
+                        {getLabelPagamento(agendamentoSelecionado?.formaPagamento || "", agendamentoSelecionado)}
                       </Badge>
                     </div>
                     <div className="flex justify-between items-center py-1">

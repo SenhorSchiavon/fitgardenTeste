@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import { ptBR } from "date-fns/locale";
@@ -514,6 +514,8 @@ export function NovoAgendamentoNovoLayout({
   const [buscaMarmita, setBuscaMarmita] = useState("");
   const [filtroCatalogo, setFiltroCatalogo] = useState<"TODAS" | "PEDIDO">("TODAS");
   const [categoriaCatalogo, setCategoriaCatalogo] = useState("TODAS");
+  const [tamanhoFiltroCongelada, setTamanhoFiltroCongelada] = useState("");
+  const [buscaCongelada, setBuscaCongelada] = useState("");
   const [itens, setItens] = useState<NovoPedidoItem[]>([]);
   const [quantidadesSalgados, setQuantidadesSalgados] = useState<Record<string, number>>({});
   const [quantidadesCongeladas, setQuantidadesCongeladas] = useState<Record<string, number>>({});
@@ -1162,6 +1164,24 @@ export function NovoAgendamentoNovoLayout({
       return termos.every((termo) => nome.includes(termo));
     });
   }, [buscaMarmita, categoriaCatalogo, opcoesPadrao]);
+  const tamanhosCongeladaDisponiveis = useMemo(() => {
+    const setGramas = new Set(
+      congeladas
+        .filter((c) => Number(c.quantidade || 0) > 0)
+        .map((c) => Number(c.tamanhoGramas)),
+    );
+    return Array.from(setGramas).sort((a, b) => a - b);
+  }, [congeladas]);
+
+  const congeladasFiltradas = useMemo(() => {
+    const busca = normalizarBusca(buscaCongelada);
+    return congeladas.filter((congelada) => {
+      if (Number(congelada.quantidade || 0) <= 0 && congelada.id !== formItem.congeladaId) return false;
+      if (tamanhoFiltroCongelada && String(congelada.tamanhoGramas) !== tamanhoFiltroCongelada) return false;
+      if (busca && !normalizarBusca(congelada.nome).includes(busca)) return false;
+      return true;
+    });
+  }, [congeladas, tamanhoFiltroCongelada, buscaCongelada, formItem.congeladaId]);
 
   const hasItensNoGrupoAtual = itensDoGrupoAtual.length > 0;
 
@@ -4792,32 +4812,107 @@ export function NovoAgendamentoNovoLayout({
                     ) : formItem.tipoItem === "SALGADO" ? (
                       <div className="text-sm font-semibold">{formItem.salgadoNome}</div>
                     ) : formItem.tipoItem === "CONGELADA" && !formItem.id ? (
-                      <div className="space-y-2 md:col-span-2">
-                        <Label>Quantidade por congelada</Label>
-                        <div className="divide-y overflow-hidden rounded-xl border bg-background">
-                          {congeladas.filter((congelada) => Number(congelada.quantidade || 0) > 0).map((congelada) => (
-                            <div key={congelada.id} className="grid grid-cols-[minmax(0,1fr)_110px] items-center gap-4 p-3 hover:bg-slate-50">
-                              <div>
-                                <Label htmlFor={`qtd-congelada-${congelada.id}`} className="text-sm font-bold">
-                                  {congelada.tamanhoGramas}g - {congelada.nome}
-                                </Label>
-                                <p className="text-xs text-muted-foreground">Estoque: {congelada.quantidade}</p>
-                              </div>
-                              <Input
-                                id={`qtd-congelada-${congelada.id}`}
-                                type="number"
-                                min={0}
-                                max={congelada.quantidade}
-                                step={1}
-                                value={quantidadesCongeladas[congelada.id] || 0}
-                                onChange={(event) => setQuantidadesCongeladas((atual) => ({
-                                  ...atual,
-                                  [congelada.id]: Math.max(0, Math.floor(Number(event.target.value || 0))),
-                                }))}
-                                className="h-10 text-center font-bold"
-                              />
-                            </div>
-                          ))}
+                      <div className="space-y-4 md:col-span-2">
+                        <div className="space-y-2">
+                          <Label className="text-xs font-bold uppercase text-muted-foreground">Filtrar por Tamanho</Label>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Button
+                              type="button"
+                              variant={tamanhoFiltroCongelada === "" ? "default" : "outline"}
+                              size="sm"
+                              className="h-8 rounded-lg text-xs font-bold"
+                              onClick={() => setTamanhoFiltroCongelada("")}
+                            >
+                              Todos os tamanhos
+                            </Button>
+                            {tamanhosCongeladaDisponiveis.map((tam) => (
+                              <Button
+                                key={tam}
+                                type="button"
+                                variant={tamanhoFiltroCongelada === String(tam) ? "default" : "outline"}
+                                size="sm"
+                                className="h-8 rounded-lg text-xs font-bold"
+                                onClick={() => setTamanhoFiltroCongelada(String(tam))}
+                              >
+                                {tam}g
+                              </Button>
+                            ))}
+                          </div>
+                          <div className="relative mt-2">
+                            <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                            <Input
+                              placeholder="Pesquisar marmita congelada pelo nome..."
+                              value={buscaCongelada}
+                              onChange={(e) => setBuscaCongelada(e.target.value)}
+                              className="pl-9 h-10"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <Label className="text-sm font-bold">Quantidade por congelada</Label>
+                            <span className="text-xs text-muted-foreground">{congeladasFiltradas.length} encontrada(s)</span>
+                          </div>
+                          <div className="divide-y overflow-hidden rounded-xl border bg-background max-h-[350px] overflow-y-auto">
+                            {congeladasFiltradas.map((congelada) => {
+                              const qtdAtual = Number(quantidadesCongeladas[congelada.id] || 0);
+                              return (
+                                <div key={congelada.id} className="grid grid-cols-[1fr_auto] items-center gap-4 p-3 hover:bg-slate-50">
+                                  <div>
+                                    <p className="text-sm font-bold text-slate-800">{congelada.nome}</p>
+                                    <p className="text-xs text-muted-foreground">{congelada.tamanhoGramas}g · Estoque: {congelada.quantidade}</p>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <Button
+                                      type="button"
+                                      variant="outline"
+                                      size="icon"
+                                      className="h-8 w-8 rounded-lg"
+                                      onClick={() => setQuantidadesCongeladas((atual) => ({
+                                        ...atual,
+                                        [congelada.id]: Math.max(0, Number(atual[congelada.id] || 0) - 1),
+                                      }))}
+                                      disabled={qtdAtual <= 0}
+                                    >
+                                      <Minus className="h-3 w-3" />
+                                    </Button>
+                                    <Input
+                                      id={`qtd-congelada-${congelada.id}`}
+                                      type="number"
+                                      min={0}
+                                      max={congelada.quantidade}
+                                      step={1}
+                                      value={qtdAtual}
+                                      onChange={(event) => setQuantidadesCongeladas((atual) => ({
+                                        ...atual,
+                                        [congelada.id]: Math.max(0, Math.min(congelada.quantidade, Math.floor(Number(event.target.value || 0)))),
+                                      }))}
+                                      className="h-8 w-14 text-center font-bold"
+                                    />
+                                    <Button
+                                      type="button"
+                                      variant="outline"
+                                      size="icon"
+                                      className="h-8 w-8 rounded-lg"
+                                      onClick={() => setQuantidadesCongeladas((atual) => ({
+                                        ...atual,
+                                        [congelada.id]: Math.min(congelada.quantidade, Number(atual[congelada.id] || 0) + 1),
+                                      }))}
+                                      disabled={qtdAtual >= congelada.quantidade}
+                                    >
+                                      <Plus className="h-3 w-3" />
+                                    </Button>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                            {congeladasFiltradas.length === 0 && (
+                              <p className="p-6 text-center text-sm text-muted-foreground">
+                                Nenhuma congelada encontrada para os filtros selecionados.
+                              </p>
+                            )}
+                          </div>
                         </div>
                       </div>
                     ) : formItem.tipoItem === "CONGELADA" ? (
