@@ -13,7 +13,7 @@ import { Header } from "@/components/header"
 import { 
   TrendingUp, Users, ShoppingBag, CreditCard, 
   Truck, ArrowUpRight, ArrowDownRight, Activity,
-  Package, LayoutDashboard, Search
+  Package, LayoutDashboard, Search, PlusCircle, Sparkles
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -31,6 +31,9 @@ export default function MaisVendidos() {
   const dadosClientes = data?.clientes || []
   const dadosEntrega = data?.tiposEntrega || []
   const dadosPagamento = data?.formasPagamento || []
+  const dadosAdicionais = data?.adicionais
+  const listaAdicionaisValidos = (dadosAdicionais?.lista || []).filter((i) => i.quantidade > 0)
+  const adicionalMaisVendido = [...listaAdicionaisValidos].sort((a, b) => b.quantidade - a.quantidade)[0] ?? null
 
   const totalVendas = dadosItens.reduce((acc, it) => acc + it.valor, 0)
   const totalPedidos = dadosClientes.reduce((acc, cl) => acc + cl.pedidos, 0)
@@ -137,15 +140,18 @@ export default function MaisVendidos() {
       ) : (
         <Tabs defaultValue="produtos" className="space-y-6">
           <div className="flex items-center justify-center">
-            <TabsList className="bg-slate-100 p-1 rounded-2xl border border-slate-200">
-              <TabsTrigger value="produtos" className="rounded-xl px-8 py-2.5 data-[state=active]:bg-white data-[state=active]:text-emerald-600 data-[state=active]:shadow-sm transition-all font-bold text-xs uppercase tracking-widest">
+            <TabsList className="bg-slate-100 p-1 rounded-2xl border border-slate-200 flex flex-wrap h-auto gap-1">
+              <TabsTrigger value="produtos" className="rounded-xl px-6 py-2.5 data-[state=active]:bg-white data-[state=active]:text-emerald-600 data-[state=active]:shadow-sm transition-all font-bold text-xs uppercase tracking-widest">
                 Produtos & Vendas
               </TabsTrigger>
-              <TabsTrigger value="clientes" className="rounded-xl px-8 py-2.5 data-[state=active]:bg-white data-[state=active]:text-emerald-600 data-[state=active]:shadow-sm transition-all font-bold text-xs uppercase tracking-widest">
+              <TabsTrigger value="clientes" className="rounded-xl px-6 py-2.5 data-[state=active]:bg-white data-[state=active]:text-emerald-600 data-[state=active]:shadow-sm transition-all font-bold text-xs uppercase tracking-widest">
                 Ranking de Clientes
               </TabsTrigger>
-              <TabsTrigger value="logistica" className="rounded-xl px-8 py-2.5 data-[state=active]:bg-white data-[state=active]:text-emerald-600 data-[state=active]:shadow-sm transition-all font-bold text-xs uppercase tracking-widest">
+              <TabsTrigger value="logistica" className="rounded-xl px-6 py-2.5 data-[state=active]:bg-white data-[state=active]:text-emerald-600 data-[state=active]:shadow-sm transition-all font-bold text-xs uppercase tracking-widest">
                 Logística & Pagamentos
+              </TabsTrigger>
+              <TabsTrigger value="adicionais" className="rounded-xl px-6 py-2.5 data-[state=active]:bg-white data-[state=active]:text-emerald-600 data-[state=active]:shadow-sm transition-all font-bold text-xs uppercase tracking-widest">
+                Relatório de Adicionais
               </TabsTrigger>
             </TabsList>
           </div>
@@ -355,6 +361,116 @@ export default function MaisVendidos() {
                         <Legend verticalAlign="bottom" height={36}/>
                       </PieChart>
                     </ResponsiveContainer>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="adicionais" className="space-y-6 outline-none">
+            {/* Cards de Resumo dos Adicionais */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <Card className="border-none shadow-sm bg-white p-6">
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-xs font-black uppercase tracking-widest text-slate-400">Total de Adicionais</span>
+                  <div className="h-10 w-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold">
+                    <PlusCircle className="h-5 w-5" />
+                  </div>
+                </div>
+                <h3 className="text-3xl font-serif font-bold text-slate-800">
+                  {dadosAdicionais?.totalQuantidade || 0} un.
+                </h3>
+                <p className="text-xs text-muted-foreground mt-1">Vendidos no período selecionado</p>
+              </Card>
+
+              <Card className="border-none shadow-sm bg-white p-6">
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-xs font-black uppercase tracking-widest text-slate-400">Receita de Adicionais</span>
+                  <div className="h-10 w-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold">
+                    <TrendingUp className="h-5 w-5" />
+                  </div>
+                </div>
+                <h3 className="text-3xl font-serif font-bold text-emerald-700">
+                  {fmtCurrency(dadosAdicionais?.totalValor || 0)}
+                </h3>
+                <p className="text-xs text-muted-foreground mt-1">Faturamento bruto de adicionais</p>
+              </Card>
+
+              <Card className="border-none shadow-sm bg-white p-6">
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-xs font-black uppercase tracking-widest text-slate-400">Adicional Mais Vendido</span>
+                  <div className="h-10 w-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center font-bold">
+                    <Sparkles className="h-5 w-5" />
+                  </div>
+                </div>
+                <h3 className="text-xl font-bold text-slate-800 truncate">
+                  {adicionalMaisVendido ? adicionalMaisVendido.descricao : "Nenhum no período"}
+                </h3>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {adicionalMaisVendido ? `${adicionalMaisVendido.quantidade} unidade(s) vendida(s)` : "Sem vendas"}
+                </p>
+              </Card>
+            </div>
+
+            {/* Gráfico & Tabela Detalhada */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+              {/* Gráfico Visual de Adicionais */}
+              <Card className="lg:col-span-5 border-none shadow-sm bg-white overflow-hidden">
+                <CardHeader className="border-b border-slate-50">
+                  <CardTitle className="font-serif text-xl text-slate-800">Distribuição por Adicional</CardTitle>
+                  <CardDescription>Volume de vendas por tipo</CardDescription>
+                </CardHeader>
+                <CardContent className="pt-6">
+                  <div className="h-[350px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={listaAdicionaisValidos} margin={{ top: 20, right: 20, left: 0, bottom: 40 }}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                        <XAxis dataKey="tipo" axisLine={false} tickLine={false} tick={{ fontSize: 9, fill: '#64748b', fontWeight: 'bold' }} />
+                        <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#64748b' }} />
+                        <Tooltip contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)' }} />
+                        <Bar dataKey="quantidade" fill="#10b981" radius={[8, 8, 0, 0]} barSize={32} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Tabela Detalhada de Adicionais */}
+              <Card className="lg:col-span-7 border-none shadow-sm bg-white overflow-hidden">
+                <CardHeader className="border-b border-slate-50">
+                  <CardTitle className="font-serif text-xl text-slate-800">Detalhamento dos Adicionais Vendidos</CardTitle>
+                  <CardDescription>Descrição, quantidade e faturamento total por adicional</CardDescription>
+                </CardHeader>
+                <CardContent className="p-0">
+                  <div className="divide-y overflow-x-auto">
+                    <table className="w-full text-left text-sm">
+                      <thead className="bg-slate-50 text-xs uppercase font-bold text-slate-500 border-b">
+                        <tr>
+                          <th className="py-3 px-4">Descrição do Adicional</th>
+                          <th className="py-3 px-4 text-center">Preço Unit.</th>
+                          <th className="py-3 px-4 text-center">Qtd Vendida</th>
+                          <th className="py-3 px-4 text-right">Valor Total</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y">
+                        {listaAdicionaisValidos.map((item, idx) => (
+                          <tr key={idx} className="hover:bg-slate-50/80 transition-colors">
+                            <td className="py-3.5 px-4 font-bold text-slate-800">{item.descricao}</td>
+                            <td className="py-3.5 px-4 text-center font-medium text-slate-600">R$ {item.precoUnitario.toFixed(2)}</td>
+                            <td className="py-3.5 px-4 text-center font-extrabold text-primary">{item.quantidade} un.</td>
+                            <td className="py-3.5 px-4 text-right font-black text-emerald-700">R$ {item.valorTotal.toFixed(2)}</td>
+                          </tr>
+                        ))}
+
+                        {listaAdicionaisValidos.length === 0 && (
+                          <tr>
+                            <td colSpan={4} className="py-8 text-center text-muted-foreground text-sm">
+                              Nenhum adicional vendido no período selecionado.
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
                   </div>
                 </CardContent>
               </Card>

@@ -29,11 +29,24 @@ export type FormaPagamento = {
   valor: number;
 };
 
+export type AdicionalItem = {
+  tipo: string;
+  descricao: string;
+  quantidade: number;
+  precoUnitario: number;
+  valorTotal: number;
+};
+
 export type RelatorioVendasResponse = {
   itens: VendaItem[];
   clientes: VendaCliente[];
   tiposEntrega: TipoEntrega[];
   formasPagamento: FormaPagamento[];
+  adicionais?: {
+    totalQuantidade: number;
+    totalValor: number;
+    lista: AdicionalItem[];
+  };
 };
 
 export function useRelatorioVendas() {
