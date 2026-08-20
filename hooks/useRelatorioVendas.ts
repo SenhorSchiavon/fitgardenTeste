@@ -54,11 +54,16 @@ export function useRelatorioVendas() {
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<RelatorioVendasResponse | null>(null);
 
-  const getRelatorioVendas = useCallback(async (periodo: string = "mes") => {
+  const getRelatorioVendas = useCallback(async (periodo: string = "mes", dataInicio?: string, dataFim?: string) => {
     setLoading(true);
     setError(null);
     try {
-      const res = await apiFetch(`${RESOURCE}?periodo=${periodo}`);
+      const params = new URLSearchParams({ periodo });
+      if (periodo === "custom" && dataInicio && dataFim) {
+        params.append("dataInicio", dataInicio);
+        params.append("dataFim", dataFim);
+      }
+      const res = await apiFetch(`${RESOURCE}?${params.toString()}`);
       if (!res.ok) throw new Error("Erro ao carregar relatórios");
       const json = await res.json();
       setData(json);

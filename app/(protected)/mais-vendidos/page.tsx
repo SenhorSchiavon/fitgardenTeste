@@ -5,6 +5,8 @@ import { useRelatorioVendas } from "@/hooks/useRelatorioVendas"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
   PieChart, Pie, Cell, LineChart, Line
@@ -21,11 +23,19 @@ const COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'
 
 export default function MaisVendidos() {
   const [periodo, setPeriodo] = useState("mes")
+  const [dataInicio, setDataInicio] = useState("")
+  const [dataFim, setDataFim] = useState("")
   const { data, loading, getRelatorioVendas } = useRelatorioVendas()
 
   useEffect(() => {
-    getRelatorioVendas(periodo)
-  }, [periodo, getRelatorioVendas])
+    if (periodo === "custom") {
+      if (dataInicio && dataFim) {
+        getRelatorioVendas("custom", dataInicio, dataFim)
+      }
+    } else {
+      getRelatorioVendas(periodo)
+    }
+  }, [periodo, dataInicio, dataFim, getRelatorioVendas])
 
   const dadosItens = data?.itens || []
   const dadosClientes = data?.clientes || []
@@ -50,25 +60,53 @@ export default function MaisVendidos() {
       />
 
       {/* Seletor de Período Premium */}
-      <div className="flex items-center justify-between bg-white/50 backdrop-blur-md p-4 rounded-2xl border border-slate-200/60 shadow-sm">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between bg-white/50 backdrop-blur-md p-4 rounded-2xl border border-slate-200/60 shadow-sm gap-4">
         <div className="flex items-center gap-2">
           <div className="h-8 w-8 rounded-lg bg-emerald-500/10 flex items-center justify-center">
             <Activity className="h-4 w-4 text-emerald-600" />
           </div>
           <span className="text-sm font-bold text-slate-700 tracking-tight">Período de Análise</span>
         </div>
-        <div className="w-[200px]">
-          <Select value={periodo} onValueChange={setPeriodo}>
-            <SelectTrigger className="bg-white border-slate-200 rounded-xl shadow-sm focus:ring-emerald-500/20">
-              <SelectValue placeholder="Selecione o período" />
-            </SelectTrigger>
-            <SelectContent className="rounded-xl border-slate-200 shadow-xl">
-              <SelectItem value="semana">Última Semana</SelectItem>
-              <SelectItem value="mes">Último Mês</SelectItem>
-              <SelectItem value="trimestre">Último Trimestre</SelectItem>
-              <SelectItem value="ano">Último Ano</SelectItem>
-            </SelectContent>
-          </Select>
+
+        <div className="flex flex-wrap items-center gap-3">
+          {periodo === "custom" && (
+            <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-xl border border-slate-200 shadow-sm">
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs font-bold text-slate-500">De:</span>
+                <Input
+                  type="date"
+                  value={dataInicio}
+                  onChange={(e) => setDataInicio(e.target.value)}
+                  className="h-8 w-36 text-xs font-bold border-none shadow-none focus-visible:ring-0 p-0"
+                />
+              </div>
+              <span className="text-xs font-bold text-slate-400">até</span>
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs font-bold text-slate-500">Até:</span>
+                <Input
+                  type="date"
+                  value={dataFim}
+                  onChange={(e) => setDataFim(e.target.value)}
+                  className="h-8 w-36 text-xs font-bold border-none shadow-none focus-visible:ring-0 p-0"
+                />
+              </div>
+            </div>
+          )}
+
+          <div className="w-[220px]">
+            <Select value={periodo} onValueChange={setPeriodo}>
+              <SelectTrigger className="bg-white border-slate-200 rounded-xl shadow-sm focus:ring-emerald-500/20 text-xs font-bold">
+                <SelectValue placeholder="Selecione o período" />
+              </SelectTrigger>
+              <SelectContent className="rounded-xl border-slate-200 shadow-xl">
+                <SelectItem value="semana">Última Semana</SelectItem>
+                <SelectItem value="mes">Último Mês</SelectItem>
+                <SelectItem value="trimestre">Último Trimestre</SelectItem>
+                <SelectItem value="ano">Último Ano</SelectItem>
+                <SelectItem value="custom">📅 Período Personalizado</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
       </div>
 
