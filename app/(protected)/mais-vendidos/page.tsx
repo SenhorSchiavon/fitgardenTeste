@@ -45,9 +45,10 @@ export default function MaisVendidos() {
   const listaAdicionaisValidos = (dadosAdicionais?.lista || []).filter((i) => i.quantidade > 0)
   const adicionalMaisVendido = [...listaAdicionaisValidos].sort((a, b) => b.quantidade - a.quantidade)[0] ?? null
 
-  const totalVendas = dadosItens.reduce((acc, it) => acc + it.valor, 0)
-  const totalPedidos = dadosClientes.reduce((acc, cl) => acc + cl.pedidos, 0)
-  const ticketMedio = totalPedidos > 0 ? totalVendas / totalPedidos : 0
+  const totalVendas = data?.resumo?.receitaTotal ?? 0
+  const totalPedidos = data?.resumo?.totalPedidos ?? 0
+  const ticketMedio = data?.resumo?.ticketMedio ?? 0
+  const clientesAtivos = data?.resumo?.clientesAtivos ?? 0
 
   const fmtCurrency = (v: number) => 
     new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v)
@@ -142,7 +143,7 @@ export default function MaisVendidos() {
           },
           { 
             label: "Clientes Ativos", 
-            value: dadosClientes.length, 
+            value: clientesAtivos, 
             icon: Users, 
             color: "text-purple-600", 
             bg: "bg-purple-50",

@@ -38,6 +38,12 @@ export type AdicionalItem = {
 };
 
 export type RelatorioVendasResponse = {
+  resumo?: {
+    receitaTotal: number;
+    totalPedidos: number;
+    ticketMedio: number;
+    clientesAtivos: number;
+  };
   itens: VendaItem[];
   clientes: VendaCliente[];
   tiposEntrega: TipoEntrega[];
