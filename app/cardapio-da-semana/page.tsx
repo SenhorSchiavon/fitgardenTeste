@@ -213,11 +213,17 @@ export default function CardapioDaSemanaPage() {
   function toggleFeijaoOpcional(id: string, checked: boolean) {
     if (!getItemPedido(id)) return;
     setFeijaoOpcional((prev) => ({ ...prev, [id]: checked }));
+    if (checked) {
+      setLegumesOpcional((prev) => ({ ...prev, [id]: false }));
+    }
   }
 
   function toggleLegumesOpcional(id: string, checked: boolean) {
     if (!getItemPedido(id)) return;
     setLegumesOpcional((prev) => ({ ...prev, [id]: checked }));
+    if (checked) {
+      setFeijaoOpcional((prev) => ({ ...prev, [id]: false }));
+    }
   }
 
   function enviarPedido() {

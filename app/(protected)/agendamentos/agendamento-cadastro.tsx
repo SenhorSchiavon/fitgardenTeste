@@ -5775,10 +5775,24 @@ export function NovoAgendamentoNovoLayout({
                   setFormItem((prev) => ({
                     ...prev,
                     adicionarFeijao: !!checked,
+                    adicionarLegumes: checked ? false : prev.adicionarLegumes,
                   }))
                 }
               />
-              <Label className="m-0">Adicionar feijão</Label>
+              <Label className="m-0">Adicionar feijão (+ R$ 2,00)</Label>
+            </div>
+            <div className="flex items-center gap-3 rounded-lg border p-3">
+              <Checkbox
+                checked={!!formItem.adicionarLegumes}
+                onCheckedChange={(checked) =>
+                  setFormItem((prev) => ({
+                    ...prev,
+                    adicionarLegumes: !!checked,
+                    adicionarFeijao: checked ? false : prev.adicionarFeijao,
+                  }))
+                }
+              />
+              <Label className="m-0">Adicionar legumes (+ R$ 2,00)</Label>
             </div>
             <div className="flex items-center gap-3 rounded-lg border p-3">
               <Checkbox
@@ -5790,7 +5804,7 @@ export function NovoAgendamentoNovoLayout({
                   }))
                 }
               />
-              <Label className="m-0">Adicionar purê</Label>
+              <Label className="m-0">Adicionar purê (+ R$ 2,00)</Label>
             </div>
 
             <div className="flex items-center gap-3 rounded-lg border p-3">
@@ -5800,7 +5814,7 @@ export function NovoAgendamentoNovoLayout({
                   setFormItem((prev) => ({ ...prev, adicionarArroz: !!checked }))
                 }
               />
-              <Label className="m-0">Adicionar arroz</Label>
+              <Label className="m-0">Adicionar arroz (+ R$ 2,00)</Label>
             </div>
           </div>
 
