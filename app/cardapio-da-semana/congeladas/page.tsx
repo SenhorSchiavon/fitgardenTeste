@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { isMobileWhatsAppDevice, openWhatsApp } from "@/lib/open-whatsapp";
 
-type CongeladaPublica = { id: string; nome: string; tamanhoGramas: number; quantidade: number };
+type CongeladaPublica = { id: string; nome: string; descricao?: string | null; tamanhoGramas: number; quantidade: number };
 type DadosPublicos = { id: number; whatsappNumber?: string | null; destinoWhatsApp?: string; congeladas: CongeladaPublica[] };
 
 function apiUrl(path: string) {
@@ -109,7 +109,13 @@ export default function CardapioCongeladasPage() {
           <div className="divide-y overflow-hidden rounded-2xl border">
           {congeladasVisiveis.map((item) => (
             <div key={item.id} className="grid grid-cols-[1fr_auto] items-center gap-4 p-4">
-              <div><p className="font-bold">{item.nome}</p><p className="text-sm text-[#60746f]">{item.tamanhoGramas}g · estoque {item.quantidade}</p></div>
+              <div>
+                <p className="font-bold text-slate-900">{item.nome}</p>
+                {item.descricao?.trim() ? (
+                  <p className="mt-1 text-xs font-medium text-[#60746f] leading-snug">{item.descricao}</p>
+                ) : null}
+                <p className="mt-1 text-xs font-semibold text-[#60746f]">{item.tamanhoGramas}g · estoque {item.quantidade}</p>
+              </div>
               <div className="grid grid-cols-3 overflow-hidden rounded-xl border">
                 <button className="h-10 w-10" onClick={() => alterar(item, -1)}><Minus className="mx-auto h-4 w-4" /></button>
                 <span className="grid h-10 w-10 place-items-center border-x font-black">{quantidades[item.id] || 0}</span>
