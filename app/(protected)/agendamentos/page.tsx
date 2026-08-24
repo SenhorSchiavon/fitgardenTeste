@@ -1086,8 +1086,15 @@ export default function Agendamentos() {
 
     // 2. Calcula desconto baseado em pagamentos registrados (backup/consistência)
     const pagamentos = row.pedido?.pagamentos ?? row.pagamentos ?? [];
+    const formasSemCobranca = new Set(["TROCA", "BONIFICACAO"]);
+    const isPagamentoCobrancaReal = (p: any) =>
+      p.forma !== "PLANO" &&
+      p.forma !== "VOUCHER" &&
+      !formasSemCobranca.has(String(p.forma)) &&
+      !p.voucherId &&
+      Number(p.valor || 0) > 0;
     const valorPendentePagamentos = pagamentos
-      .filter((p: any) => p.status === "PENDENTE")
+      .filter((p: any) => p.status === "PENDENTE" && isPagamentoCobrancaReal(p))
       .reduce((acc: number, p: any) => acc + Number(p.valor || 0), 0);
     const valorPlanoUnidadesRegistrado = pagamentos
       .filter(
@@ -1186,7 +1193,7 @@ export default function Agendamentos() {
       valorTotalFinalApi !== null &&
       valorTotalFinalApi !== undefined &&
       Number.isFinite(Number(valorTotalFinalApi));
-    const temPagamentoPendente = pagamentos.some((p: any) => p.status === "PENDENTE");
+    const temPagamentoPendente = pagamentos.some((p: any) => p.status === "PENDENTE" && isPagamentoCobrancaReal(p));
     const valorTotalPelaCoberturaAtual = Math.max(
       0,
       valorTotalOriginal - valorDescontos - valorDescontoVoucher - valorDescontoManual,
@@ -1229,26 +1236,21 @@ export default function Agendamentos() {
           .filter((p: any) => p.forma === "PLANO" && p.planoCliente)
           .reduce((acc: number, p: any) => acc + Number(p.planoCliente.saldoUnidades || 0), 0)
       : null;
-    const formasSemCobranca = new Set(["TROCA", "BONIFICACAO"]);
     const pagamentoNaoPlanoRelevante = pagamentos.find(
-      (p: any) =>
-        p.forma !== "PLANO" &&
-        p.forma !== "VOUCHER" &&
-        !formasSemCobranca.has(String(p.forma)) &&
-        (Number(p.valor || 0) > 0 || (p.status === "CONFIRMADO" && p.forma !== "A_DEFINIR")),
+      (p: any) => isPagamentoCobrancaReal(p) || (p.status === "CONFIRMADO" && p.forma !== "A_DEFINIR" && isPagamentoCobrancaReal(p)),
     );
+    const formaFallback = row.formaPagamento && row.formaPagamento !== "-" ? row.formaPagamento : "A_DEFINIR";
     const formaPagamentoExibida =
       valorDescontoVoucher > 0
         ? "VOUCHER"
-        : valorPlanosCompradosPendente > 0
-        ? pagamentosCompraPlano.find((pagamento: any) => pagamento.status === "PENDENTE")?.forma || "PLANO"
         : pagamentoNaoPlanoRelevante?.forma
         ? pagamentoNaoPlanoRelevante.forma
+        : valorPlanosCompradosPendente > 0
+        ? pagamentosCompraPlano.find((pagamento: any) => pagamento.status === "PENDENTE")?.forma || "PLANO"
         : usouPlano && valorTotalFinal <= 0
         ? "PLANO"
         : pagamentos.find((p: any) => p.forma === "PLANO")?.forma ??
-          row.formaPagamento ??
-          "-";
+          formaFallback;
 
     return {
       id: String(row.id),
