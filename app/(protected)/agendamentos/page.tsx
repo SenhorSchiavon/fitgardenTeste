@@ -1194,6 +1194,8 @@ export default function Agendamentos() {
       valorTotalFinalApi !== undefined &&
       Number.isFinite(Number(valorTotalFinalApi));
     const temPagamentoPendente = pagamentos.some((p: any) => p.status === "PENDENTE" && isPagamentoCobrancaReal(p));
+    const pagamentoNaoPlanoRelevante = pagamentos.find((p: any) => isPagamentoCobrancaReal(p));
+    const temCobrancaReal = temPagamentoPendente || !!pagamentoNaoPlanoRelevante;
     const valorTotalPelaCoberturaAtual = Math.max(
       0,
       valorTotalOriginal - valorDescontos - valorDescontoVoucher - valorDescontoManual,
@@ -1202,7 +1204,7 @@ export default function Agendamentos() {
       itens.some((it: any) => !!it.usarPlano) ||
       pagamentos.some((p: any) => p.forma === "PLANO");
     const candidatosTotal = [
-      ...(temValorTotalFinalApi ? [Number(valorTotalFinalApi)] : []),
+      ...(temValorTotalFinalApi && temCobrancaReal ? [Number(valorTotalFinalApi)] : []),
       ...(temPagamentoPendente ? [valorPendentePagamentos] : []),
       valorTotalPelaCoberturaAtual,
     ];
@@ -1236,9 +1238,6 @@ export default function Agendamentos() {
           .filter((p: any) => p.forma === "PLANO" && p.planoCliente)
           .reduce((acc: number, p: any) => acc + Number(p.planoCliente.saldoUnidades || 0), 0)
       : null;
-    const pagamentoNaoPlanoRelevante = pagamentos.find(
-      (p: any) => isPagamentoCobrancaReal(p) || (p.status === "CONFIRMADO" && p.forma !== "A_DEFINIR" && isPagamentoCobrancaReal(p)),
-    );
     const formaFallback = row.formaPagamento && row.formaPagamento !== "-" ? row.formaPagamento : "A_DEFINIR";
     const formaPagamentoExibida =
       valorDescontoVoucher > 0
@@ -1255,6 +1254,8 @@ export default function Agendamentos() {
     return {
       id: String(row.id),
       numeroPedido,
+      pedidoId: row.pedido?.id ?? row.pedidoId ?? Number(String(numeroPedido).replace(/\D/g, "")),
+      agendamentoId: row.agendamentoId ?? row.id,
       cliente: row.pedido?.cliente?.nome ?? row.cliente?.nome ?? "-",
       telefone: row.pedido?.cliente?.telefone ?? row.cliente?.telefone ?? "-",
       tipoEntrega: row.pedido?.tipo ?? row.tipo ?? "ENTREGA",
