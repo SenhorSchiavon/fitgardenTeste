@@ -1138,20 +1138,9 @@ export default function Agendamentos() {
       ).values(),
     );
 
-    const valorPlanosNaoPagosCliente = planosCliente
-      .filter((plano: any) => !plano.pago)
-      .reduce((acc: number, plano: any) => {
-        const valorPlano = Number(plano.plano?.valor || plano.valor || 0);
-        const valorTaxas = Number(plano.valorTaxaEntrega || 0) * Number(plano.taxasEntregaCompradas || 0);
-        return acc + valorPlano + valorTaxas;
-      }, 0);
-
-    const valorPlanosCompradosPendente = Math.max(
-      pagamentosCompraPlano
-        .filter((p: any) => p.status === "PENDENTE" || p.planoCliente?.pago === false)
-        .reduce((acc: number, p: any) => acc + Number(p.valor || 0), 0),
-      valorPlanosNaoPagosCliente,
-    );
+    const valorPlanosCompradosPendente = pagamentosCompraPlano
+      .filter((p: any) => p.status === "PENDENTE" || p.planoCliente?.pago === false)
+      .reduce((acc: number, p: any) => acc + Number(p.valor || 0), 0);
 
     const valorPlanoProporcional = valorPlanoUnidadesRegistrado > 0
       ? valorPlanoUnidadesRegistrado
