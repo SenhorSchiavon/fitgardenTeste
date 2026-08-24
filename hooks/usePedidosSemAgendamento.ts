@@ -26,9 +26,12 @@ export type FormaPagamento =
 export type PedidoStatus = "ABERTO" | "PAGO" | "CANCELADO";
 
 export type PedidoItemInput = {
-  opcaoId: number;
+  opcaoId?: number;
+  congeladaId?: number;
   tamanhoId: number;
   quantidade: number;
+  usarPlano?: boolean;
+  tipoItem?: "PADRAO" | "CONGELADA";
 };
 
 export type CreatePedidoSemAgendamentoInput = {
@@ -131,9 +134,12 @@ export function usePedidosSemAgendamento() {
         formaPagamento: payload.formaPagamento,
         voucherCodigo: payload.voucherCodigo?.trim() || undefined,
         itens: (payload.itens || []).map((it) => ({
-          opcaoId: Number(it.opcaoId),
+          opcaoId: it.opcaoId != null ? Number(it.opcaoId) : undefined,
+          congeladaId: it.congeladaId != null ? Number(it.congeladaId) : undefined,
           tamanhoId: Number(it.tamanhoId),
           quantidade: Number(it.quantidade),
+          usarPlano: !!it.usarPlano,
+          tipoItem: it.tipoItem,
         })),
       };
 
@@ -222,9 +228,12 @@ export function usePedidosSemAgendamento() {
 
       if (Array.isArray(body.itens)) {
         body.itens = body.itens.map((it: any) => ({
-          opcaoId: Number(it.opcaoId),
+          opcaoId: it.opcaoId != null ? Number(it.opcaoId) : undefined,
+          congeladaId: it.congeladaId != null ? Number(it.congeladaId) : undefined,
           tamanhoId: Number(it.tamanhoId),
           quantidade: Number(it.quantidade),
+          usarPlano: !!it.usarPlano,
+          tipoItem: it.tipoItem,
         }));
       }
 

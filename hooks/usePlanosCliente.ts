@@ -203,13 +203,15 @@ export function usePlanosCliente() {
   );
 
   const desvincularPlano = useCallback(
-    async (clienteId: number, planoClienteId: number) => {
+    async (clienteId: number, planoClienteId: number, senhaExclusao?: string) => {
       setSaving(true);
       try {
         const res = await apiFetch(
           `${API_URL}/clientes/${clienteId}/planos/${planoClienteId}`,
           {
             method: "DELETE",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ senhaExclusao }),
           },
         );
 

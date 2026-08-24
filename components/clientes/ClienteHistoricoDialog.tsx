@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ChevronDown, Pencil } from "lucide-react";
+import { ChevronDown, Pencil, Trash2 } from "lucide-react";
 
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -56,6 +56,7 @@ export function ClienteHistoricoDialog({
     const [planoEmEdicao, setPlanoEmEdicao] = useState<number | null>(null);
     const [usosEmEdicao, setUsosEmEdicao] = useState<{ unidades: number; entregas: number; adicionais: number; itens: Record<number, number> }>({ unidades: 0, entregas: 0, adicionais: 0, itens: {} });
     const [salvandoUsos, setSalvandoUsos] = useState(false);
+    const [excluindoPlanoId, setExcluindoPlanoId] = useState<number | null>(null);
     const [erroUsos, setErroUsos] = useState("");
     const pageSize = 10;
 
@@ -122,6 +123,32 @@ export function ClienteHistoricoDialog({
             setErroUsos(e?.message || "Não foi possível salvar os usos.");
         } finally {
             setSalvandoUsos(false);
+        }
+    };
+
+    const excluirPlano = async (plano: (typeof planos)[number]) => {
+        if (!cliente?.id || excluindoPlanoId) return;
+        const senhaExclusao = window.prompt("Informe a senha para excluir este plano do cliente:") || "";
+        if (!senhaExclusao.trim()) return;
+        const confirmou = window.confirm("Excluir este plano do cliente? Ele não aparecerá mais no histórico, agendamento e cálculos.");
+        if (!confirmou) return;
+
+        setExcluindoPlanoId(plano.id);
+        setErroUsos("");
+        try {
+            const res = await apiFetch(`${API_URL}/clientes/${cliente.id}/planos/${plano.id}`, {
+                method: "DELETE",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ senhaExclusao }),
+            });
+            const json = await res.json().catch(() => null);
+            if (!res.ok) throw new Error(json?.message || "Não foi possível excluir o plano.");
+            await getHistorico({ clienteId: cliente.id, page, pageSize });
+            if (planoEmEdicao === plano.id) setPlanoEmEdicao(null);
+        } catch (e: any) {
+            setErroUsos(e?.message || "Não foi possível excluir o plano.");
+        } finally {
+            setExcluindoPlanoId(null);
         }
     };
 
@@ -279,6 +306,17 @@ export function ClienteHistoricoDialog({
                                                                     <ChevronDown className="h-4 w-4" />
                                                                 </Button>
                                                             </CollapsibleTrigger>
+                                                            <Button
+                                                                type="button"
+                                                                variant="destructive"
+                                                                size="sm"
+                                                                className="gap-2"
+                                                                disabled={excluindoPlanoId === plano.id}
+                                                                onClick={() => excluirPlano(plano)}
+                                                            >
+                                                                <Trash2 className="h-4 w-4" />
+                                                                {excluindoPlanoId === plano.id ? "Excluindo..." : "Excluir"}
+                                                            </Button>
                                                         </div>
                                                     </div>
 

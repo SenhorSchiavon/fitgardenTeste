@@ -63,6 +63,7 @@ import { useCardapios } from "@/hooks/useCardapios";
 import { useOpcoesDoCardapio } from "@/hooks/useOpcoesDoCardapio";
 import { useCongeladas } from "@/hooks/useCongeladas";
 import { useTamanhos } from "@/hooks/useTamanhos";
+import { useRegrasPersonalizadas } from "@/hooks/useRegrasPersonalizadas";
 import { FormaPagamento, usePedidosSemAgendamento } from "@/hooks/usePedidosSemAgendamento";
 import { cn } from "@/lib/utils";
 
@@ -78,6 +79,7 @@ type ItemCarrinho = {
   quantidade: number;
   precoUnit: number;
   estoqueMax?: number;
+  usarPlano?: boolean;
 };
 
 export default function PedidoSemAgendamento() {
@@ -87,6 +89,7 @@ export default function PedidoSemAgendamento() {
   const { opcoes } = useOpcoesDoCardapio(cardapioAtivo?.id);
   const { congeladas } = useCongeladas();
   const { tamanhos } = useTamanhos();
+  const { regras } = useRegrasPersonalizadas();
 
   const {
     createPedido,
@@ -193,11 +196,81 @@ export default function PedidoSemAgendamento() {
     });
   };
 
-  const calcularTotal = () => {
-    return carrinho.reduce((acc, item) => acc + item.precoUnit * item.quantidade, 0);
+  const totalMarmitas = carrinho.reduce((acc, item) => acc + item.quantidade, 0);
+  const resumoValores = useMemo(() => {
+    const subtotal = carrinho.reduce((acc, item) => acc + item.precoUnit * item.quantidade, 0);
+    const regraVolume = regras
+      .filter((r) => r.tipo === "VOLUME_TOTAL" && totalMarmitas >= Number(r.limite))
+      .sort((a, b) => Number(b.limite) - Number(a.limite))[0];
+    const descontoVolume = regraVolume ? subtotal * (Number(regraVolume.preco || 0) / 100) : 0;
+    const totalComDesconto = Math.max(0, subtotal - descontoVolume);
+    const valorPlano = carrinho
+      .filter((item) => item.usarPlano)
+      .reduce((acc, item) => {
+        const brutoItem = item.precoUnit * item.quantidade;
+        const descontoItem = subtotal > 0 ? descontoVolume * (brutoItem / subtotal) : 0;
+        return acc + Math.max(0, brutoItem - descontoItem);
+      }, 0);
+    return {
+      subtotal,
+      descontoVolume,
+      percentualDesconto: regraVolume ? Number(regraVolume.preco || 0) : 0,
+      totalComDesconto,
+      valorPlano,
+      totalAPagar: Math.max(0, totalComDesconto - valorPlano),
+    };
+  }, [carrinho, regras, totalMarmitas]);
+
+  const clientePlanos = (clienteSelecionado as any)?.planos || [];
+  const saldoPlanoPorTamanho = useMemo(() => {
+    const saldos = new Map<number, number>();
+    for (const plano of clientePlanos) {
+      for (const item of plano.itens || []) {
+        const tamanhoId = Number(item.planoItem?.tamanho?.id || 0);
+        if (!tamanhoId) continue;
+        saldos.set(tamanhoId, (saldos.get(tamanhoId) || 0) + Math.max(0, Number(item.saldoUnidades || 0)));
+      }
+    }
+    return saldos;
+  }, [clientePlanos]);
+
+  const quantidadePlanoMarcadaPorTamanho = (tamanhoId?: number, ignorarId?: string) =>
+    carrinho
+      .filter((item) => item.usarPlano && item.id !== ignorarId && Number(item.tamanhoId || 0) === Number(tamanhoId || 0))
+      .reduce((total, item) => total + Number(item.quantidade || 0), 0);
+
+  const podeUsarPlano = (item: ItemCarrinho) => {
+    if (!clienteSelecionado || !item.tamanhoId) return false;
+    const saldo = saldoPlanoPorTamanho.get(Number(item.tamanhoId)) || 0;
+    return saldo >= quantidadePlanoMarcadaPorTamanho(item.tamanhoId, item.id) + item.quantidade;
   };
 
-  const totalMarmitas = carrinho.reduce((acc, item) => acc + item.quantidade, 0);
+  const alternarPlanoCarrinho = (itemId: string) => {
+    setCarrinho((prev) => prev.map((item) => {
+      if (item.id !== itemId) return item;
+      if (item.usarPlano) return { ...item, usarPlano: false };
+      return podeUsarPlano(item) ? { ...item, usarPlano: true } : item;
+    }));
+  };
+
+  const marcarTodosCompativeisComPlano = () => {
+    setCarrinho((prev) => {
+      const consumoPorTamanho = new Map<number, number>();
+      return prev.map((item) => {
+        if (!item.tamanhoId) return { ...item, usarPlano: false };
+        const tamanhoId = Number(item.tamanhoId);
+        const saldo = saldoPlanoPorTamanho.get(tamanhoId) || 0;
+        const jaConsumido = consumoPorTamanho.get(tamanhoId) || 0;
+        const usarPlano = saldo >= jaConsumido + item.quantidade;
+        if (usarPlano) consumoPorTamanho.set(tamanhoId, jaConsumido + item.quantidade);
+        return { ...item, usarPlano };
+      });
+    });
+  };
+
+  const limparItensComPlano = () => {
+    setCarrinho((prev) => prev.map((item) => item.usarPlano ? { ...item, usarPlano: false } : item));
+  };
 
   const handleFinalizarPagamento = async () => {
     if (!clienteId) return;
@@ -210,16 +283,15 @@ export default function PedidoSemAgendamento() {
         return;
       }
 
-      // 1) cria o pedido sem agendamento
-      // Para itens do tipo CONGELADA ou Cardápio, enviamos com os tamanhoIds corretos
       const itensInput = carrinho.map((it) => {
-        // Se for congelada ou cardápio, vinculamos opcaoId/tamanhoId
         const tamanhoId = it.tamanhoId || (tamanhos[0]?.id ? Number(tamanhos[0].id) : 1);
-        const opcaoId = it.opcaoId || (opcoes[0]?.id ? Number(opcoes[0].id) : 1);
         return {
-          opcaoId: Number(opcaoId),
+          opcaoId: it.origem === "CARDAPIO" ? Number(it.opcaoId) : undefined,
           tamanhoId: Number(tamanhoId),
           quantidade: it.quantidade,
+          usarPlano: !!it.usarPlano,
+          tipoItem: it.origem === "CONGELADA" ? "CONGELADA" : "PADRAO",
+          congeladaId: it.origem === "CONGELADA" ? it.congeladaId : undefined,
         };
       });
 
@@ -236,7 +308,7 @@ export default function PedidoSemAgendamento() {
 
       // 2) finaliza pagamento
       const formaFinal =
-        formaPagamento === "PLANO" || formaPagamento === "A_DEFINIR"
+        formaPagamento === "A_DEFINIR"
           ? "DINHEIRO"
           : formaPagamento;
 
@@ -262,15 +334,15 @@ export default function PedidoSemAgendamento() {
   };
 
   return (
-    <div className="container mx-auto p-4 sm:p-6 space-y-6">
+    <div className="container mx-auto p-3 sm:p-5 space-y-4">
       <Header
         title="Pedido sem Agendamento"
         subtitle="Vendas rápidas de marmitas do cardápio da semana e congeladas em estoque"
       />
 
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_380px] gap-6">
+      <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_340px] gap-4">
         {/* ESQUERDA: CATALOGO DE MARMITAS */}
-        <div className="space-y-6">
+        <div className="space-y-4 min-w-0">
           {/* CLIENTE & DADOS */}
           <Card className="border-border/60 shadow-sm">
             <CardHeader className="pb-3">
@@ -279,7 +351,7 @@ export default function PedidoSemAgendamento() {
                 Dados do Cliente
               </CardTitle>
             </CardHeader>
-            <CardContent className="grid gap-4 sm:grid-cols-2">
+            <CardContent className="grid gap-3 lg:grid-cols-2">
               <div className="space-y-2">
                 <Label>Cliente</Label>
                 <Popover open={clienteComboboxOpen} onOpenChange={setClienteComboboxOpen}>
@@ -288,7 +360,7 @@ export default function PedidoSemAgendamento() {
                       variant="outline"
                       role="combobox"
                       aria-expanded={clienteComboboxOpen}
-                      className="w-full justify-between bg-background h-11"
+                      className="w-full justify-between bg-background h-10"
                     >
                       <span className="truncate font-medium">
                         {clienteSelecionado ? clienteSelecionado.nome : "Selecione o cliente"}
@@ -347,7 +419,7 @@ export default function PedidoSemAgendamento() {
                   value={observacoes}
                   onChange={(e) => setObservacoes(e.target.value)}
                   placeholder="Ex.: Sem talheres, cliente retira às 12h..."
-                  className="h-11 bg-background"
+                  className="h-10 bg-background"
                 />
               </div>
             </CardContent>
@@ -445,7 +517,7 @@ export default function PedidoSemAgendamento() {
                       <Snowflake className="h-3.5 w-3.5" />
                       Marmitas Congeladas em Estoque ({congeladasFiltradas.length})
                     </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 2xl:grid-cols-2 gap-3">
                       {congeladasFiltradas.map((c) => {
                         const itemKey = `CONGELADA_${c.id}`;
                         const itemCarrinho = carrinho.find((i) => i.id === itemKey);
@@ -473,11 +545,11 @@ export default function PedidoSemAgendamento() {
                             className="flex items-center justify-between p-3.5 rounded-xl border border-sky-100 bg-sky-50/40 hover:bg-sky-50 transition-colors"
                           >
                             <div className="min-w-0 pr-2 space-y-0.5">
-                              <div className="flex items-center gap-1.5">
+                              <div className="flex items-start gap-1.5">
                                 <Badge variant="outline" className="text-[9px] h-4 border-sky-300 bg-sky-100 text-sky-800 font-bold shrink-0">
                                   CONGELADA
                                 </Badge>
-                                <span className="font-bold text-sm truncate text-slate-800">{c.nome}</span>
+                                <span className="font-bold text-sm leading-snug break-words text-slate-800">{c.nome}</span>
                               </div>
                               <div className="text-xs text-muted-foreground flex items-center gap-2">
                                 <span>{c.tamanhoGramas}g</span>
@@ -530,7 +602,7 @@ export default function PedidoSemAgendamento() {
                       <UtensilsCrossed className="h-3.5 w-3.5" />
                       Cardápio da Semana ({opcoesCardapioFiltradas.length})
                     </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 2xl:grid-cols-2 gap-3">
                       {opcoesCardapioFiltradas.map((o: any) => {
                         const tamanhosOpcao = o.tamanhos || [];
                         const tamSelId = tamanhoSelecionadoPorOpcao[o.id] || (tamanhosOpcao[0]?.tamanhoId ? String(tamanhosOpcao[0].tamanhoId) : "");
@@ -643,6 +715,16 @@ export default function PedidoSemAgendamento() {
               </CardTitle>
             </CardHeader>
             <CardContent className="p-4 space-y-4">
+              {clienteSelecionado && carrinho.length > 0 && (
+                <div className="flex gap-2">
+                  <Button type="button" variant="outline" size="sm" className="h-8 flex-1 text-xs font-bold" onClick={marcarTodosCompativeisComPlano}>
+                    Abater planos
+                  </Button>
+                  <Button type="button" variant="ghost" size="sm" className="h-8 text-xs font-bold" onClick={limparItensComPlano}>
+                    Limpar
+                  </Button>
+                </div>
+              )}
               {/* ITENS SELECIONADOS NO CARRINHO */}
               <div className="divide-y max-h-[360px] overflow-y-auto pr-1">
                 {carrinho.map((item) => (
@@ -650,7 +732,7 @@ export default function PedidoSemAgendamento() {
                     <div className="min-w-0 space-y-0.5">
                       <div className="flex items-center gap-1.5">
                         <span className="font-black text-xs text-primary">{item.quantidade}x</span>
-                        <span className="font-bold text-sm truncate">{item.nome}</span>
+                        <span className="font-bold text-sm break-words leading-snug">{item.nome}</span>
                       </div>
                       <div className="text-xs text-muted-foreground flex items-center gap-2">
                         <Badge variant="outline" className="text-[8px] h-3.5 px-1 font-bold">
@@ -658,11 +740,21 @@ export default function PedidoSemAgendamento() {
                         </Badge>
                         <span>R$ {item.precoUnit.toFixed(2)} un.</span>
                       </div>
+                      <Button
+                        type="button"
+                        variant={item.usarPlano ? "default" : "outline"}
+                        size="sm"
+                        className="mt-1 h-7 text-[11px] font-bold"
+                        disabled={!item.usarPlano && !podeUsarPlano(item)}
+                        onClick={() => alternarPlanoCarrinho(item.id)}
+                      >
+                        {item.usarPlano ? "Plano aplicado" : "Usar plano"}
+                      </Button>
                     </div>
 
                     <div className="flex items-center gap-2 shrink-0">
-                      <span className="font-extrabold text-sm text-emerald-800">
-                        R$ {(item.precoUnit * item.quantidade).toFixed(2)}
+                      <span className={cn("font-extrabold text-sm", item.usarPlano ? "text-emerald-700" : "text-emerald-800")}>
+                        {item.usarPlano ? "- " : ""}R$ {(item.precoUnit * item.quantidade).toFixed(2)}
                       </span>
                       <Button
                         type="button"
@@ -690,11 +782,23 @@ export default function PedidoSemAgendamento() {
               <div className="border-t pt-4 space-y-2">
                 <div className="flex justify-between text-sm text-muted-foreground">
                   <span>Subtotal</span>
-                  <span>R$ {calcularTotal().toFixed(2)}</span>
+                  <span>R$ {resumoValores.subtotal.toFixed(2)}</span>
                 </div>
+                {resumoValores.descontoVolume > 0 && (
+                  <div className="flex justify-between text-sm text-emerald-700">
+                    <span>Desconto {resumoValores.percentualDesconto}%</span>
+                    <span>- R$ {resumoValores.descontoVolume.toFixed(2)}</span>
+                  </div>
+                )}
+                {resumoValores.valorPlano > 0 && (
+                  <div className="flex justify-between text-sm text-emerald-700">
+                    <span>Abatido do plano</span>
+                    <span>- R$ {resumoValores.valorPlano.toFixed(2)}</span>
+                  </div>
+                )}
                 <div className="flex justify-between text-lg font-extrabold text-primary pt-1">
                   <span>Total</span>
-                  <span className="text-xl text-emerald-700">R$ {calcularTotal().toFixed(2)}</span>
+                  <span className="text-xl text-emerald-700">R$ {resumoValores.totalAPagar.toFixed(2)}</span>
                 </div>
               </div>
 
@@ -771,7 +875,7 @@ export default function PedidoSemAgendamento() {
 
             <div className="rounded-xl border border-emerald-100 bg-emerald-50/60 p-4 flex items-center justify-between">
               <span className="font-bold text-slate-700">Total do Pedido:</span>
-              <span className="text-2xl font-black text-emerald-800">R$ {calcularTotal().toFixed(2)}</span>
+              <span className="text-2xl font-black text-emerald-800">R$ {resumoValores.totalAPagar.toFixed(2)}</span>
             </div>
           </div>
 
@@ -812,7 +916,7 @@ export default function PedidoSemAgendamento() {
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Total Pago:</span>
-                <span className="font-bold text-emerald-700">R$ {calcularTotal().toFixed(2)}</span>
+                <span className="font-bold text-emerald-700">R$ {resumoValores.totalAPagar.toFixed(2)}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Forma de Pagamento:</span>
