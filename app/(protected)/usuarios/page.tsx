@@ -27,6 +27,7 @@ type SystemUser = {
   role: string;
   isAdmin: boolean;
   ativo: boolean;
+  tabletAccess: boolean;
   permissions: { screen: string }[];
 };
 
@@ -37,6 +38,7 @@ type FormState = {
   senha: string;
   isAdmin: boolean;
   ativo: boolean;
+  tabletAccess: boolean;
   permissions: string[];
 };
 
@@ -46,6 +48,7 @@ const emptyForm: FormState = {
   senha: "",
   isAdmin: false,
   ativo: true,
+  tabletAccess: false,
   permissions: [],
 };
 
@@ -91,6 +94,7 @@ export default function UsuariosPage() {
       senha: "",
       isAdmin: user.isAdmin,
       ativo: user.ativo,
+      tabletAccess: user.tabletAccess,
       permissions: user.permissions.map((permission) => permission.screen),
     });
     setOpen(true);
@@ -114,6 +118,7 @@ export default function UsuariosPage() {
         senha: form.senha || undefined,
         isAdmin: form.isAdmin,
         ativo: form.ativo,
+        tabletAccess: form.tabletAccess,
         permissions: form.isAdmin ? [] : form.permissions,
       };
       const url = form.id ? `${API_URL}/usuarios-sistema/${form.id}` : `${API_URL}/usuarios-sistema`;
@@ -149,10 +154,11 @@ export default function UsuariosPage() {
       </div>
 
       <div className="overflow-hidden rounded-lg border bg-background">
-        <div className="grid grid-cols-[1.2fr_1fr_120px_120px_96px] gap-4 border-b bg-muted/50 px-4 py-3 text-xs font-semibold uppercase text-muted-foreground">
+        <div className="grid grid-cols-[1.2fr_1fr_120px_120px_120px_96px] gap-4 border-b bg-muted/50 px-4 py-3 text-xs font-semibold uppercase text-muted-foreground">
           <span>Nome</span>
           <span>Login</span>
           <span>Perfil</span>
+          <span>Tablet</span>
           <span>Status</span>
           <span className="text-right">Ações</span>
         </div>
@@ -164,7 +170,7 @@ export default function UsuariosPage() {
           users.map((user) => (
             <div
               key={user.id}
-              className="grid grid-cols-[1.2fr_1fr_120px_120px_96px] items-center gap-4 border-b px-4 py-3 text-sm last:border-b-0"
+              className="grid grid-cols-[1.2fr_1fr_120px_120px_120px_96px] items-center gap-4 border-b px-4 py-3 text-sm last:border-b-0"
             >
               <div className="min-w-0">
                 <p className="truncate font-medium">{user.nome || "Sem nome"}</p>
@@ -176,6 +182,7 @@ export default function UsuariosPage() {
               </div>
               <span className="truncate text-muted-foreground">{user.login}</span>
               <span>{user.isAdmin ? "Admin" : "Funcionário"}</span>
+              <span>{user.tabletAccess ? "Liberado" : "Bloqueado"}</span>
               <span>{user.ativo ? "Ativo" : "Inativo"}</span>
               <div className="flex justify-end">
                 <Button variant="ghost" size="sm" onClick={() => startEdit(user)} className="gap-2">
@@ -231,6 +238,17 @@ export default function UsuariosPage() {
                 <p className="text-xs text-muted-foreground">Administradores veem todas as telas.</p>
               </div>
               <Switch checked={form.isAdmin} onCheckedChange={(checked) => setForm({ ...form, isAdmin: checked })} />
+            </div>
+
+            <div className="flex items-center justify-between rounded-lg border px-4 py-3">
+              <div>
+                <p className="text-sm font-medium">Acesso tablet</p>
+                <p className="text-xs text-muted-foreground">Permite entrar no app operacional do tablet.</p>
+              </div>
+              <Switch
+                checked={form.tabletAccess}
+                onCheckedChange={(checked) => setForm({ ...form, tabletAccess: checked })}
+              />
             </div>
 
             {!form.isAdmin && (
