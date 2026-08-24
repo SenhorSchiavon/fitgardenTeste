@@ -1229,9 +1229,12 @@ export default function Agendamentos() {
           .filter((p: any) => p.forma === "PLANO" && p.planoCliente)
           .reduce((acc: number, p: any) => acc + Number(p.planoCliente.saldoUnidades || 0), 0)
       : null;
+    const formasSemCobranca = new Set(["TROCA", "BONIFICACAO"]);
     const pagamentoNaoPlanoRelevante = pagamentos.find(
       (p: any) =>
         p.forma !== "PLANO" &&
+        p.forma !== "VOUCHER" &&
+        !formasSemCobranca.has(String(p.forma)) &&
         (Number(p.valor || 0) > 0 || (p.status === "CONFIRMADO" && p.forma !== "A_DEFINIR")),
     );
     const formaPagamentoExibida =
