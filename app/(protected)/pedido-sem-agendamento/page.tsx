@@ -63,7 +63,6 @@ import { useCardapios } from "@/hooks/useCardapios";
 import { useOpcoesDoCardapio } from "@/hooks/useOpcoesDoCardapio";
 import { useCongeladas } from "@/hooks/useCongeladas";
 import { useTamanhos } from "@/hooks/useTamanhos";
-import { useRegrasPersonalizadas } from "@/hooks/useRegrasPersonalizadas";
 import { FormaPagamento, usePedidosSemAgendamento } from "@/hooks/usePedidosSemAgendamento";
 import { cn } from "@/lib/utils";
 
@@ -82,6 +81,14 @@ type ItemCarrinho = {
   usarPlano?: boolean;
 };
 
+function getPrecoUnitPorQuantidade(tamanho: any, quantidade: number) {
+  const qtd = Math.max(1, Number(quantidade || 1));
+  if (qtd >= 40 && tamanho?.valor40 != null) return Number(tamanho.valor40 || 0);
+  if (qtd >= 20 && tamanho?.valor20 != null) return Number(tamanho.valor20 || 0);
+  if (qtd >= 10 && tamanho?.valor10 != null) return Number(tamanho.valor10 || 0);
+  return Number(tamanho?.valorUnitario || 0);
+}
+
 export default function PedidoSemAgendamento() {
   const { clientes } = useClientes();
   const { cardapios } = useCardapios();
@@ -89,7 +96,6 @@ export default function PedidoSemAgendamento() {
   const { opcoes } = useOpcoesDoCardapio(cardapioAtivo?.id);
   const { congeladas } = useCongeladas();
   const { tamanhos } = useTamanhos();
-  const { regras } = useRegrasPersonalizadas();
 
   const {
     createPedido,
@@ -199,27 +205,25 @@ export default function PedidoSemAgendamento() {
   const totalMarmitas = carrinho.reduce((acc, item) => acc + item.quantidade, 0);
   const resumoValores = useMemo(() => {
     const subtotal = carrinho.reduce((acc, item) => acc + item.precoUnit * item.quantidade, 0);
-    const regraVolume = regras
-      .filter((r) => r.tipo === "VOLUME_TOTAL" && totalMarmitas >= Number(r.limite))
-      .sort((a, b) => Number(b.limite) - Number(a.limite))[0];
-    const descontoVolume = regraVolume ? subtotal * (Number(regraVolume.preco || 0) / 100) : 0;
-    const totalComDesconto = Math.max(0, subtotal - descontoVolume);
+    const totalComDesconto = carrinho.reduce((acc, item) => {
+      const tamanho = tamanhos.find((t: any) => Number(t.id) === Number(item.tamanhoId));
+      return acc + getPrecoUnitPorQuantidade(tamanho, item.quantidade) * item.quantidade;
+    }, 0);
+    const descontoTabela = Math.max(0, subtotal - totalComDesconto);
     const valorPlano = carrinho
       .filter((item) => item.usarPlano)
       .reduce((acc, item) => {
-        const brutoItem = item.precoUnit * item.quantidade;
-        const descontoItem = subtotal > 0 ? descontoVolume * (brutoItem / subtotal) : 0;
-        return acc + Math.max(0, brutoItem - descontoItem);
+        const tamanho = tamanhos.find((t: any) => Number(t.id) === Number(item.tamanhoId));
+        return acc + getPrecoUnitPorQuantidade(tamanho, item.quantidade) * item.quantidade;
       }, 0);
     return {
       subtotal,
-      descontoVolume,
-      percentualDesconto: regraVolume ? Number(regraVolume.preco || 0) : 0,
+      descontoTabela,
       totalComDesconto,
       valorPlano,
       totalAPagar: Math.max(0, totalComDesconto - valorPlano),
     };
-  }, [carrinho, regras, totalMarmitas]);
+  }, [carrinho, tamanhos]);
 
   const clientePlanos = (clienteSelecionado as any)?.planos || [];
   const saldoPlanoPorTamanho = useMemo(() => {
@@ -727,47 +731,54 @@ export default function PedidoSemAgendamento() {
               )}
               {/* ITENS SELECIONADOS NO CARRINHO */}
               <div className="divide-y max-h-[360px] overflow-y-auto pr-1">
-                {carrinho.map((item) => (
-                  <div key={item.id} className="py-3 flex items-start justify-between gap-3">
-                    <div className="min-w-0 space-y-0.5">
-                      <div className="flex items-center gap-1.5">
-                        <span className="font-black text-xs text-primary">{item.quantidade}x</span>
-                        <span className="font-bold text-sm break-words leading-snug">{item.nome}</span>
-                      </div>
-                      <div className="text-xs text-muted-foreground flex items-center gap-2">
-                        <Badge variant="outline" className="text-[8px] h-3.5 px-1 font-bold">
-                          {item.tamanhoLabel}
-                        </Badge>
-                        <span>R$ {item.precoUnit.toFixed(2)} un.</span>
-                      </div>
-                      <Button
-                        type="button"
-                        variant={item.usarPlano ? "default" : "outline"}
-                        size="sm"
-                        className="mt-1 h-7 text-[11px] font-bold"
-                        disabled={!item.usarPlano && !podeUsarPlano(item)}
-                        onClick={() => alternarPlanoCarrinho(item.id)}
-                      >
-                        {item.usarPlano ? "Plano aplicado" : "Usar plano"}
-                      </Button>
-                    </div>
+                {carrinho.map((item) => {
+                  const tamanho = tamanhos.find((t: any) => Number(t.id) === Number(item.tamanhoId));
+                  const precoEfetivo = getPrecoUnitPorQuantidade(tamanho, item.quantidade);
+                  const temPrecoEscalonado = Math.abs(precoEfetivo - item.precoUnit) > 0.001;
 
-                    <div className="flex items-center gap-2 shrink-0">
-                      <span className={cn("font-extrabold text-sm", item.usarPlano ? "text-emerald-700" : "text-emerald-800")}>
-                        {item.usarPlano ? "- " : ""}R$ {(item.precoUnit * item.quantidade).toFixed(2)}
-                      </span>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7 text-muted-foreground hover:text-red-600 hover:bg-red-50"
-                        onClick={() => setQuantidadeCarrinho(item.id, -item.quantidade)}
-                      >
-                        <Trash className="h-3.5 w-3.5" />
-                      </Button>
+                  return (
+                    <div key={item.id} className="py-3 flex items-start justify-between gap-3">
+                      <div className="min-w-0 space-y-0.5">
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-black text-xs text-primary">{item.quantidade}x</span>
+                          <span className="font-bold text-sm break-words leading-snug">{item.nome}</span>
+                        </div>
+                        <div className="text-xs text-muted-foreground flex flex-wrap items-center gap-2">
+                          <Badge variant="outline" className="text-[8px] h-3.5 px-1 font-bold">
+                            {item.tamanhoLabel}
+                          </Badge>
+                          <span>R$ {precoEfetivo.toFixed(2)} un.</span>
+                          {temPrecoEscalonado && <span className="text-emerald-700">tabela quantidade</span>}
+                        </div>
+                        <Button
+                          type="button"
+                          variant={item.usarPlano ? "default" : "outline"}
+                          size="sm"
+                          className="mt-1 h-7 text-[11px] font-bold"
+                          disabled={!item.usarPlano && !podeUsarPlano(item)}
+                          onClick={() => alternarPlanoCarrinho(item.id)}
+                        >
+                          {item.usarPlano ? "Plano aplicado" : "Usar plano"}
+                        </Button>
+                      </div>
+
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className={cn("font-extrabold text-sm", item.usarPlano ? "text-emerald-700" : "text-emerald-800")}>
+                          {item.usarPlano ? "- " : ""}R$ {(precoEfetivo * item.quantidade).toFixed(2)}
+                        </span>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-muted-foreground hover:text-red-600 hover:bg-red-50"
+                          onClick={() => setQuantidadeCarrinho(item.id, -item.quantidade)}
+                        >
+                          <Trash className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
 
                 {carrinho.length === 0 && (
                   <div className="text-center py-10 text-muted-foreground space-y-2">
@@ -784,10 +795,10 @@ export default function PedidoSemAgendamento() {
                   <span>Subtotal</span>
                   <span>R$ {resumoValores.subtotal.toFixed(2)}</span>
                 </div>
-                {resumoValores.descontoVolume > 0 && (
+                {resumoValores.descontoTabela > 0 && (
                   <div className="flex justify-between text-sm text-emerald-700">
-                    <span>Desconto {resumoValores.percentualDesconto}%</span>
-                    <span>- R$ {resumoValores.descontoVolume.toFixed(2)}</span>
+                    <span>Desconto por quantidade</span>
+                    <span>- R$ {resumoValores.descontoTabela.toFixed(2)}</span>
                   </div>
                 )}
                 {resumoValores.valorPlano > 0 && (
