@@ -393,9 +393,52 @@ function uid() {
 
 function getDefaultAgendamentoDate() {
   const proximaData = new Date();
-  const diasAAdicionar = proximaData.getDay() === 5 ? 3 : 1;
+  const diaSemana = proximaData.getDay();
+  const diasAAdicionar = diaSemana === 5 ? 3 : diaSemana === 6 ? 2 : 1;
   proximaData.setDate(proximaData.getDate() + diasAAdicionar);
   return proximaData;
+}
+
+function getTipoAutomaticoUltimoPedido(ultimo: any): PedidoTipo | null {
+  const tipoUltimo = String(ultimo?.pedido?.tipo || ultimo?.tipoEntrega || ultimo?.tipo || "");
+  return tipoUltimo === "ENTREGA" || tipoUltimo === "RETIRADA" ? tipoUltimo : null;
+}
+
+function getFormaPagamentoAutomatica(ultimo: any): FormaPagamento | null {
+  const pagamentos = Array.isArray(ultimo?.pedido?.pagamentos) ? ultimo.pedido.pagamentos : [];
+  const pagamentoPrincipal = pagamentos.find((pagamento: any) =>
+    pagamento?.forma &&
+    pagamento.forma !== "PLANO" &&
+    pagamento.forma !== "VOUCHER" &&
+    !pagamento.voucherId &&
+    Number(pagamento.valor || 0) > 0,
+  );
+  const forma = String(pagamentoPrincipal?.forma || ultimo?.formaPagamento || "");
+  const formasAutomaticas = new Set<FormaPagamento>([
+    "A_DEFINIR",
+    "DINHEIRO",
+    "PIX",
+    "CREDITO",
+    "DEBITO",
+    "VALE_ALIMENTACAO",
+    "VALE_REFEICAO",
+    "LINK",
+  ]);
+  return formasAutomaticas.has(forma as FormaPagamento) ? forma as FormaPagamento : null;
+}
+
+function getFormaPagamentoLabel(forma: FormaPagamento) {
+  const labels: Record<string, string> = {
+    A_DEFINIR: "não definido",
+    DINHEIRO: "dinheiro",
+    PIX: "PIX",
+    CREDITO: "cartão",
+    DEBITO: "cartão de débito",
+    VALE_ALIMENTACAO: "vale alimentação",
+    VALE_REFEICAO: "vale refeição",
+    LINK: "link de pagamento",
+  };
+  return labels[forma] || forma;
 }
 
 function toISODateOnlyLocal(date?: Date | null) {
@@ -1021,14 +1064,31 @@ export function NovoAgendamentoNovoLayout({
         const ultimo = await getUltimoAgendamentoCliente(Number(clienteId));
         if (!ativo || !ultimo) return;
 
+        const tipoAutomatico = getTipoAutomaticoUltimoPedido(ultimo);
+        const tipoParaJanela = tipoAutomatico || tipo;
+        if (tipoAutomatico) setTipo(tipoAutomatico);
+
         if (ultimo.faixaHorario && ultimo.faixaHorario.includes("-")) {
           const [inicio, fim] = ultimo.faixaHorario.split("-");
           const ajustado = ajustarHorarioNaJanela(
             { inicio: inicio || "13:00", fim: fim || "14:00" },
-            isSabado(data) ? { start: "09:30", end: "12:30" } : getJanelaEntregaPorDistancia(tipo === "ENTREGA" ? distanciaEntregaKm : null),
+            isSabado(data) ? { start: "09:30", end: "12:30" } : getJanelaEntregaPorDistancia(tipoParaJanela === "ENTREGA" ? distanciaEntregaKm : null),
           );
           setHorario(ajustado);
           setAvisoHorarioAutomatico(`Horário puxado automaticamente do último pedido: ${ajustado.inicio}-${ajustado.fim}.`);
+        }
+
+        const formaAutomatica = getFormaPagamentoAutomatica(ultimo);
+        if (formaAutomatica) {
+          setFormaPagamento(formaAutomatica);
+          setFormaPagamentoTaxaVoucher("A_DEFINIR");
+          setVoucherCodigo("");
+          setPagamentoJaRealizado(false);
+          if (formaAutomatica !== "DINHEIRO") {
+            setPrecisaTroco(false);
+            setTrocoPara(0);
+          }
+          setAvisoPagamentoAutomatico(`Forma de pagamento puxada automaticamente do último pedido: ${getFormaPagamentoLabel(formaAutomatica)}.`);
         }
 
       } catch {
@@ -1043,7 +1103,7 @@ export function NovoAgendamentoNovoLayout({
     return () => {
       ativo = false;
     };
-  }, [open, clienteId, initialData, getUltimoAgendamentoCliente, tipo, distanciaEntregaKm, data]);
+  }, [open, clienteId, initialData, getUltimoAgendamentoCliente]);
 
   useEffect(() => {
     let ativo = true;

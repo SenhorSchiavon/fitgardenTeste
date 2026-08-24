@@ -2567,6 +2567,7 @@ export default function Agendamentos() {
                 ...(Array.isArray(dadosEdicao?.pedidosPublicosIds) ? dadosEdicao.pedidosPublicosIds : []),
                 ...(dadosEdicao?.pedidoPublicoId ? [dadosEdicao.pedidoPublicoId] : []),
               ].map(Number).filter(Boolean))),
+              planosCompradosIds: payload.planosCompradosIds,
               tipo: payload.tipo,
               data: payload.data,
               dataEntregaCongelada: payload.dataEntregaCongelada,
