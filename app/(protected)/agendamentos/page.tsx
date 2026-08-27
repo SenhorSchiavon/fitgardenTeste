@@ -825,17 +825,17 @@ export default function Agendamentos() {
     }).join("");
     janela.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Cupons Fit Garden</title><style>
       @page { size: 80mm auto; margin: 3mm; } * { box-sizing: border-box; }
-      body { margin: 0; color: #000; font-family: Arial, sans-serif; font-size: 11px; }
+      body { margin: 0; color: #000; font-family: Arial, sans-serif; font-size: 13px; }
       .cupom { width: 74mm; padding: 1mm 0 4mm; break-inside: avoid-page; page-break-inside: avoid; break-after: page; page-break-after: always; }
       header { text-align: center; line-height: 1.45; margin-bottom: 4mm; }
-      .rota { text-align: center; font-size: 12px; font-weight: 700; margin-bottom: 2mm; }
+      .rota { text-align: center; font-size: 14px; font-weight: 700; margin-bottom: 2mm; }
       .subpedido { margin: 3mm 0; }
-      .subpedido-titulo { border-bottom: 1px dashed #000; padding-bottom: 1.5mm; margin-bottom: 2mm; font-size: 12px; font-weight: 700; }
+      .subpedido-titulo { border-bottom: 1px dashed #000; padding-bottom: 1.5mm; margin-bottom: 2mm; font-size: 14px; font-weight: 700; }
       .valores { margin: 2mm 0; padding: 1.5mm 0; border-top: 1px dashed #000; border-bottom: 1px dashed #000; }
       .valor-linha { display: flex; justify-content: space-between; gap: 3mm; margin: 1mm 0; }
       .valor-total { margin-top: 1.5mm; padding-top: 1.5mm; border-top: 1px solid #000; font-size: 13px; }
-      h1 { margin: 3mm 0 2mm; padding: 1mm 0; text-align: center; font-size: 13px; border-top: 1px solid #000; border-bottom: 1px solid #000; }
-      p { margin: 1.5mm 0; line-height: 1.35; } .item { margin: 1.8mm 0; font-size: 12px; line-height: 1.25; }
+      h1 { margin: 3mm 0 2mm; padding: 1mm 0; text-align: center; font-size: 15px; border-top: 1px solid #000; border-bottom: 1px solid #000; }
+      p { margin: 1.5mm 0; line-height: 1.35; } .item { margin: 1.8mm 0; font-size: 14px; line-height: 1.25; }
     </style></head><body>${cupons}<script>window.addEventListener('load',()=>setTimeout(()=>window.print(),150));<\/script></body></html>`);
     janela.document.close();
   };
@@ -2272,14 +2272,14 @@ export default function Agendamentos() {
                               <TableRow key={row.preparoId}>
                                 <TableCell>{row.nome}</TableCell>
                                 <TableCell className="text-right font-medium">
-                                  {formatKg(Number(row.kgPronto ?? 0))} kg
+                                  {formatKg(Number(row.kgPronto ?? 0))} {row.unidade || "kg"}
                                 </TableCell>
                               </TableRow>
                             ))}
                             <TableRow>
                               <TableCell className="font-bold text-slate-800">TOTAL</TableCell>
                               <TableCell className="text-right font-black text-slate-800">
-                                {formatKg(relatorioPreparos!.prontos.reduce((acc, r) => acc + Number(r.kgPronto ?? 0), 0))} kg
+                                {formatKg(relatorioPreparos!.prontos.filter((r) => (r.unidade || "kg") === "kg").reduce((acc, r) => acc + Number(r.kgPronto ?? 0), 0))} kg
                               </TableCell>
                             </TableRow>
                           </>

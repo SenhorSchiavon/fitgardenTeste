@@ -8,6 +8,8 @@ export type RelatorioPreparoRow = {
   nome: string;
   kgPronto: number;
   kgCru: number;
+  unidade?: "kg" | "un";
+  pesoUnidadeGramas?: number | null;
 };
 
 export type RelatorioCruRow = {

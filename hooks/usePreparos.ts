@@ -30,6 +30,7 @@ export type Preparo = {
   nome: string;
   tipo: PreparoTipo;
   medida: Medida;
+  pesoUnidadeGramas?: number | null;
   custoTotal: number;
   fichaTecnica: PreparoFichaItem[];
 };
@@ -46,6 +47,7 @@ type NovoPreparoInput = {
   nome: string;
   tipo: PreparoTipo;
   medidaId: number;
+  pesoUnidadeGramas?: number | null;
   fichaTecnica: FichaTecnicaInput[];
 };
 

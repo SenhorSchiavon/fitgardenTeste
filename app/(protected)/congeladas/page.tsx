@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Minus, PackagePlus, Plus, Search, Warehouse } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ClipboardCheck, Minus, PackagePlus, Plus, Save, Search, Warehouse, X } from "lucide-react";
 import { Header } from "@/components/header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -47,6 +47,10 @@ export default function CongeladasPage() {
     tipo: "ENTRADA",
     quantidade: "1",
   });
+  const [conferenciaAtiva, setConferenciaAtiva] = useState(false);
+  const [contagensConferencia, setContagensConferencia] = useState<Record<number, string>>({});
+  const [conferidos, setConferidos] = useState<number[]>([]);
+  const [salvandoConferencia, setSalvandoConferencia] = useState(false);
 
   const listasPorTamanho = useMemo(
     () => TAMANHOS_CONGELADAS.map((tamanho) => ({
@@ -69,6 +73,15 @@ export default function CongeladasPage() {
     () => congeladas.reduce((total, item) => total + item.quantidade, 0),
     [congeladas],
   );
+  const congeladasConferencia = useMemo(
+    () => [...congeladas].sort((a, b) => a.tamanhoGramas - b.tamanhoGramas || a.nome.localeCompare(b.nome, "pt-BR")),
+    [congeladas],
+  );
+  const idsConferidos = useMemo(() => new Set(conferidos), [conferidos]);
+  const naoConferidas = useMemo(
+    () => congeladasConferencia.filter((item) => !idsConferidos.has(item.id)),
+    [congeladasConferencia, idsConferidos],
+  );
 
   const resetForm = () => {
     setForm({ nome: "", tamanhoGramas: "300", quantidade: "0" });
@@ -78,6 +91,66 @@ export default function CongeladasPage() {
   const handleNew = () => {
     resetForm();
     setFormOpen(true);
+  };
+
+  const iniciarConferencia = () => {
+    setContagensConferencia(Object.fromEntries(congeladas.map((item) => [item.id, String(item.quantidade)])));
+    setConferidos([]);
+    setConferenciaAtiva(true);
+  };
+
+  const cancelarConferencia = () => {
+    setConferenciaAtiva(false);
+    setContagensConferencia({});
+    setConferidos([]);
+  };
+
+  const marcarConferido = (id: number, valor: string) => {
+    setContagensConferencia((atual) => ({ ...atual, [id]: valor }));
+    setConferidos((atuais) => (atuais.includes(id) ? atuais : [...atuais, id]));
+  };
+
+  const salvarConferencia = async () => {
+    const itensConferidos = congeladasConferencia.filter((item) => idsConferidos.has(item.id));
+    if (!itensConferidos.length) {
+      toast.error("Nenhum item conferido");
+      return;
+    }
+
+    const invalidos = itensConferidos.filter((item) => {
+      const valor = Number(contagensConferencia[item.id] ?? item.quantidade);
+      return !Number.isInteger(valor) || valor < 0;
+    });
+    if (invalidos.length) {
+      toast.error("Confira as quantidades digitadas");
+      return;
+    }
+
+    const alterados = itensConferidos
+      .map((item) => ({
+        item,
+        quantidade: Number(contagensConferencia[item.id] ?? item.quantidade),
+      }))
+      .filter(({ item, quantidade }) => quantidade !== item.quantidade);
+
+    setSalvandoConferencia(true);
+    try {
+      for (const { item, quantidade } of alterados) {
+        await movimentarCongelada(item.id, {
+          tipo: "AJUSTE",
+          quantidade,
+          observacao: "Ajuste por modo conferencia",
+        });
+      }
+      toast.success(
+        alterados.length
+          ? `Conferência salva: ${alterados.length} item(ns) ajustado(s).`
+          : "Conferência salva sem alteração de estoque.",
+      );
+      cancelarConferencia();
+    } finally {
+      setSalvandoConferencia(false);
+    }
   };
 
   const handleSave = async () => {
@@ -152,11 +225,121 @@ export default function CongeladasPage() {
         </Card>
       </div>
 
-      <div className="flex items-center justify-end">
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        {conferenciaAtiva ? (
+          <Button variant="outline" onClick={cancelarConferencia} disabled={salvandoConferencia || saving}>
+            <X className="mr-2 h-4 w-4" /> Sair da conferência
+          </Button>
+        ) : (
+          <Button variant="outline" onClick={iniciarConferencia} disabled={loading || saving}>
+            <ClipboardCheck className="mr-2 h-4 w-4" /> Modo Conferência
+          </Button>
+        )}
         <Button onClick={handleNew} className="bg-blue-600 text-white hover:bg-blue-700">
           <Plus className="mr-2 h-4 w-4" /> Nova Congelada
         </Button>
       </div>
+
+      {conferenciaAtiva ? (
+        <Card className="border-amber-200 bg-amber-50/60">
+          <CardHeader className="border-b border-amber-100 pb-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <CardTitle className="flex items-center gap-2 text-gray-900">
+                  <ClipboardCheck className="h-5 w-5 text-amber-700" /> Conferência de estoque
+                </CardTitle>
+                <p className="mt-1 text-sm text-amber-800">
+                  Digite a contagem física. O item digitado fica conferido; os não conferidos aparecem no resumo abaixo.
+                </p>
+              </div>
+              <Button onClick={salvarConferencia} disabled={salvandoConferencia || saving}>
+                <Save className="mr-2 h-4 w-4" /> {salvandoConferencia ? "Salvando..." : "Salvar conferência"}
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4 p-4">
+            <div className="grid gap-3 md:grid-cols-3">
+              <div className="rounded-md border bg-white p-3">
+                <p className="text-xs font-semibold uppercase text-gray-500">Cadastrados</p>
+                <p className="text-2xl font-bold text-gray-900">{congeladasConferencia.length}</p>
+              </div>
+              <div className="rounded-md border bg-white p-3">
+                <p className="text-xs font-semibold uppercase text-gray-500">Conferidos</p>
+                <p className="text-2xl font-bold text-emerald-700">{conferidos.length}</p>
+              </div>
+              <div className="rounded-md border bg-white p-3">
+                <p className="text-xs font-semibold uppercase text-gray-500">Sem conferência</p>
+                <p className="text-2xl font-bold text-amber-700">{naoConferidas.length}</p>
+              </div>
+            </div>
+            <div className="overflow-x-auto rounded-md border bg-white">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-gray-50 hover:bg-gray-50">
+                    <TableHead>Marmita</TableHead>
+                    <TableHead className="w-24 text-center">Atual</TableHead>
+                    <TableHead className="w-40 text-center">Contagem física</TableHead>
+                    <TableHead className="w-36 text-center">Status</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {congeladasConferencia.map((item) => {
+                    const conferido = idsConferidos.has(item.id);
+                    return (
+                      <TableRow key={item.id} className={conferido ? "bg-emerald-50/70" : "bg-amber-50/80"}>
+                        <TableCell>
+                          <div className="font-medium text-gray-900">{item.nome}</div>
+                          <div className="text-xs font-semibold text-gray-500">{item.tamanhoGramas}g</div>
+                        </TableCell>
+                        <TableCell className="text-center font-bold">{item.quantidade}</TableCell>
+                        <TableCell>
+                          <Input
+                            type="number"
+                            min="0"
+                            step="1"
+                            inputMode="numeric"
+                            value={contagensConferencia[item.id] ?? String(item.quantidade)}
+                            onChange={(event) => marcarConferido(item.id, event.target.value)}
+                            onFocus={(event) => marcarConferido(item.id, event.target.value)}
+                            className="text-center font-bold"
+                          />
+                        </TableCell>
+                        <TableCell className="text-center">
+                          {conferido ? (
+                            <Badge className="bg-emerald-600"><CheckCircle2 className="mr-1 h-3.5 w-3.5" /> Conferido</Badge>
+                          ) : (
+                            <Badge variant="outline" className="border-amber-300 bg-amber-100 text-amber-800">
+                              <AlertTriangle className="mr-1 h-3.5 w-3.5" /> Pendente
+                            </Badge>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+            {naoConferidas.length ? (
+              <div className="rounded-md border border-amber-300 bg-white p-4">
+                <p className="mb-2 flex items-center gap-2 font-bold text-amber-800">
+                  <AlertTriangle className="h-4 w-4" /> Itens ainda não conferidos
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {naoConferidas.map((item) => (
+                    <Badge key={item.id} variant="outline" className="border-amber-300 bg-amber-50 text-amber-900">
+                      {item.tamanhoGramas}g · {item.nome} · atual {item.quantidade}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="rounded-md border border-emerald-200 bg-emerald-50 p-4 font-semibold text-emerald-800">
+                Todos os itens cadastrados foram conferidos.
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      ) : null}
 
       <div className="flex flex-col gap-6">
         {listasPorTamanho.map(({ tamanho, itens }) => (

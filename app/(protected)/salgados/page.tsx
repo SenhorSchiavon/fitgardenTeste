@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Plus, Pencil, Trash } from "lucide-react";
+import { ExternalLink, Plus, Pencil, Trash } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -38,7 +38,7 @@ export default function SalgadosPage() {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [editandoId, setEditandoId] = useState<number | null>(null);
-  const [form, setForm] = useState({ nome: "", preco: "" });
+  const [form, setForm] = useState({ nome: "", preco: "", quantidade: "" });
 
   const filtrados = useMemo(() => {
     const q = busca.trim().toLowerCase();
@@ -53,7 +53,7 @@ export default function SalgadosPage() {
   const { sort, onSort, sortedRows } = useTableSort(filtrados);
 
   const resetForm = () => {
-    setForm({ nome: "", preco: "" });
+    setForm({ nome: "", preco: "", quantidade: "" });
     setEditandoId(null);
   };
 
@@ -64,7 +64,7 @@ export default function SalgadosPage() {
 
   const handleEdit = (salgado: Salgado) => {
     setEditandoId(salgado.id);
-    setForm({ nome: salgado.nome, preco: String(Number(salgado.preco || 0)) });
+    setForm({ nome: salgado.nome, preco: String(Number(salgado.preco || 0)), quantidade: String(Number(salgado.quantidade || 0)) });
     setDialogOpen(true);
   };
 
@@ -80,8 +80,10 @@ export default function SalgadosPage() {
       return;
     }
 
-    if (editandoId) await updateSalgado(editandoId, { nome: form.nome, preco });
-    else await createSalgado({ nome: form.nome, preco });
+    const quantidade = Math.max(0, Math.floor(Number(form.quantidade || 0)));
+
+    if (editandoId) await updateSalgado(editandoId, { nome: form.nome, preco, quantidade });
+    else await createSalgado({ nome: form.nome, preco, quantidade });
 
     setDialogOpen(false);
     resetForm();
@@ -103,7 +105,12 @@ export default function SalgadosPage() {
         onSearchChange={setBusca}
       />
 
-      <div className="flex items-center justify-end">
+      <div className="flex items-center justify-end gap-2">
+        <Button variant="outline" asChild>
+          <a href="/salgados-da-semana" target="_blank" rel="noreferrer">
+            Página pública <ExternalLink className="ml-2 h-4 w-4" />
+          </a>
+        </Button>
         <Button onClick={handleNew} className="bg-blue-600 hover:bg-blue-700 text-white">
           <Plus className="mr-2 h-4 w-4" /> Novo Salgado
         </Button>
@@ -123,6 +130,7 @@ export default function SalgadosPage() {
                   <SortableHead label="Cód." field="id" sort={sort} onSort={onSort} />
                   <SortableHead label="Nome" field="nome" sort={sort} onSort={onSort} />
                   <SortableHead label="Preço" field="preco" sort={sort} onSort={onSort} />
+                  <SortableHead label="Estoque" field="quantidade" sort={sort} onSort={onSort} />
                   <TableHead className="text-right text-gray-700 w-28">Ações</TableHead>
                 </TableRow>
               </TableHeader>
@@ -132,6 +140,7 @@ export default function SalgadosPage() {
                     <TableCell className="font-medium text-gray-700">{salgado.id}</TableCell>
                     <TableCell className="text-gray-700">{salgado.nome}</TableCell>
                     <TableCell className="text-gray-700">{moneyBr(salgado.preco)}</TableCell>
+                    <TableCell className="text-gray-700">{salgado.quantidade}</TableCell>
                     <TableCell className="text-right">
                       <Button
                         variant="ghost"
@@ -160,7 +169,7 @@ export default function SalgadosPage() {
 
                 {filtrados.length === 0 && !loading && (
                   <TableRow>
-                    <TableCell colSpan={4} className="text-center text-sm text-gray-500 py-4">
+                    <TableCell colSpan={5} className="text-center text-sm text-gray-500 py-4">
                       Nenhum salgado cadastrado.
                     </TableCell>
                   </TableRow>
@@ -203,6 +212,19 @@ export default function SalgadosPage() {
                 inputMode="decimal"
                 value={form.preco}
                 onChange={(e) => setForm((p) => ({ ...p, preco: e.target.value }))}
+                className="border-gray-200"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="quantidade" className="text-gray-700">Estoque</Label>
+              <Input
+                id="quantidade"
+                type="number"
+                min="0"
+                step="1"
+                inputMode="numeric"
+                value={form.quantidade}
+                onChange={(e) => setForm((p) => ({ ...p, quantidade: e.target.value }))}
                 className="border-gray-200"
               />
             </div>

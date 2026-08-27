@@ -119,11 +119,13 @@ export default function PreparosPage() {
     nome: string;
     tipo: PreparoTipo;
     medidaId: string;
+    pesoUnidadeGramas: string;
     componentes: ComponenteEmEdicao[];
   }>({
     nome: "",
     tipo: "CARBOIDRATO",
     medidaId: "",
+    pesoUnidadeGramas: "",
     componentes: [],
   });
 
@@ -189,6 +191,7 @@ export default function PreparosPage() {
       nome: "",
       tipo: "CARBOIDRATO",
       medidaId: "",
+      pesoUnidadeGramas: "",
       componentes: [],
     });
     resetComponente();
@@ -205,6 +208,7 @@ export default function PreparosPage() {
       nome: preparo.nome,
       tipo: preparo.tipo,
       medidaId: String(preparo.medida?.id ?? ""),
+      pesoUnidadeGramas: preparo.pesoUnidadeGramas ? String(preparo.pesoUnidadeGramas) : "",
       componentes: preparo.fichaTecnica.map((item) => ({
         tipo: item.tipo,
         ingredienteId: item.ingredienteId,
@@ -327,6 +331,7 @@ export default function PreparosPage() {
       nome: novoPreparo.nome.trim(),
       tipo: novoPreparo.tipo,
       medidaId: Number(novoPreparo.medidaId),
+      pesoUnidadeGramas: novoPreparo.pesoUnidadeGramas ? Number(novoPreparo.pesoUnidadeGramas) : null,
       fichaTecnica: novoPreparo.componentes.map((item) => ({
         tipo: item.tipo,
         ingredienteId: item.ingredienteId,
@@ -513,6 +518,17 @@ export default function PreparosPage() {
                     </Button>
                   </div>
                 </div>
+                <p className="text-xs text-muted-foreground">
+                  Para exibir em unidade no preparo, informe o peso de 1 un. Ex: 50 para bolinho de 50g.
+                </p>
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.001"
+                  placeholder="Peso por unidade (g)"
+                  value={novoPreparo.pesoUnidadeGramas}
+                  onChange={(event) => setNovoPreparo((current) => ({ ...current, pesoUnidadeGramas: event.target.value }))}
+                />
               </div>
 
               <div className="space-y-2">

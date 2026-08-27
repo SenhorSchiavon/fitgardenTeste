@@ -8,12 +8,14 @@ export type Salgado = {
   id: number;
   nome: string;
   preco: number;
+  quantidade: number;
   ativo: boolean;
 };
 
 export type NovoSalgadoInput = {
   nome: string;
   preco: number;
+  quantidade?: number;
 };
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3333";
@@ -25,7 +27,7 @@ function toNumber(value: any) {
 }
 
 function normalizeSalgado(salgado: any): Salgado {
-  return { ...salgado, preco: Number(salgado.preco || 0) };
+  return { ...salgado, preco: Number(salgado.preco || 0), quantidade: Number(salgado.quantidade || 0) };
 }
 
 export function useSalgados() {
@@ -69,6 +71,7 @@ export function useSalgados() {
         body: JSON.stringify({
           nome: input.nome.trim(),
           preco: toNumber(input.preco),
+          quantidade: Number(input.quantidade || 0),
         }),
       });
 
@@ -95,6 +98,7 @@ export function useSalgados() {
         body: JSON.stringify({
           nome: input.nome.trim(),
           preco: toNumber(input.preco),
+          quantidade: input.quantidade == null ? undefined : Number(input.quantidade || 0),
         }),
       });
 

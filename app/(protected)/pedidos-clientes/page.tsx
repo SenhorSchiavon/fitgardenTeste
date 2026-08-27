@@ -17,6 +17,7 @@ import { useClientes } from "@/hooks/useClientes";
 
 type Escolha = { opcaoId: number; nome: string; quantidade: number; adicionarFeijao?: boolean; adicionarPure?: boolean; adicionarLegumes?: boolean };
 type EscolhaCongelada = { congeladaId: number; nome: string; tamanhoGramas: number; quantidade: number };
+type EscolhaSalgado = { salgadoId: number; nome: string; preco: number; quantidade: number };
 type PedidoPublico = {
   id: number;
   nome: string;
@@ -39,6 +40,7 @@ type PedidoPublico = {
     escolhas?: Escolha[];
     personalizada?: Record<string, string> | null;
     congeladas?: EscolhaCongelada[];
+    salgados?: EscolhaSalgado[];
     estoqueReservado?: boolean;
   };
   cliente?: { id: number; nome: string; telefone: string } | null;
@@ -95,17 +97,33 @@ export default function PedidosClientesPage() {
     if (Array.isArray(pedido.itens?.congeladas) && pedido.itens.congeladas.length > 0) {
       return pedido.itens.congeladas.reduce((total, item) => total + Number(item.quantidade || 0), 0);
     }
+    if (Array.isArray(pedido.itens?.salgados) && pedido.itens.salgados.length > 0) {
+      return pedido.itens.salgados.reduce((total, item) => total + Number(item.quantidade || 0), 0);
+    }
     return (pedido.itens?.escolhas || []).reduce((total, item) => total + Number(item.quantidade || 0), 0);
   };
+  const rotuloItens = (pedido: PedidoPublico) =>
+    Array.isArray(pedido.itens?.salgados) && pedido.itens.salgados.length > 0 ? "salgados" : "marmitas";
 
   const iniciarAgendamento = (pedido: PedidoPublico) => {
     const personalizada = pedido.itens?.personalizada || {};
     const customizado = pedido.tamanhoLabel === "PERSONALIZADO";
     const ehCongeladas = Array.isArray(pedido.itens?.congeladas) && pedido.itens.congeladas.length > 0;
+    const ehSalgados = Array.isArray(pedido.itens?.salgados) && pedido.itens.salgados.length > 0;
 
-    const itensAgendamento = ehCongeladas
+    const itensAgendamento = ehSalgados
+      ? (pedido.itens.salgados || []).map((item) => ({
+          grupoPedido: `pedido-publico:${pedido.id}:salgado:${item.salgadoId}`,
+          tipoItem: "SALGADO",
+          salgadoId: item.salgadoId,
+          nome: item.nome,
+          quantidade: item.quantidade,
+          valor: Number(item.preco || 0) * Number(item.quantidade || 0),
+          destinatarioNome: pedido.nome,
+        }))
+      : ehCongeladas
       ? (pedido.itens.congeladas || []).map((item) => ({
-          grupoPedido: `pedido-publico:${pedido.id}:congelada:${item.congeladaId}`,
+          grupoPedido: `pedido-publico:${pedido.id}:congeladas:${pedido.nome}:${item.tamanhoGramas}`,
           tipoItem: "CONGELADA",
           congeladaId: item.congeladaId,
           nome: item.nome,
@@ -208,7 +226,7 @@ export default function PedidosClientesPage() {
         <div className="grid gap-3 sm:grid-cols-3">
           <Card><CardContent className="p-4"><p className="text-xs text-muted-foreground">Pedidos exibidos</p><p className="text-2xl font-bold">{pedidos.length}</p></CardContent></Card>
           <Card><CardContent className="p-4"><p className="text-xs text-muted-foreground">Sem cliente vinculado</p><p className="text-2xl font-bold text-amber-600">{resumo.semCliente}</p></CardContent></Card>
-          <Card><CardContent className="p-4"><p className="text-xs text-muted-foreground">Marmitas exibidas</p><p className="text-2xl font-bold text-emerald-700">{resumo.marmitas}</p></CardContent></Card>
+          <Card><CardContent className="p-4"><p className="text-xs text-muted-foreground">Itens exibidos</p><p className="text-2xl font-bold text-emerald-700">{resumo.marmitas}</p></CardContent></Card>
         </div>
 
         <Card><CardContent className="grid gap-3 p-4 md:grid-cols-[minmax(220px,1fr)_180px_160px_160px_auto]">
@@ -231,7 +249,7 @@ export default function PedidosClientesPage() {
               <CardContent className="grid gap-3 p-4 md:grid-cols-[auto_1fr_180px_180px_auto] md:items-center">
                 <div onClick={(event) => event.stopPropagation()}>{pedido.status !== "DESCARTADO" ? <Checkbox checked={selecionados.includes(pedido.id)} onCheckedChange={(value) => setSelecionados((atuais) => value === true ? Array.from(new Set([...atuais, pedido.id])) : atuais.filter((id) => id !== pedido.id))} aria-label={`Selecionar pedido ${pedido.id}`} /> : null}</div>
                 <div><div className="flex flex-wrap items-center gap-2"><p className="font-bold">#{pedido.id} · {pedido.nome}</p><Badge variant={pedido.origem === "ALTERNATIVO" ? "secondary" : "default"}>{pedido.origem === "ALTERNATIVO" ? "Alternativo" : "Principal"}</Badge>{pedido.status === "DESCARTADO" ? <Badge variant="destructive">Descartado</Badge> : !pedido.cliente ? <Badge variant="destructive">Cliente não encontrado</Badge> : <Badge className="bg-emerald-600">{pedido.cliente.nome}</Badge>}</div><p className="mt-1 text-sm text-muted-foreground"><Phone className="mr-1 inline h-3.5 w-3.5" />{pedido.telefone} · {pedido.cardapio?.nome || "Congeladas"}</p>{pedido.motivoDescarte ? <p className="mt-1 text-sm font-medium text-red-700">Motivo: {pedido.motivoDescarte}</p> : null}</div>
-                <div className="text-sm"><ShoppingBasket className="mr-1 inline h-4 w-4" /><strong>{totalMarmitas(pedido)}</strong> marmitas · {pedido.tamanhoLabel}</div>
+                <div className="text-sm"><ShoppingBasket className="mr-1 inline h-4 w-4" /><strong>{totalMarmitas(pedido)}</strong> {rotuloItens(pedido)} · {pedido.tamanhoLabel}</div>
                 <div className="text-sm text-muted-foreground">{new Date(pedido.createdAt).toLocaleString("pt-BR")}</div>
                 <Button size="sm" variant="outline"><Eye className="mr-2 h-4 w-4" />Abrir</Button>
               </CardContent>
@@ -249,7 +267,14 @@ export default function PedidosClientesPage() {
             <div className="grid gap-3 rounded-md bg-slate-50 p-4 sm:grid-cols-2"><div><p className="text-xs text-muted-foreground">Telefone</p><p className="font-medium">{selecionado.telefone}</p></div><div><p className="text-xs text-muted-foreground">Cliente no sistema</p><p className="font-medium">{selecionado.cliente?.nome || "Não encontrado — selecione ou cadastre no agendamento"}</p></div></div>
             {!selecionado.cliente && selecionado.status === "PENDENTE" ? <Button variant="outline" className="w-full border-emerald-300 text-emerald-700 hover:bg-emerald-50" onClick={() => abrirCadastroCliente(selecionado)}><UserPlus className="mr-2 h-4 w-4" />Cadastrar cliente com os dados deste pedido</Button> : null}
             <div className="divide-y rounded-md border">
-              {Array.isArray(selecionado.itens?.congeladas) && selecionado.itens.congeladas.length > 0
+              {Array.isArray(selecionado.itens?.salgados) && selecionado.itens.salgados.length > 0
+                ? selecionado.itens.salgados.map((item) => (
+                    <div key={item.salgadoId} className="flex justify-between p-3">
+                      <span>{item.nome}</span>
+                      <strong>{item.quantidade}x</strong>
+                    </div>
+                  ))
+                : Array.isArray(selecionado.itens?.congeladas) && selecionado.itens.congeladas.length > 0
                 ? selecionado.itens.congeladas.map((item) => (
                     <div key={item.congeladaId} className="flex justify-between p-3">
                       <span>{item.nome} ({item.tamanhoGramas}g)</span>

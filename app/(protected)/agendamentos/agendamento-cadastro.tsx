@@ -3185,8 +3185,8 @@ export function NovoAgendamentoNovoLayout({
     const tamanhoPersonalizado = customizado
       ? tamanhos.find((tamanho) => parseInt(tamanho.nome, 10) === pesoPersonalizado)
       : undefined;
-    // Cada pedido importado representa um subpedido, mesmo quando cliente,
-    // destinatario e tamanho coincidem com os de outra importacao.
+    // Cada pedido importado representa um subpedido. Congeladas agrupam por
+    // destinatario e tamanho para manter itens iguais na mesma ficha.
     const groupId = `pedido-publico:${pedido.id}:tamanho:${customizado ? pesoPersonalizado : pedido.tamanhoId || pedido.tamanhoLabel}`;
     const congeladasPedido = Array.isArray(pedido.itens?.congeladas) ? pedido.itens.congeladas : [];
     const importados: NovoPedidoItem[] = congeladasPedido.length > 0
@@ -3196,7 +3196,7 @@ export function NovoAgendamentoNovoLayout({
           return {
             ...formItem,
             id: uid(),
-            groupId: `pedido-publico:${pedido.id}:congeladas`,
+            groupId: `pedido-publico:${pedido.id}:congeladas:${nomeImportado}:${Number(item.tamanhoGramas || congelada?.tamanhoGramas || 0)}`,
             tipoItem: "CONGELADA",
             destinatarioNome: nomeImportado,
             congeladaId: String(item.congeladaId || ""),
