@@ -51,6 +51,7 @@ export default function CongeladasPage() {
   const [contagensConferencia, setContagensConferencia] = useState<Record<number, string>>({});
   const [conferidos, setConferidos] = useState<number[]>([]);
   const [salvandoConferencia, setSalvandoConferencia] = useState(false);
+  const [buscaConferencia, setBuscaConferencia] = useState("");
 
   const listasPorTamanho = useMemo(
     () => TAMANHOS_CONGELADAS.map((tamanho) => ({
@@ -82,6 +83,13 @@ export default function CongeladasPage() {
     () => congeladasConferencia.filter((item) => !idsConferidos.has(item.id)),
     [congeladasConferencia, idsConferidos],
   );
+  const congeladasConferenciaFiltradas = useMemo(() => {
+    const busca = buscaConferencia.trim().toLowerCase();
+    if (!busca) return congeladasConferencia;
+    return congeladasConferencia.filter((item) =>
+      [item.nome, `${item.tamanhoGramas}g`].some((value) => value.toLowerCase().includes(busca)),
+    );
+  }, [buscaConferencia, congeladasConferencia]);
 
   const resetForm = () => {
     setForm({ nome: "", tamanhoGramas: "300", quantidade: "0" });
@@ -96,6 +104,7 @@ export default function CongeladasPage() {
   const iniciarConferencia = () => {
     setContagensConferencia(Object.fromEntries(congeladas.map((item) => [item.id, String(item.quantidade)])));
     setConferidos([]);
+    setBuscaConferencia("");
     setConferenciaAtiva(true);
   };
 
@@ -103,11 +112,17 @@ export default function CongeladasPage() {
     setConferenciaAtiva(false);
     setContagensConferencia({});
     setConferidos([]);
+    setBuscaConferencia("");
   };
 
   const marcarConferido = (id: number, valor: string) => {
     setContagensConferencia((atual) => ({ ...atual, [id]: valor }));
     setConferidos((atuais) => (atuais.includes(id) ? atuais : [...atuais, id]));
+  };
+
+  const ajustarConferencia = (item: Congelada, delta: number) => {
+    const atual = Number(contagensConferencia[item.id] ?? item.quantidade);
+    marcarConferido(item.id, String(Math.max(0, atual + delta)));
   };
 
   const salvarConferencia = async () => {
@@ -241,24 +256,38 @@ export default function CongeladasPage() {
       </div>
 
       {conferenciaAtiva ? (
-        <Card className="border-amber-200 bg-amber-50/60">
-          <CardHeader className="border-b border-amber-100 pb-4">
+        <Card className="border-blue-200 bg-blue-50/50">
+          <CardHeader className="sticky top-0 z-10 border-b border-blue-100 bg-blue-50/95 pb-4 backdrop-blur">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <CardTitle className="flex items-center gap-2 text-gray-900">
-                  <ClipboardCheck className="h-5 w-5 text-amber-700" /> Conferência de estoque
+                  <ClipboardCheck className="h-5 w-5 text-blue-700" /> Conferência de estoque
                 </CardTitle>
-                <p className="mt-1 text-sm text-amber-800">
-                  Digite a contagem física. O item digitado fica conferido; os não conferidos aparecem no resumo abaixo.
+                <p className="mt-1 text-sm text-blue-800">
+                  Lance a quantidade contada no freezer. Use Manter quando o saldo físico bate com o sistema, ou Zerar quando não veio na lista.
                 </p>
               </div>
-              <Button onClick={salvarConferencia} disabled={salvandoConferencia || saving}>
-                <Save className="mr-2 h-4 w-4" /> {salvandoConferencia ? "Salvando..." : "Salvar conferência"}
-              </Button>
+              <div className="flex flex-wrap gap-2">
+                <Button variant="outline" onClick={() => naoConferidas.forEach((item) => marcarConferido(item.id, "0"))} disabled={salvandoConferencia || saving || !naoConferidas.length}>
+                  Zerar pendentes
+                </Button>
+                <Button onClick={salvarConferencia} disabled={salvandoConferencia || saving}>
+                  <Save className="mr-2 h-4 w-4" /> {salvandoConferencia ? "Salvando..." : "Salvar"}
+                </Button>
+              </div>
             </div>
           </CardHeader>
           <CardContent className="space-y-4 p-4">
-            <div className="grid gap-3 md:grid-cols-3">
+            <div className="grid gap-3 md:grid-cols-[1fr_140px_140px_140px]">
+              <div className="relative rounded-md border bg-white">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                <Input
+                  value={buscaConferencia}
+                  onChange={(event) => setBuscaConferencia(event.target.value)}
+                  placeholder="Buscar por nome ou tamanho"
+                  className="h-full min-h-16 border-0 pl-9 text-base"
+                />
+              </div>
               <div className="rounded-md border bg-white p-3">
                 <p className="text-xs font-semibold uppercase text-gray-500">Cadastrados</p>
                 <p className="text-2xl font-bold text-gray-900">{congeladasConferencia.length}</p>
@@ -272,52 +301,56 @@ export default function CongeladasPage() {
                 <p className="text-2xl font-bold text-amber-700">{naoConferidas.length}</p>
               </div>
             </div>
-            <div className="overflow-x-auto rounded-md border bg-white">
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-gray-50 hover:bg-gray-50">
-                    <TableHead>Marmita</TableHead>
-                    <TableHead className="w-24 text-center">Atual</TableHead>
-                    <TableHead className="w-40 text-center">Contagem física</TableHead>
-                    <TableHead className="w-36 text-center">Status</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {congeladasConferencia.map((item) => {
-                    const conferido = idsConferidos.has(item.id);
-                    return (
-                      <TableRow key={item.id} className={conferido ? "bg-emerald-50/70" : "bg-amber-50/80"}>
-                        <TableCell>
-                          <div className="font-medium text-gray-900">{item.nome}</div>
-                          <div className="text-xs font-semibold text-gray-500">{item.tamanhoGramas}g</div>
-                        </TableCell>
-                        <TableCell className="text-center font-bold">{item.quantidade}</TableCell>
-                        <TableCell>
-                          <Input
-                            type="number"
-                            min="0"
-                            step="1"
-                            inputMode="numeric"
-                            value={contagensConferencia[item.id] ?? String(item.quantidade)}
-                            onChange={(event) => marcarConferido(item.id, event.target.value)}
-                            onFocus={(event) => marcarConferido(item.id, event.target.value)}
-                            className="text-center font-bold"
-                          />
-                        </TableCell>
-                        <TableCell className="text-center">
-                          {conferido ? (
-                            <Badge className="bg-emerald-600"><CheckCircle2 className="mr-1 h-3.5 w-3.5" /> Conferido</Badge>
-                          ) : (
-                            <Badge variant="outline" className="border-amber-300 bg-amber-100 text-amber-800">
-                              <AlertTriangle className="mr-1 h-3.5 w-3.5" /> Pendente
-                            </Badge>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
+            <div className="grid gap-2">
+              {congeladasConferenciaFiltradas.map((item) => {
+                const conferido = idsConferidos.has(item.id);
+                const contagem = contagensConferencia[item.id] ?? String(item.quantidade);
+                const mudou = Number(contagem) !== item.quantidade;
+                return (
+                  <div key={item.id} className={`grid gap-3 rounded-md border p-3 md:grid-cols-[1fr_110px_220px_140px] md:items-center ${conferido ? "border-emerald-200 bg-white" : "border-amber-200 bg-amber-50"}`}>
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="font-bold text-gray-900">{item.nome}</p>
+                        <Badge variant="secondary">{item.tamanhoGramas}g</Badge>
+                        {conferido ? <Badge className="bg-emerald-600"><CheckCircle2 className="mr-1 h-3.5 w-3.5" /> Conferido</Badge> : null}
+                        {mudou ? <Badge variant="outline" className="border-blue-300 bg-blue-50 text-blue-800">Vai ajustar</Badge> : null}
+                      </div>
+                      <p className="mt-1 text-sm text-gray-500">Sistema: {item.quantidade} un.</p>
+                    </div>
+                    <div className="flex items-center gap-1 md:justify-center">
+                      <Button size="icon" variant="outline" className="h-9 w-9" onClick={() => ajustarConferencia(item, -1)} disabled={salvandoConferencia || saving}>
+                        <Minus className="h-4 w-4" />
+                      </Button>
+                      <Button size="icon" variant="outline" className="h-9 w-9" onClick={() => ajustarConferencia(item, 1)} disabled={salvandoConferencia || saving}>
+                        <Plus className="h-4 w-4" />
+                      </Button>
+                    </div>
+                    <Input
+                      type="number"
+                      min="0"
+                      step="1"
+                      inputMode="numeric"
+                      value={contagem}
+                      onChange={(event) => marcarConferido(item.id, event.target.value)}
+                      onFocus={(event) => marcarConferido(item.id, event.target.value)}
+                      className="h-12 text-center text-xl font-black"
+                    />
+                    <div className="flex gap-2 md:justify-end">
+                      <Button variant="outline" className="flex-1 border-emerald-200 text-emerald-700 hover:bg-emerald-50 md:flex-none" onClick={() => marcarConferido(item.id, String(item.quantidade))} disabled={salvandoConferencia || saving}>
+                        Manter
+                      </Button>
+                      <Button variant="outline" className="flex-1 border-red-200 text-red-700 hover:bg-red-50 md:flex-none" onClick={() => marcarConferido(item.id, "0")} disabled={salvandoConferencia || saving}>
+                        Zerar
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
+              {!congeladasConferenciaFiltradas.length ? (
+                <div className="rounded-md border border-dashed bg-white p-8 text-center text-sm text-gray-500">
+                  Nenhuma congelada encontrada para essa busca.
+                </div>
+              ) : null}
             </div>
             {naoConferidas.length ? (
               <div className="rounded-md border border-amber-300 bg-white p-4">
@@ -341,7 +374,7 @@ export default function CongeladasPage() {
         </Card>
       ) : null}
 
-      <div className="flex flex-col gap-6">
+      {!conferenciaAtiva ? <div className="flex flex-col gap-6">
         {listasPorTamanho.map(({ tamanho, itens }) => (
           <Card key={tamanho} className="min-w-0 border-gray-200 bg-white">
             <CardHeader className="border-b border-gray-100 pb-4">
@@ -413,7 +446,7 @@ export default function CongeladasPage() {
             </CardContent>
           </Card>
         ))}
-      </div>
+      </div> : null}
 
       <Dialog
         open={formOpen}
