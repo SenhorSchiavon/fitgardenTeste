@@ -33,7 +33,10 @@ export default function CardapioCongeladasPage() {
   const [tamanhoSelecionado, setTamanhoSelecionado] = useState("");
 
   useEffect(() => {
-    fetch(apiUrl("/public/cardapio-semana"), { cache: "no-store" })
+    const destino = new URLSearchParams(window.location.search).get("destino");
+    const path = destino === "alternativo" ? "/public/cardapio-semana?destino=alternativo" : "/public/cardapio-semana";
+
+    fetch(apiUrl(path), { cache: "no-store" })
       .then(async (res) => {
         const json = await res.json();
         if (!res.ok) throw new Error(json?.message || "Erro ao carregar congeladas.");

@@ -264,8 +264,11 @@ export default function CardapiosPage() {
     return destino === "alternativo" ? `${base}?destino=alternativo` : base;
   };
 
-  const congeladasFormLink = () =>
-    typeof window === "undefined" ? "/congeladas-da-semana" : `${window.location.origin}/congeladas-da-semana`;
+  const congeladasFormLink = (destino?: "alternativo") => {
+    if (typeof window === "undefined") return "/congeladas-da-semana";
+    const base = `${window.location.origin}/congeladas-da-semana`;
+    return destino === "alternativo" ? `${base}?destino=alternativo` : base;
+  };
 
   const openTelefonesDialog = async () => {
     setTelefonesDialogOpen(true);
@@ -310,6 +313,11 @@ export default function CardapiosPage() {
         <Button variant="outline" asChild>
           <a href={congeladasFormLink()} target="_blank" rel="noreferrer">
             <Snowflake className="mr-2 h-4 w-4" /> Congeladas <ExternalLink className="h-4 w-4" />
+          </a>
+        </Button>
+        <Button variant="outline" asChild>
+          <a href={congeladasFormLink("alternativo")} target="_blank" rel="noreferrer">
+            <Snowflake className="mr-2 h-4 w-4" /> Congeladas alt. <ExternalLink className="h-4 w-4" />
           </a>
         </Button>
         <Button variant="outline" onClick={openTelefonesDialog} disabled={saving}>
@@ -682,7 +690,7 @@ export default function CardapiosPage() {
                 placeholder="Ex: 43999999999"
                 disabled={saving || loadingTelefones}
               />
-              <p className="text-xs text-muted-foreground">Usado em /cardapio-da-semana?destino=alternativo.</p>
+              <p className="text-xs text-muted-foreground">Usado em /cardapio-da-semana?destino=alternativo e /congeladas-da-semana?destino=alternativo.</p>
             </div>
           </div>
 
