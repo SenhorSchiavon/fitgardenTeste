@@ -101,6 +101,10 @@ function naoPermitePersonalizacao(opcao: OpcaoPublica) {
   return /\b(?:SOPA|SOPAS|CANJA|CALDO|CALDOS)\b/.test(texto);
 }
 
+function permiteAdicionais(opcao: OpcaoPublica) {
+  return !naoPermitePersonalizacao(opcao);
+}
+
 export default function CardapioDaSemanaPage() {
   const dadosSectionRef = useRef<HTMLElement>(null);
   const [cardapio, setCardapio] = useState<CardapioPublico | null>(null);
@@ -159,13 +163,13 @@ export default function CardapioDaSemanaPage() {
   const totalFeijaoOpcional = useMemo(() => {
     if (tamanhoSelecionado === "PERSONALIZADO") return 0;
     return opcoes.reduce((acc, opcao) => (
-      acc + (feijaoOpcional[opcao.id] ? Number(itensPedido[opcao.id] || 0) : 0)
+      acc + (permiteAdicionais(opcao) && feijaoOpcional[opcao.id] ? Number(itensPedido[opcao.id] || 0) : 0)
     ), 0);
   }, [feijaoOpcional, itensPedido, opcoes, tamanhoSelecionado]);
   const totalLegumesOpcional = useMemo(() => {
     if (tamanhoSelecionado === "PERSONALIZADO") return 0;
     return opcoes.reduce((acc, opcao) => (
-      acc + (legumesOpcional[opcao.id] ? Number(itensPedido[opcao.id] || 0) : 0)
+      acc + (permiteAdicionais(opcao) && legumesOpcional[opcao.id] ? Number(itensPedido[opcao.id] || 0) : 0)
     ), 0);
   }, [legumesOpcional, itensPedido, opcoes, tamanhoSelecionado]);
 
@@ -212,6 +216,8 @@ export default function CardapioDaSemanaPage() {
 
   function toggleFeijaoOpcional(id: string, checked: boolean) {
     if (!getItemPedido(id)) return;
+    const opcao = opcoes.find((item) => item.id === id);
+    if (!opcao || !permiteAdicionais(opcao)) return;
     setFeijaoOpcional((prev) => ({ ...prev, [id]: checked }));
     if (checked) {
       setLegumesOpcional((prev) => ({ ...prev, [id]: false }));
@@ -220,6 +226,8 @@ export default function CardapioDaSemanaPage() {
 
   function toggleLegumesOpcional(id: string, checked: boolean) {
     if (!getItemPedido(id)) return;
+    const opcao = opcoes.find((item) => item.id === id);
+    if (!opcao || !permiteAdicionais(opcao)) return;
     setLegumesOpcional((prev) => ({ ...prev, [id]: checked }));
     if (checked) {
       setFeijaoOpcional((prev) => ({ ...prev, [id]: false }));
@@ -259,8 +267,8 @@ export default function CardapioDaSemanaPage() {
             .map((opcao) => ({
               opcaoId: Number(opcao.id),
               quantidade: Number(itensPedido[opcao.id] || 0),
-              adicionarFeijao: tamanhoSelecionado !== "PERSONALIZADO" && !!feijaoOpcional[opcao.id],
-              adicionarLegumes: tamanhoSelecionado !== "PERSONALIZADO" && !!legumesOpcional[opcao.id],
+              adicionarFeijao: tamanhoSelecionado !== "PERSONALIZADO" && permiteAdicionais(opcao) && !!feijaoOpcional[opcao.id],
+              adicionarLegumes: tamanhoSelecionado !== "PERSONALIZADO" && permiteAdicionais(opcao) && !!legumesOpcional[opcao.id],
             }))
             .filter((item) => item.quantidade > 0),
         }),
@@ -437,7 +445,7 @@ export default function CardapioDaSemanaPage() {
                                 <Plus className="h-4 w-4" />
                               </button>
                             </div>
-                            {quantidade > 0 && tamanhoSelecionado !== "PERSONALIZADO" ? (
+                            {quantidade > 0 && tamanhoSelecionado !== "PERSONALIZADO" && permiteAdicionais(opcao) ? (
                               <div className="grid gap-2 sm:col-start-2 sm:col-span-2">
                               <label className="flex items-center gap-2 rounded-lg bg-[#fff7f2] px-3 py-2 text-xs font-bold text-[#b85b36]">
                                 <input
