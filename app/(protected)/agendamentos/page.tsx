@@ -1087,12 +1087,18 @@ export default function Agendamentos() {
     // 2. Calcula desconto baseado em pagamentos registrados (backup/consistência)
     const pagamentos = row.pedido?.pagamentos ?? row.pagamentos ?? [];
     const formasSemCobranca = new Set(["TROCA", "BONIFICACAO"]);
+    const isFormaSemCobranca = (forma: any) => formasSemCobranca.has(String(forma));
     const isPagamentoCobrancaReal = (p: any) =>
       p.forma !== "PLANO" &&
       p.forma !== "VOUCHER" &&
-      !formasSemCobranca.has(String(p.forma)) &&
+      !isFormaSemCobranca(p.forma) &&
       !p.voucherId &&
       Number(p.valor || 0) > 0;
+    const isPagamentoNaoPlanoExibivel = (p: any) =>
+      p.forma !== "PLANO" &&
+      p.forma !== "VOUCHER" &&
+      !p.voucherId &&
+      (isFormaSemCobranca(p.forma) || Number(p.valor || 0) > 0);
     const valorPendentePagamentos = pagamentos
       .filter((p: any) => p.status === "PENDENTE" && isPagamentoCobrancaReal(p))
       .reduce((acc: number, p: any) => acc + Number(p.valor || 0), 0);
@@ -1183,7 +1189,8 @@ export default function Agendamentos() {
       valorTotalFinalApi !== undefined &&
       Number.isFinite(Number(valorTotalFinalApi));
     const temPagamentoPendente = pagamentos.some((p: any) => p.status === "PENDENTE" && isPagamentoCobrancaReal(p));
-    const pagamentoNaoPlanoRelevante = pagamentos.find((p: any) => isPagamentoCobrancaReal(p));
+    const pagamentoNaoPlanoRelevante = pagamentos.find((p: any) => isPagamentoNaoPlanoExibivel(p));
+    const pagamentoCobrancaReal = pagamentos.find((p: any) => isPagamentoCobrancaReal(p));
     const temCobrancaReal = temPagamentoPendente || !!pagamentoNaoPlanoRelevante;
     const valorTotalPelaCoberturaAtual = Math.max(
       0,
@@ -1201,10 +1208,21 @@ export default function Agendamentos() {
       ? valorTotalPelaCoberturaAtual + valorPlanosCompradosPendente
       : Math.max(0, Math.min(...candidatosTotal) + valorPlanosCompradosPendente);
     const saldosPorTamanho = new Map<string, number>();
-    planosCliente.forEach((plano: any) => {
+    const planosUsadosNoPedido = pagamentos
+      .filter((pagamento: any) => pagamento.forma === "PLANO" && pagamento.planoCliente)
+      .map((pagamento: any) => pagamento.planoCliente);
+    const planosParaResumo = Array.from(
+      new Map([...planosCliente, ...planosUsadosNoPedido].map((plano: any) => [Number(plano.id), plano])).values(),
+    );
+    planosParaResumo.forEach((plano: any) => {
       (plano.itens || []).forEach((saldo: any) => {
         const gramas = saldo.planoItem?.tamanho?.pesagemGramas ?? saldo.planoItem?.pesoPersonalizadoGramas;
-        if (!gramas || Number(saldo.saldoUnidades || 0) <= 0) return;
+        const planoFoiUsado = pagamentos.some((pagamento: any) =>
+          pagamento.forma === "PLANO" &&
+          Number(pagamento.planoClienteId) === Number(plano.id) &&
+          Number(pagamento.consumoUnidades || 0) > 0,
+        );
+        if (!gramas || (Number(saldo.saldoUnidades || 0) <= 0 && !planoFoiUsado)) return;
         const tamanho = `${gramas}g`;
         saldosPorTamanho.set(tamanho, (saldosPorTamanho.get(tamanho) || 0) + Number(saldo.saldoUnidades || 0));
       });
@@ -1231,13 +1249,14 @@ export default function Agendamentos() {
     const formaPagamentoExibida =
       valorDescontoVoucher > 0
         ? "VOUCHER"
-        : pagamentoNaoPlanoRelevante?.forma
+      : pagamentoNaoPlanoRelevante?.forma
         ? pagamentoNaoPlanoRelevante.forma
         : valorPlanosCompradosPendente > 0
         ? pagamentosCompraPlano.find((pagamento: any) => pagamento.status === "PENDENTE")?.forma || "PLANO"
         : usouPlano && valorTotalFinal <= 0
         ? "PLANO"
-        : pagamentos.find((p: any) => p.forma === "PLANO")?.forma ??
+        : pagamentoCobrancaReal?.forma ??
+          pagamentos.find((p: any) => p.forma === "PLANO")?.forma ??
           formaFallback;
 
     return {
