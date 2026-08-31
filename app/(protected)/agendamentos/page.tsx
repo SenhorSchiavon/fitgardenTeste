@@ -52,6 +52,7 @@ import {
   Copy,
   Printer,
   Search,
+  BarChart3,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -69,6 +70,7 @@ import { toast as sonnerToast } from "sonner";
 import { useRelatorioPreparosDia } from "@/hooks/useRelatorioPreparosDia";
 import { useRelatorioPedidosDia } from "@/hooks/useRelatorioPedidosDia";
 import { useRelatorioMontadoresRotas } from "@/hooks/useRelatorioMontadoresRotas";
+import { RelatorioMensalTipo, useRelatorioMensalMarmitas } from "@/hooks/useRelatorioMensalMarmitas";
 import { usePreparosSelecionaveis } from "@/hooks/usePreparosSelecionaveis";
 import { useSalgados } from "@/hooks/useSalgados";
 import { apiFetch } from "@/hooks/api";
@@ -385,6 +387,12 @@ export default function Agendamentos() {
     downloading: downloadingMontadoresRotas,
     error: errorMontadoresRotas,
   } = useRelatorioMontadoresRotas();
+  const {
+    data: relatorioMensal,
+    loading: loadingRelatorioMensal,
+    error: errorRelatorioMensal,
+    getRelatorioMensal,
+  } = useRelatorioMensalMarmitas();
   const { opcoes, loading: loadingOpcoes } = useOpcoesDoCardapio(
     cardapioAtivo?.id,
   );
@@ -448,6 +456,13 @@ export default function Agendamentos() {
   const { congeladas } = useCongeladas();
   const { regras } = useRegrasPersonalizadas();
   const [preparoSheetOpen, setPreparoSheetOpen] = useState(false);
+  const [relatorioMensalSheetOpen, setRelatorioMensalSheetOpen] = useState(false);
+  const [relatorioMensalInicio, setRelatorioMensalInicio] = useState(() => {
+    const hoje = new Date();
+    return `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, "0")}-01`;
+  });
+  const [relatorioMensalFim, setRelatorioMensalFim] = useState(() => utils.toISODateOnly(new Date()));
+  const [relatorioMensalTipo, setRelatorioMensalTipo] = useState<RelatorioMensalTipo>("todos");
   const loadPlanosNaoPagos = async () => {
     setLoadingPlanosNaoPagos(true);
     try {
@@ -1390,6 +1405,17 @@ export default function Agendamentos() {
     minimumFractionDigits: 0,
     maximumFractionDigits: 3,
   });
+  const formatQuantidade = (value: number) => Number(value || 0).toLocaleString("pt-BR");
+  const totalCategoriaRelatorioMensal = (row: any, categoria: "voucher" | "plano" | "normal") =>
+    (relatorioMensal?.tamanhos || []).reduce((total, tamanho) => total + Number(row?.[categoria]?.[tamanho] || 0), 0);
+  const abrirRelatorioMensal = async () => {
+    setRelatorioMensalSheetOpen(true);
+    await getRelatorioMensal({
+      dataInicio: relatorioMensalInicio,
+      dataFim: relatorioMensalFim,
+      tipo: relatorioMensalTipo,
+    });
+  };
 
 
   const tamanhos = (opcoes ?? []).reduce((acc: any[], opcao: any) => {
@@ -1601,6 +1627,18 @@ export default function Agendamentos() {
                 <div className="flex flex-col">
                   <span className="font-medium text-sm">Painel de Preparo</span>
                   <span className="text-[10px] text-slate-500">Visualizar insumos</span>
+                </div>
+              </DropdownMenuItem>
+
+              <DropdownMenuItem
+                className="rounded-lg cursor-pointer gap-2 py-2.5"
+                onClick={abrirRelatorioMensal}
+                disabled={loadingRelatorioMensal}
+              >
+                <BarChart3 className="h-4 w-4 text-violet-500" />
+                <div className="flex flex-col">
+                  <span className="font-medium text-sm">Relatório mensal</span>
+                  <span className="text-[10px] text-slate-500">Marmitas por dia e tipo</span>
                 </div>
               </DropdownMenuItem>
 
@@ -2401,6 +2439,132 @@ export default function Agendamentos() {
               </TableBody>
             </Table>
 
+          </div>
+        </SheetContent>
+      </Sheet>
+
+      <Sheet open={relatorioMensalSheetOpen} onOpenChange={setRelatorioMensalSheetOpen}>
+        <SheetContent className="sm:max-w-5xl overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle>Relatório mensal de marmitas</SheetTitle>
+          </SheetHeader>
+
+          <div className="py-6 space-y-5">
+            <div className="grid grid-cols-1 md:grid-cols-[1fr_1fr_180px_auto] gap-3 items-end">
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-600">Data inicial</label>
+                <Input
+                  type="date"
+                  value={relatorioMensalInicio}
+                  onChange={(event) => setRelatorioMensalInicio(event.target.value)}
+                  className="h-10 rounded-xl"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-600">Data final</label>
+                <Input
+                  type="date"
+                  value={relatorioMensalFim}
+                  onChange={(event) => setRelatorioMensalFim(event.target.value)}
+                  className="h-10 rounded-xl"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-600">Tipo</label>
+                <select
+                  value={relatorioMensalTipo}
+                  onChange={(event) => setRelatorioMensalTipo(event.target.value as RelatorioMensalTipo)}
+                  className="h-10 w-full rounded-xl border border-input bg-background px-3 text-sm"
+                >
+                  <option value="todos">Todos</option>
+                  <option value="voucher">Voucher</option>
+                  <option value="plano">Plano</option>
+                  <option value="normal">Normal</option>
+                </select>
+              </div>
+              <Button
+                className="h-10 rounded-xl bg-emerald-700 hover:bg-emerald-800"
+                disabled={loadingRelatorioMensal}
+                onClick={() => getRelatorioMensal({
+                  dataInicio: relatorioMensalInicio,
+                  dataFim: relatorioMensalFim,
+                  tipo: relatorioMensalTipo,
+                })}
+              >
+                {loadingRelatorioMensal ? "Carregando..." : "Filtrar"}
+              </Button>
+            </div>
+
+            {errorRelatorioMensal ? (
+              <div className="rounded-xl border border-red-100 bg-red-50 p-3 text-sm text-red-700">
+                {errorRelatorioMensal}
+              </div>
+            ) : null}
+
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+              {(relatorioMensal?.tamanhos || ["200g", "300g", "400g", "500g"]).map((tamanho) => (
+                <div key={tamanho} className="rounded-xl border border-slate-200 bg-white p-3">
+                  <div className="text-xs font-bold text-slate-500">{tamanho}</div>
+                  <div className="text-xl font-black text-slate-800">
+                    {formatQuantidade(
+                      Number(relatorioMensal?.totais.voucher?.[tamanho as any] || 0)
+                      + Number(relatorioMensal?.totais.plano?.[tamanho as any] || 0)
+                      + Number(relatorioMensal?.totais.normal?.[tamanho as any] || 0),
+                    )}
+                  </div>
+                </div>
+              ))}
+              <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3">
+                <div className="text-xs font-bold text-emerald-700">Total</div>
+                <div className="text-xl font-black text-emerald-900">
+                  {formatQuantidade(relatorioMensal?.totais.total || 0)}
+                </div>
+              </div>
+            </div>
+
+            <div className="overflow-x-auto rounded-xl border border-slate-200">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-slate-50">
+                    <TableHead>Dia</TableHead>
+                    {(relatorioMensal?.tamanhos || ["200g", "300g", "400g", "500g"]).map((tamanho) => (
+                      <TableHead key={tamanho} className="text-right">{tamanho}</TableHead>
+                    ))}
+                    <TableHead className="text-right">Voucher</TableHead>
+                    <TableHead className="text-right">Plano</TableHead>
+                    <TableHead className="text-right">Normal</TableHead>
+                    <TableHead className="text-right">Total</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {(relatorioMensal?.linhas || []).map((row) => (
+                    <TableRow key={row.data}>
+                      <TableCell className="font-medium">{row.label}</TableCell>
+                      {relatorioMensal!.tamanhos.map((tamanho) => (
+                        <TableCell key={tamanho} className="text-right">
+                          {formatQuantidade(
+                            Number(row.voucher[tamanho] || 0)
+                            + Number(row.plano[tamanho] || 0)
+                            + Number(row.normal[tamanho] || 0),
+                          )}
+                        </TableCell>
+                      ))}
+                      <TableCell className="text-right text-blue-700">{formatQuantidade(totalCategoriaRelatorioMensal(row, "voucher"))}</TableCell>
+                      <TableCell className="text-right text-emerald-700">{formatQuantidade(totalCategoriaRelatorioMensal(row, "plano"))}</TableCell>
+                      <TableCell className="text-right text-slate-700">{formatQuantidade(totalCategoriaRelatorioMensal(row, "normal"))}</TableCell>
+                      <TableCell className="text-right font-bold">{formatQuantidade(row.total)}</TableCell>
+                    </TableRow>
+                  ))}
+                  {relatorioMensal && relatorioMensal.linhas.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={9} className="py-8 text-center text-sm text-slate-500">
+                        Nenhuma marmita encontrada nesse período.
+                      </TableCell>
+                    </TableRow>
+                  ) : null}
+                </TableBody>
+              </Table>
+            </div>
           </div>
         </SheetContent>
       </Sheet>
