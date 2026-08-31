@@ -532,7 +532,6 @@ export default function Agendamentos() {
   const formatIngrediente = (nome?: string, gramas?: number | null, isPersonalizada?: boolean) => {
     if (!nome) return "";
     const qtd = Number(gramas || 0);
-    if (isPersonalizada && qtd <= 0) return "";
     return qtd > 0 ? `${nome} ${qtd}g` : nome;
   };
 
@@ -564,7 +563,7 @@ export default function Agendamentos() {
             [item.legume, item.legumeGramas],
             [item.feijao, item.feijaoGramas],
             [item.complemento, item.complementoGramas],
-          ].filter(([nome, gramas]) => !!nome && Number(gramas || 0) > 0).map(([nome]) => nome)
+          ].filter(([nome]) => !!nome).map(([nome]) => nome)
         : [item.carbo, item.proteina, item.legume, item.feijao, item.complemento].filter(Boolean);
       const descricaoBase = detalhes.length ? detalhes.join(" + ") : item.nome;
       const descricao = [
@@ -787,11 +786,7 @@ export default function Agendamentos() {
         .reduce((total, plano) => total + Number(plano.valorPlano || 0), 0);
       const valorTaxasPlanosComprados = (pedido.planosComprados || [])
         .reduce((total, plano) => total + Number(plano.valorTaxas || 0), 0);
-      const totalCupom = temPlanoAdquirido
-        ? Math.max(0, subtotalPedido - Number(pedido.valorDescontoPlanoItens || 0)) +
-          (pedido.taxaEntregaAbatidaPlano ? 0 : Number(pedido.valorTaxa || 0)) +
-          Number(pedido.valorPlanosComprados || 0) - Number(pedido.valorDescontoManual || 0)
-        : Number(pedido.valorTotalFinal ?? pedido.valorTotal ?? 0);
+      const totalCupom = Number(pedido.valorTotalFinal ?? pedido.valorTotal ?? 0);
       const linhasFinanceiras = [
         temPlanoAdquirido ? ["PLANO ADQUIRIDO", valorBasePlanosComprados, false] : ["SUBTOTAL", subtotalPedido, false],
         temPlanoAdquirido && valorTaxasPlanosComprados > 0
@@ -2153,8 +2148,8 @@ export default function Agendamentos() {
                         {((item.carbo && (item.tipoItem !== "PERSONALIZADA" || Number(item.carboGramas || 0) > 0)) ||
                           (item.proteina && (item.tipoItem !== "PERSONALIZADA" || Number(item.proteinaGramas || 0) > 0)) ||
                           (item.legume && (item.tipoItem !== "PERSONALIZADA" || Number(item.legumeGramas || 0) > 0)) ||
-                          (item.feijao && (item.tipoItem !== "PERSONALIZADA" || Number(item.feijaoGramas || 0) > 0)) ||
-                          (item.complemento && (item.tipoItem !== "PERSONALIZADA" || Number(item.complementoGramas || 0) > 0))) && (
+                          item.feijao ||
+                          item.complemento) && (
                           <div className="bg-slate-50 p-2 rounded-lg grid grid-cols-2 gap-x-4 gap-y-1 text-[11px]">
                             {item.carbo && (item.tipoItem !== "PERSONALIZADA" || Number(item.carboGramas || 0) > 0) && (
                               <div className="text-slate-500">• {formatIngrediente(item.carbo, item.carboGramas, item.tipoItem === "PERSONALIZADA")}</div>
@@ -2165,10 +2160,10 @@ export default function Agendamentos() {
                             {item.legume && (item.tipoItem !== "PERSONALIZADA" || Number(item.legumeGramas || 0) > 0) && (
                               <div className="text-slate-500">• {formatIngrediente(item.legume, item.legumeGramas, item.tipoItem === "PERSONALIZADA")}</div>
                             )}
-                            {item.feijao && (item.tipoItem !== "PERSONALIZADA" || Number(item.feijaoGramas || 0) > 0) && (
+                            {item.feijao && (
                               <div className="text-slate-500">• {formatIngrediente(item.feijao, item.feijaoGramas, item.tipoItem === "PERSONALIZADA")}</div>
                             )}
-                            {item.complemento && (item.tipoItem !== "PERSONALIZADA" || Number(item.complementoGramas || 0) > 0) && (
+                            {item.complemento && (
                               <div className="text-slate-500">• {formatIngrediente(item.complemento, item.complementoGramas, item.tipoItem === "PERSONALIZADA")}</div>
                             )}
                           </div>
