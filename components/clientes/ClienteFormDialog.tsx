@@ -319,7 +319,7 @@ async function buscarEnderecosHere(consulta: string): Promise<ResultadoEnderecoH
   const data = await res.json().catch(() => null);
   if (!res.ok) throw new Error(data?.message || "Não foi possível consultar o HERE.");
   const resultados = (Array.isArray(data) ? data : []) as ResultadoEnderecoHere[];
-  if (!resultados.length) throw new Error("Nenhum endereço encontrado pelo HERE.");
+  if (!resultados.length) throw new Error("Nenhum endereço encontrado.");
   return resultados;
 }
 
@@ -559,7 +559,7 @@ export function ClienteFormDialog({
       longitude: resultado.longitude,
     }));
     setResultadosHere([]);
-    setAvisoCep(`Endereço selecionado pelo HERE: ${resultado.label}`);
+    setAvisoCep(`Endereço selecionado: ${resultado.label}`);
   };
 
   const aplicarResultadoHereSecundario = (resultado: ResultadoEnderecoHere) => {
@@ -574,7 +574,7 @@ export function ClienteFormDialog({
       secundarioLongitude: resultado.longitude,
     }));
     setResultadosHereSecundario([]);
-    setAvisoCepSecundario(`Endereço selecionado pelo HERE: ${resultado.label}`);
+    setAvisoCepSecundario(`Endereço selecionado: ${resultado.label}`);
   };
 
   const handleBuscarCep = async () => {

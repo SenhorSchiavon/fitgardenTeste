@@ -35,6 +35,7 @@ export type ClientePlanoHistoricoUso = {
     data: string | null;
     pedidoId: number | null;
     agendamentoId: number | null;
+    inferido?: boolean;
 };
 
 export type ClientePlanoHistoricoUsoEntrega = {

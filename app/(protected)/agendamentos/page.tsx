@@ -840,8 +840,20 @@ export default function Agendamentos() {
     janela.document.close();
   };
 
-  const handleEnviarConfirmacao = (agendamento: Agendamento) => {
-    const url = getWhatsappUrl(agendamento.telefone, montarMensagemConfirmacao(agendamento));
+  const handleEnviarConfirmacao = async (agendamento: Agendamento) => {
+    let agendamentoResumo = agendamento;
+    const agendamentoId = Number(agendamento._raw?.agendamentoId ?? agendamento.agendamentoId ?? agendamento.id);
+    if (Number.isFinite(agendamentoId) && agendamentoId > 0) {
+      try {
+        const agendamentoCompleto = await getAgendamentoById<any>(agendamentoId);
+        agendamentoResumo = mapApiToUi(agendamentoCompleto);
+        setAgendamentoSelecionado(agendamentoResumo);
+      } catch {
+        agendamentoResumo = agendamento;
+      }
+    }
+
+    const url = getWhatsappUrl(agendamentoResumo.telefone, montarMensagemConfirmacao(agendamentoResumo));
     if (!url) {
       toast({
         title: "Telefone nao informado",
@@ -850,7 +862,7 @@ export default function Agendamentos() {
       });
       return;
     }
-    void copiarResumoPedido(agendamento);
+    void copiarResumoPedido(agendamentoResumo);
     window.open(url, "_blank");
   };
 

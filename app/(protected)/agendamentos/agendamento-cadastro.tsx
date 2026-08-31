@@ -564,6 +564,7 @@ export function NovoAgendamentoNovoLayout({
   const [quantidadesCongeladas, setQuantidadesCongeladas] = useState<Record<string, number>>({});
   const [planosCatalogo, setPlanosCatalogo] = useState<PlanoCatalogo[]>([]);
   const [planoSelecionadoId, setPlanoSelecionadoId] = useState("");
+  const [planoComboboxOpen, setPlanoComboboxOpen] = useState(false);
   const [planoPago, setPlanoPago] = useState(false);
   const [planoJaConsumido, setPlanoJaConsumido] = useState(false);
   const [quantidadeConsumidaPlano, setQuantidadeConsumidaPlano] = useState(0);
@@ -1250,6 +1251,15 @@ export function NovoAgendamentoNovoLayout({
     [planosCatalogo, planoSelecionadoId],
   );
 
+  function selecionarPlanoCatalogo(value: string) {
+    setPlanoSelecionadoId(value);
+    setPlanoComboboxOpen(false);
+    setPlanoJaConsumido(false);
+    setQuantidadeConsumidaPlano(0);
+    setQuantidadesConsumidasPorItem({});
+    setQuantidadeAdicionaisPlano(0);
+  }
+
   const valorPlanoSelecionado = Number(planoSelecionado?.valor || 0);
   const unidadesPlanoSelecionado = Number(planoSelecionado?.unidades || 0);
   const quantidadeAdicionaisPlanoFinal = Math.max(0, Math.floor(Number(quantidadeAdicionaisPlano || 0)));
@@ -1265,6 +1275,13 @@ export function NovoAgendamentoNovoLayout({
   const valorPlanosNaoPagosResumo = planosComprados
     .filter((plano) => !plano.pago)
     .reduce((acc, plano) => acc + plano.valorTotal, 0);
+  const temCompraPlanoNoAgendamento = planosComprados.length > 0;
+
+  useEffect(() => {
+    if (temCompraPlanoNoAgendamento && formaPagamento === "PLANO") {
+      setFormaPagamento("A_DEFINIR");
+    }
+  }, [temCompraPlanoNoAgendamento, formaPagamento]);
 
   function getSaldoPlanoPorTamanho(tamanhoId?: string) {
     if (!tamanhoId) return 0;
@@ -1313,8 +1330,8 @@ export function NovoAgendamentoNovoLayout({
     return item.tamanhoLabel || "Tamanho desconhecido";
   }
 
-  function getSaldoPlanoParaItem(item: NovoPedidoItem) {
-    return planosVisiveisCliente.reduce((acc: number, plano: any) => {
+  function getSaldoPlanoParaItem(item: NovoPedidoItem, planosDisponiveis = planosVisiveisCliente) {
+    return planosDisponiveis.reduce((acc: number, plano: any) => {
       const saldos = plano.itens || [];
       if (saldos.length > 0) {
         return acc + saldos.reduce((subAcc: number, saldo: any) => {
@@ -1378,7 +1395,7 @@ export function NovoAgendamentoNovoLayout({
     );
   }
 
-  function getItensElegiveisParaAplicarPlano(idsPermitidos?: string[]) {
+  function getItensElegiveisParaAplicarPlano(idsPermitidos?: string[], planosDisponiveis = planosVisiveisCliente) {
     const permitidos = idsPermitidos ? new Set(idsPermitidos) : null;
     const saldoRestantePorChave = new Map<string, number>();
 
@@ -1386,7 +1403,7 @@ export function NovoAgendamentoNovoLayout({
       if (item.tipoItem === "SALGADO") continue;
       const chave = getPlanoConsumoKey(item);
       if (!saldoRestantePorChave.has(chave)) {
-        saldoRestantePorChave.set(chave, getSaldoPlanoParaItem(item));
+        saldoRestantePorChave.set(chave, getSaldoPlanoParaItem(item, planosDisponiveis));
       }
       if (item.usarPlano) {
         saldoRestantePorChave.set(
@@ -1401,7 +1418,7 @@ export function NovoAgendamentoNovoLayout({
     for (const item of itens) {
       if (permitidos && !permitidos.has(item.id)) continue;
       if (item.usarPlano || item.tipoItem === "SALGADO") continue;
-      if (!planosVisiveisCliente.some((plano: any) => planoClienteTemItemCompativel(plano, item))) continue;
+      if (!planosDisponiveis.some((plano: any) => planoClienteTemItemCompativel(plano, item))) continue;
 
       const chave = getPlanoConsumoKey(item);
       const quantidade = Math.max(1, Number(item.quantidade || 1));
@@ -2159,7 +2176,10 @@ export function NovoAgendamentoNovoLayout({
       },
     ]);
 
-    const itensElegiveis = getItensElegiveisParaAplicarPlano();
+    const planosDisponiveisAtualizados = Array.from(new Map(
+      [...planosVisiveisCliente, novoVinculo].map((plano: any) => [Number(plano.id), plano]),
+    ).values()) as any[];
+    const itensElegiveis = getItensElegiveisParaAplicarPlano(undefined, planosDisponiveisAtualizados);
     if (itensElegiveis.ids.length > 0) {
       setConfirmacaoAplicarPlano(itensElegiveis);
     } else if (itens.some((item) => item.tipoItem !== "SALGADO" && item.tipoItem !== "CONGELADA" && !item.usarPlano)) {
@@ -3021,6 +3041,13 @@ export function NovoAgendamentoNovoLayout({
 
     const formaPagamentoPayload: FormaPagamento = formaPagamento;
 
+    if (temCompraPlanoNoAgendamento && formaPagamentoPayload === "PLANO") {
+      toast.error("Forma de pagamento inválida", {
+        description: "Na adesão de plano, escolha PIX, cartão, dinheiro ou outra forma externa.",
+      });
+      return;
+    }
+
     if (formaPagamentoPayload === "DINHEIRO" && precisaTroco && Number(trocoPara || 0) <= 0) {
       toast.error("Informe o valor para o troco");
       return;
@@ -3189,8 +3216,8 @@ export function NovoAgendamentoNovoLayout({
     // destinatario e tamanho para manter itens iguais na mesma ficha.
     const groupId = `pedido-publico:${pedido.id}:tamanho:${customizado ? pesoPersonalizado : pedido.tamanhoId || pedido.tamanhoLabel}`;
     const congeladasPedido = Array.isArray(pedido.itens?.congeladas) ? pedido.itens.congeladas : [];
-    const importados: NovoPedidoItem[] = congeladasPedido.length > 0
-      ? congeladasPedido.map((item: any) => {
+    const importadosCongeladas: NovoPedidoItem[] = congeladasPedido
+      .map((item: any) => {
           const congelada = congeladas.find((opcao) => String(opcao.id) === String(item.congeladaId));
           const tamanho = tamanhos.find((opcao) => Number.parseInt(opcao.nome, 10) === Number(item.tamanhoGramas || congelada?.tamanhoGramas));
           return {
@@ -3206,8 +3233,8 @@ export function NovoAgendamentoNovoLayout({
             quantidade: Math.max(1, Number(item.quantidade || 1)),
             usarPlano: false,
           };
-        })
-      : (pedido.itens?.escolhas || []).map((item: any) => {
+        });
+    const importadosMarmitas: NovoPedidoItem[] = (pedido.itens?.escolhas || []).map((item: any) => {
       const opcao = opcoesPadrao.find((opcaoAtual) => String(opcaoAtual.id) === String(item.opcaoId));
       const componente = (tipo: "CARBOIDRATO" | "PROTEINA" | "LEGUMES" | "FEIJAO" | "COMPLEMENTO") =>
         opcao?.preparos?.find((preparo) => preparo.tipo === tipo);
@@ -3251,6 +3278,7 @@ export function NovoAgendamentoNovoLayout({
         usarPlano: false,
       };
         });
+    const importados = [...importadosCongeladas, ...importadosMarmitas];
     setItens((prev) => [...prev, ...importados]);
     setItensImportadosAguardandoPlano(importados.map((item) => item.id));
     const itemSemCarboidratoComAdicao = importados.find((itemImportado) => {
@@ -4067,6 +4095,12 @@ export function NovoAgendamentoNovoLayout({
                     <Select
                       value={formaPagamento}
                       onValueChange={(v: FormaPagamento) => {
+                        if (v === "PLANO" && temCompraPlanoNoAgendamento) {
+                          toast.error("Forma de pagamento inválida", {
+                            description: "Na adesão de plano, escolha PIX, cartão, dinheiro ou outra forma externa.",
+                          });
+                          return;
+                        }
                         if (v === "PLANO" && !itens.some((item) => item.usarPlano)) {
                           const elegiveis = getItensElegiveisParaAplicarPlano();
                           if (elegiveis.ids.length > 0) {
@@ -4116,9 +4150,14 @@ export function NovoAgendamentoNovoLayout({
                         <SelectItem value="VOUCHER">Voucher</SelectItem>
                         <SelectItem value="TROCA">Troca</SelectItem>
                         <SelectItem value="BONIFICACAO">Bonificação</SelectItem>
-                        {!modoOrcamento && <SelectItem value="PLANO">Plano</SelectItem>}
+                        {!modoOrcamento && !temCompraPlanoNoAgendamento && <SelectItem value="PLANO">Plano</SelectItem>}
                       </SelectContent>
                     </Select>
+                    {temCompraPlanoNoAgendamento ? (
+                      <p className="text-xs font-medium text-amber-700">
+                        Compra inicial de plano deve ser recebida por uma forma externa.
+                      </p>
+                    ) : null}
                     {avisoPagamentoAutomatico && (
                       <p className="text-xs font-medium text-emerald-700">
                         {avisoPagamentoAutomatico}
@@ -4534,28 +4573,65 @@ export function NovoAgendamentoNovoLayout({
 
             <div className="space-y-3">
               <Label>Plano cadastrado</Label>
-              <Select
-                value={planoSelecionadoId}
-                onValueChange={(value) => {
-                  setPlanoSelecionadoId(value);
-                  setPlanoJaConsumido(false);
-                  setQuantidadeConsumidaPlano(0);
-                  setQuantidadesConsumidasPorItem({});
-                  setQuantidadeAdicionaisPlano(0);
-                }}
-                disabled={savingPlano || !clienteSelecionado || planosCatalogo.length === 0}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder={planosCatalogo.length ? "Selecione um plano" : "Nenhum plano cadastrado"} />
-                </SelectTrigger>
-                <SelectContent>
-                  {planosCatalogo.map((plano) => (
-                    <SelectItem key={plano.id} value={String(plano.id)}>
-                      {plano.nome || `Plano #${plano.id}`} - {getPlanoCatalogoResumo(plano)} - R$ {currency(Number(plano.valor || 0))}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Popover open={planoComboboxOpen} onOpenChange={setPlanoComboboxOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={planoComboboxOpen}
+                    disabled={savingPlano || !clienteSelecionado || planosCatalogo.length === 0}
+                    className="h-auto min-h-10 w-full justify-between gap-2 px-3 py-2 text-left font-normal"
+                  >
+                    <span className="min-w-0 flex-1 truncate">
+                      {planoSelecionado
+                        ? `${planoSelecionado.nome || `Plano #${planoSelecionado.id}`} - ${getPlanoCatalogoResumo(planoSelecionado)} - R$ ${currency(Number(planoSelecionado.valor || 0))}`
+                        : planosCatalogo.length ? "Selecione ou pesquise um plano" : "Nenhum plano cadastrado"}
+                    </span>
+                    <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="p-0" style={{ width: "var(--radix-popover-trigger-width)" }} align="start">
+                  <Command
+                    filter={(value, search) => {
+                      const plano = planosCatalogo.find((item) => String(item.id) === value);
+                      const texto = normalizarBusca([
+                        plano?.nome,
+                        plano ? `Plano #${plano.id}` : "",
+                        plano ? getPlanoCatalogoResumo(plano) : "",
+                        plano ? currency(Number(plano.valor || 0)) : "",
+                      ].join(" "));
+                      const termos = normalizarBusca(search).split(/\s+/).filter(Boolean);
+                      return termos.every((termo) => texto.includes(termo)) ? 1 : 0;
+                    }}
+                  >
+                    <CommandInput placeholder="Pesquisar plano..." />
+                    <CommandEmpty>Nenhum plano encontrado.</CommandEmpty>
+                    <CommandList>
+                      <CommandGroup>
+                        {planosCatalogo.map((plano) => (
+                          <CommandItem
+                            key={plano.id}
+                            value={String(plano.id)}
+                            onSelect={(value) => selecionarPlanoCatalogo(value)}
+                            className="items-start gap-2"
+                          >
+                            <Check className={cn("mt-0.5 h-4 w-4 shrink-0", String(plano.id) === String(planoSelecionadoId) ? "opacity-100" : "opacity-0")} />
+                            <div className="min-w-0 flex-1">
+                              <div className="truncate font-semibold">
+                                {plano.nome || `Plano #${plano.id}`}
+                              </div>
+                              <div className="truncate text-xs text-muted-foreground">
+                                {getPlanoCatalogoResumo(plano)} - R$ {currency(Number(plano.valor || 0))}
+                              </div>
+                            </div>
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
 
               {planoSelecionado && (
                 <div className="rounded-xl border border-border/70 bg-muted/20 p-3 text-sm">

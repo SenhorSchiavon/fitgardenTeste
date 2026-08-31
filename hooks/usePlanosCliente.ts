@@ -215,7 +215,10 @@ export function usePlanosCliente() {
           },
         );
 
-        if (!res.ok) throw new Error("Falha ao remover plano");
+        if (!res.ok) {
+          const data = await res.json().catch(() => null);
+          throw new Error(data?.message || "Falha ao remover plano");
+        }
 
         toast.success("Plano desvinculado!");
       } catch (e: any) {

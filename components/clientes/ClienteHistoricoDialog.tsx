@@ -435,6 +435,8 @@ export function ClienteHistoricoDialog({
                                                                         className="rounded-md bg-muted/50 px-3 py-2 text-sm text-muted-foreground"
                                                                     >
                                                                         Utilizado {uso.unidades} unidades - {formatDate(uso.data)}
+                                                                        {uso.inferido ? " - Pedido inicial do plano" : ""}
+                                                                        {uso.pedidoId ? ` - Pedido #${uso.pedidoId}` : ""}
                                                                     </div>
                                                                 ))}
                                                             </div>

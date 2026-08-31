@@ -105,6 +105,10 @@ function permiteAdicionais(opcao: OpcaoPublica) {
   return !naoPermitePersonalizacao(opcao);
 }
 
+function isLowCarbCategory(category: string) {
+  return normalize(category).includes("LOW");
+}
+
 export default function CardapioDaSemanaPage() {
   const dadosSectionRef = useRef<HTMLElement>(null);
   const [cardapio, setCardapio] = useState<CardapioPublico | null>(null);
@@ -157,6 +161,11 @@ export default function CardapioDaSemanaPage() {
   }, []);
 
   const opcoes = cardapio?.opcoes || [];
+  const personalizadaComCarbo = tamanhoSelecionado === "PERSONALIZADO" && Number(cleanGramas(personalizada.carboGramas)) > 0;
+  const opcoesVisiveis = useMemo(() => {
+    if (!personalizadaComCarbo) return opcoes;
+    return opcoes.filter((opcao) => !isLowCarbCategory(opcao.categoria));
+  }, [opcoes, personalizadaComCarbo]);
   const total = useMemo(() => {
     return Object.values(itensPedido).reduce((acc, quantidade) => acc + Number(quantidade || 0), 0);
   }, [itensPedido]);
@@ -175,7 +184,7 @@ export default function CardapioDaSemanaPage() {
 
   const grupos = useMemo(() => {
     const map = new Map<string, OpcaoPublica[]>();
-    opcoes.forEach((opcao) => {
+    opcoesVisiveis.forEach((opcao) => {
       const label = categoryLabel(opcao.categoria);
       if (!map.has(label)) map.set(label, []);
       map.get(label)!.push(opcao);
@@ -189,7 +198,23 @@ export default function CardapioDaSemanaPage() {
       .sort((a, b) => {
         return categoryOrder(a.categoria) - categoryOrder(b.categoria);
       });
-  }, [opcoes]);
+  }, [opcoesVisiveis]);
+
+  useEffect(() => {
+    if (!personalizadaComCarbo) return;
+    const lowCarbIds = new Set(opcoes.filter((opcao) => isLowCarbCategory(opcao.categoria)).map((opcao) => opcao.id));
+    if (!lowCarbIds.size) return;
+
+    setItensPedido((atuais) => Object.fromEntries(
+      Object.entries(atuais).filter(([id]) => !lowCarbIds.has(id)),
+    ));
+    setFeijaoOpcional((atuais) => Object.fromEntries(
+      Object.entries(atuais).filter(([id]) => !lowCarbIds.has(id)),
+    ));
+    setLegumesOpcional((atuais) => Object.fromEntries(
+      Object.entries(atuais).filter(([id]) => !lowCarbIds.has(id)),
+    ));
+  }, [opcoes, personalizadaComCarbo]);
 
   function getItemPedido(id: string) {
     return itensPedido[id] || 0;
