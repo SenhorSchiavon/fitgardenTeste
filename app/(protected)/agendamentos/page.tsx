@@ -2528,10 +2528,13 @@ export default function Agendamentos() {
                   <TableRow className="bg-slate-50">
                     <TableHead>Dia</TableHead>
                     {(relatorioMensal?.tamanhos || ["200g", "300g", "400g", "500g", "Outros"]).map((tamanho) => (
-                      <TableHead key={tamanho} className="text-right">{tamanho}</TableHead>
+                      <TableHead key={tamanho} className="text-right">Total {tamanho}</TableHead>
                     ))}
                     <TableHead className="text-right">Voucher</TableHead>
-                    <TableHead className="text-right">Plano</TableHead>
+                    {(relatorioMensal?.tamanhos || ["200g", "300g", "400g", "500g", "Outros"]).map((tamanho) => (
+                      <TableHead key={`plano-${tamanho}`} className="text-right text-emerald-700">Plano {tamanho}</TableHead>
+                    ))}
+                    <TableHead className="text-right text-emerald-700">Plano total</TableHead>
                     <TableHead className="text-right">Normal</TableHead>
                     <TableHead className="text-right">Total</TableHead>
                   </TableRow>
@@ -2550,14 +2553,19 @@ export default function Agendamentos() {
                         </TableCell>
                       ))}
                       <TableCell className="text-right text-blue-700">{formatQuantidade(totalCategoriaRelatorioMensal(row, "voucher"))}</TableCell>
-                      <TableCell className="text-right text-emerald-700">{formatQuantidade(totalCategoriaRelatorioMensal(row, "plano"))}</TableCell>
+                      {relatorioMensal!.tamanhos.map((tamanho) => (
+                        <TableCell key={`plano-${row.data}-${tamanho}`} className="text-right text-emerald-700">
+                          {formatQuantidade(Number(row.plano[tamanho] || 0))}
+                        </TableCell>
+                      ))}
+                      <TableCell className="text-right font-bold text-emerald-700">{formatQuantidade(totalCategoriaRelatorioMensal(row, "plano"))}</TableCell>
                       <TableCell className="text-right text-slate-700">{formatQuantidade(totalCategoriaRelatorioMensal(row, "normal"))}</TableCell>
                       <TableCell className="text-right font-bold">{formatQuantidade(row.total)}</TableCell>
                     </TableRow>
                   ))}
                   {relatorioMensal && relatorioMensal.linhas.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={10} className="py-8 text-center text-sm text-slate-500">
+                      <TableCell colSpan={15} className="py-8 text-center text-sm text-slate-500">
                         Nenhuma marmita encontrada nesse período.
                       </TableCell>
                     </TableRow>
