@@ -2444,7 +2444,7 @@ export default function Agendamentos() {
       </Sheet>
 
       <Sheet open={relatorioMensalSheetOpen} onOpenChange={setRelatorioMensalSheetOpen}>
-        <SheetContent className="sm:max-w-5xl overflow-y-auto">
+        <SheetContent className="w-[calc(100vw-24px)] sm:w-[calc(100vw-280px)] sm:max-w-none overflow-y-auto">
           <SheetHeader>
             <SheetTitle>Relatório mensal de marmitas</SheetTitle>
           </SheetHeader>
@@ -2523,28 +2523,28 @@ export default function Agendamentos() {
             </div>
 
             <div className="overflow-x-auto rounded-xl border border-slate-200">
-              <Table>
+              <Table className="min-w-[1120px] text-sm">
                 <TableHeader>
                   <TableRow className="bg-slate-50">
-                    <TableHead>Dia</TableHead>
+                    <TableHead className="w-[112px] px-3">Dia</TableHead>
                     {(relatorioMensal?.tamanhos || ["200g", "300g", "400g", "500g", "Outros"]).map((tamanho) => (
-                      <TableHead key={tamanho} className="text-right">Total {tamanho}</TableHead>
+                      <TableHead key={tamanho} className="px-2 text-right whitespace-nowrap">Total {tamanho}</TableHead>
                     ))}
-                    <TableHead className="text-right">Voucher</TableHead>
+                    <TableHead className="px-2 text-right whitespace-nowrap">Voucher</TableHead>
                     {(relatorioMensal?.tamanhos || ["200g", "300g", "400g", "500g", "Outros"]).map((tamanho) => (
-                      <TableHead key={`plano-${tamanho}`} className="text-right text-emerald-700">Plano {tamanho}</TableHead>
+                      <TableHead key={`plano-${tamanho}`} className="px-2 text-right text-emerald-700 whitespace-nowrap">Plano {tamanho}</TableHead>
                     ))}
-                    <TableHead className="text-right text-emerald-700">Plano total</TableHead>
-                    <TableHead className="text-right">Normal</TableHead>
-                    <TableHead className="text-right">Total</TableHead>
+                    <TableHead className="px-2 text-right text-emerald-700 whitespace-nowrap">Plano total</TableHead>
+                    <TableHead className="px-2 text-right whitespace-nowrap">Normal</TableHead>
+                    <TableHead className="px-3 text-right whitespace-nowrap">Total</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {(relatorioMensal?.linhas || []).map((row) => (
                     <TableRow key={row.data}>
-                      <TableCell className="font-medium">{row.label}</TableCell>
+                      <TableCell className="px-3 font-medium whitespace-nowrap">{row.label}</TableCell>
                       {relatorioMensal!.tamanhos.map((tamanho) => (
-                        <TableCell key={tamanho} className="text-right">
+                        <TableCell key={tamanho} className="px-2 text-right">
                           {formatQuantidade(
                             Number(row.voucher[tamanho] || 0)
                             + Number(row.plano[tamanho] || 0)
@@ -2552,15 +2552,15 @@ export default function Agendamentos() {
                           )}
                         </TableCell>
                       ))}
-                      <TableCell className="text-right text-blue-700">{formatQuantidade(totalCategoriaRelatorioMensal(row, "voucher"))}</TableCell>
+                      <TableCell className="px-2 text-right text-blue-700">{formatQuantidade(totalCategoriaRelatorioMensal(row, "voucher"))}</TableCell>
                       {relatorioMensal!.tamanhos.map((tamanho) => (
-                        <TableCell key={`plano-${row.data}-${tamanho}`} className="text-right text-emerald-700">
+                        <TableCell key={`plano-${row.data}-${tamanho}`} className="px-2 text-right text-emerald-700">
                           {formatQuantidade(Number(row.plano[tamanho] || 0))}
                         </TableCell>
                       ))}
-                      <TableCell className="text-right font-bold text-emerald-700">{formatQuantidade(totalCategoriaRelatorioMensal(row, "plano"))}</TableCell>
-                      <TableCell className="text-right text-slate-700">{formatQuantidade(totalCategoriaRelatorioMensal(row, "normal"))}</TableCell>
-                      <TableCell className="text-right font-bold">{formatQuantidade(row.total)}</TableCell>
+                      <TableCell className="px-2 text-right font-bold text-emerald-700">{formatQuantidade(totalCategoriaRelatorioMensal(row, "plano"))}</TableCell>
+                      <TableCell className="px-2 text-right text-slate-700">{formatQuantidade(totalCategoriaRelatorioMensal(row, "normal"))}</TableCell>
+                      <TableCell className="px-3 text-right font-bold">{formatQuantidade(row.total)}</TableCell>
                     </TableRow>
                   ))}
                   {relatorioMensal && relatorioMensal.linhas.length === 0 ? (
