@@ -2502,7 +2502,7 @@ export default function Agendamentos() {
             ) : null}
 
             <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-              {(relatorioMensal?.tamanhos || ["200g", "300g", "400g", "500g"]).map((tamanho) => (
+              {(relatorioMensal?.tamanhos || ["200g", "300g", "400g", "500g", "Outros"]).map((tamanho) => (
                 <div key={tamanho} className="rounded-xl border border-slate-200 bg-white p-3">
                   <div className="text-xs font-bold text-slate-500">{tamanho}</div>
                   <div className="text-xl font-black text-slate-800">
@@ -2527,7 +2527,7 @@ export default function Agendamentos() {
                 <TableHeader>
                   <TableRow className="bg-slate-50">
                     <TableHead>Dia</TableHead>
-                    {(relatorioMensal?.tamanhos || ["200g", "300g", "400g", "500g"]).map((tamanho) => (
+                    {(relatorioMensal?.tamanhos || ["200g", "300g", "400g", "500g", "Outros"]).map((tamanho) => (
                       <TableHead key={tamanho} className="text-right">{tamanho}</TableHead>
                     ))}
                     <TableHead className="text-right">Voucher</TableHead>
@@ -2557,7 +2557,7 @@ export default function Agendamentos() {
                   ))}
                   {relatorioMensal && relatorioMensal.linhas.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={9} className="py-8 text-center text-sm text-slate-500">
+                      <TableCell colSpan={10} className="py-8 text-center text-sm text-slate-500">
                         Nenhuma marmita encontrada nesse período.
                       </TableCell>
                     </TableRow>

@@ -7,7 +7,7 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3333";
 const RESOURCE = `${API_URL}/relatorios/mensal-marmitas`;
 
 export type RelatorioMensalTipo = "todos" | "voucher" | "plano" | "normal";
-export type RelatorioMensalTamanho = "200g" | "300g" | "400g" | "500g";
+export type RelatorioMensalTamanho = "200g" | "300g" | "400g" | "500g" | "Outros";
 export type RelatorioMensalTotaisTamanho = Record<RelatorioMensalTamanho, number>;
 
 export type RelatorioMensalLinha = {
