@@ -240,7 +240,7 @@ function getLabelPagamento(forma: string, agendamento?: any) {
 
   if (isVoucher) {
     const sufixoCodigo = voucherCodigo ? ` #${voucherCodigo}` : "";
-    const taxaForma = getFormaTaxaVoucher(agendamento, forma);
+    const taxaForma = agendamento?.formaPagamentoTaxaVoucher || (forma === "VOUCHER_TAXA_PIX" ? "PIX" : forma === "VOUCHER_TAXA_DINHEIRO" ? "DINHEIRO" : forma === "VOUCHER_TAXA_CARTAO" ? "CREDITO" : null);
     const sufixoTaxa = taxaForma && taxaForma !== "A_DEFINIR" ? ` + ${taxaForma === "CREDITO" ? "Cartão" : taxaForma}` : "";
     return `VOUCHER${sufixoCodigo}${sufixoTaxa}`;
   }
@@ -270,16 +270,11 @@ function getLabelPagamentoConfirmacao(agendamento: Agendamento) {
     return getLabelPagamento(agendamento.formaPagamento);
   }
   const taxa = getFormaTaxaVoucher(agendamento, agendamento.formaPagamento) || "A_DEFINIR";
-  const labelsTaxa: Record<string, string> = {
-    A_DEFINIR: "Taxa não definida",
-    PIX: agendamento.taxaVoucherPaga ? "Taxa PIX — PAGA" : "Taxa PIX — A PAGAR",
-    DINHEIRO: "Taxa em dinheiro",
-    CREDITO: "Taxa cartão de crédito",
-    DEBITO: "Taxa cartão de débito",
-    VALE_ALIMENTACAO: "Taxa no Vale Alimentação",
-    VALE_REFEICAO: "Taxa no Vale Refeição",
-  };
-  return `Voucher / ${labelsTaxa[taxa] || "Taxa não definida"}`;
+  const valorTaxa = Number(agendamento.valorTotalFinal ?? agendamento.valorTaxa ?? 0);
+  const sufixoTaxa = valorTaxa > 0 && taxa !== "A_DEFINIR"
+    ? ` - ${moneyBr(valorTaxa)} ${taxa}`
+    : "";
+  return `VOUCHER${sufixoTaxa}`;
 }
 
 function ordenarAgendamentosRota(rows: Agendamento[]) {
@@ -854,7 +849,7 @@ export default function Agendamentos() {
         <p><b>CLIENTE:</b> ${escaparHtml(pedido.cliente.toUpperCase())}</p>
         <p><b>HORÁRIO ESTIMADO:</b> ${escaparHtml(`${getLabelTipoEntrega(pedido.tipoEntrega)} ${pedido.faixaHorario}`.toUpperCase())}</p>
         <p><b>${pedido.endereco ? "ENDEREÇO / TELEFONE" : "TELEFONE"}:</b> ${escaparHtml(pedido.endereco ? `${pedido.endereco} / ${pedido.telefone}` : pedido.telefone)}</p>
-        <p><b>CONFERÊNCIA PAGAMENTO:</b> ${escaparHtml(getLabelPagamento(pedido.formaPagamento, pedido).toUpperCase())}</p>
+        <p><b>CONFERÊNCIA PAGAMENTO:</b> ${escaparHtml(getLabelPagamento(pedido.formaPagamento).toUpperCase())}</p>
         <div class="valores">${resumoFinanceiro}</div>
         <p><b>TAMANHO DAS MARMITAS (G):</b> ${escaparHtml(tamanhos)}</p>
       </section>`;
