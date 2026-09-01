@@ -541,6 +541,7 @@ export function NovoAgendamentoNovoLayout({
   const [descontoManualOpen, setDescontoManualOpen] = useState(false);
   const [valorDescontoManual, setValorDescontoManual] = useState(0);
   const [motivoDescontoManual, setMotivoDescontoManual] = useState("");
+  const [voucherGruposPedido, setVoucherGruposPedido] = useState<string[]>([]);
   const [usarPlanoEscolhidoManualmente, setUsarPlanoEscolhidoManualmente] = useState(false);
   const [incluirComplementoPersonalizada, setIncluirComplementoPersonalizada] = useState(true);
 
@@ -780,6 +781,13 @@ export function NovoAgendamentoNovoLayout({
           formaInicial === "VOUCHER_TAXA_PIX" ? "PIX" : "A_DEFINIR"),
       );
       setVoucherCodigo(initialData.voucherCodigo || "");
+      setVoucherGruposPedido(
+        Array.from(new Set(
+          (initialData.pagamentos || initialData.pedido?.pagamentos || [])
+            .filter((pagamento: any) => pagamento.forma === "VOUCHER" && String(pagamento.grupoPedido || "").trim())
+            .map((pagamento: any) => String(pagamento.grupoPedido).trim()),
+        )),
+      );
       const descontoInicial = Number(initialData.valorDescontoManual || initialData.pedido?.valorDescontoManual || 0);
       setValorDescontoManual(descontoInicial);
       setMotivoDescontoManual(initialData.motivoDescontoManual || initialData.pedido?.motivoDescontoManual || "");
@@ -1742,6 +1750,7 @@ export function NovoAgendamentoNovoLayout({
     setMotivoDescontoManual("");
     setFormaPagamentoTaxaVoucher("A_DEFINIR");
     setVoucherCodigo("");
+    setVoucherGruposPedido([]);
     setDistanciaEntregaKm(null);
     setEnderecoSelecionadoId("");
     setAvisoHorarioAutomatico("");
@@ -3077,6 +3086,12 @@ export function NovoAgendamentoNovoLayout({
       });
       return;
     }
+    if (isVoucherForma(formaPagamentoPayload) && voucherGruposPedido.length === 0) {
+      toast.error("Pedido do voucher obrigatório", {
+        description: "Marque qual Pedido # será coberto pelo voucher.",
+      });
+      return;
+    }
 
     // Validação final de gramagem e ingredientes das personalizadas.
     const itemInvalido = itensComPrecoBruto.find(it => 
@@ -3135,6 +3150,7 @@ export function NovoAgendamentoNovoLayout({
       senhaAutorizacao,
       voucherCodigo: isVoucherForma(formaPagamentoPayload) ? voucherCodigo.trim() : undefined,
       formaPagamentoTaxaVoucher: formaPagamento === "VOUCHER" ? formaPagamentoTaxaVoucher : undefined,
+      voucherGruposPedido: isVoucherForma(formaPagamentoPayload) ? voucherGruposPedido : [],
       pagamentoJaRealizado: (
         formaPagamento === "PIX" ||
         formaPagamento === "LINK" ||
@@ -3681,6 +3697,7 @@ export function NovoAgendamentoNovoLayout({
                             ? "Salgado"
                             : itemReferencia.tamanhoLabel || "Tamanho não definido";
                         const grupoUsaPlano = grupo.some((item) => item.usarPlano);
+                        const grupoVoucherSelecionado = voucherGruposPedido.includes(groupId);
                         
                         return (
                           <div key={groupId} className="bg-background">
@@ -3711,6 +3728,25 @@ export function NovoAgendamentoNovoLayout({
                                         Desutilizar plano
                                       </Button>
                                     </>
+                                  )}
+                                  {isVoucherForma(formaPagamento) && (
+                                    <label
+                                      className="flex h-6 cursor-pointer items-center gap-1 rounded-full border border-blue-200 bg-blue-50 px-2 text-[10px] font-bold text-blue-800"
+                                      onClick={(event) => event.stopPropagation()}
+                                    >
+                                      <Checkbox
+                                        checked={grupoVoucherSelecionado}
+                                        onCheckedChange={(checked) => {
+                                          setVoucherGruposPedido((atuais) => {
+                                            const set = new Set(atuais);
+                                            if (checked) set.add(groupId);
+                                            else set.delete(groupId);
+                                            return Array.from(set);
+                                          });
+                                        }}
+                                      />
+                                      Voucher
+                                    </label>
                                   )}
                                 </div>
                                 <div className="mt-1 flex items-center gap-2 min-w-0 flex-wrap">
@@ -4129,6 +4165,9 @@ export function NovoAgendamentoNovoLayout({
                           }
                         }
                         setFormaPagamento(v);
+                        if (!isVoucherForma(v)) {
+                          setVoucherGruposPedido([]);
+                        }
                         if (v !== "DINHEIRO") {
                           setPrecisaTroco(false);
                           setTrocoPara(0);

@@ -235,14 +235,18 @@ function getFormaTaxaVoucher(agendamento?: any, forma?: string | null) {
 }
 
 function getLabelPagamento(forma: string, agendamento?: any) {
-  const voucherCodigo = agendamento?.voucherCodigo ? String(agendamento.voucherCodigo).trim() : "";
+  if (String(forma || "").includes(" + ")) {
+    return String(forma)
+      .split(" + ")
+      .map((parte) => getLabelPagamento(parte.trim()))
+      .join(" + ");
+  }
   const isVoucher = forma === "VOUCHER" || forma?.startsWith("VOUCHER_") || agendamento?.formaPagamento === "VOUCHER";
 
   if (isVoucher) {
-    const sufixoCodigo = voucherCodigo ? ` #${voucherCodigo}` : "";
     const taxaForma = agendamento?.formaPagamentoTaxaVoucher || (forma === "VOUCHER_TAXA_PIX" ? "PIX" : forma === "VOUCHER_TAXA_DINHEIRO" ? "DINHEIRO" : forma === "VOUCHER_TAXA_CARTAO" ? "CREDITO" : null);
     const sufixoTaxa = taxaForma && taxaForma !== "A_DEFINIR" ? ` + ${taxaForma === "CREDITO" ? "Cartão" : taxaForma}` : "";
-    return `VOUCHER${sufixoCodigo}${sufixoTaxa}`;
+    return `VOUCHER${sufixoTaxa}`;
   }
 
   const labels: Record<string, string> = {
@@ -589,7 +593,7 @@ export default function Agendamentos() {
     const horarioFormatado = faixaHorario.includes("-")
       ? faixaHorario.split("-").map((parte) => parte.trim()).filter(Boolean).join(" às ")
       : faixaHorario;
-    const grupos = new Map<string, { titulo: string; linhas: string[]; totalMarmitas: number; subtotal: number }>();
+    const grupos = new Map<string, { titulo: string; grupoPedido: string; linhas: string[]; totalMarmitas: number; subtotal: number }>();
     agendamento.itens.forEach((item) => {
       const personalizada = item.tipoItem === "PERSONALIZADA";
       const detalhes = personalizada
@@ -649,7 +653,7 @@ export default function Agendamentos() {
         .filter(Boolean)
         .join(" - ");
       const chaveGrupo = item.groupId || item.id || grupo;
-      const dadosGrupo = grupos.get(chaveGrupo) || { titulo: grupo, linhas: [], totalMarmitas: 0, subtotal: 0 };
+      const dadosGrupo = grupos.get(chaveGrupo) || { titulo: grupo, grupoPedido: String(chaveGrupo), linhas: [], totalMarmitas: 0, subtotal: 0 };
       dadosGrupo.linhas.push(`    ${item.quantidade}x ${descricaoComArroz}`.toUpperCase());
       substituicoes.forEach((substituicao) => dadosGrupo.linhas.push(`      ↳ ${substituicao}`.toUpperCase()));
       dadosGrupo.subtotal += Number(item.valor || 0);
@@ -658,11 +662,35 @@ export default function Agendamentos() {
       }
       grupos.set(chaveGrupo, dadosGrupo);
     });
+    const pagamentosMensagem = agendamento._raw?.pedido?.pagamentos ?? agendamento._raw?.pagamentos ?? agendamento.pagamentos ?? [];
+    const voucherPorGrupo = new Set(
+      pagamentosMensagem
+        .filter((pagamento: any) =>
+          (pagamento.forma === "VOUCHER" || pagamento.voucherId) &&
+          String(pagamento.grupoPedido || "").trim(),
+        )
+        .map((pagamento: any) => String(pagamento.grupoPedido).trim()),
+    );
+    const temVoucherParcialPorPedido = voucherPorGrupo.size > 0;
+    const pagamentoCobrancaParcial = pagamentosMensagem.find((pagamento: any) =>
+      pagamento.status !== "CANCELADO" &&
+      pagamento.status !== "ESTORNADO" &&
+      pagamento.forma !== "PLANO" &&
+      pagamento.forma !== "VOUCHER" &&
+      !pagamento.voucherId &&
+      Number(pagamento.valor || 0) > 0,
+    );
+    const formaCobrancaParcial = getLabelPagamento(
+      String(pagamentoCobrancaParcial?.forma || agendamento.formaPagamentoTaxaVoucher || agendamento.formaPagamento || "A_DEFINIR"),
+    );
     const itens = Array.from(grupos.entries())
       .flatMap(([, dados], indice) => [
         grupos.size > 1 ? `*PEDIDO ${indice + 1} - ${dados.titulo}*` : `*${dados.titulo}*`,
         dados.totalMarmitas > 0 ? `*Total de marmitas:* ${dados.totalMarmitas}` : null,
         `*Subtotal do pedido:* ${moneyBr(dados.subtotal)}`,
+        temVoucherParcialPorPedido
+          ? `*Forma de Pagamento do Pedido:* ${voucherPorGrupo.has(dados.grupoPedido) ? "VOUCHER" : formaCobrancaParcial}`
+          : null,
         ...dados.linhas,
       ].filter((linha): linha is string => !!linha))
       .join("\n");
@@ -751,7 +779,7 @@ export default function Agendamentos() {
               : `${plano.nome} - ${moneyBr(plano.valor)}`,
           ), ""]
         : []),
-      `*Forma de Pagamento:* ${getLabelPagamentoConfirmacao(agendamento)}`,
+      temVoucherParcialPorPedido ? null : `*Forma de Pagamento:* ${getLabelPagamentoConfirmacao(agendamento)}`,
       agendamento.formaPagamento === "DINHEIRO"
         ? agendamento.precisaTroco && Number(agendamento.trocoPara || 0) > 0
           ? `*Troco para:* ${moneyBr(Number(agendamento.trocoPara))}`
@@ -1344,8 +1372,10 @@ export default function Agendamentos() {
       : null;
     const formaFallback = row.formaPagamento && row.formaPagamento !== "-" ? row.formaPagamento : "A_DEFINIR";
     const formaPagamentoExibida =
-      valorDescontoVoucher > 0
-        ? "VOUCHER"
+      valorDescontoVoucher > 0 && pagamentoCobrancaReal?.forma
+        ? `VOUCHER + ${pagamentoCobrancaReal.forma}`
+        : valorDescontoVoucher > 0
+          ? "VOUCHER"
       : pagamentoNaoPlanoRelevante?.forma
         ? pagamentoNaoPlanoRelevante.forma
         : valorPlanosCompradosPendente > 0

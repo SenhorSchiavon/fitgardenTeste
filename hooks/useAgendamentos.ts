@@ -157,6 +157,7 @@ export type CreateAgendamentoInput = {
   senhaAutorizacao?: string;
   voucherCodigo?: string;
   formaPagamentoTaxaVoucher?: FormaPagamento;
+  voucherGruposPedido?: string[];
   pagamentoJaRealizado?: boolean;
   valorDescontoManual?: number;
   motivoDescontoManual?: string;
@@ -182,6 +183,7 @@ export type UpdateAgendamentoInput = Partial<{
   formaPagamento: FormaPagamento;
   voucherCodigo: string;
   formaPagamentoTaxaVoucher: FormaPagamento;
+  voucherGruposPedido: string[];
   pagamentoJaRealizado: boolean;
   valorDescontoManual: number;
   motivoDescontoManual: string | null;
@@ -571,6 +573,7 @@ export function useAgendamentos(options?: { baseUrl?: string }) {
           senhaAutorizacao: payload.senhaAutorizacao,
           voucherCodigo: payload.voucherCodigo?.trim() || undefined,
           formaPagamentoTaxaVoucher: payload.formaPagamentoTaxaVoucher,
+          voucherGruposPedido: (payload.voucherGruposPedido || []).map(String).map((item) => item.trim()).filter(Boolean),
           pagamentoJaRealizado: !!payload.pagamentoJaRealizado,
           valorDescontoManual: Number(payload.valorDescontoManual || 0),
           motivoDescontoManual: payload.motivoDescontoManual?.trim() || undefined,
