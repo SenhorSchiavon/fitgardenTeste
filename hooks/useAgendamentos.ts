@@ -37,6 +37,7 @@ export type PedidoPendenteRow = {
   quantidade: number;
   formaPagamento: FormaPagamento | string;
   formaPagamentoTaxaVoucher?: string | null;
+  formaPagamentoRestanteVoucher?: string | null;
   voucherCodigo?: string | null;
   pagamentoId?: number | null;
   statusPagamento?: string | null;
@@ -157,6 +158,7 @@ export type CreateAgendamentoInput = {
   senhaAutorizacao?: string;
   voucherCodigo?: string;
   formaPagamentoTaxaVoucher?: FormaPagamento;
+  formaPagamentoRestanteVoucher?: FormaPagamento;
   voucherGruposPedido?: string[];
   pagamentoJaRealizado?: boolean;
   valorDescontoManual?: number;
@@ -183,6 +185,7 @@ export type UpdateAgendamentoInput = Partial<{
   formaPagamento: FormaPagamento;
   voucherCodigo: string;
   formaPagamentoTaxaVoucher: FormaPagamento;
+  formaPagamentoRestanteVoucher: FormaPagamento;
   voucherGruposPedido: string[];
   pagamentoJaRealizado: boolean;
   valorDescontoManual: number;
@@ -573,6 +576,7 @@ export function useAgendamentos(options?: { baseUrl?: string }) {
           senhaAutorizacao: payload.senhaAutorizacao,
           voucherCodigo: payload.voucherCodigo?.trim() || undefined,
           formaPagamentoTaxaVoucher: payload.formaPagamentoTaxaVoucher,
+          formaPagamentoRestanteVoucher: payload.formaPagamentoRestanteVoucher,
           voucherGruposPedido: (payload.voucherGruposPedido || []).map(String).map((item) => item.trim()).filter(Boolean),
           pagamentoJaRealizado: !!payload.pagamentoJaRealizado,
           valorDescontoManual: Number(payload.valorDescontoManual || 0),

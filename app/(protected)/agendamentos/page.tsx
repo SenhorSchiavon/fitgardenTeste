@@ -101,6 +101,7 @@ type Agendamento = {
   quantidadeLabel?: string;
   formaPagamento: string;
   formaPagamentoTaxaVoucher?: string | null;
+  formaPagamentoRestanteVoucher?: string | null;
   taxaVoucherPaga?: boolean;
   voucherCodigo?: string;
   entregador: string;
@@ -299,6 +300,7 @@ function montarDadosEdicaoAgendamento(agendamento: Agendamento) {
     String(pagamentos.find((pagamento: any) => String(pagamento.voucherCodigo || "").trim())?.voucherCodigo || "").trim();
   const formaPagamento = agendamento.formaPagamento || "A_DEFINIR";
   const formaPagamentoTaxaVoucher = pedido.formaPagamentoTaxaVoucher ?? raw.formaPagamentoTaxaVoucher ?? null;
+  const formaPagamentoRestanteVoucher = pedido.formaPagamentoRestanteVoucher ?? raw.formaPagamentoRestanteVoucher ?? null;
   const formaCobranca = formaPagamento === "VOUCHER" ? formaPagamentoTaxaVoucher : formaPagamento;
   const pagamentoJaRealizado = (formaCobranca === "PIX" || formaCobranca === "LINK") &&
     pagamentos.some((pagamento: any) => pagamento.forma === formaCobranca && pagamento.status === "CONFIRMADO");
@@ -323,6 +325,7 @@ function montarDadosEdicaoAgendamento(agendamento: Agendamento) {
     trocoPara: pedido.trocoPara ?? agendamento.trocoPara ?? null,
     formaPagamento,
     formaPagamentoTaxaVoucher,
+    formaPagamentoRestanteVoucher,
     voucherCodigo,
     pagamentoJaRealizado,
     planosCompradosExibidos: agendamento.planosComprados ?? [],
@@ -681,7 +684,7 @@ export default function Agendamentos() {
       Number(pagamento.valor || 0) > 0,
     );
     const formaCobrancaParcial = getLabelPagamento(
-      String(pagamentoCobrancaParcial?.forma || agendamento.formaPagamentoTaxaVoucher || agendamento.formaPagamento || "A_DEFINIR"),
+      String(agendamento.formaPagamentoRestanteVoucher || pagamentoCobrancaParcial?.forma || agendamento.formaPagamentoTaxaVoucher || agendamento.formaPagamento || "A_DEFINIR"),
     );
     const itens = Array.from(grupos.entries())
       .flatMap(([, dados], indice) => [
@@ -1404,6 +1407,7 @@ export default function Agendamentos() {
       quantidadeLabel,
       formaPagamento: formaPagamentoExibida,
       formaPagamentoTaxaVoucher: row.pedido?.formaPagamentoTaxaVoucher ?? row.formaPagamentoTaxaVoucher ?? null,
+      formaPagamentoRestanteVoucher: row.pedido?.formaPagamentoRestanteVoucher ?? row.formaPagamentoRestanteVoucher ?? null,
       taxaVoucherPaga,
       voucherCodigo:
         pagamentos.find((p: any) => String(p.voucherCodigo || "").trim())?.voucherCodigo ??

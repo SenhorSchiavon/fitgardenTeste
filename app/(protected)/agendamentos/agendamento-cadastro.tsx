@@ -536,6 +536,7 @@ export function NovoAgendamentoNovoLayout({
   const [precisaTroco, setPrecisaTroco] = useState(false);
   const [trocoPara, setTrocoPara] = useState(0);
   const [formaPagamentoTaxaVoucher, setFormaPagamentoTaxaVoucher] = useState<FormaPagamento>("A_DEFINIR");
+  const [formaPagamentoRestanteVoucher, setFormaPagamentoRestanteVoucher] = useState<FormaPagamento>("A_DEFINIR");
   const [voucherCodigo, setVoucherCodigo] = useState("");
   const [pagamentoJaRealizado, setPagamentoJaRealizado] = useState(false);
   const [descontoManualOpen, setDescontoManualOpen] = useState(false);
@@ -780,6 +781,7 @@ export function NovoAgendamentoNovoLayout({
           formaInicial === "VOUCHER_TAXA_CARTAO" ? "CREDITO" :
           formaInicial === "VOUCHER_TAXA_PIX" ? "PIX" : "A_DEFINIR"),
       );
+      setFormaPagamentoRestanteVoucher(initialData.formaPagamentoRestanteVoucher || initialData.formaPagamentoTaxaVoucher || "A_DEFINIR");
       setVoucherCodigo(initialData.voucherCodigo || "");
       setVoucherGruposPedido(
         Array.from(new Set(
@@ -1703,6 +1705,8 @@ export function NovoAgendamentoNovoLayout({
       };
     });
   }, [itensComPrecoFinal, regras, clienteSelecionado]);
+  const possuiPedidoSemVoucher = isVoucherForma(formaPagamento) &&
+    resumoPedidos.some((pedido) => !voucherGruposPedido.includes(String(pedido.id)));
 
   const valorTaxaEntregaResumo =
     ehEntrega && incluirTaxaEntrega && !abaterTaxaEntregaPlano ? Number(valorTaxa || 0) : 0;
@@ -1718,8 +1722,22 @@ export function NovoAgendamentoNovoLayout({
     saldoAdicionaisPlano,
   );
   const valorAdicionaisCobertosResumo = quantidadeAdicionaisCobertosResumo * 2;
+  const itemCobertoPeloVoucherResumo = (item: ItemForm) =>
+    voucherGruposPedido.length === 0 || voucherGruposPedido.includes(String(item.groupId || item.id));
+  const valorAdicionaisVoucherSelecionadosResumo = itensComPrecoFinal
+    .filter((item) => itemCobertoPeloVoucherResumo(item) && (item.tipoItem === "PADRAO" || item.tipoItem === "PERSONALIZADA"))
+    .reduce(
+      (total, item) => total + getAdicionaisUnitarios(item) * Math.max(1, Number(item.quantidade || 1)),
+      0,
+    );
   const valorDescontoVoucherResumo = isVoucherForma(formaPagamento)
-    ? Math.max(0, subtotalPedido - valorAdicionaisVoucherResumo)
+    ? Math.max(
+        0,
+        resumoPedidos
+          .filter((pedido) => voucherGruposPedido.length === 0 || voucherGruposPedido.includes(String(pedido.id)))
+          .reduce((total, pedido) => total + Number(pedido.subtotal || 0), 0) -
+          valorAdicionaisVoucherSelecionadosResumo,
+      )
     : 0;
   const valorAntesDescontoManual = Math.max(
     0,
@@ -1749,6 +1767,7 @@ export function NovoAgendamentoNovoLayout({
     setValorDescontoManual(0);
     setMotivoDescontoManual("");
     setFormaPagamentoTaxaVoucher("A_DEFINIR");
+    setFormaPagamentoRestanteVoucher("A_DEFINIR");
     setVoucherCodigo("");
     setVoucherGruposPedido([]);
     setDistanciaEntregaKm(null);
@@ -3150,11 +3169,12 @@ export function NovoAgendamentoNovoLayout({
       senhaAutorizacao,
       voucherCodigo: isVoucherForma(formaPagamentoPayload) ? voucherCodigo.trim() : undefined,
       formaPagamentoTaxaVoucher: formaPagamento === "VOUCHER" ? formaPagamentoTaxaVoucher : undefined,
+      formaPagamentoRestanteVoucher: formaPagamento === "VOUCHER" ? formaPagamentoRestanteVoucher : undefined,
       voucherGruposPedido: isVoucherForma(formaPagamentoPayload) ? voucherGruposPedido : [],
       pagamentoJaRealizado: (
         formaPagamento === "PIX" ||
         formaPagamento === "LINK" ||
-        (formaPagamento === "VOUCHER" && formaPagamentoTaxaVoucher === "PIX")
+        (formaPagamento === "VOUCHER" && (formaPagamentoTaxaVoucher === "PIX" || formaPagamentoRestanteVoucher === "PIX"))
       )
         ? pagamentoJaRealizado
         : false,
@@ -4167,6 +4187,7 @@ export function NovoAgendamentoNovoLayout({
                         setFormaPagamento(v);
                         if (!isVoucherForma(v)) {
                           setVoucherGruposPedido([]);
+                          setFormaPagamentoRestanteVoucher("A_DEFINIR");
                         }
                         if (v !== "DINHEIRO") {
                           setPrecisaTroco(false);
@@ -4252,6 +4273,31 @@ export function NovoAgendamentoNovoLayout({
                           placeholder="Digite o voucher"
                         />
                       </div>
+                      {possuiPedidoSemVoucher && (
+                        <div className="space-y-2">
+                          <Label>Forma de pagamento dos pedidos sem voucher</Label>
+                          <Select
+                            value={formaPagamentoRestanteVoucher}
+                            onValueChange={(v: FormaPagamento) => {
+                              setFormaPagamentoRestanteVoucher(v);
+                              setPagamentoJaRealizado(false);
+                            }}
+                          >
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="A_DEFINIR">Não definido</SelectItem>
+                              <SelectItem value="PIX">PIX</SelectItem>
+                              <SelectItem value="DINHEIRO">Dinheiro</SelectItem>
+                              <SelectItem value="CREDITO">Cartão de crédito</SelectItem>
+                              <SelectItem value="DEBITO">Cartão de débito</SelectItem>
+                              <SelectItem value="VALE_ALIMENTACAO">Vale Alimentação</SelectItem>
+                              <SelectItem value="VALE_REFEICAO">Vale Refeição</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
                       <div className="space-y-2">
                         <Label>Forma de pagamento da entrega</Label>
                         <Select
@@ -4280,7 +4326,16 @@ export function NovoAgendamentoNovoLayout({
                               checked={pagamentoJaRealizado}
                               onCheckedChange={(checked) => setPagamentoJaRealizado(checked === true)}
                             />
-                            Taxa PIX já foi paga
+                            PIX da entrega já foi pago
+                          </label>
+                        )}
+                        {possuiPedidoSemVoucher && formaPagamentoRestanteVoucher === "PIX" && (
+                          <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-emerald-200 bg-white p-3 text-sm font-medium">
+                            <Checkbox
+                              checked={pagamentoJaRealizado}
+                              onCheckedChange={(checked) => setPagamentoJaRealizado(checked === true)}
+                            />
+                            PIX dos pedidos sem voucher já foi pago
                           </label>
                         )}
                       </div>
