@@ -599,8 +599,14 @@ export default function Agendamentos() {
             [item.legume, item.legumeGramas],
             [item.feijao, item.feijaoGramas],
             [item.complemento, item.complementoGramas],
-          ].filter(([nome]) => !!nome).map(([nome]) => nome)
-        : [item.carbo, item.proteina, item.legume, item.feijao, item.complemento].filter(Boolean);
+          ].filter(([nome, gramas]) => !!nome && Number(gramas || 0) > 0).map(([nome]) => nome)
+        : [
+            item.carbo,
+            item.proteina,
+            item.legume,
+            item.adicionarFeijao ? item.feijao : null,
+            item.complemento,
+          ].filter(Boolean);
       const descricaoBase = detalhes.length ? detalhes.join(" + ") : item.nome;
       const descricao = [
         descricaoBase,
@@ -808,7 +814,13 @@ export default function Agendamentos() {
           ? `PEDIDO ${indice + 1} - ${grupo.tamanho} - ${grupo.destinatario}`
           : `${grupo.tamanho} - ${grupo.destinatario}`;
         const linhas = grupo.itens.map((item) => {
-        const descricao = [item.carbo, item.proteina, item.legume, item.feijao, item.complemento].filter(Boolean).join(" + ") || item.nome;
+        const descricao = [
+          item.carbo,
+          item.proteina,
+          item.legume,
+          item.adicionarFeijao ? item.feijao : null,
+          item.complemento,
+        ].filter(Boolean).join(" + ") || item.nome;
           return `<div class="item">${escaparHtml(`${item.quantidade}x ${descricao}`.toUpperCase())}</div>`;
         }).join("");
         return `<div class="subpedido"><div class="subpedido-titulo">${escaparHtml(titulo.toUpperCase())}</div>${linhas}</div>`;
@@ -1257,6 +1269,35 @@ export default function Agendamentos() {
     const planosParaResumo = Array.from(
       new Map([...planosCliente, ...planosUsadosNoPedido].map((plano: any) => [Number(plano.id), plano])).values(),
     );
+    const consumoPlanoRegistradoIds = new Set(
+      pagamentos
+        .filter((pagamento: any) => pagamento.forma === "PLANO" && Number(pagamento.consumoUnidades || 0) > 0)
+        .map((pagamento: any) => Number(pagamento.planoClienteId)),
+    );
+    const consumoPlanoInferidoPorSaldo = new Map<number, number>();
+    pagamentos
+      .filter((pagamento: any) =>
+        pagamento.forma === "PLANO" &&
+        pagamento.planoClienteId &&
+        pagamento.planoCliente &&
+        !consumoPlanoRegistradoIds.has(Number(pagamento.planoClienteId)) &&
+        Number(pagamento.consumoUnidades || 0) === 0 &&
+        Number(pagamento.consumoEntregas || 0) === 0 &&
+        Number(pagamento.consumoAdicionais || 0) === 0 &&
+        Number(pagamento.valor || 0) > 0,
+      )
+      .forEach((pagamento: any) => {
+        const planoId = Number(pagamento.planoClienteId);
+        for (const item of itens.filter((it: any) => !!it.usarPlano)) {
+          const saldoCompativel = (pagamento.planoCliente?.itens || []).find((saldo: any) =>
+            Number(saldo.planoItem?.tamanho?.pesagemGramas || 0) === Number(String(item.tamanho || "").replace(/\D/g, "")),
+          );
+          if (!saldoCompativel) continue;
+          const saldoId = Number(saldoCompativel.id);
+          consumoPlanoInferidoPorSaldo.set(saldoId, (consumoPlanoInferidoPorSaldo.get(saldoId) || 0) + Number(item.quantidade || 0));
+          break;
+        }
+      });
     planosParaResumo.forEach((plano: any) => {
       (plano.itens || []).forEach((saldo: any) => {
         const gramas = saldo.planoItem?.tamanho?.pesagemGramas ?? saldo.planoItem?.pesoPersonalizadoGramas;
@@ -1265,9 +1306,10 @@ export default function Agendamentos() {
           Number(pagamento.planoClienteId) === Number(plano.id) &&
           Number(pagamento.consumoUnidades || 0) > 0,
         );
-        if (!gramas || (Number(saldo.saldoUnidades || 0) <= 0 && !planoFoiUsado)) return;
+        const saldoAjustado = Math.max(0, Number(saldo.saldoUnidades || 0) - Number(consumoPlanoInferidoPorSaldo.get(Number(saldo.id)) || 0));
+        if (!gramas || (saldoAjustado <= 0 && !planoFoiUsado)) return;
         const tamanho = `${gramas}g`;
-        saldosPorTamanho.set(tamanho, (saldosPorTamanho.get(tamanho) || 0) + Number(saldo.saldoUnidades || 0));
+        saldosPorTamanho.set(tamanho, (saldosPorTamanho.get(tamanho) || 0) + saldoAjustado);
       });
     });
     const planosAtivos = Array.from(saldosPorTamanho.entries())
@@ -1283,10 +1325,22 @@ export default function Agendamentos() {
     );
     const saldoMarmitasAposPedido = usouPlano
       ? planosCliente.length > 0
-        ? planosCliente.reduce((acc: number, plano: any) => acc + Number(plano.saldoUnidades || 0), 0)
+        ? planosCliente.reduce((acc: number, plano: any) => {
+            const consumoInferido = (plano.itens || []).reduce(
+              (total: number, saldo: any) => total + Number(consumoPlanoInferidoPorSaldo.get(Number(saldo.id)) || 0),
+              0,
+            );
+            return acc + Math.max(0, Number(plano.saldoUnidades || 0) - consumoInferido);
+          }, 0)
         : pagamentos
           .filter((p: any) => p.forma === "PLANO" && p.planoCliente)
-          .reduce((acc: number, p: any) => acc + Number(p.planoCliente.saldoUnidades || 0), 0)
+          .reduce((acc: number, p: any) => {
+            const consumoInferido = (p.planoCliente?.itens || []).reduce(
+              (total: number, saldo: any) => total + Number(consumoPlanoInferidoPorSaldo.get(Number(saldo.id)) || 0),
+              0,
+            );
+            return acc + Math.max(0, Number(p.planoCliente.saldoUnidades || 0) - consumoInferido);
+          }, 0)
       : null;
     const formaFallback = row.formaPagamento && row.formaPagamento !== "-" ? row.formaPagamento : "A_DEFINIR";
     const formaPagamentoExibida =
@@ -2207,7 +2261,7 @@ export default function Agendamentos() {
                         {((item.carbo && (item.tipoItem !== "PERSONALIZADA" || Number(item.carboGramas || 0) > 0)) ||
                           (item.proteina && (item.tipoItem !== "PERSONALIZADA" || Number(item.proteinaGramas || 0) > 0)) ||
                           (item.legume && (item.tipoItem !== "PERSONALIZADA" || Number(item.legumeGramas || 0) > 0)) ||
-                          item.feijao ||
+                          (item.feijao && (item.tipoItem === "PERSONALIZADA" ? Number(item.feijaoGramas || 0) > 0 : !!item.adicionarFeijao)) ||
                           item.complemento) && (
                           <div className="bg-slate-50 p-2 rounded-lg grid grid-cols-2 gap-x-4 gap-y-1 text-[11px]">
                             {item.carbo && (item.tipoItem !== "PERSONALIZADA" || Number(item.carboGramas || 0) > 0) && (
@@ -2219,7 +2273,7 @@ export default function Agendamentos() {
                             {item.legume && (item.tipoItem !== "PERSONALIZADA" || Number(item.legumeGramas || 0) > 0) && (
                               <div className="text-slate-500">• {formatIngrediente(item.legume, item.legumeGramas, item.tipoItem === "PERSONALIZADA")}</div>
                             )}
-                            {item.feijao && (
+                            {item.feijao && (item.tipoItem === "PERSONALIZADA" ? Number(item.feijaoGramas || 0) > 0 : !!item.adicionarFeijao) && (
                               <div className="text-slate-500">• {formatIngrediente(item.feijao, item.feijaoGramas, item.tipoItem === "PERSONALIZADA")}</div>
                             )}
                             {item.complemento && (
