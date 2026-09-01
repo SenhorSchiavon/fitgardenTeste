@@ -208,13 +208,39 @@ function getWhatsappUrl(telefone: string, mensagem: string) {
   return `https://wa.me/${phone}?text=${encodeURIComponent(mensagem)}`;
 }
 
+function getFormaTaxaVoucher(agendamento?: any, forma?: string | null) {
+  const pagamentos = agendamento?._raw?.pedido?.pagamentos ?? agendamento?._raw?.pagamentos ?? agendamento?.pagamentos ?? [];
+  const formaDireta = agendamento?.formaPagamentoTaxaVoucher ?? agendamento?._raw?.pedido?.formaPagamentoTaxaVoucher ?? agendamento?._raw?.formaPagamentoTaxaVoucher;
+
+  if (formaDireta) return String(formaDireta);
+  if (forma === "VOUCHER_TAXA_PIX") return "PIX";
+  if (forma === "VOUCHER_TAXA_DINHEIRO") return "DINHEIRO";
+  if (forma === "VOUCHER_TAXA_CARTAO") {
+    const pagamentoCartao = pagamentos.find((pagamento: any) =>
+      (pagamento.forma === "DEBITO" || pagamento.forma === "CREDITO") &&
+      Number(pagamento.valor || 0) > 0 &&
+      !pagamento.voucherId,
+    );
+    return pagamentoCartao?.forma || "CREDITO";
+  }
+
+  const pagamentoTaxa = pagamentos.find((pagamento: any) =>
+    pagamento.forma !== "VOUCHER" &&
+    pagamento.forma !== "PLANO" &&
+    pagamento.forma !== "A_DEFINIR" &&
+    Number(pagamento.valor || 0) > 0 &&
+    !pagamento.voucherId,
+  );
+  return pagamentoTaxa?.forma ? String(pagamentoTaxa.forma) : null;
+}
+
 function getLabelPagamento(forma: string, agendamento?: any) {
   const voucherCodigo = agendamento?.voucherCodigo ? String(agendamento.voucherCodigo).trim() : "";
   const isVoucher = forma === "VOUCHER" || forma?.startsWith("VOUCHER_") || agendamento?.formaPagamento === "VOUCHER";
 
   if (isVoucher) {
     const sufixoCodigo = voucherCodigo ? ` #${voucherCodigo}` : "";
-    const taxaForma = agendamento?.formaPagamentoTaxaVoucher || (forma === "VOUCHER_TAXA_PIX" ? "PIX" : forma === "VOUCHER_TAXA_DINHEIRO" ? "DINHEIRO" : forma === "VOUCHER_TAXA_CARTAO" ? "CREDITO" : null);
+    const taxaForma = getFormaTaxaVoucher(agendamento, forma);
     const sufixoTaxa = taxaForma && taxaForma !== "A_DEFINIR" ? ` + ${taxaForma === "CREDITO" ? "Cartão" : taxaForma}` : "";
     return `VOUCHER${sufixoCodigo}${sufixoTaxa}`;
   }
@@ -243,7 +269,7 @@ function getLabelPagamentoConfirmacao(agendamento: Agendamento) {
   if (agendamento.formaPagamento !== "VOUCHER" && !Number(agendamento.valorDescontoVoucher || 0)) {
     return getLabelPagamento(agendamento.formaPagamento);
   }
-  const taxa = agendamento.formaPagamentoTaxaVoucher || "A_DEFINIR";
+  const taxa = getFormaTaxaVoucher(agendamento, agendamento.formaPagamento) || "A_DEFINIR";
   const labelsTaxa: Record<string, string> = {
     A_DEFINIR: "Taxa não definida",
     PIX: agendamento.taxaVoucherPaga ? "Taxa PIX — PAGA" : "Taxa PIX — A PAGAR",
@@ -828,7 +854,7 @@ export default function Agendamentos() {
         <p><b>CLIENTE:</b> ${escaparHtml(pedido.cliente.toUpperCase())}</p>
         <p><b>HORÁRIO ESTIMADO:</b> ${escaparHtml(`${getLabelTipoEntrega(pedido.tipoEntrega)} ${pedido.faixaHorario}`.toUpperCase())}</p>
         <p><b>${pedido.endereco ? "ENDEREÇO / TELEFONE" : "TELEFONE"}:</b> ${escaparHtml(pedido.endereco ? `${pedido.endereco} / ${pedido.telefone}` : pedido.telefone)}</p>
-        <p><b>CONFERÊNCIA PAGAMENTO:</b> ${escaparHtml(getLabelPagamento(pedido.formaPagamento).toUpperCase())}</p>
+        <p><b>CONFERÊNCIA PAGAMENTO:</b> ${escaparHtml(getLabelPagamento(pedido.formaPagamento, pedido).toUpperCase())}</p>
         <div class="valores">${resumoFinanceiro}</div>
         <p><b>TAMANHO DAS MARMITAS (G):</b> ${escaparHtml(tamanhos)}</p>
       </section>`;
