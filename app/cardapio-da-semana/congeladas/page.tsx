@@ -1,7 +1,7 @@
 "use client";
 
 import { Minus, Plus, Send, ShoppingBasket, Snowflake } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -23,6 +23,26 @@ function telefoneFormatado(valor: string) {
   return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
 }
 
+function normalizarCongeladas(congeladas: CongeladaPublica[]) {
+  const porId = new Map<string, CongeladaPublica>();
+
+  for (const item of congeladas || []) {
+    const id = String(item.id || "");
+    const quantidade = Math.floor(Number(item.quantidade || 0));
+    const tamanhoGramas = Number(item.tamanhoGramas || 0);
+    if (!id || !Number.isFinite(quantidade) || quantidade <= 0 || !Number.isFinite(tamanhoGramas)) continue;
+
+    porId.set(id, {
+      ...item,
+      id,
+      tamanhoGramas,
+      quantidade,
+    });
+  }
+
+  return Array.from(porId.values()).sort((a, b) => a.tamanhoGramas - b.tamanhoGramas || a.nome.localeCompare(b.nome, "pt-BR"));
+}
+
 export default function CardapioCongeladasPage() {
   const [dados, setDados] = useState<DadosPublicos | null>(null);
   const [quantidades, setQuantidades] = useState<Record<string, number>>({});
@@ -32,29 +52,57 @@ export default function CardapioCongeladasPage() {
   const [enviando, setEnviando] = useState(false);
   const [tamanhoSelecionado, setTamanhoSelecionado] = useState("");
 
-  useEffect(() => {
+  const carregarCongeladas = useCallback(async () => {
     const destino = new URLSearchParams(window.location.search).get("destino");
     const path = destino === "alternativo" ? "/public/cardapio-semana?destino=alternativo" : "/public/cardapio-semana";
 
-    fetch(apiUrl(path), { cache: "no-store" })
-      .then(async (res) => {
-        const json = await res.json();
-        if (!res.ok) throw new Error(json?.message || "Erro ao carregar congeladas.");
-        setDados(json);
-      })
-      .catch((e) => setErro(e?.message || "Erro ao carregar congeladas."));
+    const res = await fetch(apiUrl(path), {
+      cache: "no-store",
+      headers: { "Cache-Control": "no-cache" },
+    });
+    const json = await res.json();
+    if (!res.ok) throw new Error(json?.message || "Erro ao carregar congeladas.");
+    setDados({
+      ...json,
+      congeladas: normalizarCongeladas(json?.congeladas || []),
+    });
   }, []);
+
+  useEffect(() => {
+    carregarCongeladas().catch((e) => setErro(e?.message || "Erro ao carregar congeladas."));
+  }, [carregarCongeladas]);
+
+  const congeladasEmEstoque = useMemo(() => normalizarCongeladas(dados?.congeladas || []), [dados]);
+
+  useEffect(() => {
+    setQuantidades((atuais) => {
+      const estoquePorId = new Map(congeladasEmEstoque.map((item) => [item.id, item.quantidade]));
+      const proximas: Record<string, number> = {};
+      for (const [id, quantidade] of Object.entries(atuais)) {
+        const estoque = estoquePorId.get(id) || 0;
+        const quantidadeValida = Math.min(Math.max(0, Number(quantidade || 0)), estoque);
+        if (quantidadeValida > 0) proximas[id] = quantidadeValida;
+      }
+      return proximas;
+    });
+  }, [congeladasEmEstoque]);
+
+  useEffect(() => {
+    if (tamanhoSelecionado && !congeladasEmEstoque.some((item) => String(item.tamanhoGramas) === tamanhoSelecionado)) {
+      setTamanhoSelecionado("");
+    }
+  }, [congeladasEmEstoque, tamanhoSelecionado]);
 
   const total = useMemo(() => Object.values(quantidades).reduce((soma, quantidade) => soma + Number(quantidade || 0), 0), [quantidades]);
   const tamanhos = useMemo(
-    () => Array.from(new Set((dados?.congeladas || []).filter((item) => item.quantidade > 0).map((item) => item.tamanhoGramas))).sort((a, b) => a - b),
-    [dados],
+    () => Array.from(new Set(congeladasEmEstoque.map((item) => item.tamanhoGramas))).sort((a, b) => a - b),
+    [congeladasEmEstoque],
   );
   const congeladasVisiveis = useMemo(
     () => tamanhoSelecionado
-      ? (dados?.congeladas || []).filter((item) => item.quantidade > 0 && String(item.tamanhoGramas) === tamanhoSelecionado)
+      ? congeladasEmEstoque.filter((item) => String(item.tamanhoGramas) === tamanhoSelecionado)
       : [],
-    [dados, tamanhoSelecionado],
+    [congeladasEmEstoque, tamanhoSelecionado],
   );
 
   function alterar(item: CongeladaPublica, delta: number) {
@@ -66,7 +114,7 @@ export default function CardapioCongeladasPage() {
 
   async function enviar() {
     if (!dados || !total || !nome.trim() || !telefone.trim()) return;
-    const itens = dados.congeladas
+    const itens = congeladasEmEstoque
       .filter((item) => Number(quantidades[item.id] || 0) > 0)
       .map((item) => ({ congeladaId: Number(item.id), quantidade: Number(quantidades[item.id]), nome: item.nome, tamanhoGramas: item.tamanhoGramas }));
     const whatsappWindow = isMobileWhatsAppDevice() ? null : window.open("about:blank", "_blank");
@@ -85,6 +133,7 @@ export default function CardapioCongeladasPage() {
       if (numero) openWhatsApp({ phone: numero, message: mensagem, desktopWindow: whatsappWindow });
       else whatsappWindow?.close();
       setQuantidades({});
+      await carregarCongeladas();
     } catch (e: any) {
       whatsappWindow?.close();
       setErro(e?.message || "Erro ao enviar pedido.");
@@ -126,8 +175,8 @@ export default function CardapioCongeladasPage() {
               </div>
             </div>
           ))}
-          {dados && dados.congeladas.length === 0 ? <p className="p-8 text-center text-[#60746f]">Nenhuma congelada disponível no momento.</p> : null}
-          {dados && dados.congeladas.length > 0 && !tamanhoSelecionado ? <p className="p-8 text-center text-[#60746f]">Selecione um tamanho para ver as opções com estoque.</p> : null}
+          {dados && congeladasEmEstoque.length === 0 ? <p className="p-8 text-center text-[#60746f]">Nenhuma congelada disponível no momento.</p> : null}
+          {dados && congeladasEmEstoque.length > 0 && !tamanhoSelecionado ? <p className="p-8 text-center text-[#60746f]">Selecione um tamanho para ver as opções com estoque.</p> : null}
           {tamanhoSelecionado && congeladasVisiveis.length === 0 ? <p className="p-8 text-center text-[#60746f]">Nenhuma congelada deste tamanho está disponível.</p> : null}
           </div>
         </section>
