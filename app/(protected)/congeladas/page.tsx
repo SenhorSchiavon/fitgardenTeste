@@ -1,16 +1,19 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { AlertTriangle, CheckCircle2, ClipboardCheck, Minus, PackagePlus, Plus, Save, Search, Warehouse, X } from "lucide-react";
+import { useCallback, useMemo, useState } from "react";
+import { AlertTriangle, CheckCircle2, ClipboardCheck, RefreshCw, RotateCcw, Minus, PackagePlus, Plus, Save, Search, Warehouse, X } from "lucide-react";
 import { Header } from "@/components/header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
+import { apiFetch } from "@/hooks/api";
 import { Congelada, CongeladaMovimentoTipo, useCongeladas } from "@/hooks/useCongeladas";
 import { useOpcoes } from "@/hooks/useOpcoes";
 
@@ -28,11 +31,39 @@ type MovimentoState = {
   quantidade: string;
 };
 
+type ReservaEstoqueItem = {
+  congeladaId?: number;
+  salgadoId?: number;
+  nome: string;
+  tamanhoGramas?: number;
+  quantidade: number;
+};
+
+type PedidoComReserva = {
+  id: number;
+  nome?: string | null;
+  telefone?: string | null;
+  origem?: string | null;
+  createdAt?: string | null;
+  itens?: {
+    congeladas?: ReservaEstoqueItem[];
+    salgados?: ReservaEstoqueItem[];
+    estoqueReservado?: boolean;
+  } | null;
+  cliente?: {
+    nome?: string | null;
+    telefone?: string | null;
+  } | null;
+};
+
+const API_URL = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:3333/api").replace(/\/+$/, "");
+
 export default function CongeladasPage() {
   const {
     congeladas,
     loading,
     saving,
+    fetchCongeladas,
     createCongelada,
     movimentarCongelada,
   } = useCongeladas();
@@ -52,6 +83,13 @@ export default function CongeladasPage() {
   const [conferidos, setConferidos] = useState<number[]>([]);
   const [salvandoConferencia, setSalvandoConferencia] = useState(false);
   const [buscaConferencia, setBuscaConferencia] = useState("");
+  const [reservasOpen, setReservasOpen] = useState(false);
+  const [reservas, setReservas] = useState<PedidoComReserva[]>([]);
+  const [carregandoReservas, setCarregandoReservas] = useState(false);
+  const [selecionadasReservas, setSelecionadasReservas] = useState<number[]>([]);
+  const [buscaReservas, setBuscaReservas] = useState("");
+  const [motivoLiberacao, setMotivoLiberacao] = useState("Pedido pendente sem uso do estoque reservado");
+  const [liberandoReservas, setLiberandoReservas] = useState(false);
 
   const listasPorTamanho = useMemo(
     () => TAMANHOS_CONGELADAS.map((tamanho) => ({
@@ -90,6 +128,48 @@ export default function CongeladasPage() {
       [item.nome, `${item.tamanhoGramas}g`].some((value) => value.toLowerCase().includes(busca)),
     );
   }, [buscaConferencia, congeladasConferencia]);
+  const reservasFiltradas = useMemo(() => {
+    const busca = buscaReservas.trim().toLowerCase();
+    if (!busca) return reservas;
+    return reservas.filter((pedido) => {
+      const itens = [
+        ...(pedido.itens?.congeladas || []),
+        ...(pedido.itens?.salgados || []),
+      ];
+      return [
+        String(pedido.id),
+        pedido.nome,
+        pedido.telefone,
+        pedido.cliente?.nome,
+        pedido.cliente?.telefone,
+        ...itens.map((item) => item.nome),
+      ].some((value) => String(value || "").toLowerCase().includes(busca));
+    });
+  }, [reservas, buscaReservas]);
+  const idsReservasFiltradas = useMemo(() => reservasFiltradas.map((pedido) => pedido.id), [reservasFiltradas]);
+  const selecionadasSet = useMemo(() => new Set(selecionadasReservas), [selecionadasReservas]);
+  const todasReservasSelecionadas = idsReservasFiltradas.length > 0 && idsReservasFiltradas.every((id) => selecionadasSet.has(id));
+
+  const carregarReservas = useCallback(async () => {
+    setCarregandoReservas(true);
+    try {
+      const url = new URL(`${API_URL}/pedidos-publicos`);
+      url.searchParams.set("status", "PENDENTE");
+      url.searchParams.set("estoqueReservado", "true");
+
+      const res = await apiFetch(url.toString(), { cache: "no-store" });
+      if (!res.ok) throw new Error("Falha ao carregar reservas pendentes");
+      const data = await res.json();
+      const pedidos = Array.isArray(data) ? data : [];
+      setReservas(pedidos);
+      setSelecionadasReservas((atuais) => atuais.filter((id) => pedidos.some((pedido: PedidoComReserva) => pedido.id === id)));
+    } catch (err: any) {
+      console.error(err);
+      toast.error(err?.message || "Erro ao carregar reservas pendentes");
+    } finally {
+      setCarregandoReservas(false);
+    }
+  }, []);
 
   const resetForm = () => {
     setForm({ nome: "", tamanhoGramas: "300", quantidade: "0" });
@@ -99,6 +179,64 @@ export default function CongeladasPage() {
   const handleNew = () => {
     resetForm();
     setFormOpen(true);
+  };
+
+  const abrirReservas = () => {
+    setReservasOpen(true);
+    void carregarReservas();
+  };
+
+  const alternarReserva = (id: number, checked: boolean) => {
+    setSelecionadasReservas((atuais) => (
+      checked ? [...new Set([...atuais, id])] : atuais.filter((item) => item !== id)
+    ));
+  };
+
+  const alternarTodasReservas = (checked: boolean) => {
+    setSelecionadasReservas((atuais) => (
+      checked
+        ? [...new Set([...atuais, ...idsReservasFiltradas])]
+        : atuais.filter((id) => !idsReservasFiltradas.includes(id))
+    ));
+  };
+
+  const totalItensReserva = (pedido: PedidoComReserva) => [
+    ...(pedido.itens?.congeladas || []),
+    ...(pedido.itens?.salgados || []),
+  ].reduce((total, item) => total + Number(item.quantidade || 0), 0);
+
+  const liberarReservasSelecionadas = async () => {
+    const motivo = motivoLiberacao.trim();
+    if (!selecionadasReservas.length) {
+      toast.error("Selecione ao menos um pedido");
+      return;
+    }
+    if (!motivo) {
+      toast.error("Informe o motivo da liberação");
+      return;
+    }
+
+    setLiberandoReservas(true);
+    try {
+      const res = await apiFetch(`${API_URL}/pedidos-publicos/lote/liberar-reservas`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: selecionadasReservas, motivo }),
+      });
+      if (!res.ok) {
+        const erro = await res.json().catch(() => null);
+        throw new Error(erro?.message || erro?.error || "Falha ao liberar reservas");
+      }
+      const data = await res.json();
+      toast.success(`${Number(data?.liberados || 0)} pedido(s) com estoque liberado`);
+      setSelecionadasReservas([]);
+      await Promise.all([carregarReservas(), fetchCongeladas()]);
+    } catch (err: any) {
+      console.error(err);
+      toast.error(err?.message || "Erro ao liberar reservas");
+    } finally {
+      setLiberandoReservas(false);
+    }
   };
 
   const iniciarConferencia = () => {
@@ -241,6 +379,9 @@ export default function CongeladasPage() {
       </div>
 
       <div className="flex flex-wrap items-center justify-end gap-2">
+        <Button variant="outline" onClick={abrirReservas} disabled={loading || saving}>
+          <RotateCcw className="mr-2 h-4 w-4" /> Reservas pendentes
+        </Button>
         {conferenciaAtiva ? (
           <Button variant="outline" onClick={cancelarConferencia} disabled={salvandoConferencia || saving}>
             <X className="mr-2 h-4 w-4" /> Sair da conferência
@@ -581,6 +722,155 @@ export default function CongeladasPage() {
                 {saving ? "Salvando..." : movimento.tipo === "SAIDA" ? "Remover" : "Adicionar"}
               </Button>
             </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={reservasOpen}
+        onOpenChange={(open) => {
+          setReservasOpen(open);
+          if (open) {
+            void carregarReservas();
+          } else {
+            setBuscaReservas("");
+            setSelecionadasReservas([]);
+          }
+        }}
+      >
+        <DialogContent className="flex max-h-[86vh] max-w-5xl flex-col overflow-hidden bg-white p-0">
+          <DialogHeader className="border-b px-6 py-5">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <DialogTitle className="text-gray-900">Reservas pendentes de estoque</DialogTitle>
+                <p className="mt-1 text-sm text-gray-500">
+                  Libera congeladas reservadas por pedidos públicos pendentes sem descartar o pedido.
+                </p>
+              </div>
+              <Button variant="outline" onClick={carregarReservas} disabled={carregandoReservas || liberandoReservas}>
+                <RefreshCw className={`mr-2 h-4 w-4 ${carregandoReservas ? "animate-spin" : ""}`} />
+                Atualizar
+              </Button>
+            </div>
+          </DialogHeader>
+
+          <div className="grid gap-3 border-b bg-gray-50 px-6 py-4 md:grid-cols-[1fr_180px_180px]">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+              <Input
+                value={buscaReservas}
+                onChange={(event) => setBuscaReservas(event.target.value)}
+                placeholder="Buscar por pedido, cliente, telefone ou marmita"
+                className="pl-9"
+              />
+            </div>
+            <div className="rounded-md border bg-white px-3 py-2">
+              <p className="text-xs font-semibold uppercase text-gray-500">Pedidos filtrados</p>
+              <p className="text-xl font-bold text-gray-900">{reservasFiltradas.length}</p>
+            </div>
+            <div className="rounded-md border bg-white px-3 py-2">
+              <p className="text-xs font-semibold uppercase text-gray-500">Selecionados</p>
+              <p className="text-xl font-bold text-emerald-700">{selecionadasReservas.length}</p>
+            </div>
+          </div>
+
+          <div className="flex min-h-0 flex-1 flex-col">
+            <div className="flex items-center gap-3 border-b px-6 py-3">
+              <Checkbox
+                checked={todasReservasSelecionadas}
+                onCheckedChange={(checked) => alternarTodasReservas(Boolean(checked))}
+                disabled={!idsReservasFiltradas.length || carregandoReservas || liberandoReservas}
+              />
+              <span className="text-sm font-medium text-gray-700">Selecionar pedidos visíveis</span>
+            </div>
+
+            <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
+              {carregandoReservas ? (
+                <div className="rounded-md border border-dashed p-8 text-center text-sm text-gray-500">
+                  Carregando reservas pendentes...
+                </div>
+              ) : reservasFiltradas.length ? (
+                <div className="space-y-3">
+                  {reservasFiltradas.map((pedido) => {
+                    const congeladasReservadas = pedido.itens?.congeladas || [];
+                    const salgadosReservados = pedido.itens?.salgados || [];
+                    const selecionado = selecionadasSet.has(pedido.id);
+                    return (
+                      <div key={pedido.id} className={`rounded-md border p-4 ${selecionado ? "border-emerald-300 bg-emerald-50" : "border-gray-200 bg-white"}`}>
+                        <div className="flex flex-wrap items-start gap-3">
+                          <Checkbox
+                            checked={selecionado}
+                            onCheckedChange={(checked) => alternarReserva(pedido.id, Boolean(checked))}
+                            disabled={liberandoReservas}
+                          />
+                          <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="font-bold text-gray-900">Pedido #{pedido.id}</span>
+                              <Badge className="bg-amber-600">Estoque reservado</Badge>
+                              <Badge variant="outline">{totalItensReserva(pedido)} item(ns)</Badge>
+                            </div>
+                            <p className="mt-1 text-sm text-gray-600">
+                              {pedido.nome || pedido.cliente?.nome || "Cliente sem nome"}
+                              {pedido.telefone || pedido.cliente?.telefone ? ` - ${pedido.telefone || pedido.cliente?.telefone}` : ""}
+                            </p>
+                            {pedido.createdAt ? (
+                              <p className="text-xs text-gray-400">
+                                Criado em {new Date(pedido.createdAt).toLocaleString("pt-BR")}
+                              </p>
+                            ) : null}
+                          </div>
+                        </div>
+
+                        <div className="mt-3 grid gap-2 pl-8">
+                          {congeladasReservadas.map((item, index) => (
+                            <div key={`congelada-${pedido.id}-${item.congeladaId || index}`} className="rounded-md bg-white px-3 py-2 text-sm text-gray-800">
+                              <span className="font-bold">{item.quantidade}x</span> {item.nome}
+                              {item.tamanhoGramas ? <Badge variant="secondary" className="ml-2">{item.tamanhoGramas}g</Badge> : null}
+                            </div>
+                          ))}
+                          {salgadosReservados.map((item, index) => (
+                            <div key={`salgado-${pedido.id}-${item.salgadoId || index}`} className="rounded-md bg-white px-3 py-2 text-sm text-gray-800">
+                              <span className="font-bold">{item.quantidade}x</span> {item.nome}
+                              <Badge variant="outline" className="ml-2">Salgado</Badge>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="rounded-md border border-dashed p-8 text-center text-sm text-gray-500">
+                  Nenhum pedido pendente com estoque reservado encontrado.
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="border-t bg-white px-6 py-4">
+            <div className="grid gap-3 md:grid-cols-[1fr_auto] md:items-end">
+              <div className="space-y-2">
+                <Label htmlFor="motivo-liberacao" className="text-gray-700">Motivo da liberação</Label>
+                <Textarea
+                  id="motivo-liberacao"
+                  value={motivoLiberacao}
+                  onChange={(event) => setMotivoLiberacao(event.target.value)}
+                  className="min-h-20 border-gray-200"
+                  placeholder="Ex.: cliente não confirmou, pedido antigo, ajuste operacional..."
+                />
+              </div>
+              <Button
+                onClick={liberarReservasSelecionadas}
+                disabled={!selecionadasReservas.length || !motivoLiberacao.trim() || liberandoReservas}
+                className="bg-emerald-700 text-white hover:bg-emerald-800"
+              >
+                <RotateCcw className="mr-2 h-4 w-4" />
+                {liberandoReservas ? "Liberando..." : "Liberar selecionados"}
+              </Button>
+            </div>
+            <p className="mt-2 text-xs text-gray-500">
+              O pedido continua pendente. Apenas o estoque reservado volta para as congeladas/salgados.
+            </p>
           </div>
         </DialogContent>
       </Dialog>
