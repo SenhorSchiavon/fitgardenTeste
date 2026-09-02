@@ -441,6 +441,17 @@ function getFormaPagamentoLabel(forma: FormaPagamento) {
   return labels[forma] || forma;
 }
 
+function getGruposVoucherSalvos(pagamentos: any[]) {
+  return Array.from(new Set(
+    pagamentos
+      .filter((pagamento: any) =>
+        (pagamento.forma === "VOUCHER" || pagamento.voucherId || String(pagamento.voucherCodigo || "").trim()) &&
+        String(pagamento.grupoPedido || "").trim(),
+      )
+      .map((pagamento: any) => String(pagamento.grupoPedido).trim()),
+  ));
+}
+
 function toISODateOnlyLocal(date?: Date | null) {
   if (!date) return "";
   const year = date.getFullYear();
@@ -784,13 +795,7 @@ export function NovoAgendamentoNovoLayout({
       );
       setFormaPagamentoRestanteVoucher(initialData.formaPagamentoRestanteVoucher || initialData.formaPagamentoTaxaVoucher || "A_DEFINIR");
       setVoucherCodigo(initialData.voucherCodigo || "");
-      setVoucherGruposPedido(
-        Array.from(new Set(
-          (initialData.pagamentos || initialData.pedido?.pagamentos || [])
-            .filter((pagamento: any) => pagamento.forma === "VOUCHER" && String(pagamento.grupoPedido || "").trim())
-            .map((pagamento: any) => String(pagamento.grupoPedido).trim()),
-        )),
-      );
+      setVoucherGruposPedido([]);
       const descontoInicial = Number(initialData.valorDescontoManual || initialData.pedido?.valorDescontoManual || 0);
       setValorDescontoManual(descontoInicial);
       setMotivoDescontoManual(initialData.motivoDescontoManual || initialData.pedido?.motivoDescontoManual || "");
@@ -947,11 +952,7 @@ export function NovoAgendamentoNovoLayout({
         complementoGramas: Number(it.complementoGramas || 0),
         });
       });
-      const gruposVoucherSalvos = Array.from(new Set(
-        pagamentosIniciais
-          .filter((pagamento: any) => pagamento.forma === "VOUCHER" && String(pagamento.grupoPedido || "").trim())
-          .map((pagamento: any) => String(pagamento.grupoPedido).trim()),
-      ));
+      const gruposVoucherSalvos = getGruposVoucherSalvos(pagamentosIniciais);
       if (gruposVoucherSalvos.length > 0) {
         setVoucherGruposPedido(gruposVoucherSalvos);
       } else if (isVoucherForma(formaInicial)) {
@@ -968,7 +969,9 @@ export function NovoAgendamentoNovoLayout({
         );
         const grupoInferido = gruposPorValor.find((grupo) =>
           Math.abs(Number(grupo.subtotal || 0) - valorVoucher) < 0.01,
-        );
+        ) || gruposPorValor
+          .filter((grupo) => Number(grupo.subtotal || 0) >= valorVoucher)
+          .sort((a, b) => Number(a.subtotal || 0) - Number(b.subtotal || 0))[0];
         setVoucherGruposPedido(grupoInferido ? [grupoInferido.id] : []);
       }
       setItens(mappedItens);
@@ -3789,6 +3792,13 @@ export function NovoAgendamentoNovoLayout({
                                             else set.delete(groupId);
                                             return Array.from(set);
                                           });
+                                          if (checked) {
+                                            setItens((atuais) => atuais.map((item) =>
+                                              String(item.groupId || item.id) === groupId
+                                                ? { ...item, usarPlano: false }
+                                                : item,
+                                            ));
+                                          }
                                         }}
                                       />
                                       Voucher

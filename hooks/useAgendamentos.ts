@@ -56,6 +56,7 @@ export type PedidoPendenteRow = {
     forma: string;
     voucherId?: number | null;
     voucherCodigo?: string | null;
+    grupoPedido?: string | null;
     voucher?: { id: number; codigo: string } | null;
     planoClienteId?: number | null;
     consumoUnidades?: number | null;
