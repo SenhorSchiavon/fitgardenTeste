@@ -23,7 +23,7 @@ type FormState = {
   quantidade: string;
 };
 
-const TAMANHOS_CONGELADAS = [200, 300, 400] as const;
+const TAMANHOS_PADRAO_CONGELADAS = [200, 300, 400] as const;
 
 type MovimentoState = {
   item: Congelada | null;
@@ -70,6 +70,7 @@ export default function CongeladasPage() {
   const { opcoes, loading: loadingOpcoes } = useOpcoes();
 
   const [buscas, setBuscas] = useState<Record<number, string>>({ 200: "", 300: "", 400: "" });
+  const [tamanhoFiltro, setTamanhoFiltro] = useState<number | "TODOS">("TODOS");
   const [opcaoBusca, setOpcaoBusca] = useState("");
   const [formOpen, setFormOpen] = useState(false);
   const [form, setForm] = useState<FormState>({ nome: "", tamanhoGramas: "300", quantidade: "0" });
@@ -91,14 +92,24 @@ export default function CongeladasPage() {
   const [motivoLiberacao, setMotivoLiberacao] = useState("Pedido pendente sem uso do estoque reservado");
   const [liberandoReservas, setLiberandoReservas] = useState(false);
 
+  const tamanhosCongeladas = useMemo(() => {
+    const tamanhos = new Set<number>(TAMANHOS_PADRAO_CONGELADAS);
+    congeladas.forEach((item) => tamanhos.add(Number(item.tamanhoGramas)));
+    return [...tamanhos].sort((a, b) => a - b);
+  }, [congeladas]);
+
   const listasPorTamanho = useMemo(
-    () => TAMANHOS_CONGELADAS.map((tamanho) => ({
+    () => tamanhosCongeladas.map((tamanho) => ({
       tamanho,
       itens: congeladas.filter((item) =>
         item.tamanhoGramas === tamanho && item.nome.toLowerCase().includes((buscas[tamanho] || "").trim().toLowerCase()),
       ),
     })),
-    [congeladas, buscas],
+    [congeladas, buscas, tamanhosCongeladas],
+  );
+  const listasVisiveis = useMemo(
+    () => tamanhoFiltro === "TODOS" ? listasPorTamanho : listasPorTamanho.filter((lista) => lista.tamanho === tamanhoFiltro),
+    [listasPorTamanho, tamanhoFiltro],
   );
 
   const opcoesMarmita = useMemo(() => {
@@ -516,7 +527,42 @@ export default function CongeladasPage() {
       ) : null}
 
       {!conferenciaAtiva ? <div className="flex flex-col gap-6">
-        {listasPorTamanho.map(({ tamanho, itens }) => (
+        <Card className="border-gray-200 bg-white">
+          <CardContent className="p-4">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="mr-1 text-sm font-semibold text-gray-700">Filtrar por peso:</span>
+              <Button
+                type="button"
+                variant={tamanhoFiltro === "TODOS" ? "default" : "outline"}
+                className={tamanhoFiltro === "TODOS" ? "bg-gray-900 text-white hover:bg-gray-800" : "border-gray-200"}
+                onClick={() => setTamanhoFiltro("TODOS")}
+              >
+                Todos
+              </Button>
+              {tamanhosCongeladas.map((tamanho) => {
+                const total = congeladas
+                  .filter((item) => item.tamanhoGramas === tamanho)
+                  .reduce((soma, item) => soma + item.quantidade, 0);
+                return (
+                  <Button
+                    key={tamanho}
+                    type="button"
+                    variant={tamanhoFiltro === tamanho ? "default" : "outline"}
+                    className={tamanhoFiltro === tamanho ? "bg-blue-600 text-white hover:bg-blue-700" : "border-gray-200"}
+                    onClick={() => setTamanhoFiltro(tamanho)}
+                  >
+                    {tamanho}g
+                    <Badge variant="secondary" className="ml-2 bg-white/80 text-gray-800">
+                      {total} un.
+                    </Badge>
+                  </Button>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+
+        {listasVisiveis.map(({ tamanho, itens }) => (
           <Card key={tamanho} className="min-w-0 border-gray-200 bg-white">
             <CardHeader className="border-b border-gray-100 pb-4">
               <div className="flex flex-wrap items-center justify-between gap-3">
@@ -606,7 +652,7 @@ export default function CongeladasPage() {
             <div className="space-y-2">
               <Label className="text-gray-700">Tamanho da marmita</Label>
               <div className="grid grid-cols-3 gap-2">
-                {TAMANHOS_CONGELADAS.map((tamanho) => (
+                {TAMANHOS_PADRAO_CONGELADAS.map((tamanho) => (
                   <Button
                     key={tamanho}
                     type="button"
