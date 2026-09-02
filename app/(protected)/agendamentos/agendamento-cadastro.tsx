@@ -543,6 +543,7 @@ export function NovoAgendamentoNovoLayout({
   const [valorDescontoManual, setValorDescontoManual] = useState(0);
   const [motivoDescontoManual, setMotivoDescontoManual] = useState("");
   const [voucherGruposPedido, setVoucherGruposPedido] = useState<string[]>([]);
+  const [gruposPlanoRemovidoManualmente, setGruposPlanoRemovidoManualmente] = useState<string[]>([]);
   const [usarPlanoEscolhidoManualmente, setUsarPlanoEscolhidoManualmente] = useState(false);
   const [incluirComplementoPersonalizada, setIncluirComplementoPersonalizada] = useState(true);
 
@@ -946,6 +947,30 @@ export function NovoAgendamentoNovoLayout({
         complementoGramas: Number(it.complementoGramas || 0),
         });
       });
+      const gruposVoucherSalvos = Array.from(new Set(
+        pagamentosIniciais
+          .filter((pagamento: any) => pagamento.forma === "VOUCHER" && String(pagamento.grupoPedido || "").trim())
+          .map((pagamento: any) => String(pagamento.grupoPedido).trim()),
+      ));
+      if (gruposVoucherSalvos.length > 0) {
+        setVoucherGruposPedido(gruposVoucherSalvos);
+      } else if (isVoucherForma(formaInicial)) {
+        const valorVoucher = pagamentosIniciais
+          .filter((pagamento: any) => pagamento.forma === "VOUCHER" || pagamento.voucherId)
+          .reduce((total: number, pagamento: any) => total + Number(pagamento.valor || 0), 0);
+        const gruposPorValor = Object.values(
+          mappedItens.reduce((acc, item) => {
+            const chave = String(item.groupId || item.id);
+            acc[chave] = acc[chave] || { id: chave, subtotal: 0 };
+            acc[chave].subtotal += Number(item.precoUnit || 0) * Number(item.quantidade || 0);
+            return acc;
+          }, {} as Record<string, { id: string; subtotal: number }>),
+        );
+        const grupoInferido = gruposPorValor.find((grupo) =>
+          Math.abs(Number(grupo.subtotal || 0) - valorVoucher) < 0.01,
+        );
+        setVoucherGruposPedido(grupoInferido ? [grupoInferido.id] : []);
+      }
       setItens(mappedItens);
 
     } else if (open && !initialData) {
@@ -1770,6 +1795,7 @@ export function NovoAgendamentoNovoLayout({
     setFormaPagamentoRestanteVoucher("A_DEFINIR");
     setVoucherCodigo("");
     setVoucherGruposPedido([]);
+    setGruposPlanoRemovidoManualmente([]);
     setDistanciaEntregaKm(null);
     setEnderecoSelecionadoId("");
     setAvisoHorarioAutomatico("");

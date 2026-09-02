@@ -2795,6 +2795,8 @@ export default function Agendamentos() {
               formaPagamento: payload.formaPagamento,
               voucherCodigo: payload.voucherCodigo,
               formaPagamentoTaxaVoucher: payload.formaPagamentoTaxaVoucher,
+              formaPagamentoRestanteVoucher: payload.formaPagamentoRestanteVoucher,
+              voucherGruposPedido: payload.voucherGruposPedido,
               pagamentoJaRealizado: payload.pagamentoJaRealizado,
               valorDescontoManual: payload.valorDescontoManual,
               motivoDescontoManual: payload.motivoDescontoManual,
