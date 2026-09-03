@@ -356,9 +356,9 @@ export default function PedidoSemAgendamento() {
 
       <div className="grid grid-cols-1 gap-4 xl:h-[calc(100vh-132px)] xl:grid-cols-[minmax(0,1fr)_340px] xl:overflow-hidden">
         {/* ESQUERDA: CATALOGO DE MARMITAS */}
-        <div className="flex min-h-0 flex-col gap-4">
+        <div className="flex min-h-0 flex-col gap-4 xl:h-full xl:overflow-hidden">
           {/* CLIENTE & DADOS */}
-          <Card className="flex min-h-0 flex-1 flex-col border-border/60 shadow-sm">
+          <Card className="shrink-0 border-border/60 shadow-sm">
             <CardHeader className="pb-3">
               <CardTitle className="text-base font-bold flex items-center gap-2 text-primary">
                 <User className="h-4 w-4 text-secondary" />
@@ -440,7 +440,7 @@ export default function PedidoSemAgendamento() {
           </Card>
 
           {/* VITRINE / FILTROS */}
-          <Card className="border-border/60 shadow-sm">
+          <Card className="flex min-h-0 flex-1 flex-col border-border/60 shadow-sm">
             <CardHeader className="pb-3">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <CardTitle className="text-base font-bold flex items-center gap-2 text-primary">
@@ -719,8 +719,8 @@ export default function PedidoSemAgendamento() {
 
         {/* DIREITA: RESUMO DO PEDIDO / CARRINHO */}
         <div className="min-h-0 space-y-6 xl:overflow-hidden">
-          <Card className="border-border/60 shadow-sm xl:sticky xl:top-0">
-            <CardHeader className="pb-3 border-b">
+          <Card className="flex min-h-0 flex-col border-border/60 shadow-sm xl:sticky xl:top-0 xl:max-h-full">
+            <CardHeader className="shrink-0 pb-3 border-b">
               <CardTitle className="text-base font-bold flex items-center justify-between text-primary">
                 <span>Resumo do Pedido</span>
                 <Badge variant="secondary" className="font-bold">
@@ -728,9 +728,9 @@ export default function PedidoSemAgendamento() {
                 </Badge>
               </CardTitle>
             </CardHeader>
-            <CardContent className="p-4 space-y-4">
+            <CardContent className="flex min-h-0 flex-1 flex-col p-4">
               {clienteSelecionado && carrinho.length > 0 && (
-                <div className="flex gap-2">
+                <div className="mb-3 flex shrink-0 gap-2">
                   <Button type="button" variant="outline" size="sm" className="h-8 flex-1 text-xs font-bold" onClick={marcarTodosCompativeisComPlano}>
                     Abater planos
                   </Button>
@@ -740,7 +740,7 @@ export default function PedidoSemAgendamento() {
                 </div>
               )}
               {/* ITENS SELECIONADOS NO CARRINHO */}
-              <div className="divide-y max-h-[360px] overflow-y-auto pr-1">
+              <div className="min-h-0 flex-1 divide-y overflow-y-auto pr-1">
                 {carrinho.map((item) => {
                   const tamanho = getTamanhoDoItem(tamanhos, item);
                   const precoEfetivo = getPrecoUnitPorQuantidade(tamanho, totalMarmitas);
@@ -799,39 +799,41 @@ export default function PedidoSemAgendamento() {
                 )}
               </div>
 
-              {/* VALORES E TOTAL */}
-              <div className="border-t pt-4 space-y-2">
-                <div className="flex justify-between text-sm text-muted-foreground">
-                  <span>Subtotal</span>
-                  <span>R$ {resumoValores.subtotal.toFixed(2)}</span>
-                </div>
-                {resumoValores.descontoTabela > 0 && (
-                  <div className="flex justify-between text-sm text-emerald-700">
-                    <span>Desconto por quantidade</span>
-                    <span>- R$ {resumoValores.descontoTabela.toFixed(2)}</span>
+              <div className="mt-4 shrink-0 border-t bg-white pt-4">
+                {/* VALORES E TOTAL */}
+                <div className="space-y-2">
+                  <div className="flex justify-between text-sm text-muted-foreground">
+                    <span>Subtotal</span>
+                    <span>R$ {resumoValores.subtotal.toFixed(2)}</span>
                   </div>
-                )}
-                {resumoValores.valorPlano > 0 && (
-                  <div className="flex justify-between text-sm text-emerald-700">
-                    <span>Abatido do plano</span>
-                    <span>- R$ {resumoValores.valorPlano.toFixed(2)}</span>
+                  {resumoValores.descontoTabela > 0 && (
+                    <div className="flex justify-between text-sm text-emerald-700">
+                      <span>Desconto por quantidade</span>
+                      <span>- R$ {resumoValores.descontoTabela.toFixed(2)}</span>
+                    </div>
+                  )}
+                  {resumoValores.valorPlano > 0 && (
+                    <div className="flex justify-between text-sm text-emerald-700">
+                      <span>Abatido do plano</span>
+                      <span>- R$ {resumoValores.valorPlano.toFixed(2)}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between text-lg font-extrabold text-primary pt-1">
+                    <span>Total</span>
+                    <span className="text-xl text-emerald-700">R$ {resumoValores.totalAPagar.toFixed(2)}</span>
                   </div>
-                )}
-                <div className="flex justify-between text-lg font-extrabold text-primary pt-1">
-                  <span>Total</span>
-                  <span className="text-xl text-emerald-700">R$ {resumoValores.totalAPagar.toFixed(2)}</span>
                 </div>
-              </div>
 
-              {/* BOTAO PAGAMENTO */}
-              <Button
-                className="w-full h-12 text-base font-bold bg-secondary hover:bg-secondary/90 text-white shadow-lg"
-                onClick={() => setPagamentoDialogOpen(true)}
-                disabled={carrinho.length === 0 || !clienteId || loading}
-              >
-                <CreditCard className="mr-2 h-5 w-5" />
-                Finalizar Pagamento
-              </Button>
+                {/* BOTAO PAGAMENTO */}
+                <Button
+                  className="mt-4 w-full h-12 text-base font-bold bg-secondary hover:bg-secondary/90 text-white shadow-lg"
+                  onClick={() => setPagamentoDialogOpen(true)}
+                  disabled={carrinho.length === 0 || !clienteId || loading}
+                >
+                  <CreditCard className="mr-2 h-5 w-5" />
+                  Finalizar Pagamento
+                </Button>
+              </div>
             </CardContent>
           </Card>
         </div>
