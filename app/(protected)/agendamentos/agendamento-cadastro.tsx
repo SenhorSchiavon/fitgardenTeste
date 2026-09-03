@@ -391,11 +391,29 @@ function uid() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
+const FERIADOS_OPERACIONAIS = new Set([
+  "2026-09-07",
+]);
+
+function toLocalDateKey(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function isFeriadoOperacional(date?: Date | null) {
+  return !!date && FERIADOS_OPERACIONAIS.has(toLocalDateKey(date));
+}
+
 function getDefaultAgendamentoDate() {
   const proximaData = new Date();
   const diaSemana = proximaData.getDay();
   const diasAAdicionar = diaSemana === 5 ? 3 : diaSemana === 6 ? 2 : 1;
   proximaData.setDate(proximaData.getDate() + diasAAdicionar);
+  while (isFeriadoOperacional(proximaData)) {
+    proximaData.setDate(proximaData.getDate() + 1);
+  }
   return proximaData;
 }
 
@@ -3045,6 +3063,18 @@ export function NovoAgendamentoNovoLayout({
       });
       return;
     }
+    if (isFeriadoOperacional(data)) {
+      toast.error("Data indisponível", {
+        description: "Essa data está marcada como feriado operacional.",
+      });
+      return;
+    }
+    if (tipo === "CONGELAR" && isFeriadoOperacional(dataEntregaCongelada)) {
+      toast.error("Data de entrega indisponível", {
+        description: "A entrega da congelada não pode cair em feriado operacional.",
+      });
+      return;
+    }
     if (agendamentoDuplicado && !initialData) {
       toast.error(`Cliente já possui agendamento para o dia ${formatDateBR(data)}`, {
         description: "Para adicionar mais coisas, alterar o pedido existente.",
@@ -4025,10 +4055,15 @@ export function NovoAgendamentoNovoLayout({
                         mode="single"
                         selected={data}
                         onSelect={setData}
-                        disabled={(day) => isPastLocalDay(day)}
+                        disabled={(day) => isPastLocalDay(day) || isFeriadoOperacional(day)}
                         locale={ptBR}
                       />
                     </div>
+                    {isFeriadoOperacional(data) ? (
+                      <p className="text-xs font-semibold text-amber-700">
+                        Data marcada como feriado operacional.
+                      </p>
+                    ) : null}
                   </div>
 
                   {tipo === "CONGELAR" && (
@@ -4039,9 +4074,15 @@ export function NovoAgendamentoNovoLayout({
                           mode="single"
                           selected={dataEntregaCongelada}
                           onSelect={setDataEntregaCongelada}
+                          disabled={(day) => isPastLocalDay(day) || isFeriadoOperacional(day)}
                           locale={ptBR}
                         />
                       </div>
+                      {isFeriadoOperacional(dataEntregaCongelada) ? (
+                        <p className="text-xs font-semibold text-amber-700">
+                          Data marcada como feriado operacional.
+                        </p>
+                      ) : null}
                     </div>
                   )}
 
