@@ -89,6 +89,12 @@ function getPrecoUnitPorQuantidade(tamanho: any, quantidade: number) {
   return Number(tamanho?.valorUnitario || 0);
 }
 
+function getQuantidadePorTamanho(carrinho: ItemCarrinho[], tamanhoId?: number) {
+  return carrinho
+    .filter((item) => Number(item.tamanhoId || 0) === Number(tamanhoId || 0))
+    .reduce((total, item) => total + Number(item.quantidade || 0), 0);
+}
+
 export default function PedidoSemAgendamento() {
   const { clientes } = useClientes();
   const { cardapios } = useCardapios();
@@ -207,14 +213,16 @@ export default function PedidoSemAgendamento() {
     const subtotal = carrinho.reduce((acc, item) => acc + item.precoUnit * item.quantidade, 0);
     const totalComDesconto = carrinho.reduce((acc, item) => {
       const tamanho = tamanhos.find((t: any) => Number(t.id) === Number(item.tamanhoId));
-      return acc + getPrecoUnitPorQuantidade(tamanho, item.quantidade) * item.quantidade;
+      const quantidadeDoTamanho = getQuantidadePorTamanho(carrinho, item.tamanhoId);
+      return acc + getPrecoUnitPorQuantidade(tamanho, quantidadeDoTamanho) * item.quantidade;
     }, 0);
     const descontoTabela = Math.max(0, subtotal - totalComDesconto);
     const valorPlano = carrinho
       .filter((item) => item.usarPlano)
       .reduce((acc, item) => {
         const tamanho = tamanhos.find((t: any) => Number(t.id) === Number(item.tamanhoId));
-        return acc + getPrecoUnitPorQuantidade(tamanho, item.quantidade) * item.quantidade;
+        const quantidadeDoTamanho = getQuantidadePorTamanho(carrinho, item.tamanhoId);
+        return acc + getPrecoUnitPorQuantidade(tamanho, quantidadeDoTamanho) * item.quantidade;
       }, 0);
     return {
       subtotal,
@@ -733,7 +741,8 @@ export default function PedidoSemAgendamento() {
               <div className="divide-y max-h-[360px] overflow-y-auto pr-1">
                 {carrinho.map((item) => {
                   const tamanho = tamanhos.find((t: any) => Number(t.id) === Number(item.tamanhoId));
-                  const precoEfetivo = getPrecoUnitPorQuantidade(tamanho, item.quantidade);
+                  const quantidadeDoTamanho = getQuantidadePorTamanho(carrinho, item.tamanhoId);
+                  const precoEfetivo = getPrecoUnitPorQuantidade(tamanho, quantidadeDoTamanho);
                   const temPrecoEscalonado = Math.abs(precoEfetivo - item.precoUnit) > 0.001;
 
                   return (
