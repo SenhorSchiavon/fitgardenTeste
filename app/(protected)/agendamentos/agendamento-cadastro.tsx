@@ -62,6 +62,7 @@ import {
 import { useRegrasPersonalizadas } from "@/hooks/useRegrasPersonalizadas";
 import { toast } from "sonner";
 import { useAgendamentos } from "@/hooks/useAgendamentos";
+import { FeriadoOperacional, dataEhFeriadoOperacional, useFeriadosOperacionais } from "@/hooks/useFeriadosOperacionais";
 import { PlanoCatalogo, usePlanosCliente } from "@/hooks/usePlanosCliente";
 import { ClienteFormDialog } from "@/components/clientes/ClienteFormDialog";
 import { apiFetch } from "@/hooks/api";
@@ -391,10 +392,6 @@ function uid() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
-const FERIADOS_OPERACIONAIS = new Set([
-  "2026-09-07",
-]);
-
 function toLocalDateKey(date: Date) {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");
@@ -402,16 +399,16 @@ function toLocalDateKey(date: Date) {
   return `${year}-${month}-${day}`;
 }
 
-function isFeriadoOperacional(date?: Date | null) {
-  return !!date && FERIADOS_OPERACIONAIS.has(toLocalDateKey(date));
+function isFeriadoOperacional(date: Date | undefined | null, feriados: FeriadoOperacional[]) {
+  return !!date && dataEhFeriadoOperacional(toLocalDateKey(date), feriados);
 }
 
-function getDefaultAgendamentoDate() {
+function getDefaultAgendamentoDate(feriados: FeriadoOperacional[] = []) {
   const proximaData = new Date();
   const diaSemana = proximaData.getDay();
   const diasAAdicionar = diaSemana === 5 ? 3 : diaSemana === 6 ? 2 : 1;
   proximaData.setDate(proximaData.getDate() + diasAAdicionar);
-  while (isFeriadoOperacional(proximaData)) {
+  while (isFeriadoOperacional(proximaData, feriados)) {
     proximaData.setDate(proximaData.getDate() + 1);
   }
   return proximaData;
@@ -529,6 +526,7 @@ export function NovoAgendamentoNovoLayout({
   initialData,
 }: Props) {
   const { regras } = useRegrasPersonalizadas();
+  const { feriados } = useFeriadosOperacionais();
   const { estimarTaxaEntrega, getAgendamentos, getUltimoAgendamentoCliente } = useAgendamentos();
   const { listPlanos, vincularPlano, saving: savingPlano } = usePlanosCliente();
   const [valorTaxa, setValorTaxa] = useState(0);
@@ -781,6 +779,12 @@ export function NovoAgendamentoNovoLayout({
   }, [horario.inicio, horario.fim, horarios, tipo]);
 
   useEffect(() => {
+    if (!open || initialData || !feriados.length) return;
+    setData((atual) => isFeriadoOperacional(atual, feriados) ? getDefaultAgendamentoDate(feriados) : atual);
+    setDataEntregaCongelada((atual) => isFeriadoOperacional(atual, feriados) ? getDefaultAgendamentoDate(feriados) : atual);
+  }, [open, initialData, feriados]);
+
+  useEffect(() => {
     if (open && initialData) {
       setClienteId(String(initialData.pedido?.clienteId || initialData.clienteId || ""));
       setPedidosPublicosIds(
@@ -791,8 +795,8 @@ export function NovoAgendamentoNovoLayout({
             : [],
       );
       setTipo(initialData.tipoEntrega || initialData.tipo || "NAO_DEFINIR");
-      setData(parseDateOnlyLocal(initialData.data) || getDefaultAgendamentoDate());
-      setDataEntregaCongelada(parseDateOnlyLocal(initialData.dataEntregaCongelada) || getDefaultAgendamentoDate());
+      setData(parseDateOnlyLocal(initialData.data) || getDefaultAgendamentoDate(feriados));
+      setDataEntregaCongelada(parseDateOnlyLocal(initialData.dataEntregaCongelada) || getDefaultAgendamentoDate(feriados));
       setCongelarSubtipo(initialData.congelarSubtipo === "ENTREGA" ? "ENTREGA" : "RETIRADA");
       
       const faixa = initialData.faixaHorario || "13:00-14:00";
@@ -1160,7 +1164,7 @@ export function NovoAgendamentoNovoLayout({
     return () => {
       ativo = false;
     };
-  }, [open, clienteId, initialData, getUltimoAgendamentoCliente]);
+  }, [open, clienteId, initialData, getUltimoAgendamentoCliente, feriados]);
 
   useEffect(() => {
     let ativo = true;
@@ -1799,8 +1803,8 @@ export function NovoAgendamentoNovoLayout({
   function resetForm() {
     setClienteId("");
     setTipo("NAO_DEFINIR");
-    setData(getDefaultAgendamentoDate());
-    setDataEntregaCongelada(getDefaultAgendamentoDate());
+    setData(getDefaultAgendamentoDate(feriados));
+    setDataEntregaCongelada(getDefaultAgendamentoDate(feriados));
     setCongelarSubtipo("RETIRADA");
     setHorario({ inicio: "13:00", fim: "14:00" });
     setEndereco("");
@@ -3063,13 +3067,13 @@ export function NovoAgendamentoNovoLayout({
       });
       return;
     }
-    if (isFeriadoOperacional(data)) {
+    if (isFeriadoOperacional(data, feriados)) {
       toast.error("Data indisponível", {
         description: "Essa data está marcada como feriado operacional.",
       });
       return;
     }
-    if (tipo === "CONGELAR" && isFeriadoOperacional(dataEntregaCongelada)) {
+    if (tipo === "CONGELAR" && isFeriadoOperacional(dataEntregaCongelada, feriados)) {
       toast.error("Data de entrega indisponível", {
         description: "A entrega da congelada não pode cair em feriado operacional.",
       });
@@ -4055,11 +4059,11 @@ export function NovoAgendamentoNovoLayout({
                         mode="single"
                         selected={data}
                         onSelect={setData}
-                        disabled={(day) => isPastLocalDay(day) || isFeriadoOperacional(day)}
+                        disabled={(day) => isPastLocalDay(day) || isFeriadoOperacional(day, feriados)}
                         locale={ptBR}
                       />
                     </div>
-                    {isFeriadoOperacional(data) ? (
+                    {isFeriadoOperacional(data, feriados) ? (
                       <p className="text-xs font-semibold text-amber-700">
                         Data marcada como feriado operacional.
                       </p>
@@ -4074,11 +4078,11 @@ export function NovoAgendamentoNovoLayout({
                           mode="single"
                           selected={dataEntregaCongelada}
                           onSelect={setDataEntregaCongelada}
-                          disabled={(day) => isPastLocalDay(day) || isFeriadoOperacional(day)}
+                          disabled={(day) => isPastLocalDay(day) || isFeriadoOperacional(day, feriados)}
                           locale={ptBR}
                         />
                       </div>
-                      {isFeriadoOperacional(dataEntregaCongelada) ? (
+                      {isFeriadoOperacional(dataEntregaCongelada, feriados) ? (
                         <p className="text-xs font-semibold text-amber-700">
                           Data marcada como feriado operacional.
                         </p>

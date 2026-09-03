@@ -89,10 +89,13 @@ function getPrecoUnitPorQuantidade(tamanho: any, quantidade: number) {
   return Number(tamanho?.valorUnitario || 0);
 }
 
-function getQuantidadePorTamanho(carrinho: ItemCarrinho[], tamanhoId?: number) {
-  return carrinho
-    .filter((item) => Number(item.tamanhoId || 0) === Number(tamanhoId || 0))
-    .reduce((total, item) => total + Number(item.quantidade || 0), 0);
+function getTamanhoDoItem(tamanhos: any[], item: ItemCarrinho) {
+  const porId = tamanhos.find((t: any) => Number(t.id) === Number(item.tamanhoId));
+  if (porId) return porId;
+
+  const gramas = item.tamanhoGramas || Number(String(item.tamanhoLabel || "").replace(/\D/g, ""));
+  if (!gramas) return null;
+  return tamanhos.find((t: any) => Number(t.pesagemGramas) === Number(gramas)) || null;
 }
 
 export default function PedidoSemAgendamento() {
@@ -211,18 +214,17 @@ export default function PedidoSemAgendamento() {
   const totalMarmitas = carrinho.reduce((acc, item) => acc + item.quantidade, 0);
   const resumoValores = useMemo(() => {
     const subtotal = carrinho.reduce((acc, item) => acc + item.precoUnit * item.quantidade, 0);
+    const quantidadeTotalTabela = carrinho.reduce((acc, item) => acc + Number(item.quantidade || 0), 0);
     const totalComDesconto = carrinho.reduce((acc, item) => {
-      const tamanho = tamanhos.find((t: any) => Number(t.id) === Number(item.tamanhoId));
-      const quantidadeDoTamanho = getQuantidadePorTamanho(carrinho, item.tamanhoId);
-      return acc + getPrecoUnitPorQuantidade(tamanho, quantidadeDoTamanho) * item.quantidade;
+      const tamanho = getTamanhoDoItem(tamanhos, item);
+      return acc + getPrecoUnitPorQuantidade(tamanho, quantidadeTotalTabela) * item.quantidade;
     }, 0);
     const descontoTabela = Math.max(0, subtotal - totalComDesconto);
     const valorPlano = carrinho
       .filter((item) => item.usarPlano)
       .reduce((acc, item) => {
-        const tamanho = tamanhos.find((t: any) => Number(t.id) === Number(item.tamanhoId));
-        const quantidadeDoTamanho = getQuantidadePorTamanho(carrinho, item.tamanhoId);
-        return acc + getPrecoUnitPorQuantidade(tamanho, quantidadeDoTamanho) * item.quantidade;
+        const tamanho = getTamanhoDoItem(tamanhos, item);
+        return acc + getPrecoUnitPorQuantidade(tamanho, quantidadeTotalTabela) * item.quantidade;
       }, 0);
     return {
       subtotal,
@@ -352,11 +354,11 @@ export default function PedidoSemAgendamento() {
         subtitle="Vendas rápidas de marmitas do cardápio da semana e congeladas em estoque"
       />
 
-      <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_340px] gap-4">
+      <div className="grid grid-cols-1 gap-4 xl:h-[calc(100vh-132px)] xl:grid-cols-[minmax(0,1fr)_340px] xl:overflow-hidden">
         {/* ESQUERDA: CATALOGO DE MARMITAS */}
-        <div className="space-y-4 min-w-0">
+        <div className="flex min-h-0 flex-col gap-4">
           {/* CLIENTE & DADOS */}
-          <Card className="border-border/60 shadow-sm">
+          <Card className="flex min-h-0 flex-1 flex-col border-border/60 shadow-sm">
             <CardHeader className="pb-3">
               <CardTitle className="text-base font-bold flex items-center gap-2 text-primary">
                 <User className="h-4 w-4 text-secondary" />
@@ -480,7 +482,7 @@ export default function PedidoSemAgendamento() {
                 </div>
               </div>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="flex min-h-0 flex-1 flex-col space-y-4">
               {/* Barra de Pesquisa + Filtros de Tamanho */}
               <div className="space-y-3">
                 <div className="relative">
@@ -521,7 +523,7 @@ export default function PedidoSemAgendamento() {
               </div>
 
               {/* LISTAGEM DOS ITENS (CARDÁPIO + CONGELADAS) */}
-              <div className="space-y-4 pt-2">
+              <div className="min-h-0 flex-1 space-y-4 overflow-y-auto pr-1 pt-2">
                 {/* MARMITAS CONGELADAS */}
                 {congeladasFiltradas.length > 0 && (
                   <div className="space-y-2">
@@ -716,8 +718,8 @@ export default function PedidoSemAgendamento() {
         </div>
 
         {/* DIREITA: RESUMO DO PEDIDO / CARRINHO */}
-        <div className="space-y-6">
-          <Card className="border-border/60 shadow-sm sticky top-6">
+        <div className="min-h-0 space-y-6 xl:overflow-hidden">
+          <Card className="border-border/60 shadow-sm xl:sticky xl:top-0">
             <CardHeader className="pb-3 border-b">
               <CardTitle className="text-base font-bold flex items-center justify-between text-primary">
                 <span>Resumo do Pedido</span>
@@ -740,9 +742,8 @@ export default function PedidoSemAgendamento() {
               {/* ITENS SELECIONADOS NO CARRINHO */}
               <div className="divide-y max-h-[360px] overflow-y-auto pr-1">
                 {carrinho.map((item) => {
-                  const tamanho = tamanhos.find((t: any) => Number(t.id) === Number(item.tamanhoId));
-                  const quantidadeDoTamanho = getQuantidadePorTamanho(carrinho, item.tamanhoId);
-                  const precoEfetivo = getPrecoUnitPorQuantidade(tamanho, quantidadeDoTamanho);
+                  const tamanho = getTamanhoDoItem(tamanhos, item);
+                  const precoEfetivo = getPrecoUnitPorQuantidade(tamanho, totalMarmitas);
                   const temPrecoEscalonado = Math.abs(precoEfetivo - item.precoUnit) > 0.001;
 
                   return (

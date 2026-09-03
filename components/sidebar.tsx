@@ -65,6 +65,7 @@ const cadastroItems: NavItem[] = [
   { href: "/tamanhos-valores", label: "Tamanhos e Valores", icon: Settings, screen: "tamanhos-valores" },
   { href: "/regras-personalizada", label: "Regra Personalizada", icon: Settings, screen: "regras-personalizada" },
   { href: "/relacoes-perdas", label: "Relações de Perdas", icon: Settings, screen: "relacoes-perdas" },
+  { href: "/feriados-operacionais", label: "Feriados", icon: Calendar, screen: "feriados-operacionais" },
 ];
 
 const pedidosItems: NavItem[] = [
