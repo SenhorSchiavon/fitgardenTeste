@@ -193,7 +193,7 @@ export default function CardapioDaSemanaPage() {
     return Array.from(map.entries())
       .map(([categoria, items]) => ({
         categoria,
-        items: items.sort((a, b) => Number(a.ordem || 0) - Number(b.ordem || 0) || a.nome.localeCompare(b.nome)),
+        items: items.sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR", { sensitivity: "base" })),
       }))
       .sort((a, b) => {
         return categoryOrder(a.categoria) - categoryOrder(b.categoria);
