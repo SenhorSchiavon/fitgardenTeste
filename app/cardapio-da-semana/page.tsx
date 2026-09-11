@@ -280,7 +280,7 @@ export default function CardapioDaSemanaPage() {
       setErroEnvio("");
       const res = await fetch(apiUrl("/public/pedidos"), {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "Cache-Control": "no-cache" },
         body: JSON.stringify({
           cardapioId: cardapio?.id,
           origem: cardapio?.destinoWhatsApp || "principal",
@@ -302,9 +302,9 @@ export default function CardapioDaSemanaPage() {
       if (!res.ok) throw new Error(data?.message || "Não foi possível registrar o pedido.");
       const text = `Olá, fiz um novo pedido pelo site! 😎\nPedido #${data.id}`;
       openWhatsApp({ phone: whatsappNumber, message: text, desktopWindow: whatsappWindow });
-    } catch {
+    } catch (e: any) {
       whatsappWindow?.close();
-      setErroEnvio("O pedido não pôde ser registrado no sistema agora.");
+      setErroEnvio(e?.message || "O pedido não pôde ser registrado no sistema agora.");
     } finally {
       setEnviando(false);
     }
