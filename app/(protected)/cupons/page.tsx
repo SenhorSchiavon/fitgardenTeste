@@ -80,6 +80,7 @@ export default function CuponsPage() {
     try {
       const response = await apiFetch(`${API_URL}/cupons${editing ? `/${editing.id}` : ""}`, {
         method: editing ? "PUT" : "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ nome: form.nome, percentual: Number(form.percentual) }),
       })
       const data = await response.json().catch(() => null)
