@@ -39,6 +39,7 @@ export const SCREEN_DEFINITIONS: ScreenDefinition[] = [
   { key: "whatsapp", label: "WhatsApp", path: "/whatsapp" },
   { key: "mais-vendidos", label: "Relatórios", path: "/mais-vendidos" },
   { key: "vouchers", label: "Vouchers", path: "/vouchers" },
+  { key: "vouchers", label: "Cupons", path: "/cupons" },
   { key: "usuarios", label: "Usuários", path: "/usuarios" },
   { key: "auditoria", label: "Auditoria", path: "/auditoria" },
 ];

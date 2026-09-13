@@ -1,178 +1,212 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { Header } from "@/components/header"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { apiFetch } from "@/hooks/api"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Copy, Download, Plus, Search } from "lucide-react"
+import { Header } from "@/components/header"
 import { useTableSort } from "@/hooks/useTableSort"
 import { SortableHead } from "@/components/ui/sorttable"
-import { BarChart3, Pencil, Plus, Search, Trash } from "lucide-react"
+import { apiFetch } from "@/hooks/api"
 import { toast } from "sonner"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3333/api"
 
-type Cupom = { id: number; nome: string; percentual: number; createdAt: string }
-type RelatorioCupom = { cupomId: number | null; nome: string; percentual: number; usos: number; descontoTotal: number; valorPedidos: number }
+type Voucher = {
+  id: string
+  numero: string
+  data: string
+  baixado: boolean
+  telefoneCliente?: string | null
+}
 
-const hoje = () => new Date().toISOString().slice(0, 10)
-const moeda = (valor: number) => Number(valor || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-
-export default function CuponsPage() {
-  const [cupons, setCupons] = useState<Cupom[]>([])
+export default function Vouchers() {
+  const [vouchers, setVouchers] = useState<Voucher[]>([])
   const [loading, setLoading] = useState(true)
-  const [busca, setBusca] = useState("")
+  const [novoVoucher, setNovoVoucher] = useState<Partial<Voucher>>({
+    numero: "",
+    data: new Date().toISOString().split("T")[0],
+    baixado: false,
+  })
   const [dialogOpen, setDialogOpen] = useState(false)
-  const [editing, setEditing] = useState<Cupom | null>(null)
-  const [form, setForm] = useState({ nome: "", percentual: "" })
-  const [relatorioOpen, setRelatorioOpen] = useState(false)
-  const [dataInicio, setDataInicio] = useState(hoje())
-  const [dataFim, setDataFim] = useState(hoje())
-  const [relatorio, setRelatorio] = useState<RelatorioCupom[]>([])
-  const [loadingRelatorio, setLoadingRelatorio] = useState(false)
+  const [searchTerm, setSearchTerm] = useState("")
+  const [statusFiltro, setStatusFiltro] = useState<"TODOS" | "DISPONIVEIS" | "BAIXADOS">("TODOS")
+  const [dataInicial, setDataInicial] = useState("")
+  const [dataFinal, setDataFinal] = useState("")
 
-  async function carregarCupons() {
+  const carregarVouchers = async () => {
     try {
       setLoading(true)
-      const response = await apiFetch(`${API_URL}/cupons`)
+      const response = await apiFetch(`${API_URL}/vouchers`)
       const data = await response.json().catch(() => [])
-      if (!response.ok) throw new Error(data?.message || "Erro ao carregar cupons")
-      setCupons((data || []).map((cupom: any) => ({
-        id: Number(cupom.id),
-        nome: String(cupom.nome || ""),
-        percentual: Number(cupom.percentual || 0),
-        createdAt: String(cupom.createdAt || ""),
+      if (!response.ok) throw new Error(data?.message || "Erro ao carregar vouchers")
+      setVouchers((data || []).map((voucher: any) => ({
+        id: String(voucher.id),
+        numero: String(voucher.codigo),
+        data: String(voucher.data),
+        baixado: !!voucher.usado,
+        telefoneCliente: voucher.telefoneCliente ? String(voucher.telefoneCliente) : null,
       })))
     } catch (error: any) {
-      toast.error("Não foi possível carregar os cupons", { description: error?.message })
+      toast.error("Não foi possível carregar os vouchers", { description: error?.message })
     } finally {
       setLoading(false)
     }
   }
 
   useEffect(() => {
-    void carregarCupons()
+    void carregarVouchers()
   }, [])
 
-  const filtrados = useMemo(() => {
-    const termo = busca.trim().toUpperCase()
-    return cupons.filter((cupom) => !termo || cupom.nome.includes(termo) || String(cupom.percentual).includes(termo))
-  }, [cupons, busca])
-  const { sort, onSort, sortedRows } = useTableSort(filtrados)
-
-  function abrirNovo() {
-    setEditing(null)
-    setForm({ nome: "", percentual: "" })
-    setDialogOpen(true)
-  }
-
-  function abrirEdicao(cupom: Cupom) {
-    setEditing(cupom)
-    setForm({ nome: cupom.nome, percentual: String(cupom.percentual) })
-    setDialogOpen(true)
-  }
-
-  async function salvarCupom() {
+  const handleSave = async () => {
+    if (!novoVoucher.numero) return
     try {
-      const response = await apiFetch(`${API_URL}/cupons${editing ? `/${editing.id}` : ""}`, {
-        method: editing ? "PUT" : "POST",
-        body: JSON.stringify({ nome: form.nome, percentual: Number(form.percentual) }),
+      const response = await apiFetch(`${API_URL}/vouchers`, {
+        method: "POST",
+        body: JSON.stringify({ codigo: novoVoucher.numero, data: novoVoucher.data, usado: !!novoVoucher.baixado }),
       })
       const data = await response.json().catch(() => null)
-      if (!response.ok) throw new Error(data?.message || "Erro ao salvar cupom")
-      toast.success(editing ? "Cupom atualizado" : "Cupom criado")
+      if (!response.ok) throw new Error(data?.message || "Erro ao salvar voucher")
+      await carregarVouchers()
+      setNovoVoucher({ numero: "", data: new Date().toISOString().split("T")[0], baixado: false })
       setDialogOpen(false)
-      await carregarCupons()
     } catch (error: any) {
-      toast.error("Não foi possível salvar o cupom", { description: error?.message })
+      toast.error("Não foi possível salvar o voucher", { description: error?.message })
     }
   }
 
-  async function excluirCupom(cupom: Cupom) {
-    if (!confirm(`Excluir o cupom ${cupom.nome}?`)) return
+  const handleToggleBaixado = async (id: string) => {
+    const voucher = vouchers.find((item) => item.id === id)
+    if (!voucher) return
     try {
-      const response = await apiFetch(`${API_URL}/cupons/${cupom.id}`, { method: "DELETE" })
+      const response = await apiFetch(`${API_URL}/vouchers/${id}/usado`, {
+        method: "PATCH",
+        body: JSON.stringify({ usado: !voucher.baixado }),
+      })
       const data = await response.json().catch(() => null)
-      if (!response.ok) throw new Error(data?.message || "Erro ao excluir cupom")
-      toast.success("Cupom excluído")
-      await carregarCupons()
+      if (!response.ok) throw new Error(data?.message || "Erro ao atualizar voucher")
+      setVouchers((atuais) => atuais.map((item) => item.id === id ? { ...item, baixado: !!data.usado } : item))
     } catch (error: any) {
-      toast.error("Não foi possível excluir o cupom", { description: error?.message })
+      toast.error("Não foi possível atualizar o voucher", { description: error?.message })
     }
   }
 
-  async function carregarRelatorio() {
-    try {
-      setLoadingRelatorio(true)
-      const params = new URLSearchParams()
-      if (dataInicio) params.set("dataInicio", dataInicio)
-      if (dataFim) params.set("dataFim", dataFim)
-      const response = await apiFetch(`${API_URL}/cupons/relatorio?${params.toString()}`)
-      const data = await response.json().catch(() => [])
-      if (!response.ok) throw new Error(data?.message || "Erro ao carregar relatório")
-      setRelatorio((data || []).map((linha: any) => ({
-        cupomId: linha.cupomId ?? null,
-        nome: String(linha.nome || ""),
-        percentual: Number(linha.percentual || 0),
-        usos: Number(linha.usos || 0),
-        descontoTotal: Number(linha.descontoTotal || 0),
-        valorPedidos: Number(linha.valorPedidos || 0),
-      })))
-    } catch (error: any) {
-      toast.error("Não foi possível carregar o relatório", { description: error?.message })
-    } finally {
-      setLoadingRelatorio(false)
-    }
+  const handleNew = () => {
+    setNovoVoucher({ numero: "", data: new Date().toISOString().split("T")[0], baixado: false })
+    setDialogOpen(true)
   }
 
-  function abrirRelatorio() {
-    setRelatorioOpen(true)
-    void carregarRelatorio()
+  const formatDate = (dateString: string) => new Date(dateString).toLocaleDateString("pt-BR")
+
+  const filteredVouchers = useMemo(() => {
+    const termo = searchTerm.trim()
+    const somenteDigitos = termo.replace(/\D/g, "")
+    const blocosSeparados = termo.split(/\D+/).filter((bloco) => bloco.length === 7)
+    const blocosVoucher = blocosSeparados.length > 0
+      ? blocosSeparados
+      : somenteDigitos.length >= 7 && somenteDigitos.length % 7 === 0
+        ? somenteDigitos.match(/.{7}/g) || []
+        : []
+
+    return vouchers.filter((voucher) => {
+      const numeroNormalizado = voucher.numero.replace(/\D/g, "")
+      const correspondeBusca = !termo || (blocosVoucher.length > 0
+        ? blocosVoucher.includes(numeroNormalizado)
+        : voucher.numero.includes(termo) || formatDate(voucher.data).includes(termo) || String(voucher.telefoneCliente || "").includes(termo))
+      const correspondeStatus = statusFiltro === "TODOS" || (statusFiltro === "BAIXADOS" ? voucher.baixado : !voucher.baixado)
+      const dataVoucher = String(voucher.data).slice(0, 10)
+      const correspondeInicio = !dataInicial || dataVoucher >= dataInicial
+      const correspondeFim = !dataFinal || dataVoucher <= dataFinal
+      return correspondeBusca && correspondeStatus && correspondeInicio && correspondeFim
+    })
+  }, [vouchers, searchTerm, statusFiltro, dataInicial, dataFinal])
+
+  const textoExportacao = useMemo(
+    () => Array.from(new Set(filteredVouchers.map((voucher) => voucher.numero.trim()).filter(Boolean))).join(" "),
+    [filteredVouchers],
+  )
+
+  const copiarCodigos = async () => {
+    if (!textoExportacao) return toast.error("Nenhum voucher para copiar")
+    await navigator.clipboard.writeText(textoExportacao)
+    toast.success(`${filteredVouchers.length} voucher(es) copiado(s)`, { description: "Códigos separados por espaço." })
   }
+
+  const baixarTxt = () => {
+    if (!textoExportacao) return toast.error("Nenhum voucher para exportar")
+    const url = URL.createObjectURL(new Blob([textoExportacao], { type: "text/plain;charset=utf-8" }))
+    const link = document.createElement("a")
+    link.href = url
+    link.download = `vouchers-${new Date().toISOString().slice(0, 10)}.txt`
+    link.click()
+    URL.revokeObjectURL(url)
+  }
+
+  const { sort, onSort, sortedRows } = useTableSort(filteredVouchers)
 
   return (
     <div className="container mx-auto p-6">
-      <Header title="Cupons" subtitle="Cadastre cupons percentuais para aplicar nos agendamentos" />
+      <Header title="Vouchers" subtitle="Gerencie os vouchers do sistema" />
 
-      <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+      <div className="mb-6 grid gap-3 lg:grid-cols-[minmax(240px,1fr)_180px_160px_160px_auto]">
         <div className="relative w-full max-w-md">
           <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input placeholder="Buscar cupom..." className="pl-8" value={busca} onChange={(e) => setBusca(e.target.value)} />
+          <Input placeholder="Cole códigos em blocos de 7 dígitos..." className="pl-8" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
         </div>
-        <div className="flex flex-wrap gap-2">
-          <Button variant="outline" onClick={abrirRelatorio}><BarChart3 className="mr-2 h-4 w-4" /> Relatório por data</Button>
-          <Button onClick={abrirNovo}><Plus className="mr-2 h-4 w-4" /> Novo cupom</Button>
-        </div>
+        <Select value={statusFiltro} onValueChange={(value: typeof statusFiltro) => setStatusFiltro(value)}>
+          <SelectTrigger><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="TODOS">Todos os vouchers</SelectItem>
+            <SelectItem value="DISPONIVEIS">Não baixados</SelectItem>
+            <SelectItem value="BAIXADOS">Baixados</SelectItem>
+          </SelectContent>
+        </Select>
+        <Input type="date" value={dataInicial} onChange={(event) => setDataInicial(event.target.value)} title="Data inicial" />
+        <Input type="date" value={dataFinal} onChange={(event) => setDataFinal(event.target.value)} title="Data final" />
+        <Button onClick={handleNew} className="whitespace-nowrap"><Plus className="mr-2 h-4 w-4" /> Novo Voucher</Button>
+      </div>
+
+      <div className="mb-6 flex flex-wrap items-center gap-2">
+        <Button variant="outline" onClick={copiarCodigos} disabled={!filteredVouchers.length}><Copy className="mr-2 h-4 w-4" /> Copiar códigos</Button>
+        <Button variant="outline" onClick={baixarTxt} disabled={!filteredVouchers.length}><Download className="mr-2 h-4 w-4" /> Baixar TXT</Button>
+        <span className="text-sm text-muted-foreground">{filteredVouchers.length} voucher(es) no filtro</span>
       </div>
 
       <Card>
-        <CardHeader><CardTitle>Cupons cadastrados</CardTitle></CardHeader>
+        <CardHeader><CardTitle>Vouchers Cadastrados</CardTitle></CardHeader>
         <CardContent>
           <Table>
             <TableHeader>
               <TableRow>
-                <SortableHead label="Nome" field="nome" sort={sort} onSort={onSort} />
-                <SortableHead label="Percentual" field="percentual" sort={sort} onSort={onSort} />
+                <SortableHead label="Número" field="numero" sort={sort} onSort={onSort} />
+                <SortableHead label="Data" field="data" sort={sort} onSort={onSort} />
+                <SortableHead label="Telefone do cliente" field="telefoneCliente" sort={sort} onSort={onSort} />
+                <SortableHead label="Baixado" field="baixado" sort={sort} onSort={onSort} />
                 <TableHead className="text-right">Ações</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {sortedRows.map((cupom) => (
-                <TableRow key={cupom.id}>
-                  <TableCell className="font-semibold">{cupom.nome}</TableCell>
-                  <TableCell>{cupom.percentual}%</TableCell>
+              {sortedRows.map((voucher) => (
+                <TableRow key={voucher.id}>
+                  <TableCell>{voucher.numero}</TableCell>
+                  <TableCell>{formatDate(voucher.data)}</TableCell>
+                  <TableCell>{voucher.telefoneCliente || "-"}</TableCell>
+                  <TableCell><Checkbox checked={voucher.baixado} onCheckedChange={() => handleToggleBaixado(voucher.id)} /></TableCell>
                   <TableCell className="text-right">
-                    <Button variant="ghost" size="icon" onClick={() => abrirEdicao(cupom)} title="Editar cupom"><Pencil className="h-4 w-4" /></Button>
-                    <Button variant="ghost" size="icon" className="text-red-600" onClick={() => excluirCupom(cupom)} title="Excluir cupom"><Trash className="h-4 w-4" /></Button>
+                    <Button variant="ghost" size="sm" onClick={() => handleToggleBaixado(voucher.id)}>
+                      {voucher.baixado ? "Marcar como Não Baixado" : "Marcar como Baixado"}
+                    </Button>
                   </TableCell>
                 </TableRow>
               ))}
-              {!loading && sortedRows.length === 0 && <TableRow><TableCell colSpan={3} className="py-6 text-center text-muted-foreground">Nenhum cupom encontrado</TableCell></TableRow>}
-              {loading && <TableRow><TableCell colSpan={3} className="py-6 text-center text-muted-foreground">Carregando cupons...</TableCell></TableRow>}
+              {!loading && filteredVouchers.length === 0 && <TableRow><TableCell colSpan={5} className="text-center py-4">Nenhum voucher encontrado</TableCell></TableRow>}
+              {loading && <TableRow><TableCell colSpan={5} className="text-center py-4">Carregando vouchers...</TableCell></TableRow>}
             </TableBody>
           </Table>
         </CardContent>
@@ -180,56 +214,25 @@ export default function CuponsPage() {
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent>
-          <DialogHeader><DialogTitle>{editing ? "Editar cupom" : "Novo cupom"}</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>Novo Voucher</DialogTitle></DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-2">
-              <Label htmlFor="cupomNome">Nome</Label>
-              <Input id="cupomNome" value={form.nome} onChange={(e) => setForm((atual) => ({ ...atual, nome: e.target.value.toUpperCase() }))} placeholder="Ex.: CLIENTE10" />
+              <Label htmlFor="numero">Número do Voucher</Label>
+              <Input id="numero" value={novoVoucher.numero || ""} onChange={(e) => setNovoVoucher({ ...novoVoucher, numero: e.target.value })} />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="cupomPercentual">Percentual de desconto</Label>
-              <Input id="cupomPercentual" type="number" min="0" max="100" step="0.01" value={form.percentual} onChange={(e) => setForm((atual) => ({ ...atual, percentual: e.target.value }))} placeholder="Ex.: 10" />
+              <Label htmlFor="data">Data</Label>
+              <Input id="data" type="date" value={novoVoucher.data || ""} onChange={(e) => setNovoVoucher({ ...novoVoucher, data: e.target.value })} />
             </div>
-            <div className="flex justify-end gap-2 pt-2">
+            <div className="flex items-center space-x-2">
+              <Checkbox id="baixado" checked={novoVoucher.baixado} onCheckedChange={(checked) => setNovoVoucher({ ...novoVoucher, baixado: !!checked })} />
+              <Label htmlFor="baixado">Já Baixado</Label>
+            </div>
+            <div className="flex justify-end space-x-2 pt-4">
               <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancelar</Button>
-              <Button onClick={salvarCupom}>Salvar</Button>
+              <Button onClick={handleSave}>Salvar</Button>
             </div>
           </div>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={relatorioOpen} onOpenChange={setRelatorioOpen}>
-        <DialogContent className="max-w-4xl">
-          <DialogHeader><DialogTitle>Relatório de cupons</DialogTitle></DialogHeader>
-          <div className="grid gap-3 sm:grid-cols-[160px_160px_auto]">
-            <Input type="date" value={dataInicio} onChange={(e) => setDataInicio(e.target.value)} />
-            <Input type="date" value={dataFim} onChange={(e) => setDataFim(e.target.value)} />
-            <Button onClick={carregarRelatorio} disabled={loadingRelatorio}>Atualizar relatório</Button>
-          </div>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Cupom</TableHead>
-                <TableHead>%</TableHead>
-                <TableHead>Usos</TableHead>
-                <TableHead>Desconto total</TableHead>
-                <TableHead>Valor dos pedidos</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {relatorio.map((linha) => (
-                <TableRow key={`${linha.cupomId}-${linha.nome}`}>
-                  <TableCell className="font-semibold">{linha.nome}</TableCell>
-                  <TableCell>{linha.percentual}%</TableCell>
-                  <TableCell>{linha.usos}</TableCell>
-                  <TableCell>R$ {moeda(linha.descontoTotal)}</TableCell>
-                  <TableCell>R$ {moeda(linha.valorPedidos)}</TableCell>
-                </TableRow>
-              ))}
-              {!loadingRelatorio && relatorio.length === 0 && <TableRow><TableCell colSpan={5} className="py-6 text-center text-muted-foreground">Nenhum uso de cupom nesse período</TableCell></TableRow>}
-              {loadingRelatorio && <TableRow><TableCell colSpan={5} className="py-6 text-center text-muted-foreground">Carregando relatório...</TableCell></TableRow>}
-            </TableBody>
-          </Table>
         </DialogContent>
       </Dialog>
     </div>
