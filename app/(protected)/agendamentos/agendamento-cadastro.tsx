@@ -579,6 +579,7 @@ export function NovoAgendamentoNovoLayout({
   const [motivoDescontoManual, setMotivoDescontoManual] = useState("");
   const [cupons, setCupons] = useState<CupomAgendamento[]>([]);
   const [cupomSelecionadoId, setCupomSelecionadoId] = useState("");
+  const [cupomComboboxOpen, setCupomComboboxOpen] = useState(false);
   const [voucherGruposPedido, setVoucherGruposPedido] = useState<string[]>([]);
   const [gruposPlanoRemovidoManualmente, setGruposPlanoRemovidoManualmente] = useState<string[]>([]);
   const [usarPlanoEscolhidoManualmente, setUsarPlanoEscolhidoManualmente] = useState(false);
@@ -1864,6 +1865,7 @@ export function NovoAgendamentoNovoLayout({
     setFormaPagamentoRestanteVoucher("A_DEFINIR");
     setVoucherCodigo("");
     setCupomSelecionadoId("");
+    setCupomComboboxOpen(false);
     setVoucherGruposPedido([]);
     setGruposPlanoRemovidoManualmente([]);
     setDistanciaEntregaKm(null);
@@ -4628,19 +4630,57 @@ export function NovoAgendamentoNovoLayout({
                           <Button type="button" variant="ghost" size="sm" onClick={() => setCupomSelecionadoId("")}>Remover</Button>
                         )}
                       </div>
-                      <Select value={cupomSelecionadoId || "SEM_CUPOM"} onValueChange={(value) => setCupomSelecionadoId(value === "SEM_CUPOM" ? "" : value)}>
-                        <SelectTrigger id="cupomAgendamento">
-                          <SelectValue placeholder="Adicionar cupom" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="SEM_CUPOM">Sem cupom</SelectItem>
-                          {cupons.map((cupom) => (
-                            <SelectItem key={cupom.id} value={String(cupom.id)}>
-                              {cupom.nome} - {cupom.percentual}%
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <Popover open={cupomComboboxOpen} onOpenChange={setCupomComboboxOpen}>
+                        <PopoverTrigger asChild>
+                          <Button
+                            id="cupomAgendamento"
+                            type="button"
+                            variant="outline"
+                            role="combobox"
+                            aria-expanded={cupomComboboxOpen}
+                            className="w-full justify-between bg-white"
+                          >
+                            <span className={cn("truncate", !cupomSelecionado && "text-muted-foreground")}>
+                              {cupomSelecionado ? `${cupomSelecionado.nome} - ${cupomSelecionado.percentual}%` : "Adicionar cupom"}
+                            </span>
+                            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                          <Command>
+                            <CommandInput placeholder="Pesquisar cupom..." />
+                            <CommandList>
+                              <CommandEmpty>Nenhum cupom encontrado.</CommandEmpty>
+                              <CommandGroup>
+                                <CommandItem
+                                  value="sem-cupom"
+                                  onSelect={() => {
+                                    setCupomSelecionadoId("");
+                                    setCupomComboboxOpen(false);
+                                  }}
+                                >
+                                  <Check className={cn("mr-2 h-4 w-4", !cupomSelecionadoId ? "opacity-100" : "opacity-0")} />
+                                  Sem cupom
+                                </CommandItem>
+                                {cupons.map((cupom) => (
+                                  <CommandItem
+                                    key={cupom.id}
+                                    value={`${cupom.nome} ${cupom.percentual}`}
+                                    onSelect={() => {
+                                      setCupomSelecionadoId(String(cupom.id));
+                                      setCupomComboboxOpen(false);
+                                    }}
+                                  >
+                                    <Check className={cn("mr-2 h-4 w-4", String(cupom.id) === cupomSelecionadoId ? "opacity-100" : "opacity-0")} />
+                                    <span className="truncate">{cupom.nome}</span>
+                                    <span className="ml-auto text-xs font-bold text-primary">{cupom.percentual}%</span>
+                                  </CommandItem>
+                                ))}
+                              </CommandGroup>
+                            </CommandList>
+                          </Command>
+                        </PopoverContent>
+                      </Popover>
                       {cupomSelecionado && (
                         <div className="flex items-center justify-between text-sm font-semibold text-primary">
                           <span>{cupomSelecionado.nome} ({cupomSelecionado.percentual}%)</span>
