@@ -212,7 +212,7 @@ export function Sidebar({ className, onClose, onNavigate }: SidebarProps) {
             {canShow("mensagens") && renderNavButton({ href: "/mensagens", label: "Mensagens", icon: MessageCircle, screen: "mensagens" })}
             {canShow("whatsapp") && renderNavButton({ href: "/whatsapp", label: "WhatsApp", icon: Smartphone, screen: "whatsapp" })}
             {canShow("mais-vendidos") && renderNavButton({ href: "/mais-vendidos", label: "Relatórios", icon: BarChart3, screen: "mais-vendidos" })}
-            {canShow("vouchers") && renderNavButton({ href: "/vouchers", label: "Vouchers", icon: Tag, screen: "vouchers" })}
+            {canShow("vouchers") && renderNavButton({ href: "/vouchers", label: "Cupons", icon: Tag, screen: "vouchers" })}
           </div>
         </div>
       </ScrollArea>

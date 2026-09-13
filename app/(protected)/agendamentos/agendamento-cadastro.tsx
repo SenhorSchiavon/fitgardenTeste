@@ -67,6 +67,8 @@ import { PlanoCatalogo, usePlanosCliente } from "@/hooks/usePlanosCliente";
 import { ClienteFormDialog } from "@/components/clientes/ClienteFormDialog";
 import { apiFetch } from "@/hooks/api";
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3333/api";
+
 type PedidoTipo = "NAO_DEFINIR" | "ENTREGA" | "RETIRADA" | "CONGELAR";
 type CongelarSubtipo = "ENTREGA" | "RETIRADA";
 type FormaPagamento =
@@ -85,6 +87,12 @@ type FormaPagamento =
   | "VOUCHER_TAXA_PIX"
   | "TROCA"
   | "BONIFICACAO";
+
+type CupomAgendamento = {
+  id: number;
+  nome: string;
+  percentual: number;
+};
 
 function isVoucherForma(forma: FormaPagamento) {
   return (
@@ -569,6 +577,8 @@ export function NovoAgendamentoNovoLayout({
   const [descontoManualOpen, setDescontoManualOpen] = useState(false);
   const [valorDescontoManual, setValorDescontoManual] = useState(0);
   const [motivoDescontoManual, setMotivoDescontoManual] = useState("");
+  const [cupons, setCupons] = useState<CupomAgendamento[]>([]);
+  const [cupomSelecionadoId, setCupomSelecionadoId] = useState("");
   const [voucherGruposPedido, setVoucherGruposPedido] = useState<string[]>([]);
   const [gruposPlanoRemovidoManualmente, setGruposPlanoRemovidoManualmente] = useState<string[]>([]);
   const [usarPlanoEscolhidoManualmente, setUsarPlanoEscolhidoManualmente] = useState(false);
@@ -817,6 +827,7 @@ export function NovoAgendamentoNovoLayout({
       );
       setFormaPagamentoRestanteVoucher(initialData.formaPagamentoRestanteVoucher || initialData.formaPagamentoTaxaVoucher || "A_DEFINIR");
       setVoucherCodigo(initialData.voucherCodigo || "");
+      setCupomSelecionadoId(String(initialData.cupomId || initialData.pedido?.cupomId || ""));
       setVoucherGruposPedido([]);
       const descontoInicial = Number(initialData.valorDescontoManual || initialData.pedido?.valorDescontoManual || 0);
       setValorDescontoManual(descontoInicial);
@@ -1002,6 +1013,30 @@ export function NovoAgendamentoNovoLayout({
       resetForm();
     }
   }, [open, initialData]);
+
+  useEffect(() => {
+    let ativo = true;
+    async function carregarCupons() {
+      if (!open) return;
+      try {
+        const response = await apiFetch(`${API_URL}/cupons`);
+        const data = await response.json().catch(() => []);
+        if (!response.ok) throw new Error(data?.message || "Erro ao carregar cupons");
+        if (!ativo) return;
+        setCupons((data || []).map((cupom: any) => ({
+          id: Number(cupom.id),
+          nome: String(cupom.nome || ""),
+          percentual: Number(cupom.percentual || 0),
+        })));
+      } catch {
+        if (ativo) setCupons([]);
+      }
+    }
+    void carregarCupons();
+    return () => {
+      ativo = false;
+    };
+  }, [open]);
 
   const planosDoPedidoEmEdicao = (initialData?.pagamentos || initialData?.pedido?.pagamentos || [])
     .map((pagamento: any) => pagamento.planoCliente)
@@ -1797,6 +1832,15 @@ export function NovoAgendamentoNovoLayout({
     Math.max(0, Number(valorDescontoManual || 0)),
     valorAntesDescontoManual,
   );
+  const cupomSelecionado = useMemo(
+    () => cupons.find((cupom) => String(cupom.id) === String(cupomSelecionadoId)) || null,
+    [cupons, cupomSelecionadoId],
+  );
+  const valorBaseCupomResumo = Math.max(0, valorAntesDescontoManual - valorDescontoManualAplicado);
+  const valorDescontoCupomResumo = cupomSelecionado
+    ? Math.min(valorBaseCupomResumo, Math.floor(valorBaseCupomResumo * Math.max(0, Math.min(100, cupomSelecionado.percentual))) / 100)
+    : 0;
+  const valorTotalFinalResumo = Math.max(0, valorBaseCupomResumo - valorDescontoCupomResumo);
   const valorTaxaPorPedido =
     resumoPedidos.length > 0 && valorTaxaEntregaResumo > 0 ? valorTaxaEntregaResumo / resumoPedidos.length : 0;
 
@@ -1819,6 +1863,7 @@ export function NovoAgendamentoNovoLayout({
     setFormaPagamentoTaxaVoucher("A_DEFINIR");
     setFormaPagamentoRestanteVoucher("A_DEFINIR");
     setVoucherCodigo("");
+    setCupomSelecionadoId("");
     setVoucherGruposPedido([]);
     setGruposPlanoRemovidoManualmente([]);
     setDistanciaEntregaKm(null);
@@ -3204,7 +3249,9 @@ export function NovoAgendamentoNovoLayout({
         subtotal: subtotalPedido,
         taxaEntrega: valorTaxaEntregaResumo,
         desconto: valorDescontoManualAplicado + valorDescontoVoucherResumo,
-        total: Math.max(0, valorAntesDescontoManual - valorDescontoManualAplicado),
+        cupom: cupomSelecionado ? `${cupomSelecionado.nome} (${cupomSelecionado.percentual}%)` : undefined,
+        descontoCupom: valorDescontoCupomResumo,
+        total: valorTotalFinalResumo,
         itens: itensComPrecoFinal.map((item) => ({
           quantidade: Number(item.quantidade || 0),
           nome: getNomeItem(item),
@@ -3231,6 +3278,7 @@ export function NovoAgendamentoNovoLayout({
       formaPagamento: formaPagamentoPayload,
       senhaAutorizacao,
       voucherCodigo: isVoucherForma(formaPagamentoPayload) ? voucherCodigo.trim() : undefined,
+      cupomId: cupomSelecionadoId ? Number(cupomSelecionadoId) : null,
       formaPagamentoTaxaVoucher: formaPagamento === "VOUCHER" ? formaPagamentoTaxaVoucher : undefined,
       formaPagamentoRestanteVoucher: formaPagamento === "VOUCHER" ? formaPagamentoRestanteVoucher : undefined,
       voucherGruposPedido: isVoucherForma(formaPagamentoPayload) ? voucherGruposPedido : [],
@@ -4573,6 +4621,34 @@ export function NovoAgendamentoNovoLayout({
                       </div>
                     )}
 
+                    <div className="space-y-3 rounded-lg border border-primary/15 bg-primary/5 p-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <Label htmlFor="cupomAgendamento" className="font-semibold text-primary">Cupom</Label>
+                        {cupomSelecionado && (
+                          <Button type="button" variant="ghost" size="sm" onClick={() => setCupomSelecionadoId("")}>Remover</Button>
+                        )}
+                      </div>
+                      <Select value={cupomSelecionadoId || "SEM_CUPOM"} onValueChange={(value) => setCupomSelecionadoId(value === "SEM_CUPOM" ? "" : value)}>
+                        <SelectTrigger id="cupomAgendamento">
+                          <SelectValue placeholder="Adicionar cupom" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="SEM_CUPOM">Sem cupom</SelectItem>
+                          {cupons.map((cupom) => (
+                            <SelectItem key={cupom.id} value={String(cupom.id)}>
+                              {cupom.nome} - {cupom.percentual}%
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {cupomSelecionado && (
+                        <div className="flex items-center justify-between text-sm font-semibold text-primary">
+                          <span>{cupomSelecionado.nome} ({cupomSelecionado.percentual}%)</span>
+                          <span>- R$ {currency(valorDescontoCupomResumo)}</span>
+                        </div>
+                      )}
+                    </div>
+
                     {!descontoManualOpen ? (
                       <Button type="button" variant="outline" className="w-full border-amber-300 text-amber-800 hover:bg-amber-50" onClick={() => setDescontoManualOpen(true)}>
                         Inserir desconto ou brinde
@@ -4594,7 +4670,7 @@ export function NovoAgendamentoNovoLayout({
 
                     <div className="flex items-center justify-between text-lg">
                       <span className="font-bold text-primary">Total a pagar</span>
-                      <span className="font-extrabold text-xl text-primary">R$ {currency(Math.max(0, valorAntesDescontoManual - valorDescontoManualAplicado))}</span>
+                      <span className="font-extrabold text-xl text-primary">R$ {currency(valorTotalFinalResumo)}</span>
                     </div>
                     {(formaPagamento === "PLANO" || itens.some((item) => item.usarPlano)) && (
                       <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs leading-relaxed text-emerald-800">

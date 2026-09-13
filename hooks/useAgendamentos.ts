@@ -158,6 +158,7 @@ export type CreateAgendamentoInput = {
   formaPagamento: FormaPagamento;
   senhaAutorizacao?: string;
   voucherCodigo?: string;
+  cupomId?: number | null;
   formaPagamentoTaxaVoucher?: FormaPagamento;
   formaPagamentoRestanteVoucher?: FormaPagamento;
   voucherGruposPedido?: string[];
@@ -185,6 +186,7 @@ export type UpdateAgendamentoInput = Partial<{
   trocoPara: number | null;
   formaPagamento: FormaPagamento;
   voucherCodigo: string;
+  cupomId: number | null;
   formaPagamentoTaxaVoucher: FormaPagamento;
   formaPagamentoRestanteVoucher: FormaPagamento;
   voucherGruposPedido: string[];
