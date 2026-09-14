@@ -274,6 +274,30 @@ function getLabelPagamento(forma: string, agendamento?: any) {
   return labels[forma] || forma || "-";
 }
 
+function normalizarBusca(texto: string) {
+  return String(texto || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+}
+
+function getLabelTipoEntrega(tipo: string) {
+  const labels: Record<string, string> = {
+    NAO_DEFINIR: "A definir",
+    ENTREGA: "Entrega",
+    RETIRADA: "Retirada",
+    CONGELAR: "Congelar",
+  };
+  return labels[tipo] || tipo || "-";
+}
+
+function moneyBr(value?: number | null) {
+  return Number(value || 0).toLocaleString("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+  });
+}
+
 function getLabelPagamentoConfirmacao(agendamento: Agendamento) {
   if (agendamento.formaPagamento !== "VOUCHER" && !Number(agendamento.valorDescontoVoucher || 0)) {
     return getLabelPagamento(agendamento.formaPagamento);
