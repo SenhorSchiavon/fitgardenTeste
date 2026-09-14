@@ -389,13 +389,10 @@ export function ClienteFormDialog({
   const temEnderecoPrincipal = useMemo(() => {
     return (
       !!form.cep?.trim() ||
-      !!form.cidade?.trim() ||
-      !!form.bairro?.trim() ||
       !!form.logradouro?.trim() ||
-      !!form.numero?.trim() ||
-      !!form.complemento?.trim()
+      !!form.numero?.trim()
     );
-  }, [form.cep, form.cidade, form.bairro, form.logradouro, form.numero, form.complemento]);
+  }, [form.cep, form.logradouro, form.numero]);
 
   const assinaturaEndereco = (cep?: string, cidade?: string, bairro?: string, logradouro?: string, numero?: string) =>
     [onlyDigits(cep || ""), upper(cidade).trim(), upper(bairro).trim(), upper(logradouro).trim(), upper(numero).trim()].join("|");
@@ -764,13 +761,13 @@ export function ClienteFormDialog({
         {
           principal: true,
           apelido: temEnderecoPrincipal ? (upper(form.apelidoPrincipal).trim() || "ENDEREÇO 01") : null,
-          cep: form.cep?.trim() ? onlyDigits(form.cep) : null,
+          cep: temEnderecoPrincipal && form.cep?.trim() ? onlyDigits(form.cep) : null,
           uf: temEnderecoPrincipal ? "PR" : null,
-          cidade: form.cidade?.trim() || null,
-          bairro: upper(form.bairro).trim() || null,
-          logradouro: upper(form.logradouro).trim() || null,
-          numero: upper(form.numero).trim() || null,
-          complemento: upper(form.complemento).trim() || null,
+          cidade: temEnderecoPrincipal ? form.cidade?.trim() || null : null,
+          bairro: temEnderecoPrincipal ? upper(form.bairro).trim() || null : null,
+          logradouro: temEnderecoPrincipal ? upper(form.logradouro).trim() || null : null,
+          numero: temEnderecoPrincipal ? upper(form.numero).trim() || null : null,
+          complemento: temEnderecoPrincipal ? upper(form.complemento).trim() || null : null,
           latitude: temEnderecoPrincipal && typeof form.latitude === "number" ? form.latitude : null,
           longitude: temEnderecoPrincipal && typeof form.longitude === "number" ? form.longitude : null,
         },

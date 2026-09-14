@@ -3634,12 +3634,17 @@ export function NovoAgendamentoNovoLayout({
                                       setEnderecoSelecionadoId("");
                                       if (!nextClienteId) {
                                         setEndereco("");
-                                      } else if (!initialData && tipo === "NAO_DEFINIR") {
+                                      } else if (!initialData) {
                                         const clienteEscolhido = clientes.find((item) => item.id === nextClienteId);
                                         const possuiEndereco =
                                           !!clienteEscolhido?.enderecoPrincipal?.trim() ||
                                           !!clienteEscolhido?.enderecos?.length;
-                                        if (possuiEndereco) setTipo("ENTREGA");
+                                        if (tipo === "NAO_DEFINIR" && possuiEndereco) {
+                                          setTipo("ENTREGA");
+                                        } else if ((tipo === "NAO_DEFINIR" || tipo === "ENTREGA") && !possuiEndereco) {
+                                          setTipo("RETIRADA");
+                                          setEndereco("");
+                                        }
                                       }
                                       setComboboxOpen(false);
                                     }}
