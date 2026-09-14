@@ -214,6 +214,32 @@ function getWhatsappUrl(telefone: string, mensagem: string) {
   return `https://wa.me/${phone}?text=${encodeURIComponent(mensagem)}`;
 }
 
+function calcularTotalExibidoAgendamento(agendamento: Partial<Agendamento>) {
+  const valorPlanosComprados = Number(agendamento.valorPlanosComprados || 0);
+  if (valorPlanosComprados > 0) {
+    const subtotalItens = Math.max(
+      Number(agendamento.valorPedido || 0),
+      Number(agendamento.valorDescontoPlanoItens || 0),
+    );
+    const valorItensForaPlano = Math.max(0, subtotalItens - Number(agendamento.valorDescontoPlanoItens || 0));
+    const valorAdicionaisPlano = Number(agendamento.adicionaisConsumidosPlano || 0) * 2;
+    const valorEntrega = agendamento.taxaEntregaAbatidaPlano ? 0 : Number(agendamento.valorTaxa || 0);
+
+    return Math.max(
+      0,
+      valorItensForaPlano -
+        valorAdicionaisPlano +
+        valorEntrega +
+        valorPlanosComprados -
+        Number(agendamento.valorDescontoManual || 0) -
+        Number(agendamento.valorDescontoCupom || 0) -
+        Number(agendamento.valorDescontoVoucher || 0),
+    );
+  }
+
+  return Number(agendamento.valorTotalFinal ?? agendamento.valorTotal ?? 0);
+}
+
 function getFormaTaxaVoucher(agendamento?: any, forma?: string | null) {
   const pagamentos = agendamento?._raw?.pedido?.pagamentos ?? agendamento?._raw?.pagamentos ?? agendamento?.pagamentos ?? [];
   const formaDireta = agendamento?.formaPagamentoTaxaVoucher ?? agendamento?._raw?.pedido?.formaPagamentoTaxaVoucher ?? agendamento?._raw?.formaPagamentoTaxaVoucher;
@@ -793,12 +819,7 @@ export default function Agendamentos() {
       Number(agendamento.adicionaisConsumidosPlano || 0) > 0
         ? `*Adicionais usados do plano:* ${agendamento.adicionaisConsumidosPlano}`
         : null,
-      `*Total:* ${moneyBr(agendamento.valorPlanosComprados && agendamento.valorPlanosComprados > 0
-        ? Math.max(0, Math.max(Number(agendamento.valorPedido || 0), Number(agendamento.valorDescontoPlanoItens || 0)) - Number(agendamento.valorDescontoPlanoItens || 0)) -
-          Number(agendamento.adicionaisConsumidosPlano || 0) * 2 +
-          (agendamento.taxaEntregaAbatidaPlano ? 0 : Number(agendamento.valorTaxa || 0)) +
-          Number(agendamento.valorPlanosComprados) - Number(agendamento.valorDescontoManual || 0)
-        : agendamento.valorTotalFinal ?? agendamento.valorTotal ?? 0)}`,
+      `*Total:* ${moneyBr(calcularTotalExibidoAgendamento(agendamento))}`,
       "",
       ...(agendamento.planosComprados?.length
         ? ["*Plano adquirido:*", ...agendamento.planosComprados.map((plano) =>
@@ -890,7 +911,7 @@ export default function Agendamentos() {
         .reduce((total, plano) => total + Number(plano.valorPlano || 0), 0);
       const valorTaxasPlanosComprados = (pedido.planosComprados || [])
         .reduce((total, plano) => total + Number(plano.valorTaxas || 0), 0);
-      const totalCupom = Number(pedido.valorTotalFinal ?? pedido.valorTotal ?? 0);
+      const totalCupom = calcularTotalExibidoAgendamento(pedido);
       const linhasFinanceiras = [
         temPlanoAdquirido ? ["PLANO ADQUIRIDO", valorBasePlanosComprados, false] : ["SUBTOTAL", subtotalPedido, false],
         temPlanoAdquirido && valorTaxasPlanosComprados > 0
@@ -1312,9 +1333,22 @@ export default function Agendamentos() {
       ...(temPagamentoPendente ? [valorPendentePagamentos] : []),
       valorTotalPelaCoberturaAtual,
     ];
-    const valorTotalFinal = usouPlano
+    const valorTotalFinalCalculado = usouPlano
       ? valorTotalPelaCoberturaAtual + valorPlanosCompradosPendente
       : Math.max(0, Math.min(...candidatosTotal) + valorPlanosCompradosPendente);
+    const valorTotalFinal = calcularTotalExibidoAgendamento({
+      valorPedido,
+      valorTaxa,
+      valorTotal: valorTotalOriginal,
+      valorTotalFinal: valorTotalFinalCalculado,
+      valorDescontoPlanoItens: valorItensCobertosPlano,
+      valorDescontoVoucher,
+      valorDescontoManual,
+      valorDescontoCupom,
+      valorPlanosComprados,
+      taxaEntregaAbatidaPlano,
+      adicionaisConsumidosPlano,
+    });
     const saldosPorTamanho = new Map<string, number>();
     const planosUsadosNoPedido = pagamentos
       .filter((pagamento: any) => pagamento.forma === "PLANO" && pagamento.planoCliente)
@@ -1687,7 +1721,7 @@ export default function Agendamentos() {
                     valoresExibidos: Object.fromEntries(agendamentos.map((agendamento) => [
                       String(agendamento.pedidoId || agendamento.id),
                       {
-                        valorTotalFinal: Number(agendamento.valorTotalFinal ?? agendamento.valorTotal ?? 0),
+                        valorTotalFinal: calcularTotalExibidoAgendamento(agendamento),
                         formaPagamento: String(agendamento.formaPagamento || "-"),
                       },
                     ])),
@@ -2007,7 +2041,7 @@ export default function Agendamentos() {
                                           {agendamento.formaPagamento === "A_DEFINIR" ? "A definir" : agendamento.formaPagamento}
                                         </span>
                                         <span className="text-sm font-black text-emerald-700">
-                                          R$ {(agendamento.valorTotalFinal ?? 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                                          R$ {calcularTotalExibidoAgendamento(agendamento).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
                                         </span>
                                       </div>
                                     </div>
@@ -2159,7 +2193,7 @@ export default function Agendamentos() {
                     <div className="flex justify-between items-center pt-2">
                       <span className="text-base font-bold text-slate-800">Total a Pagar</span>
                       <span className="text-xl font-black text-emerald-700">
-                        R$ {(agendamentoSelecionado?.valorTotalFinal ?? agendamentoSelecionado?.valorTotal ?? 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                        R$ {calcularTotalExibidoAgendamento(agendamentoSelecionado || {}).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                       </span>
                     </div>
                     {agendamentoSelecionado?.formaPagamento === "DINHEIRO" && (
