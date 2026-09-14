@@ -328,9 +328,25 @@ function montarDadosEdicaoAgendamento(agendamento: Agendamento) {
   const voucherCodigo =
     String(agendamento.voucherCodigo || "").trim() ||
     String(pagamentos.find((pagamento: any) => String(pagamento.voucherCodigo || "").trim())?.voucherCodigo || "").trim();
-  const formaPagamento = agendamento.formaPagamento || "A_DEFINIR";
-  const formaPagamentoTaxaVoucher = pedido.formaPagamentoTaxaVoucher ?? raw.formaPagamentoTaxaVoucher ?? null;
-  const formaPagamentoRestanteVoucher = pedido.formaPagamentoRestanteVoucher ?? raw.formaPagamentoRestanteVoucher ?? null;
+  const formaPagamentoBruta = String(
+    agendamento.formaPagamento || pedido.formaPagamento || raw.formaPagamento || "A_DEFINIR"
+  );
+  const formaPagamento = formaPagamentoBruta.startsWith("VOUCHER") ? "VOUCHER" : formaPagamentoBruta;
+  const formaPagamentoTaxaVoucher =
+    pedido.formaPagamentoTaxaVoucher ??
+    raw.formaPagamentoTaxaVoucher ??
+    (formaPagamentoBruta.includes("PIX")
+      ? "PIX"
+      : formaPagamentoBruta.includes("DINHEIRO")
+        ? "DINHEIRO"
+        : formaPagamentoBruta.includes("CREDITO") || formaPagamentoBruta.includes("CARTAO")
+          ? "CREDITO"
+          : null);
+  const formaPagamentoRestanteVoucher =
+    pedido.formaPagamentoRestanteVoucher ??
+    raw.formaPagamentoRestanteVoucher ??
+    formaPagamentoTaxaVoucher ??
+    null;
   const formaCobranca = formaPagamento === "VOUCHER" ? formaPagamentoTaxaVoucher : formaPagamento;
   const pagamentoJaRealizado = (formaCobranca === "PIX" || formaCobranca === "LINK") &&
     pagamentos.some((pagamento: any) => pagamento.forma === formaCobranca && pagamento.status === "CONFIRMADO");
