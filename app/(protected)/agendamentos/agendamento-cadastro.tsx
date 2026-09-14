@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ptBR } from "date-fns/locale";
 import Link from "next/link";
 import { Calendar } from "@/components/ui/calendar";
@@ -583,6 +583,8 @@ export function NovoAgendamentoNovoLayout({
   const [dadosClientePedidoImportado, setDadosClientePedidoImportado] = useState<{ nome: string; telefone: string } | null>(null);
   const [agendamentoDuplicado, setAgendamentoDuplicado] = useState<any | null>(null);
   const [checandoDuplicidade, setChecandoDuplicidade] = useState(false);
+  const [finalizandoAgendamento, setFinalizandoAgendamento] = useState(false);
+  const finalizandoAgendamentoRef = useRef(false);
   const [incluirTaxaEntrega, setIncluirTaxaEntrega] = useState(true);
   const [abaterTaxaEntregaPlano, setAbaterTaxaEntregaPlano] = useState(false);
   const [clienteId, setClienteId] = useState("");
@@ -3138,6 +3140,10 @@ export function NovoAgendamentoNovoLayout({
   }
 
   async function handleSubmit() {
+    if (finalizandoAgendamentoRef.current) {
+      return;
+    }
+
     if (!clienteId) {
       toast.error("Cliente não selecionado", {
         description: "Selecione um cliente antes de finalizar o agendamento.",
@@ -3350,9 +3356,16 @@ export function NovoAgendamentoNovoLayout({
       })),
     };
 
-    await onSubmit?.(payload);
-    onOpenChange(false);
-    resetForm();
+    finalizandoAgendamentoRef.current = true;
+    setFinalizandoAgendamento(true);
+    try {
+      await onSubmit?.(payload);
+      onOpenChange(false);
+      resetForm();
+    } finally {
+      finalizandoAgendamentoRef.current = false;
+      setFinalizandoAgendamento(false);
+    }
   }
 
   async function abrirImportacaoPedido() {
@@ -4764,9 +4777,10 @@ export function NovoAgendamentoNovoLayout({
                   <Button 
                     className="w-full h-14 text-lg font-bold bg-secondary hover:bg-secondary/90 text-white shadow-xl shadow-secondary/20 transition-all active:scale-[0.98]" 
                     onClick={handleSubmit}
+                    disabled={finalizandoAgendamento || checandoDuplicidade || (!!agendamentoDuplicado && !initialData)}
                   >
                     <Send className="h-5 w-5 mr-2" />
-                    Finalizar Agendamento
+                    {finalizandoAgendamento ? "Finalizando..." : "Finalizar Agendamento"}
                   </Button>
                 </CardContent>
                 </Card>
