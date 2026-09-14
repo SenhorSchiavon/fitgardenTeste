@@ -323,6 +323,10 @@ export function ClienteFormDialog({
   const [avisoCepSecundario, setAvisoCepSecundario] = useState<string | null>(null);
   const [resultadosGooglePlaces, setResultadosGooglePlaces] = useState<ResultadoEnderecoGooglePlaces[]>([]);
   const [resultadosGooglePlacesSecundario, setResultadosGooglePlacesSecundario] = useState<ResultadoEnderecoGooglePlaces[]>([]);
+  const [sugestoesRua, setSugestoesRua] = useState<ResultadoEnderecoGooglePlaces[]>([]);
+  const [sugestoesRuaSecundario, setSugestoesRuaSecundario] = useState<ResultadoEnderecoGooglePlaces[]>([]);
+  const [buscandoSugestoesRua, setBuscandoSugestoesRua] = useState(false);
+  const [buscandoSugestoesRuaSecundario, setBuscandoSugestoesRuaSecundario] = useState(false);
   const [novaTag, setNovaTag] = useState("");
 
   const [form, setForm] = useState<ClienteFormValue>({
@@ -410,6 +414,8 @@ export function ClienteFormDialog({
     setAvisoCepSecundario(null);
     setResultadosGooglePlaces([]);
     setResultadosGooglePlacesSecundario([]);
+    setSugestoesRua([]);
+    setSugestoesRuaSecundario([]);
     setNovaTag("");
 
     setForm((prev) => ({
@@ -440,6 +446,66 @@ export function ClienteFormDialog({
       tags: initialValue?.tags ?? [],
     }));
   }, [open, initialValue]);
+
+  useEffect(() => {
+    let alive = true;
+    const rua = String(form.logradouro || "").trim();
+    const cidade = String(form.cidade || "").trim();
+
+    if (!open || coordsOk || rua.length < 3) {
+      setSugestoesRua([]);
+      setBuscandoSugestoesRua(false);
+      return;
+    }
+
+    setBuscandoSugestoesRua(true);
+    const timer = window.setTimeout(async () => {
+      try {
+        const consulta = [rua, form.bairro, cidade || "Londrina", "PR", "Brasil"].filter(Boolean).join(", ");
+        const resultados = await buscarEnderecosGooglePlaces(consulta);
+        if (alive) setSugestoesRua(resultados.slice(0, 5));
+      } catch {
+        if (alive) setSugestoesRua([]);
+      } finally {
+        if (alive) setBuscandoSugestoesRua(false);
+      }
+    }, 450);
+
+    return () => {
+      alive = false;
+      window.clearTimeout(timer);
+    };
+  }, [open, coordsOk, form.logradouro, form.bairro, form.cidade]);
+
+  useEffect(() => {
+    let alive = true;
+    const rua = String(form.secundarioLogradouro || "").trim();
+    const cidade = String(form.secundarioCidade || "").trim();
+
+    if (!open || coordsSecundarioOk || rua.length < 3) {
+      setSugestoesRuaSecundario([]);
+      setBuscandoSugestoesRuaSecundario(false);
+      return;
+    }
+
+    setBuscandoSugestoesRuaSecundario(true);
+    const timer = window.setTimeout(async () => {
+      try {
+        const consulta = [rua, form.secundarioBairro, cidade || "Londrina", "PR", "Brasil"].filter(Boolean).join(", ");
+        const resultados = await buscarEnderecosGooglePlaces(consulta);
+        if (alive) setSugestoesRuaSecundario(resultados.slice(0, 5));
+      } catch {
+        if (alive) setSugestoesRuaSecundario([]);
+      } finally {
+        if (alive) setBuscandoSugestoesRuaSecundario(false);
+      }
+    }, 450);
+
+    return () => {
+      alive = false;
+      window.clearTimeout(timer);
+    };
+  }, [open, coordsSecundarioOk, form.secundarioLogradouro, form.secundarioBairro, form.secundarioCidade]);
 
   useEffect(() => {
     let alive = true;
@@ -531,6 +597,7 @@ export function ClienteFormDialog({
       longitude: resultado.longitude,
     }));
     setResultadosGooglePlaces([]);
+    setSugestoesRua([]);
     setAvisoCep(`Endereço selecionado: ${resultado.label}`);
   };
 
@@ -546,6 +613,7 @@ export function ClienteFormDialog({
       secundarioLongitude: resultado.longitude,
     }));
     setResultadosGooglePlacesSecundario([]);
+    setSugestoesRuaSecundario([]);
     setAvisoCepSecundario(`Endereço selecionado: ${resultado.label}`);
   };
 
@@ -924,9 +992,28 @@ export function ClienteFormDialog({
                 <Input
                   id="logradouro"
                   value={form.logradouro || ""}
-                  onChange={(e) => setForm((p) => ({ ...p, logradouro: upper(e.target.value) }))}
+                  onChange={(e) => setForm((p) => ({ ...p, logradouro: upper(e.target.value), latitude: null, longitude: null }))}
                   disabled={saving}
                 />
+                {(buscandoSugestoesRua || sugestoesRua.length > 0) && (
+                  <div className="space-y-1 rounded-md border border-blue-200 bg-white p-2 shadow-sm">
+                    {buscandoSugestoesRua && (
+                      <div className="px-2 py-1 text-xs text-muted-foreground">Buscando endereços...</div>
+                    )}
+                    {sugestoesRua.map((resultado) => (
+                      <Button
+                        key={resultado.id}
+                        type="button"
+                        variant="ghost"
+                        className="h-auto w-full justify-start whitespace-normal px-2 py-2 text-left text-xs"
+                        onClick={() => aplicarResultadoGooglePlaces(resultado)}
+                      >
+                        <MapPin className="mr-2 h-4 w-4 shrink-0 text-blue-700" />
+                        <span>{resultado.label}{resultado.cep ? ` • CEP ${resultado.cep}` : ""}</span>
+                      </Button>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <div className="space-y-2">
@@ -1114,6 +1201,25 @@ export function ClienteFormDialog({
               <div className="space-y-2 col-span-2">
                 <Label htmlFor="secundarioLogradouro">Rua</Label>
                 <Input id="secundarioLogradouro" value={form.secundarioLogradouro || ""} onChange={(e) => setForm((p) => ({ ...p, secundarioLogradouro: upper(e.target.value), secundarioLatitude: null, secundarioLongitude: null }))} disabled={saving} />
+                {(buscandoSugestoesRuaSecundario || sugestoesRuaSecundario.length > 0) && (
+                  <div className="space-y-1 rounded-md border border-blue-200 bg-white p-2 shadow-sm">
+                    {buscandoSugestoesRuaSecundario && (
+                      <div className="px-2 py-1 text-xs text-muted-foreground">Buscando endereços...</div>
+                    )}
+                    {sugestoesRuaSecundario.map((resultado) => (
+                      <Button
+                        key={resultado.id}
+                        type="button"
+                        variant="ghost"
+                        className="h-auto w-full justify-start whitespace-normal px-2 py-2 text-left text-xs"
+                        onClick={() => aplicarResultadoGooglePlacesSecundario(resultado)}
+                      >
+                        <MapPin className="mr-2 h-4 w-4 shrink-0 text-blue-700" />
+                        <span>{resultado.label}{resultado.cep ? ` • CEP ${resultado.cep}` : ""}</span>
+                      </Button>
+                    ))}
+                  </div>
+                )}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="secundarioNumero">Número</Label>
