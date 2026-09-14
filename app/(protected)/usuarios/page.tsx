@@ -211,7 +211,7 @@ export default function UsuariosPage() {
       </div>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-3xl">
+        <DialogContent className="flex max-h-[90vh] max-w-3xl flex-col overflow-hidden">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <UserCog className="h-5 w-5" />
@@ -219,7 +219,8 @@ export default function UsuariosPage() {
             </DialogTitle>
           </DialogHeader>
 
-          <div className="grid gap-5">
+          <div className="min-h-0 flex-1 overflow-y-auto pr-2">
+            <div className="grid gap-5">
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="nome">Nome</Label>
@@ -302,9 +303,10 @@ export default function UsuariosPage() {
                 </div>
               </div>
             )}
+            </div>
           </div>
 
-          <DialogFooter>
+          <DialogFooter className="border-t pt-4">
             <Button variant="outline" onClick={() => setOpen(false)}>
               Cancelar
             </Button>
