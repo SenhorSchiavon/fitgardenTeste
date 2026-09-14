@@ -578,6 +578,7 @@ export function useAgendamentos(options?: { baseUrl?: string }) {
           formaPagamento: payload.formaPagamento,
           senhaAutorizacao: payload.senhaAutorizacao,
           voucherCodigo: payload.voucherCodigo?.trim() || undefined,
+          cupomId: payload.cupomId ? Number(payload.cupomId) : undefined,
           formaPagamentoTaxaVoucher: payload.formaPagamentoTaxaVoucher,
           formaPagamentoRestanteVoucher: payload.formaPagamentoRestanteVoucher,
           voucherGruposPedido: (payload.voucherGruposPedido || []).map(String).map((item) => item.trim()).filter(Boolean),

@@ -119,6 +119,10 @@ type Agendamento = {
   valorDescontoVoucher?: number;
   valorDescontoManual?: number;
   motivoDescontoManual?: string | null;
+  cupomId?: number | null;
+  cupomNome?: string | null;
+  cupomPercentual?: number | null;
+  valorDescontoCupom?: number;
   valorTotalFinal?: number;
   valorPlanosComprados?: number;
   valorPlanosCompradosPendente?: number;
@@ -282,6 +286,7 @@ function getLabelPagamentoConfirmacao(agendamento: Agendamento) {
   return `VOUCHER${sufixoTaxa}`;
 }
 
+
 function ordenarAgendamentosRota(rows: Agendamento[]) {
   return [...rows].sort((a, b) => {
     const prioridadeTipo = (agendamento: Agendamento) => agendamento.tipoEntrega === "RETIRADA" ? 0 : 1;
@@ -310,6 +315,9 @@ function montarDadosEdicaoAgendamento(agendamento: Agendamento) {
     pedido: {
       ...pedido,
       clienteId: pedido.clienteId ?? raw.clienteId,
+      cupomId: agendamento.cupomId ?? pedido.cupomId ?? raw.cupomId ?? null,
+      cupomNome: agendamento.cupomNome ?? pedido.cupomNome ?? raw.cupomNome ?? null,
+      cupomPercentual: agendamento.cupomPercentual ?? pedido.cupomPercentual ?? raw.cupomPercentual ?? null,
       itens: pedido.itens ?? raw.itens ?? [],
     },
     tipoEntrega: agendamento.tipoEntrega,
@@ -326,36 +334,7 @@ function montarDadosEdicaoAgendamento(agendamento: Agendamento) {
     formaPagamento,
     formaPagamentoTaxaVoucher,
     formaPagamentoRestanteVoucher,
-    voucherCodigo,
-    pagamentoJaRealizado,
-    planosCompradosExibidos: agendamento.planosComprados ?? [],
-    itens: pedido.itens ?? raw.itens ?? [],
   };
-}
-
-function getLabelTipoEntrega(tipo: string) {
-  const labels: Record<string, string> = {
-    NAO_DEFINIR: "Não definido",
-    ENTREGA: "Entrega",
-    RETIRADA: "Retirada",
-    CONGELAR: "Congelar",
-  };
-  return labels[tipo] || tipo || "-";
-}
-
-function moneyBr(value: number) {
-  return Number(value || 0).toLocaleString("pt-BR", {
-    style: "currency",
-    currency: "BRL",
-  });
-}
-
-function normalizarBusca(value: string) {
-  return String(value || "")
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .trim();
 }
 
 function toast({
@@ -758,6 +737,9 @@ export default function Agendamentos() {
       agendamento.valorDescontoManual && agendamento.valorDescontoManual > 0
         ? `*Desconto${agendamento.motivoDescontoManual ? ` (${agendamento.motivoDescontoManual})` : ""}:* - ${moneyBr(agendamento.valorDescontoManual)}`
         : null,
+      agendamento.valorDescontoCupom && agendamento.valorDescontoCupom > 0
+        ? `*Desconto Cupom${agendamento.cupomNome ? ` (${agendamento.cupomNome})` : ""}:* - ${moneyBr(agendamento.valorDescontoCupom)}`
+        : null,
       (!agendamento.valorPlanosComprados || agendamento.valorPlanosComprados <= 0) &&
       agendamento.valorDescontoPlanoItens && agendamento.valorDescontoPlanoItens > 0
         ? `*Desconto do Plano:* - ${moneyBr(agendamento.valorDescontoPlanoItens)}`
@@ -874,6 +856,9 @@ export default function Agendamentos() {
         Number(pedido.valorDescontoVoucher || 0) > 0 ? ["DESCONTO VOUCHER", Number(pedido.valorDescontoVoucher), true] : null,
         Number(pedido.valorDescontoManual || 0) > 0
           ? [`DESCONTO${pedido.motivoDescontoManual ? ` (${pedido.motivoDescontoManual})` : ""}`, Number(pedido.valorDescontoManual), true]
+          : null,
+        Number(pedido.valorDescontoCupom || 0) > 0
+          ? [`DESCONTO CUPOM${pedido.cupomNome ? ` (${pedido.cupomNome})` : ""}`, Number(pedido.valorDescontoCupom), true]
           : null,
         !temPlanoAdquirido && Number(pedido.valorDescontoPlanoItens || 0) > 0
           ? ["DESCONTO DO PLANO", Number(pedido.valorDescontoPlanoItens), true]
@@ -1250,6 +1235,10 @@ export default function Agendamentos() {
     );
     const valorDescontoManual = Number(row.pedido?.valorDescontoManual ?? row.valorDescontoManual ?? 0);
     const motivoDescontoManual = row.pedido?.motivoDescontoManual ?? row.motivoDescontoManual ?? null;
+    const cupomId = row.pedido?.cupomId ?? row.cupomId ?? row.pedido?.cupom?.id ?? row.cupom?.id ?? null;
+    const cupomNome = row.pedido?.cupom?.nome ?? row.pedido?.cupomNome ?? row.cupom?.nome ?? row.cupomNome ?? null;
+    const cupomPercentual = row.pedido?.cupom?.descontoPercentual ?? row.pedido?.cupomPercentual ?? row.cupom?.descontoPercentual ?? row.cupomPercentual ?? null;
+    const valorDescontoCupom = Number(row.pedido?.valorDescontoCupom ?? row.valorDescontoCupom ?? 0);
 
     const taxaEntregaAbatidaPlano = pagamentos.some(
       (p: any) =>
@@ -1280,7 +1269,7 @@ export default function Agendamentos() {
     const temCobrancaReal = temPagamentoPendente || !!pagamentoNaoPlanoRelevante;
     const valorTotalPelaCoberturaAtual = Math.max(
       0,
-      valorTotalOriginal - valorDescontos - valorDescontoVoucher - valorDescontoManual,
+      valorTotalOriginal - valorDescontos - valorDescontoVoucher - valorDescontoManual - valorDescontoCupom,
     );
     const usouPlano =
       itens.some((it: any) => !!it.usarPlano) ||
@@ -1424,6 +1413,10 @@ export default function Agendamentos() {
       valorDescontoVoucher,
       valorDescontoManual,
       motivoDescontoManual,
+      cupomId,
+      cupomNome,
+      cupomPercentual,
+      valorDescontoCupom,
       valorTotalFinal,
       valorPlanosComprados,
       valorPlanosCompradosPendente,
@@ -1752,498 +1745,6 @@ export default function Agendamentos() {
               </DropdownMenuItem>
 
               <div className="h-px bg-slate-100 my-1 mx-1" />
-
-              <DropdownMenuItem 
-                className="rounded-lg cursor-pointer gap-2 py-2.5"
-                onClick={async () => {
-                  const dateISO = utils.toISODateOnly(selectedDate);
-                  await baixarXlsxImportEntregasDoDia(dateISO);
-                }}
-              >
-                <FileDown className="h-4 w-4 text-slate-600" />
-                <div className="flex flex-col">
-                  <span className="font-medium text-sm">Planilha Logística</span>
-                  <span className="text-[10px] text-slate-500">Importar no Leva Certo</span>
-                </div>
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-
-          <Button 
-            className="h-10 rounded-xl bg-emerald-700 hover:bg-emerald-800 shadow-md shadow-emerald-100 border-none px-6 gap-2"
-            onClick={() => setCadastroOpen(true)}
-            disabled={loadingOpcoes}
-          >
-            <Plus className="h-4 w-4" />
-            <span>Novo Agendamento</span>
-          </Button>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-[auto_1fr] gap-6">
-        <Card className="h-fit w-fit">
-          <CardHeader>
-            <CardTitle>Calendário</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Calendar
-              mode="single"
-              selected={selectedDate}
-              onSelect={(date) => date && setSelectedDate(date)}
-              locale={ptBR}
-              className="rounded-md border"
-            />
-          </CardContent>
-        </Card>
-
-        <Tabs defaultValue="agendamentos" className="min-w-0">
-          <TabsList className="hidden">
-            <TabsTrigger value="agendamentos">Agendamentos ({agendamentos.length})</TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="agendamentos" className="mt-0">
-        <Card className="shadow-sm border-slate-100 overflow-hidden">
-          <CardHeader className="bg-slate-50/50 py-4 px-6 border-b border-slate-100 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <CardTitle className="text-lg font-bold text-slate-700 flex items-center gap-2">
-              <CalendarIcon className="h-5 w-5 text-primary" />
-              Agendamentos para {formatDate(selectedDate)}
-            </CardTitle>
-            <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
-              <div className="relative w-full sm:w-64">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                <Input
-                  value={buscaAgendamento}
-                  onChange={(event) => setBuscaAgendamento(event.target.value)}
-                  placeholder="Cliente, telefone, nº ou rua"
-                  className="h-9 bg-white pl-9"
-                />
-              </div>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    disabled={agendamentosPorRota.length === 0}
-                  >
-                    <Printer className="mr-2 h-4 w-4" />
-                    Imprimir por rota
-                    <ChevronDown className="ml-2 h-3 w-3 opacity-50" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-56 rounded-xl p-2">
-                  {agendamentosPorRota.map((grupo) => (
-                    <DropdownMenuItem
-                      key={grupo.id}
-                      className="cursor-pointer rounded-lg py-2.5"
-                      onClick={() => abrirImpressaoPedidos(grupo.agendamentos)}
-                    >
-                      <Printer className="mr-2 h-4 w-4 text-slate-500" />
-                      <div className="flex flex-1 items-center justify-between gap-3">
-                        <span className="font-medium">{grupo.label}</span>
-                        <span className="text-right text-xs text-slate-400">
-                          <span className="block">{grupo.agendamentos.length} pedido{grupo.agendamentos.length === 1 ? "" : "s"}</span>
-                          <span className="block">{grupo.totalMarmitas} marmita{grupo.totalMarmitas === 1 ? "" : "s"}</span>
-                        </span>
-                      </div>
-                    </DropdownMenuItem>
-                  ))}
-                </DropdownMenuContent>
-              </DropdownMenu>
-              <Badge variant="secondary" className="bg-white border-slate-200 text-slate-600 font-bold px-3">
-                {agendamentos.length} pedidos
-              </Badge>
-              <Badge variant="secondary" className="bg-white border-slate-200 text-slate-600 font-bold px-3">
-                {totalMarmitasAgendadas} marmitas
-              </Badge>
-            </div>
-          </CardHeader>
-          <CardContent className="p-0">
-            <ScrollArea className="h-[calc(100vh-320px)]">
-              <div className="p-6 space-y-4">
-                {agendamentosFiltrados.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center py-20 text-slate-400">
-                    <CheckCircle2 className="h-12 w-12 mb-4 opacity-20" />
-                    <p className="font-medium">{buscaAgendamento ? "Nenhum agendamento encontrado" : "Nenhum agendamento para hoje"}</p>
-                    <p className="text-sm">{buscaAgendamento ? "Tente buscar por outro nome, telefone, número ou endereço" : "Os pedidos aparecerão aqui conforme forem agendados"}</p>
-                  </div>
-                ) : (
-                  agendamentosPorRota.map((grupo) => (
-                    <section key={grupo.id} className="space-y-3">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: grupo.color }} />
-                          <h3 className="text-sm font-black uppercase tracking-widest text-slate-600">{grupo.label}</h3>
-                          <span className="text-xs text-slate-400">{grupo.intervalo}</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Badge variant="outline" className="border-slate-200 text-slate-500">
-                            {grupo.agendamentos.length} pedido{grupo.agendamentos.length === 1 ? "" : "s"}
-                          </Badge>
-                          <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-700">
-                            {grupo.totalMarmitas} marmita{grupo.totalMarmitas === 1 ? "" : "s"}
-                          </Badge>
-                        </div>
-                      </div>
-
-                      {grupo.agendamentos.map((agendamento) => (
-                        <div
-                          key={agendamento.id}
-                          className={`group relative bg-white border border-l-4 rounded-2xl overflow-hidden cursor-pointer hover:border-emerald-300 hover:shadow-md transition-all duration-200 ${
-                            agendamento.tipoEntrega === "NAO_DEFINIR" || agendamento.formaPagamento === "A_DEFINIR"
-                              ? "border-red-300 bg-red-50/80"
-                              : "border-slate-200"
-                          }`}
-                          style={{ borderLeftColor: grupo.color }}
-                          onClick={() => handleShowDetalhes(agendamento)}
-                        >
-                          <div className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                            <div className="flex-1 space-y-2">
-                              <div className="flex items-center gap-3">
-                                <span className="text-xs font-black text-slate-400 uppercase tracking-widest">{agendamento.numeroPedido}</span>
-                                <h3 className="text-base font-bold text-slate-800 group-hover:text-emerald-700 transition-colors">
-                                  {agendamento.cliente}
-                                  {agendamento.telefone && agendamento.telefone !== "-" ? ` - ${agendamento.telefone}` : ""}
-                                </h3>
-                              </div>
-
-                              <div className="flex flex-wrap items-center gap-y-2 gap-x-4">
-                                <div className="flex items-center text-sm text-slate-500 gap-1.5">
-                                  <Clock className="h-3.5 w-3.5 text-slate-400" />
-                                  <span className="font-medium">{agendamento.faixaHorario}h</span>
-                                </div>
-
-                                <div className="flex items-center text-sm text-slate-500 gap-1.5">
-                                  <Package className="h-3.5 w-3.5 text-slate-400" />
-                                  <span className="font-medium">{(agendamento as any).quantidadeLabel ?? `${agendamento.quantidade} itens`}</span>
-                                </div>
-
-                                <div className="flex items-center text-sm text-slate-500 gap-1.5">
-                                  <MapPin className="h-3.5 w-3.5 text-slate-400" />
-                                  <span className="font-medium truncate max-w-[200px]">{agendamento.endereco}</span>
-                                </div>
-                              </div>
-                            </div>
-
-                            <div className="flex items-center justify-between sm:justify-end gap-3 pt-3 sm:pt-0 border-t sm:border-none border-slate-50">
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="icon"
-                                className="h-9 w-9 border-emerald-200 text-emerald-700 hover:bg-emerald-50"
-                                title="Copiar resumo do pedido"
-                                onClick={(event) => {
-                                  event.stopPropagation();
-                                  void copiarResumoPedido(agendamento);
-                                }}
-                              >
-                                <Copy className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="icon"
-                                className="h-9 w-9 border-slate-200 text-slate-700 hover:bg-slate-50"
-                                title="Imprimir cupom"
-                                onClick={(event) => {
-                                  event.stopPropagation();
-                                  abrirImpressaoPedidos([agendamento]);
-                                }}
-                              >
-                                <Printer className="h-4 w-4" />
-                              </Button>
-                              <Badge
-                                variant={agendamento.tipoEntrega === "ENTREGA" ? "default" : "outline"}
-                                className={
-                                  agendamento.tipoEntrega === "NAO_DEFINIR"
-                                    ? "border-red-300 bg-red-100 text-red-700 hover:bg-red-100"
-                                    : agendamento.tipoEntrega === "ENTREGA"
-                                      ? "bg-slate-800 text-white"
-                                      : "border-slate-200 text-slate-600"
-                                }
-                              >
-                                {getLabelTipoEntrega(agendamento.tipoEntrega)}
-                              </Badge>
-
-                              <div className="flex flex-col items-end">
-                                <div className={`flex items-center text-xs font-bold gap-1 ${
-                                  agendamento.formaPagamento === "A_DEFINIR" ? "text-red-700" : "text-slate-700"
-                                }`}>
-                                  <Wallet className="h-3 w-3 text-slate-400" />
-                                  {getLabelPagamento(agendamento.formaPagamento, agendamento)}
-                                </div>
-                                {(agendamento.valorTotalFinal ?? 0) > 0 && (
-                                  <span className="text-sm font-black text-emerald-700">R$ {(agendamento.valorTotalFinal ?? 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </section>
-                  ))
-                )}
-              </div>
-            </ScrollArea>
-          </CardContent>
-        </Card>
-          </TabsContent>
-
-          <TabsContent value="planos" className="mt-0">
-            <Card className="shadow-sm border-slate-100 overflow-hidden">
-              <CardHeader className="bg-slate-50/50 py-4 px-6 border-b border-slate-100 flex flex-row items-center justify-between">
-                <CardTitle className="text-lg font-bold text-slate-700 flex items-center gap-2">
-                  <CreditCard className="h-5 w-5 text-primary" />
-                  Planos contratados em {formatDate(selectedDate)}
-                </CardTitle>
-                <Badge variant="secondary" className="bg-white border-slate-200 text-slate-600 font-bold px-3">
-                  {planosNaoPagosDoDia.length} pendente{planosNaoPagosDoDia.length === 1 ? "" : "s"}
-                </Badge>
-              </CardHeader>
-              <CardContent className="p-0">
-                <ScrollArea className="h-[calc(100vh-320px)]">
-                  <div className="p-6 space-y-3">
-                    {loadingPlanosNaoPagos ? (
-                      <div className="flex flex-col items-center justify-center py-20 text-slate-400">
-                        <p className="font-medium">Carregando planos...</p>
-                      </div>
-                    ) : planosNaoPagosDoDia.length === 0 ? (
-                      <div className="flex flex-col items-center justify-center py-20 text-slate-400">
-                        <CheckCircle2 className="h-12 w-12 mb-4 opacity-20" />
-                        <p className="font-medium">Nenhum plano pendente nesse dia</p>
-                        <p className="text-sm">Planos contratados e ainda não pagos aparecerão aqui.</p>
-                      </div>
-                    ) : (
-                      planosNaoPagosDoDia.map((plano) => {
-                        const nomePlano = plano.plano?.nome || "Plano";
-                        const gramas = plano.plano?.tamanho?.pesagemGramas ? ` - ${plano.plano.tamanho.pesagemGramas}g` : "";
-                        const telefone = plano.cliente?.telefone || "";
-                        const qtdTaxas = Number(plano.taxasEntregaCompradas || 0);
-                        const valorTaxaUnit = Number(plano.valorTaxaEntrega || 0);
-                        const valorTaxas = qtdTaxas * valorTaxaUnit;
-                        const valorPlano = Number(plano.plano?.valor || 0);
-                        const valorTotal = valorPlano + valorTaxas;
-                        const primeiroNome = String(plano.cliente?.nome || "").split(" ")[0] || "cliente";
-                        const msgCobranca = `Olá ${primeiroNome}! Tudo bem? O pagamento do seu plano ${nomePlano}${gramas}${valorTotal > 0 ? ` no valor de ${moneyBr(valorTotal)}` : ""} ainda não foi identificado. Assim que realizar o pagamento, por favor envie o comprovante por aqui. Obrigado(a)!`;
-                        const whatsappUrl = getWhatsappUrl(telefone, msgCobranca);
-
-                        return (
-                          <div
-                            key={plano.id}
-                            className="rounded-2xl border border-amber-200 bg-amber-50/50 p-4 sm:p-5 shadow-sm"
-                          >
-                            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                              <div className="min-w-0 space-y-2">
-                                <div className="flex flex-wrap items-center gap-2">
-                                  <span className="text-xs font-black uppercase tracking-widest text-amber-700">Plano pendente</span>
-                                  <Badge variant="outline" className="border-amber-300 bg-white text-amber-700">
-                                    {plano.createdAt ? new Date(plano.createdAt).toLocaleDateString("pt-BR") : ""}
-                                  </Badge>
-                                </div>
-                                <div>
-                                  <h3 className="text-base font-bold text-slate-800">{plano.cliente?.nome || "Cliente"}</h3>
-                                  <p className="text-sm text-slate-600">{nomePlano}{gramas}</p>
-                                </div>
-                                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-slate-500">
-                                  <span>{telefone || "Sem telefone"}</span>
-                                  <span>{Number(plano.plano?.unidades || 0)} unidades</span>
-                                  {qtdTaxas > 0 && <span>{qtdTaxas} taxa{qtdTaxas === 1 ? "" : "s"} de entrega</span>}
-                                </div>
-                              </div>
-
-                              <div className="flex flex-col items-stretch gap-2 sm:items-end">
-                                {valorTotal > 0 && (
-                                  <span className="text-right text-lg font-black text-emerald-700">{moneyBr(valorTotal)}</span>
-                                )}
-                                <div className="flex gap-2">
-                                  <Button
-                                    type="button"
-                                    variant="outline"
-                                    size="sm"
-                                    disabled={!whatsappUrl}
-                                    onClick={() => whatsappUrl && window.open(whatsappUrl, "_blank")}
-                                  >
-                                    <MessageCircle className="mr-2 h-4 w-4" />
-                                    Cobrar
-                                  </Button>
-                                  <Button
-                                    type="button"
-                                    size="sm"
-                                    disabled={savingPlanoCliente}
-                                    onClick={async () => {
-                                      await marcarPlanoComoPago(plano.id);
-                                      await loadPlanosNaoPagos();
-                                    }}
-                                  >
-                                    <Check className="mr-2 h-4 w-4" />
-                                    Marcar pago
-                                  </Button>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })
-                    )}
-                  </div>
-                </ScrollArea>
-              </CardContent>
-            </Card>
-          </TabsContent>
-        </Tabs>
-      </div>
-
-      <Dialog open={detalhesDialogOpen} onOpenChange={setDetalhesDialogOpen}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col p-0 gap-0 border-none shadow-2xl rounded-2xl">
-          <DialogHeader className="p-6 pb-2 bg-slate-950 text-white rounded-t-2xl">
-            <DialogTitle className="text-2xl font-bold flex items-center justify-between">
-              <div className="flex flex-col">
-                <span className="text-sm font-light opacity-80 mb-1">Pedido {agendamentoSelecionado?.numeroPedido}</span>
-                <span className="truncate">{agendamentoSelecionado?.cliente}</span>
-              </div>
-              <Badge className="bg-white/20 text-white border-white/40 hover:bg-white/30 text-xs px-3 py-1">
-                {getLabelTipoEntrega(agendamentoSelecionado?.tipoEntrega || "")}
-              </Badge>
-            </DialogTitle>
-          </DialogHeader>
-
-          <div className="flex-1 overflow-y-auto p-6 bg-slate-50/50">
-            <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
-              
-              {/* Lado Esquerdo: Info Geral */}
-              <div className="md:col-span-5 space-y-6">
-                <section className="bg-white p-4 rounded-xl shadow-sm border border-slate-100">
-                  <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3 flex items-center">
-                    <User className="h-3 w-3 mr-1" /> Logística & Contato
-                  </h3>
-                  <div className="space-y-4">
-                    <div className="flex items-start">
-                      <div className="bg-emerald-100 p-2 rounded-lg mr-3">
-                        <Phone className="h-4 w-4 text-emerald-700" />
-                      </div>
-                      <div>
-                        <p className="text-xs text-slate-500">Telefone</p>
-                        <p className="text-sm font-medium">{agendamentoSelecionado?.telefone || "Não informado"}</p>
-                      </div>
-                    </div>
-                    <div className="flex items-start">
-                      <div className="bg-blue-100 p-2 rounded-lg mr-3">
-                        <CalendarIcon className="h-4 w-4 text-blue-700" />
-                      </div>
-                      <div>
-                        <p className="text-xs text-slate-500">Horário Previsto</p>
-                        <p className="text-sm font-medium text-blue-800">{agendamentoSelecionado?.faixaHorario}h</p>
-                      </div>
-                    </div>
-                    <div className="flex items-start">
-                      <div className="bg-rose-100 p-2 rounded-lg mr-3">
-                        <MapPin className="h-4 w-4 text-rose-700" />
-                      </div>
-                      <div>
-                        <p className="text-xs text-slate-500">Endereço de Entrega</p>
-                        <p className="text-sm font-medium leading-tight">{agendamentoSelecionado?.endereco}</p>
-                      </div>
-                    </div>
-                  </div>
-                </section>
-
-                <section className="bg-white p-4 rounded-xl shadow-sm border border-slate-100">
-                  <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3 flex items-center">
-                    <CreditCard className="h-3 w-3 mr-1" /> Pagamento
-                  </h3>
-                  <div className="space-y-3">
-                    <div className="flex justify-between items-center py-1">
-                      <span className="text-sm text-slate-600">Forma</span>
-                      <Badge
-                        variant="outline"
-                        className={
-                          agendamentoSelecionado?.formaPagamento === "A_DEFINIR"
-                            ? "border-red-300 bg-red-50 font-semibold text-red-700"
-                            : "font-semibold text-slate-700"
-                        }
-                      >
-                        {getLabelPagamento(agendamentoSelecionado?.formaPagamento || "", agendamentoSelecionado)}
-                      </Badge>
-                    </div>
-                    <div className="flex justify-between items-center py-1">
-                      <span className="text-sm text-slate-600">Subtotal</span>
-                      <span className="text-sm font-medium">R$ {Math.max(Number(agendamentoSelecionado?.valorPedido || 0), Number(agendamentoSelecionado?.valorDescontoPlanoItens || 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
-                    </div>
-                    <div className="flex justify-between items-center py-1 border-b border-dashed border-slate-100 pb-3">
-                      <span className="text-sm text-slate-600">Entrega</span>
-                      <span className="text-sm font-medium">
-                         {agendamentoSelecionado?.tipoEntrega === "ENTREGA"
-                          ? agendamentoSelecionado?.taxaEntregaAbatidaPlano
-                            ? `R$ ${(agendamentoSelecionado?.valorTaxa ?? 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} (abatida pelo plano)`
-                            : `R$ ${(agendamentoSelecionado?.valorTaxa ?? 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
-                          : "Grátis"}
-                      </span>
-                    </div>
-                    {agendamentoSelecionado?.valorPlanosComprados && agendamentoSelecionado.valorPlanosComprados > 0 ? (
-                      <div className="flex justify-between items-center py-1 border-b border-dashed border-slate-100 pb-3">
-                        <span className="text-sm font-medium text-slate-700">Plano adquirido</span>
-                        <span className="text-sm font-bold text-slate-900">
-                          R$ {agendamentoSelecionado.valorPlanosComprados.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                        </span>
-                      </div>
-                    ) : null}
-                    {agendamentoSelecionado?.valorDescontoPlanoItens && agendamentoSelecionado.valorDescontoPlanoItens > 0 ? (
-                      <div className="flex justify-between items-center py-1 border-b border-dashed border-slate-100 pb-3">
-                        <span className="text-sm text-emerald-600 font-medium">Desconto Plano (marmitas)</span>
-                        <span className="text-sm font-bold text-emerald-600">- R$ {agendamentoSelecionado.valorDescontoPlanoItens.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
-                      </div>
-                    ) : null}
-                    {Number(agendamentoSelecionado?.adicionaisConsumidosPlano || 0) > 0 ? (
-                      <div className="flex justify-between items-center py-1 border-b border-dashed border-blue-100 pb-3">
-                        <span className="text-sm text-blue-700 font-medium">
-                          Adicionais usados do plano ({agendamentoSelecionado?.adicionaisConsumidosPlano})
-                        </span>
-                        <span className="text-sm font-bold text-blue-700">
-                          - R$ {(Number(agendamentoSelecionado?.adicionaisConsumidosPlano || 0) * 2).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                        </span>
-                      </div>
-                    ) : null}
-                    {agendamentoSelecionado?.valorDescontoManual && agendamentoSelecionado.valorDescontoManual > 0 ? (
-                      <div className="flex justify-between items-center gap-3 py-1 border-b border-dashed border-amber-100 pb-3">
-                        <span className="text-sm text-amber-700 font-medium">
-                          Desconto{agendamentoSelecionado.motivoDescontoManual ? ` (${agendamentoSelecionado.motivoDescontoManual})` : ""}
-                        </span>
-                        <span className="shrink-0 text-sm font-bold text-amber-700">
-                          - R$ {agendamentoSelecionado.valorDescontoManual.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                        </span>
-                      </div>
-                    ) : null}
-                    {agendamentoSelecionado?.usouPlano && agendamentoSelecionado.saldoMarmitasAposPedido != null ? (
-                      <div className="flex justify-between items-center py-1 border-b border-dashed border-slate-100 pb-3">
-                        <span className="text-sm text-slate-600">Marmitas após pedido</span>
-                        <span className="text-sm font-bold text-slate-800">{agendamentoSelecionado.saldoMarmitasAposPedido}</span>
-                      </div>
-                    ) : null}
-                    <div className="flex justify-between items-center pt-2">
-                      <span className="text-base font-bold text-slate-800">Total a Pagar</span>
-                      <span className="text-xl font-black text-emerald-700">
-                        R$ {(agendamentoSelecionado?.valorTotalFinal ?? agendamentoSelecionado?.valorTotal ?? 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                      </span>
-                    </div>
-                    {agendamentoSelecionado?.formaPagamento === "DINHEIRO" && (
-                      <div className="flex justify-between items-center border-t border-dashed border-slate-100 pt-3">
-                        <span className="text-sm text-slate-600">Troco</span>
-                        <span className="text-sm font-bold text-slate-800">
-                          {agendamentoSelecionado.precisaTroco && Number(agendamentoSelecionado.trocoPara || 0) > 0
-                            ? `Para ${moneyBr(Number(agendamentoSelecionado.trocoPara))}`
-                            : "Não precisa"}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                </section>
-
-                {agendamentoSelecionado?.observacoes && (
-                  <div className="p-4 bg-amber-50 rounded-xl border border-amber-100">
-                    <p className="text-xs font-bold text-amber-800 uppercase mb-1">Comentário interno</p>
-                    <p className="text-sm text-amber-900 leading-relaxed italic">"{agendamentoSelecionado.observacoes}"</p>
-                  </div>
-                )}
               </div>
 
               {/* Lado Direito: Itens */}

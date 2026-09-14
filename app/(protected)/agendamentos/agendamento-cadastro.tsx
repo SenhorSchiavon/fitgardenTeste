@@ -1024,11 +1024,18 @@ export function NovoAgendamentoNovoLayout({
         const data = await response.json().catch(() => []);
         if (!response.ok) throw new Error(data?.message || "Erro ao carregar cupons");
         if (!ativo) return;
-        setCupons((data || []).map((cupom: any) => ({
+        const cuponsCarregados = (data || []).map((cupom: any) => ({
           id: Number(cupom.id),
           nome: String(cupom.nome || ""),
           percentual: Number(cupom.percentual || 0),
-        })));
+        }));
+        const initialCupomId = initialData ? Number(initialData.cupomId || initialData.pedido?.cupomId || 0) : 0;
+        if (initialCupomId > 0 && !cuponsCarregados.some((c: any) => c.id === initialCupomId)) {
+          const initialCupomNome = String(initialData.cupomNome || initialData.pedido?.cupomNome || `Cupom #${initialCupomId}`);
+          const initialCupomPct = Number(initialData.cupomPercentual || initialData.pedido?.cupomPercentual || 0);
+          cuponsCarregados.push({ id: initialCupomId, nome: initialCupomNome, percentual: initialCupomPct });
+        }
+        setCupons(cuponsCarregados);
       } catch {
         if (ativo) setCupons([]);
       }
