@@ -427,8 +427,38 @@ function getTipoAutomaticoUltimoPedido(ultimo: any): PedidoTipo | null {
   return tipoUltimo === "ENTREGA" || tipoUltimo === "RETIRADA" ? tipoUltimo : null;
 }
 
-function getFormaPagamentoAutomatica(ultimo: any): FormaPagamento | null {
+function getVoucherCodigoSalvo(pagamentos: any[] = []) {
+  return String(
+    pagamentos.find((pagamento: any) =>
+      pagamento?.forma === "VOUCHER" ||
+      pagamento?.voucherId ||
+      String(pagamento?.voucherCodigo || "").trim()
+    )?.voucherCodigo || "",
+  ).trim();
+}
+
+function getPagamentoAutomaticoUltimoPedido(ultimo: any): {
+  forma: FormaPagamento;
+  formaTaxaVoucher?: FormaPagamento;
+  formaRestanteVoucher?: FormaPagamento;
+  voucherCodigo?: string;
+} | null {
   const pagamentos = Array.isArray(ultimo?.pedido?.pagamentos) ? ultimo.pedido.pagamentos : [];
+  const temVoucher = pagamentos.some((pagamento: any) =>
+    pagamento?.forma === "VOUCHER" ||
+    pagamento?.voucherId ||
+    String(pagamento?.voucherCodigo || "").trim()
+  );
+  if (temVoucher) {
+    const formaTaxaVoucher = String(ultimo?.pedido?.formaPagamentoTaxaVoucher || ultimo?.formaPagamentoTaxaVoucher || "") as FormaPagamento;
+    const formaRestanteVoucher = String(ultimo?.pedido?.formaPagamentoRestanteVoucher || ultimo?.formaPagamentoRestanteVoucher || formaTaxaVoucher || "") as FormaPagamento;
+    return {
+      forma: "VOUCHER",
+      formaTaxaVoucher: formaTaxaVoucher || "A_DEFINIR",
+      formaRestanteVoucher: formaRestanteVoucher || formaTaxaVoucher || "A_DEFINIR",
+      voucherCodigo: "",
+    };
+  }
   const pagamentoPrincipal = pagamentos.find((pagamento: any) =>
     pagamento?.forma &&
     pagamento.forma !== "PLANO" &&
@@ -447,7 +477,7 @@ function getFormaPagamentoAutomatica(ultimo: any): FormaPagamento | null {
     "VALE_REFEICAO",
     "LINK",
   ]);
-  return formasAutomaticas.has(forma as FormaPagamento) ? forma as FormaPagamento : null;
+  return formasAutomaticas.has(forma as FormaPagamento) ? { forma: forma as FormaPagamento } : null;
 }
 
 function getFormaPagamentoLabel(forma: FormaPagamento) {
@@ -460,6 +490,7 @@ function getFormaPagamentoLabel(forma: FormaPagamento) {
     VALE_ALIMENTACAO: "vale alimentação",
     VALE_REFEICAO: "vale refeição",
     LINK: "link de pagamento",
+    VOUCHER: "voucher",
   };
   return labels[forma] || forma;
 }
@@ -827,14 +858,14 @@ export function NovoAgendamentoNovoLayout({
           formaInicial === "VOUCHER_TAXA_PIX" ? "PIX" : "A_DEFINIR"),
       );
       setFormaPagamentoRestanteVoucher(initialData.formaPagamentoRestanteVoucher || initialData.formaPagamentoTaxaVoucher || "A_DEFINIR");
-      setVoucherCodigo(initialData.voucherCodigo || "");
+      const pagamentosIniciais = initialData.pagamentos || initialData.pedido?.pagamentos || [];
+      setVoucherCodigo(initialData.voucherCodigo || initialData.pedido?.voucherCodigo || getVoucherCodigoSalvo(pagamentosIniciais));
       setCupomSelecionadoId(String(initialData.cupomId || initialData.pedido?.cupomId || ""));
       setVoucherGruposPedido([]);
       const descontoInicial = Number(initialData.valorDescontoManual || initialData.pedido?.valorDescontoManual || 0);
       setValorDescontoManual(descontoInicial);
       setMotivoDescontoManual(initialData.motivoDescontoManual || initialData.pedido?.motivoDescontoManual || "");
       setDescontoManualOpen(descontoInicial > 0);
-      const pagamentosIniciais = initialData.pagamentos || initialData.pedido?.pagamentos || [];
       setPagamentoJaRealizado(!!initialData.pagamentoJaRealizado);
       const comprasPlanoRegistradas = pagamentosIniciais.filter((pagamento: any) =>
         pagamento.planoClienteId &&
@@ -1182,17 +1213,21 @@ export function NovoAgendamentoNovoLayout({
           setAvisoHorarioAutomatico(`Horário puxado automaticamente do último pedido: ${ajustado.inicio}-${ajustado.fim}.`);
         }
 
-        const formaAutomatica = getFormaPagamentoAutomatica(ultimo);
-        if (formaAutomatica) {
-          setFormaPagamento(formaAutomatica);
-          setFormaPagamentoTaxaVoucher("A_DEFINIR");
-          setVoucherCodigo("");
+        const pagamentoAutomatico = getPagamentoAutomaticoUltimoPedido(ultimo);
+        if (pagamentoAutomatico) {
+          setFormaPagamento(pagamentoAutomatico.forma);
+          setFormaPagamentoTaxaVoucher(pagamentoAutomatico.formaTaxaVoucher || "A_DEFINIR");
+          setFormaPagamentoRestanteVoucher(pagamentoAutomatico.formaRestanteVoucher || "A_DEFINIR");
+          setVoucherCodigo(pagamentoAutomatico.voucherCodigo || "");
           setPagamentoJaRealizado(false);
-          if (formaAutomatica !== "DINHEIRO") {
+          if (pagamentoAutomatico.forma !== "DINHEIRO") {
             setPrecisaTroco(false);
             setTrocoPara(0);
           }
-          setAvisoPagamentoAutomatico(`Forma de pagamento puxada automaticamente do último pedido: ${getFormaPagamentoLabel(formaAutomatica)}.`);
+          const complementoVoucher = pagamentoAutomatico.forma === "VOUCHER" && pagamentoAutomatico.formaTaxaVoucher && pagamentoAutomatico.formaTaxaVoucher !== "A_DEFINIR"
+            ? ` com entrega ${getFormaPagamentoLabel(pagamentoAutomatico.formaTaxaVoucher)}`
+            : "";
+          setAvisoPagamentoAutomatico(`Forma de pagamento puxada automaticamente do último pedido: ${getFormaPagamentoLabel(pagamentoAutomatico.forma)}${complementoVoucher}.`);
         }
 
       } catch {

@@ -358,6 +358,8 @@ function montarDadosEdicaoAgendamento(agendamento: Agendamento) {
     formaPagamento,
     formaPagamentoTaxaVoucher,
     formaPagamentoRestanteVoucher,
+    voucherCodigo,
+    valorDescontoVoucher: agendamento.valorDescontoVoucher ?? raw.valorDescontoVoucher ?? 0,
   };
 }
 
@@ -1977,8 +1979,15 @@ export default function Agendamentos() {
                                     </div>
                                     <div className="flex items-center gap-2">
                                       <div className="text-right">
-                                        <span className="text-[10px] text-slate-400 block font-medium">
-                                          {agendamento.formaPagamento}
+                                        <span
+                                          className={cn(
+                                            "block text-[10px] font-bold uppercase tracking-wide",
+                                            agendamento.formaPagamento === "A_DEFINIR"
+                                              ? "text-red-600"
+                                              : "text-slate-400",
+                                          )}
+                                        >
+                                          {agendamento.formaPagamento === "A_DEFINIR" ? "A definir" : agendamento.formaPagamento}
                                         </span>
                                         <span className="text-sm font-black text-emerald-700">
                                           R$ {(agendamento.valorTotalFinal ?? 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
