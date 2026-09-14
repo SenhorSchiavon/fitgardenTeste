@@ -1835,6 +1835,37 @@ export default function Agendamentos() {
                       className="h-9 bg-white pl-9"
                     />
                   </div>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={agendamentosPorRota.length === 0}
+                      >
+                        <Printer className="mr-2 h-4 w-4" />
+                        Imprimir por rota
+                        <ChevronDown className="ml-2 h-3 w-3 opacity-50" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-56 rounded-xl p-2">
+                      {agendamentosPorRota.map((grupo) => (
+                        <DropdownMenuItem
+                          key={grupo.id}
+                          className="cursor-pointer rounded-lg py-2.5"
+                          onClick={() => abrirImpressaoPedidos(grupo.agendamentos)}
+                        >
+                          <Printer className="mr-2 h-4 w-4 text-slate-500" />
+                          <div className="flex flex-1 items-center justify-between gap-3">
+                            <span className="font-medium">{grupo.label}</span>
+                            <span className="text-xs text-slate-400">
+                              {grupo.agendamentos.length} pedido{grupo.agendamentos.length === 1 ? "" : "s"}
+                            </span>
+                          </div>
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
               </CardHeader>
               <CardContent className="p-0">
@@ -1917,6 +1948,32 @@ export default function Agendamentos() {
 
                                   <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-100">
                                     <div className="flex items-center gap-1.5">
+                                      <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="icon"
+                                        className="h-9 w-9 border-emerald-200 text-emerald-700 hover:bg-emerald-50"
+                                        title="Enviar resumo pelo WhatsApp"
+                                        onClick={(event) => {
+                                          event.stopPropagation();
+                                          handleEnviarConfirmacao(agendamento);
+                                        }}
+                                      >
+                                        <MessageCircle className="h-4 w-4" />
+                                      </Button>
+                                      <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="icon"
+                                        className="h-9 w-9 border-slate-200 text-slate-700 hover:bg-slate-50"
+                                        title="Imprimir cupom"
+                                        onClick={(event) => {
+                                          event.stopPropagation();
+                                          abrirImpressaoPedidos([agendamento]);
+                                        }}
+                                      >
+                                        <Printer className="h-4 w-4" />
+                                      </Button>
                                       <Badge
                                         variant="outline"
                                         className="border-slate-200 bg-slate-50 text-slate-700 font-semibold"
