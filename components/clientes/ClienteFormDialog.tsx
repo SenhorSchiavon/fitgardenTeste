@@ -274,32 +274,7 @@ async function buscarCepPorEnderecoViaCep(input: {
   };
 }
 
-async function geocodeNominatim(address: string) {
-  const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&q=${encodeURIComponent(address)}`;
-  const res = await fetch(url, { cache: "no-store", headers: { Accept: "application/json" } });
-  if (!res.ok) throw new Error("Não foi possível localizar no mapa.");
-  const data = await res.json();
-
-  if (Array.isArray(data) && data[0]) return { lat: Number(data[0].lat), lon: Number(data[0].lon) };
-  throw new Error("Endereço não localizado.");
-}
-
-async function geocodeNominatimComFallback(fullAddress: string) {
-  try {
-    return await geocodeNominatim(fullAddress);
-  } catch {}
-
-  const semCep = fullAddress.replace(/\b\d{5}-?\d{3}\b/g, "").replace(/\s+,/g, ",").trim();
-  try {
-    return await geocodeNominatim(semCep);
-  } catch {}
-
-  const parts = fullAddress.split(",").map((x) => x.trim()).filter(Boolean);
-  const fallback = parts.slice(0, 2).concat(parts.slice(-3)).join(", ");
-  return await geocodeNominatim(fallback);
-}
-
-type ResultadoEnderecoHere = {
+type ResultadoEnderecoGooglePlaces = {
   id: string;
   label: string;
   cep: string;
@@ -311,14 +286,14 @@ type ResultadoEnderecoHere = {
   longitude: number;
 };
 
-async function buscarEnderecosHere(consulta: string): Promise<ResultadoEnderecoHere[]> {
+async function buscarEnderecosGooglePlaces(consulta: string): Promise<ResultadoEnderecoGooglePlaces[]> {
   const query = String(consulta || "").trim();
   if (query.length < 3) throw new Error("Informe um CEP ou endereço para localizar.");
   const qs = new URLSearchParams({ q: query });
   const res = await apiFetch(`${getApiUrl()}/clientes/buscar/endereco?${qs.toString()}`, { cache: "no-store" });
   const data = await res.json().catch(() => null);
-  if (!res.ok) throw new Error(data?.message || "Não foi possível consultar o HERE.");
-  const resultados = (Array.isArray(data) ? data : []) as ResultadoEnderecoHere[];
+  if (!res.ok) throw new Error(data?.message || "Não foi possível consultar o Google Places.");
+  const resultados = (Array.isArray(data) ? data : []) as ResultadoEnderecoGooglePlaces[];
   if (!resultados.length) throw new Error("Nenhum endereço encontrado.");
   return resultados;
 }
@@ -346,8 +321,8 @@ export function ClienteFormDialog({
   const [erroLocalizacaoSecundario, setErroLocalizacaoSecundario] = useState<string | null>(null);
   const [avisoCep, setAvisoCep] = useState<string | null>(null);
   const [avisoCepSecundario, setAvisoCepSecundario] = useState<string | null>(null);
-  const [resultadosHere, setResultadosHere] = useState<ResultadoEnderecoHere[]>([]);
-  const [resultadosHereSecundario, setResultadosHereSecundario] = useState<ResultadoEnderecoHere[]>([]);
+  const [resultadosGooglePlaces, setResultadosGooglePlaces] = useState<ResultadoEnderecoGooglePlaces[]>([]);
+  const [resultadosGooglePlacesSecundario, setResultadosGooglePlacesSecundario] = useState<ResultadoEnderecoGooglePlaces[]>([]);
   const [novaTag, setNovaTag] = useState("");
 
   const [form, setForm] = useState<ClienteFormValue>({
@@ -433,8 +408,8 @@ export function ClienteFormDialog({
     setTaxaEntregaSecundario(null);
     setAvisoCep(null);
     setAvisoCepSecundario(null);
-    setResultadosHere([]);
-    setResultadosHereSecundario([]);
+    setResultadosGooglePlaces([]);
+    setResultadosGooglePlacesSecundario([]);
     setNovaTag("");
 
     setForm((prev) => ({
@@ -544,7 +519,7 @@ export function ClienteFormDialog({
     return [ruaNum, form.secundarioBairro, cidadeUf, form.secundarioCep, "Brasil"].filter(Boolean).join(", ");
   };
 
-  const aplicarResultadoHere = (resultado: ResultadoEnderecoHere) => {
+  const aplicarResultadoGooglePlaces = (resultado: ResultadoEnderecoGooglePlaces) => {
     setForm((p) => ({
       ...p,
       cep: resultado.cep || p.cep,
@@ -555,11 +530,11 @@ export function ClienteFormDialog({
       latitude: resultado.latitude,
       longitude: resultado.longitude,
     }));
-    setResultadosHere([]);
+    setResultadosGooglePlaces([]);
     setAvisoCep(`Endereço selecionado: ${resultado.label}`);
   };
 
-  const aplicarResultadoHereSecundario = (resultado: ResultadoEnderecoHere) => {
+  const aplicarResultadoGooglePlacesSecundario = (resultado: ResultadoEnderecoGooglePlaces) => {
     setForm((p) => ({
       ...p,
       secundarioCep: resultado.cep || p.secundarioCep,
@@ -570,7 +545,7 @@ export function ClienteFormDialog({
       secundarioLatitude: resultado.latitude,
       secundarioLongitude: resultado.longitude,
     }));
-    setResultadosHereSecundario([]);
+    setResultadosGooglePlacesSecundario([]);
     setAvisoCepSecundario(`Endereço selecionado: ${resultado.label}`);
   };
 
@@ -617,9 +592,9 @@ export function ClienteFormDialog({
     try {
       const cepClean = onlyDigits(form.cep || "");
       const consulta = cepClean.length === 8 ? `CEP ${cepClean}, Brasil` : montarEnderecoCompletoParaGeocode();
-      const resultados = await buscarEnderecosHere(consulta);
-      setResultadosHere(resultados);
-      if (resultados.length === 1) aplicarResultadoHere(resultados[0]);
+      const resultados = await buscarEnderecosGooglePlaces(consulta);
+      setResultadosGooglePlaces(resultados);
+      if (resultados.length === 1) aplicarResultadoGooglePlaces(resultados[0]);
       else setAvisoCep(`Encontrei ${resultados.length} opções. Escolha o endereço correto abaixo.`);
     } catch (e: any) {
       setErroLocalizacao(e?.message || "Não foi possível localizar o endereço.");
@@ -678,9 +653,9 @@ export function ClienteFormDialog({
     try {
       const cepClean = onlyDigits(form.secundarioCep || "");
       const consulta = cepClean.length === 8 ? `CEP ${cepClean}, Brasil` : montarEnderecoSecundarioCompletoParaGeocode();
-      const resultados = await buscarEnderecosHere(consulta);
-      setResultadosHereSecundario(resultados);
-      if (resultados.length === 1) aplicarResultadoHereSecundario(resultados[0]);
+      const resultados = await buscarEnderecosGooglePlaces(consulta);
+      setResultadosGooglePlacesSecundario(resultados);
+      if (resultados.length === 1) aplicarResultadoGooglePlacesSecundario(resultados[0]);
       else setAvisoCepSecundario(`Encontrei ${resultados.length} opções. Escolha o endereço correto abaixo.`);
     } catch (e: any) {
       setErroLocalizacaoSecundario(e?.message || "Não foi possível localizar o endereço secundário.");
@@ -694,8 +669,10 @@ export function ClienteFormDialog({
     setErroLocalizacao(null);
     setLocalizando(true);
     try {
-      const geo = await geocodeNominatimComFallback(montarEnderecoCompletoParaGeocode());
-      setForm((p) => ({ ...p, latitude: geo.lat, longitude: geo.lon }));
+      const resultados = await buscarEnderecosGooglePlaces(montarEnderecoCompletoParaGeocode());
+      const resultado = resultados[0];
+      if (!resultado) throw new Error("Endereço não localizado.");
+      aplicarResultadoGooglePlaces(resultado);
     } catch (e: any) {
       setErroLocalizacao(e?.message || "Não foi possível localizar no mapa.");
     } finally {
@@ -707,8 +684,10 @@ export function ClienteFormDialog({
     setErroLocalizacaoSecundario(null);
     setLocalizandoSecundario(true);
     try {
-      const geo = await geocodeNominatimComFallback(montarEnderecoSecundarioCompletoParaGeocode());
-      setForm((p) => ({ ...p, secundarioLatitude: geo.lat, secundarioLongitude: geo.lon }));
+      const resultados = await buscarEnderecosGooglePlaces(montarEnderecoSecundarioCompletoParaGeocode());
+      const resultado = resultados[0];
+      if (!resultado) throw new Error("Endereço não localizado.");
+      aplicarResultadoGooglePlacesSecundario(resultado);
     } catch (e: any) {
       setErroLocalizacaoSecundario(e?.message || "Não foi possível localizar no mapa.");
     } finally {
@@ -897,16 +876,16 @@ export function ClienteFormDialog({
                 {avisoCep}
               </div>
             )}
-            {resultadosHere.length > 1 && (
+            {resultadosGooglePlaces.length > 1 && (
               <div className="space-y-2 rounded-lg border border-blue-200 bg-blue-50/50 p-3">
                 <div className="text-xs font-semibold text-blue-900">Escolha o endereço principal correto:</div>
-                {resultadosHere.map((resultado) => (
+                {resultadosGooglePlaces.map((resultado) => (
                   <Button
                     key={resultado.id}
                     type="button"
                     variant="outline"
                     className="h-auto w-full justify-start whitespace-normal bg-white px-3 py-2 text-left text-xs"
-                    onClick={() => aplicarResultadoHere(resultado)}
+                    onClick={() => aplicarResultadoGooglePlaces(resultado)}
                   >
                     <MapPin className="mr-2 h-4 w-4 shrink-0" />
                     <span>{resultado.label}{resultado.cep ? ` • CEP ${resultado.cep}` : ""}</span>
@@ -1088,16 +1067,16 @@ export function ClienteFormDialog({
                 {avisoCepSecundario}
               </div>
             )}
-            {resultadosHereSecundario.length > 1 && (
+            {resultadosGooglePlacesSecundario.length > 1 && (
               <div className="space-y-2 rounded-lg border border-blue-200 bg-blue-50/50 p-3">
                 <div className="text-xs font-semibold text-blue-900">Escolha o endereço alternativo correto:</div>
-                {resultadosHereSecundario.map((resultado) => (
+                {resultadosGooglePlacesSecundario.map((resultado) => (
                   <Button
                     key={resultado.id}
                     type="button"
                     variant="outline"
                     className="h-auto w-full justify-start whitespace-normal bg-white px-3 py-2 text-left text-xs"
-                    onClick={() => aplicarResultadoHereSecundario(resultado)}
+                    onClick={() => aplicarResultadoGooglePlacesSecundario(resultado)}
                   >
                     <MapPin className="mr-2 h-4 w-4 shrink-0" />
                     <span>{resultado.label}{resultado.cep ? ` • CEP ${resultado.cep}` : ""}</span>
