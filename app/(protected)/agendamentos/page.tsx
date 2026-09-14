@@ -77,6 +77,7 @@ import { apiFetch } from "@/hooks/api";
 import { useCongeladas } from "@/hooks/useCongeladas";
 import { usePlanosCliente } from "@/hooks/usePlanosCliente";
 import { useRegrasPersonalizadas } from "@/hooks/useRegrasPersonalizadas";
+import { cn } from "@/lib/utils";
 type Agendamento = {
   id: string;
   pedidoId?: number | string;
