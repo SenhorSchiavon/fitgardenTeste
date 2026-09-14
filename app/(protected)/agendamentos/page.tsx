@@ -1745,6 +1745,341 @@ export default function Agendamentos() {
               </DropdownMenuItem>
 
               <div className="h-px bg-slate-100 my-1 mx-1" />
+
+              <DropdownMenuItem 
+                className="rounded-lg cursor-pointer gap-2 py-2.5"
+                onClick={async () => {
+                  const dateISO = utils.toISODateOnly(selectedDate);
+                  await baixarXlsxImportEntregasDoDia(dateISO);
+                }}
+              >
+                <FileDown className="h-4 w-4 text-slate-600" />
+                <div className="flex flex-col">
+                  <span className="font-medium text-sm">Planilha Logística</span>
+                  <span className="text-[10px] text-slate-500">Importar no Leva Certo</span>
+                </div>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          <Button 
+            className="h-10 rounded-xl bg-emerald-700 hover:bg-emerald-800 shadow-md shadow-emerald-100 border-none px-6 gap-2"
+            onClick={() => setCadastroOpen(true)}
+            disabled={loadingOpcoes}
+          >
+            <Plus className="h-4 w-4" />
+            <span>Novo Agendamento</span>
+          </Button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-[auto_1fr] gap-6">
+        <Card className="h-fit w-fit">
+          <CardHeader>
+            <CardTitle>Calendário</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Calendar
+              mode="single"
+              selected={selectedDate}
+              onSelect={(date) => date && setSelectedDate(date)}
+              locale={ptBR}
+              className="rounded-md border"
+            />
+          </CardContent>
+        </Card>
+
+        <Tabs defaultValue="agendamentos" className="min-w-0">
+          <TabsList className="hidden">
+            <TabsTrigger value="agendamentos">Agendamentos ({agendamentos.length})</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="agendamentos" className="mt-0">
+            <Card className="shadow-sm border-slate-100 overflow-hidden">
+              <CardHeader className="bg-slate-50/50 py-4 px-6 border-b border-slate-100 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <CardTitle className="text-lg font-bold text-slate-700 flex items-center gap-2">
+                  <CalendarIcon className="h-5 w-5 text-primary" />
+                  Agendamentos para {formatDate(selectedDate)}
+                </CardTitle>
+                <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
+                  <div className="relative w-full sm:w-64">
+                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                    <Input
+                      value={buscaAgendamento}
+                      onChange={(event) => setBuscaAgendamento(event.target.value)}
+                      placeholder="Cliente, telefone, nº ou rua"
+                      className="h-9 bg-white pl-9"
+                    />
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="p-0">
+                <ScrollArea className="h-[calc(100vh-320px)]">
+                  <div className="p-6 space-y-8">
+                    {loading ? (
+                      <div className="flex flex-col items-center justify-center py-20 text-slate-400">
+                        <p className="font-medium">Carregando agendamentos...</p>
+                      </div>
+                    ) : agendamentosPorRota.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center py-20 text-slate-400">
+                        <Package className="h-12 w-12 mb-4 opacity-20" />
+                        <p className="font-medium">Nenhum agendamento para este dia</p>
+                        <p className="text-sm">Selecione outra data no calendário ou crie um novo agendamento.</p>
+                      </div>
+                    ) : (
+                      agendamentosPorRota.map((grupo) => (
+                        <section key={grupo.id} className="space-y-4">
+                          <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                            <div className="flex items-center gap-3">
+                              <span
+                                className="h-3 w-3 rounded-full"
+                                style={{ backgroundColor: grupo.color }}
+                              />
+                              <h3 className="font-bold text-slate-700 tracking-tight flex items-center gap-2">
+                                {grupo.label}
+                                <span className="text-xs font-normal text-slate-400 font-mono">
+                                  {grupo.intervalo}
+                                </span>
+                              </h3>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Badge variant="secondary" className="bg-slate-100 text-slate-600 font-bold">
+                                {grupo.agendamentos.length} pedido{grupo.agendamentos.length === 1 ? "" : "s"}
+                              </Badge>
+                              <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-700 font-bold">
+                                {grupo.totalMarmitas} marmita{grupo.totalMarmitas === 1 ? "" : "s"}
+                              </Badge>
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-1 gap-3">
+                            {grupo.agendamentos.map((agendamento) => (
+                              <div
+                                key={agendamento.id}
+                                className="group relative bg-white rounded-2xl border border-slate-200/80 p-4 hover:border-emerald-300 hover:shadow-md transition-all cursor-pointer overflow-hidden"
+                                onClick={() => handleShowDetalhes(agendamento)}
+                              >
+                                <div
+                                  className="absolute left-0 top-0 bottom-0 w-1.5"
+                                  style={{ backgroundColor: grupo.color }}
+                                />
+                                <div className="pl-2 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                                  <div className="space-y-1">
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-xs font-bold font-mono text-slate-400">
+                                        {agendamento.numeroPedido}
+                                      </span>
+                                      <h4 className="font-bold text-slate-800 group-hover:text-emerald-700 transition-colors">
+                                        {agendamento.cliente}
+                                      </h4>
+                                    </div>
+                                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500">
+                                      <span className="flex items-center gap-1 font-medium">
+                                        <Clock className="h-3.5 w-3.5 text-slate-400" />
+                                        {agendamento.faixaHorario}
+                                      </span>
+                                      <span className="flex items-center gap-1 font-medium">
+                                        <Package className="h-3.5 w-3.5 text-slate-400" />
+                                        {agendamento.quantidadeLabel || `${agendamento.quantidade} marmita${agendamento.quantidade === 1 ? "" : "s"}`}
+                                      </span>
+                                      {agendamento.tipoEntrega === "ENTREGA" && (
+                                        <span className="flex items-center gap-1 font-medium text-slate-600 truncate max-w-[250px]">
+                                          <MapPin className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                                          {agendamento.endereco}
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+
+                                  <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-100">
+                                    <div className="flex items-center gap-1.5">
+                                      <Badge
+                                        variant="outline"
+                                        className="border-slate-200 bg-slate-50 text-slate-700 font-semibold"
+                                      >
+                                        {getLabelTipoEntrega(agendamento.tipoEntrega)}
+                                      </Badge>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                      <div className="text-right">
+                                        <span className="text-[10px] text-slate-400 block font-medium">
+                                          {agendamento.formaPagamento}
+                                        </span>
+                                        <span className="text-sm font-black text-emerald-700">
+                                          R$ {(agendamento.valorTotalFinal ?? 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </section>
+                      ))
+                    )}
+                  </div>
+                </ScrollArea>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
+      </div>
+
+      <Dialog open={detalhesDialogOpen} onOpenChange={setDetalhesDialogOpen}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col p-0 rounded-2xl">
+          <DialogHeader className="p-6 bg-slate-50/50 border-b border-slate-100 flex flex-row items-center justify-between">
+            <div>
+              <DialogTitle className="text-xl font-black text-slate-800 flex items-center gap-2">
+                Detalhes do Agendamento {agendamentoSelecionado?.numeroPedido}
+              </DialogTitle>
+              <p className="text-xs text-slate-500 font-medium mt-1">
+                Cadastrado em {formatDate(selectedDate)}
+              </p>
+            </div>
+          </DialogHeader>
+
+          <div className="p-6 overflow-y-auto flex-1 space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
+              {/* Lado Esquerdo: Info Cliente & Pagamento */}
+              <div className="md:col-span-5 space-y-4">
+                <section className="bg-white p-4 rounded-xl shadow-sm border border-slate-100">
+                  <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3 flex items-center">
+                    <User className="h-3 w-3 mr-1" /> Cliente & Entrega
+                  </h3>
+                  <div className="space-y-2 text-sm">
+                    <div>
+                      <p className="text-xs text-slate-400 font-medium">Nome</p>
+                      <p className="font-bold text-slate-800">{agendamentoSelecionado?.cliente}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-slate-400 font-medium">Telefone</p>
+                      <p className="font-medium text-slate-700">{agendamentoSelecionado?.telefone}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-slate-400 font-medium">Tipo</p>
+                      <p className="font-medium text-slate-700">{agendamentoSelecionado ? getLabelTipoEntrega(agendamentoSelecionado.tipoEntrega) : "-"}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-slate-400 font-medium">Janela de Horário</p>
+                      <p className="font-medium text-slate-700">{agendamentoSelecionado?.faixaHorario}</p>
+                    </div>
+                    {agendamentoSelecionado?.tipoEntrega === "ENTREGA" && (
+                      <div>
+                        <p className="text-xs text-slate-400 font-medium">Endereço</p>
+                        <p className="font-medium text-slate-700 leading-snug">{agendamentoSelecionado?.endereco}</p>
+                      </div>
+                    )}
+                  </div>
+                </section>
+
+                <section className="bg-white p-4 rounded-xl shadow-sm border border-slate-100">
+                  <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3 flex items-center">
+                    <CreditCard className="h-3 w-3 mr-1" /> Pagamento
+                  </h3>
+                  <div className="space-y-3">
+                    <div className="flex justify-between items-center py-1">
+                      <span className="text-sm text-slate-600">Forma</span>
+                      <Badge
+                        variant="outline"
+                        className={
+                          agendamentoSelecionado?.formaPagamento === "A_DEFINIR"
+                            ? "border-red-300 bg-red-50 font-semibold text-red-700"
+                            : "font-semibold text-slate-700"
+                        }
+                      >
+                        {getLabelPagamento(agendamentoSelecionado?.formaPagamento || "", agendamentoSelecionado)}
+                      </Badge>
+                    </div>
+                    <div className="flex justify-between items-center py-1">
+                      <span className="text-sm text-slate-600">Subtotal</span>
+                      <span className="text-sm font-medium">R$ {Math.max(Number(agendamentoSelecionado?.valorPedido || 0), Number(agendamentoSelecionado?.valorDescontoPlanoItens || 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                    </div>
+                    <div className="flex justify-between items-center py-1 border-b border-dashed border-slate-100 pb-3">
+                      <span className="text-sm text-slate-600">Entrega</span>
+                      <span className="text-sm font-medium">
+                         {agendamentoSelecionado?.tipoEntrega === "ENTREGA"
+                          ? agendamentoSelecionado?.taxaEntregaAbatidaPlano
+                            ? `R$ ${(agendamentoSelecionado?.valorTaxa ?? 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} (abatida pelo plano)`
+                            : `R$ ${(agendamentoSelecionado?.valorTaxa ?? 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
+                          : "Grátis"}
+                      </span>
+                    </div>
+                    {agendamentoSelecionado?.valorPlanosComprados && agendamentoSelecionado.valorPlanosComprados > 0 ? (
+                      <div className="flex justify-between items-center py-1 border-b border-dashed border-slate-100 pb-3">
+                        <span className="text-sm font-medium text-slate-700">Plano adquirido</span>
+                        <span className="text-sm font-bold text-slate-900">
+                          R$ {agendamentoSelecionado.valorPlanosComprados.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                        </span>
+                      </div>
+                    ) : null}
+                    {agendamentoSelecionado?.valorDescontoPlanoItens && agendamentoSelecionado.valorDescontoPlanoItens > 0 ? (
+                      <div className="flex justify-between items-center py-1 border-b border-dashed border-slate-100 pb-3">
+                        <span className="text-sm text-emerald-600 font-medium">Desconto Plano (marmitas)</span>
+                        <span className="text-sm font-bold text-emerald-600">- R$ {agendamentoSelecionado.valorDescontoPlanoItens.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                      </div>
+                    ) : null}
+                    {Number(agendamentoSelecionado?.adicionaisConsumidosPlano || 0) > 0 ? (
+                      <div className="flex justify-between items-center py-1 border-b border-dashed border-blue-100 pb-3">
+                        <span className="text-sm text-blue-700 font-medium">
+                          Adicionais usados do plano ({agendamentoSelecionado?.adicionaisConsumidosPlano})
+                        </span>
+                        <span className="text-sm font-bold text-blue-700">
+                          - R$ {(Number(agendamentoSelecionado?.adicionaisConsumidosPlano || 0) * 2).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                        </span>
+                      </div>
+                    ) : null}
+                    {agendamentoSelecionado?.valorDescontoManual && agendamentoSelecionado.valorDescontoManual > 0 ? (
+                      <div className="flex justify-between items-center gap-3 py-1 border-b border-dashed border-amber-100 pb-3">
+                        <span className="text-sm text-amber-700 font-medium">
+                          Desconto{agendamentoSelecionado.motivoDescontoManual ? ` (${agendamentoSelecionado.motivoDescontoManual})` : ""}
+                        </span>
+                        <span className="shrink-0 text-sm font-bold text-amber-700">
+                          - R$ {agendamentoSelecionado.valorDescontoManual.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                        </span>
+                      </div>
+                    ) : null}
+                    {agendamentoSelecionado?.valorDescontoCupom && agendamentoSelecionado.valorDescontoCupom > 0 ? (
+                      <div className="flex justify-between items-center gap-3 py-1 border-b border-dashed border-emerald-100 pb-3">
+                        <span className="text-sm text-emerald-700 font-medium">
+                          Desconto Cupom{agendamentoSelecionado.cupomNome ? ` (${agendamentoSelecionado.cupomNome})` : ""}
+                        </span>
+                        <span className="shrink-0 text-sm font-bold text-emerald-700">
+                          - R$ {agendamentoSelecionado.valorDescontoCupom.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                        </span>
+                      </div>
+                    ) : null}
+                    {agendamentoSelecionado?.usouPlano && agendamentoSelecionado.saldoMarmitasAposPedido != null ? (
+                      <div className="flex justify-between items-center py-1 border-b border-dashed border-slate-100 pb-3">
+                        <span className="text-sm text-slate-600">Marmitas após pedido</span>
+                        <span className="text-sm font-bold text-slate-800">{agendamentoSelecionado.saldoMarmitasAposPedido}</span>
+                      </div>
+                    ) : null}
+                    <div className="flex justify-between items-center pt-2">
+                      <span className="text-base font-bold text-slate-800">Total a Pagar</span>
+                      <span className="text-xl font-black text-emerald-700">
+                        R$ {(agendamentoSelecionado?.valorTotalFinal ?? agendamentoSelecionado?.valorTotal ?? 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                      </span>
+                    </div>
+                    {agendamentoSelecionado?.formaPagamento === "DINHEIRO" && (
+                      <div className="flex justify-between items-center border-t border-dashed border-slate-100 pt-3">
+                        <span className="text-sm text-slate-600">Troco</span>
+                        <span className="text-sm font-bold text-slate-800">
+                          {agendamentoSelecionado.precisaTroco && Number(agendamentoSelecionado.trocoPara || 0) > 0
+                            ? `Para ${moneyBr(Number(agendamentoSelecionado.trocoPara))}`
+                            : "Não precisa"}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </section>
+
+                {agendamentoSelecionado?.observacoes && (
+                  <div className="p-4 bg-amber-50 rounded-xl border border-amber-100">
+                    <p className="text-xs font-bold text-amber-800 uppercase mb-1">Comentário interno</p>
+                    <p className="text-sm text-amber-900 leading-relaxed italic">"{agendamentoSelecionado.observacoes}"</p>
+                  </div>
+                )}
               </div>
 
               {/* Lado Direito: Itens */}
