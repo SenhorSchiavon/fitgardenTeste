@@ -4,6 +4,7 @@ export type AuthUser = {
   login: string;
   role: string;
   isAdmin?: boolean;
+  montagemRotaId?: number | null;
   permissions?: string[];
 };
 

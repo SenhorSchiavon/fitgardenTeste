@@ -28,6 +28,7 @@ type SystemUser = {
   isAdmin: boolean;
   ativo: boolean;
   tabletAccess: boolean;
+  montagemRotaId: number | null;
   permissions: { screen: string }[];
 };
 
@@ -39,6 +40,7 @@ type FormState = {
   isAdmin: boolean;
   ativo: boolean;
   tabletAccess: boolean;
+  montagemRotaId: string;
   permissions: string[];
 };
 
@@ -49,8 +51,17 @@ const emptyForm: FormState = {
   isAdmin: false,
   ativo: true,
   tabletAccess: false,
+  montagemRotaId: "",
   permissions: [],
 };
+
+const ROTAS_MONTAGEM = [
+  { id: "-1", label: "Entregas congeladas" },
+  { id: "1", label: "Primeira rota" },
+  { id: "2", label: "Segunda rota" },
+  { id: "3", label: "Terceira rota" },
+  { id: "4", label: "Quarta rota" },
+];
 
 export default function UsuariosPage() {
   const [users, setUsers] = useState<SystemUser[]>([]);
@@ -95,6 +106,7 @@ export default function UsuariosPage() {
       isAdmin: user.isAdmin,
       ativo: user.ativo,
       tabletAccess: user.tabletAccess,
+      montagemRotaId: user.montagemRotaId ? String(user.montagemRotaId) : "",
       permissions: user.permissions.map((permission) => permission.screen),
     });
     setOpen(true);
@@ -119,6 +131,7 @@ export default function UsuariosPage() {
         isAdmin: form.isAdmin,
         ativo: form.ativo,
         tabletAccess: form.tabletAccess,
+        montagemRotaId: form.montagemRotaId ? Number(form.montagemRotaId) : null,
         permissions: form.isAdmin ? [] : form.permissions,
       };
       const url = form.id ? `${API_URL}/usuarios-sistema/${form.id}` : `${API_URL}/usuarios-sistema`;
@@ -154,11 +167,12 @@ export default function UsuariosPage() {
       </div>
 
       <div className="overflow-hidden rounded-lg border bg-background">
-        <div className="grid grid-cols-[1.2fr_1fr_120px_120px_120px_96px] gap-4 border-b bg-muted/50 px-4 py-3 text-xs font-semibold uppercase text-muted-foreground">
+        <div className="grid grid-cols-[1.2fr_1fr_120px_120px_150px_120px_96px] gap-4 border-b bg-muted/50 px-4 py-3 text-xs font-semibold uppercase text-muted-foreground">
           <span>Nome</span>
           <span>Login</span>
           <span>Perfil</span>
           <span>Tablet</span>
+          <span>Rota montagem</span>
           <span>Status</span>
           <span className="text-right">Ações</span>
         </div>
@@ -170,7 +184,7 @@ export default function UsuariosPage() {
           users.map((user) => (
             <div
               key={user.id}
-              className="grid grid-cols-[1.2fr_1fr_120px_120px_120px_96px] items-center gap-4 border-b px-4 py-3 text-sm last:border-b-0"
+              className="grid grid-cols-[1.2fr_1fr_120px_120px_150px_120px_96px] items-center gap-4 border-b px-4 py-3 text-sm last:border-b-0"
             >
               <div className="min-w-0">
                 <p className="truncate font-medium">{user.nome || "Sem nome"}</p>
@@ -183,6 +197,7 @@ export default function UsuariosPage() {
               <span className="truncate text-muted-foreground">{user.login}</span>
               <span>{user.isAdmin ? "Admin" : "Funcionário"}</span>
               <span>{user.tabletAccess ? "Liberado" : "Bloqueado"}</span>
+              <span>{ROTAS_MONTAGEM.find((rota) => Number(rota.id) === user.montagemRotaId)?.label || "Todas"}</span>
               <span>{user.ativo ? "Ativo" : "Inativo"}</span>
               <div className="flex justify-end">
                 <Button variant="ghost" size="sm" onClick={() => startEdit(user)} className="gap-2">
@@ -249,6 +264,26 @@ export default function UsuariosPage() {
                 checked={form.tabletAccess}
                 onCheckedChange={(checked) => setForm({ ...form, tabletAccess: checked })}
               />
+            </div>
+
+            <div className="space-y-2 rounded-lg border px-4 py-3">
+              <Label htmlFor="montagemRotaId">Rota de montagem no tablet</Label>
+              <select
+                id="montagemRotaId"
+                className="h-10 w-full rounded-md border bg-background px-3 text-sm"
+                value={form.montagemRotaId}
+                onChange={(event) => setForm({ ...form, montagemRotaId: event.target.value })}
+              >
+                <option value="">Todas as rotas</option>
+                {ROTAS_MONTAGEM.map((rota) => (
+                  <option key={rota.id} value={rota.id}>
+                    {rota.label}
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-muted-foreground">
+                No app, usuários com rota definida veem somente essa rota de montagem.
+              </p>
             </div>
 
             {!form.isAdmin && (
