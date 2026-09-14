@@ -936,17 +936,7 @@ export default function Agendamentos() {
       }
     }
 
-    const url = getWhatsappUrl(agendamentoResumo.telefone, montarMensagemConfirmacao(agendamentoResumo));
-    if (!url) {
-      toast({
-        title: "Telefone nao informado",
-        description: "Cadastre um telefone para abrir a confirmacao no WhatsApp.",
-        variant: "destructive",
-      });
-      return;
-    }
-    void copiarResumoPedido(agendamentoResumo);
-    window.open(url, "_blank");
+    await copiarResumoPedido(agendamentoResumo);
   };
 
   function getPrecoUnitPorQuantidade(tamanho: any, quantidade: number) {
@@ -1937,6 +1927,10 @@ export default function Agendamentos() {
                                         <Package className="h-3.5 w-3.5 text-slate-400" />
                                         {agendamento.quantidadeLabel || `${agendamento.quantidade} marmita${agendamento.quantidade === 1 ? "" : "s"}`}
                                       </span>
+                                      <span className="flex items-center gap-1 font-medium text-slate-600">
+                                        <Phone className="h-3.5 w-3.5 text-slate-400" />
+                                        {agendamento.telefone}
+                                      </span>
                                       {agendamento.tipoEntrega === "ENTREGA" && (
                                         <span className="flex items-center gap-1 font-medium text-slate-600 truncate max-w-[250px]">
                                           <MapPin className="h-3.5 w-3.5 text-slate-400 shrink-0" />
@@ -1953,7 +1947,7 @@ export default function Agendamentos() {
                                         variant="outline"
                                         size="icon"
                                         className="h-9 w-9 border-emerald-200 text-emerald-700 hover:bg-emerald-50"
-                                        title="Enviar resumo pelo WhatsApp"
+                                        title="Copiar resumo para WhatsApp"
                                         onClick={(event) => {
                                           event.stopPropagation();
                                           handleEnviarConfirmacao(agendamento);
