@@ -328,6 +328,7 @@ export function ClienteFormDialog({
   const [erroTaxaEntregaSecundario, setErroTaxaEntregaSecundario] = useState<string | null>(null);
   const [erroLocalizacao, setErroLocalizacao] = useState<string | null>(null);
   const [erroLocalizacaoSecundario, setErroLocalizacaoSecundario] = useState<string | null>(null);
+  const [erroSalvar, setErroSalvar] = useState<string | null>(null);
   const [avisoCep, setAvisoCep] = useState<string | null>(null);
   const [avisoCepSecundario, setAvisoCepSecundario] = useState<string | null>(null);
   const [resultadosGooglePlaces, setResultadosGooglePlaces] = useState<ResultadoEnderecoGooglePlaces[]>([]);
@@ -417,6 +418,7 @@ export function ClienteFormDialog({
     setErroLocalizacaoSecundario(null);
     setErroTaxaEntrega(null);
     setErroTaxaEntregaSecundario(null);
+    setErroSalvar(null);
     setTaxaEntrega(null);
     setTaxaEntregaSecundario(null);
     setAvisoCep(null);
@@ -786,6 +788,7 @@ export function ClienteFormDialog({
   };
 
   const handleSave = async () => {
+    setErroSalvar(null);
     const nome = upper(form.nome).trim();
     const telefone = formatPhoneInput(form.telefone);
     if (!nome) return;
@@ -846,9 +849,13 @@ export function ClienteFormDialog({
       ],
     };
 
-    const createdOrUpdated = await onSubmit(payload);
-    if (createdOrUpdated && onCreated) onCreated(createdOrUpdated);
-    onOpenChange(false);
+    try {
+      const createdOrUpdated = await onSubmit(payload);
+      if (createdOrUpdated && onCreated) onCreated(createdOrUpdated);
+      onOpenChange(false);
+    } catch (e: any) {
+      setErroSalvar(e?.message || "Não foi possível salvar o cliente.");
+    }
   };
 
   return (
@@ -1322,13 +1329,20 @@ export function ClienteFormDialog({
           </div>
         </div>
 
-        <div className="flex justify-end space-x-2 pt-4 px-6 pb-6">
+        <div className="space-y-3 pt-4 px-6 pb-6">
+          {erroSalvar && (
+            <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700">
+              {erroSalvar}
+            </div>
+          )}
+          <div className="flex justify-end space-x-2">
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
             Cancelar
           </Button>
           <Button onClick={handleSave} disabled={saving || (temEnderecoPrincipal && enderecoPrincipalFoiAlterado && !coordsOk)}>
             {saving ? "Salvando..." : "Salvar"}
           </Button>
+          </div>
         </div>
       </DialogContent>
     </Dialog>
