@@ -1898,8 +1898,18 @@ export function NovoAgendamentoNovoLayout({
     ? Math.min(valorBaseCupomResumo, Math.floor(valorBaseCupomResumo * Math.max(0, Math.min(100, cupomSelecionado.percentual))) / 100)
     : 0;
   const valorTotalFinalResumo = Math.max(0, valorBaseCupomResumo - valorDescontoCupomResumo);
-  const valorTaxaPorPedido =
-    resumoPedidos.length > 0 && valorTaxaEntregaResumo > 0 ? valorTaxaEntregaResumo / resumoPedidos.length : 0;
+  const pedidoCobertoPeloVoucherResumo = (pedido: { id: string }) =>
+    isVoucherForma(formaPagamento) && voucherGruposPedido.includes(String(pedido.id));
+  const pedidosQuePagamTaxaResumo = resumoPedidos.filter((pedido) => !pedidoCobertoPeloVoucherResumo(pedido));
+  const divisorTaxaEntregaResumo = isVoucherForma(formaPagamento) && pedidosQuePagamTaxaResumo.length > 0
+    ? pedidosQuePagamTaxaResumo.length
+    : resumoPedidos.length;
+  const getValorTaxaPedidoResumo = (pedido: { id: string }) =>
+    resumoPedidos.length > 0 &&
+    valorTaxaEntregaResumo > 0 &&
+    (!isVoucherForma(formaPagamento) || !pedidoCobertoPeloVoucherResumo(pedido) || pedidosQuePagamTaxaResumo.length === 0)
+      ? valorTaxaEntregaResumo / Math.max(1, divisorTaxaEntregaResumo)
+      : 0;
 
   function resetForm() {
     setClienteId("");
@@ -4575,7 +4585,8 @@ export function NovoAgendamentoNovoLayout({
                       {resumoPedidos.length > 0 ? (
                         <div className="space-y-2">
                           {resumoPedidos.map((pedido) => {
-                            const totalPedido = pedido.subtotal + valorTaxaPorPedido;
+                            const valorTaxaPedido = getValorTaxaPedidoResumo(pedido);
+                            const totalPedido = pedido.subtotal + valorTaxaPedido;
                             return (
                               <div key={pedido.id} className="rounded-lg border border-border/70 bg-muted/10 px-3 py-2">
                                 <div className="flex items-start justify-between gap-3">
@@ -4604,11 +4615,11 @@ export function NovoAgendamentoNovoLayout({
                                   </div>
                                 </div>
 
-                                {valorTaxaPorPedido > 0 && (
+                                {valorTaxaPedido > 0 && (
                                   <div className="mt-2 border-t border-border/60 pt-2 text-xs">
                                     <div className="flex items-center justify-between text-muted-foreground">
                                       <span>Taxa de entrega</span>
-                                      <span>R$ {currency(valorTaxaPorPedido)}</span>
+                                      <span>R$ {currency(valorTaxaPedido)}</span>
                                     </div>
                                     <div className="mt-1 flex items-center justify-between font-bold text-primary">
                                       <span>Total do pedido</span>
