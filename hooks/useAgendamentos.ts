@@ -137,6 +137,7 @@ export type AgendamentoItemInput = {
 
   precoUnit?: number | null;
   usarPlano?: boolean;
+  voucher?: boolean;
 };
 
 export type CreateAgendamentoInput = {
@@ -624,6 +625,7 @@ export function useAgendamentos(options?: { baseUrl?: string }) {
 
             precoUnit: it.precoUnit != null ? Number(it.precoUnit) : null,
             usarPlano: !!it.usarPlano,
+            voucher: !!it.voucher,
           })),
         };
 
@@ -717,6 +719,7 @@ export function useAgendamentos(options?: { baseUrl?: string }) {
 
             precoUnit: it.precoUnit != null && it.precoUnit !== "" ? Number(it.precoUnit) : null,
             usarPlano: !!it.usarPlano,
+            voucher: !!it.voucher,
           }));
         }
 

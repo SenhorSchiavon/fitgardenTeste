@@ -216,6 +216,7 @@ type NovoPedidoItem = {
   complementoGramas?: number;
   groupId?: string;
   usarPlano?: boolean;
+  voucher?: boolean;
 };
 
 type Props = {

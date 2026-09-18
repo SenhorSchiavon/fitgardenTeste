@@ -2809,6 +2809,7 @@ export default function Agendamentos() {
                 observacaoItem: it.observacaoItem ?? "",
                 precoUnit: Number(it.precoUnit ?? 0),
                 usarPlano: !!it.usarPlano,
+                voucher: !!it.voucher,
               })),
             });
             if (agendamentoAtualizadoApi) {
@@ -2862,6 +2863,8 @@ export default function Agendamentos() {
               voucherCodigo: payload.voucherCodigo,
               cupomId: payload.cupomId,
               formaPagamentoTaxaVoucher: payload.formaPagamentoTaxaVoucher,
+              formaPagamentoRestanteVoucher: payload.formaPagamentoRestanteVoucher,
+              voucherGruposPedido: payload.voucherGruposPedido,
               pagamentoJaRealizado: payload.pagamentoJaRealizado,
               valorDescontoManual: payload.valorDescontoManual,
               motivoDescontoManual: payload.motivoDescontoManual,
@@ -2899,6 +2902,7 @@ export default function Agendamentos() {
                 observacaoItem: it.observacaoItem ?? "",
                 precoUnit: Number(it.precoUnit ?? 0),
                 usarPlano: !!it.usarPlano,
+                voucher: !!it.voucher,
               })),
             });
             pedidoCriadoId = Number(criado.pedidoId);
