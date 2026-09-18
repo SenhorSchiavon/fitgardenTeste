@@ -35,7 +35,15 @@ function principalEnderecoTexto(c: Cliente) {
   const e = c.enderecos?.find((x) => x.principal);
   if (!e) return "";
   const rua = e.logradouro || "";
-  const num = e.numero ? `, ${e.numero}` : "";
+  const ruaNormalizada = rua
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+  const numeroNormalizado = String(e.numero || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+  const num = numeroNormalizado && !ruaNormalizada.includes(numeroNormalizado) ? `, ${e.numero}` : "";
   const bairro = e.bairro ? ` - ${e.bairro}` : "";
   const cidade = e.cidade ? `, ${e.cidade}` : "";
   const uf = e.uf ? `/${e.uf}` : "";

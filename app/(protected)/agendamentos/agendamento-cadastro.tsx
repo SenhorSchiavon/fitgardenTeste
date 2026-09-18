@@ -506,6 +506,15 @@ function getGruposVoucherSalvos(pagamentos: any[]) {
   ));
 }
 
+function getGruposVoucherDosItens(itens: any[]) {
+  return Array.from(new Set(
+    (itens || [])
+      .filter((item: any) => !!item.voucher)
+      .map((item: any, indice: number) => String(item.grupoPedido || item.groupId || item.id || indice).trim())
+      .filter(Boolean),
+  ));
+}
+
 function toISODateOnlyLocal(date?: Date | null) {
   if (!date) return "";
   const year = date.getFullYear();
@@ -1019,9 +1028,12 @@ export function NovoAgendamentoNovoLayout({
         complementoGramas: Number(it.complementoGramas || 0),
         });
       });
-      const gruposVoucherSalvos = getGruposVoucherSalvos(pagamentosIniciais);
+      const gruposVoucherSalvos = [
+        ...getGruposVoucherSalvos(pagamentosIniciais),
+        ...getGruposVoucherDosItens(rawItens),
+      ];
       if (gruposVoucherSalvos.length > 0) {
-        setVoucherGruposPedido(gruposVoucherSalvos);
+        setVoucherGruposPedido(Array.from(new Set(gruposVoucherSalvos)));
       } else if (isVoucherForma(formaInicial)) {
         const valorVoucher = pagamentosIniciais
           .filter((pagamento: any) => pagamento.forma === "VOUCHER" || pagamento.voucherId)
@@ -3347,6 +3359,7 @@ export function NovoAgendamentoNovoLayout({
       itens: itensComPrecoBruto.map(it => ({
          ...it,
          grupoPedido: it.groupId || it.id,
+         voucher: isVoucherForma(formaPagamentoPayload) && voucherGruposPedido.includes(String(it.groupId || it.id)),
          carboGramas: Number(it.carboGramas || 0),
          proteinaGramas: Number(it.proteinaGramas || 0),
          legumeGramas: Number(it.legumeGramas || 0),

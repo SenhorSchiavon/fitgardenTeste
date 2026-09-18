@@ -117,6 +117,14 @@ function upper(value?: string | null) {
   return String(value || "").toUpperCase();
 }
 
+function logradouroComNumero(logradouro?: string | null, numero?: string | null) {
+  const rua = upper(logradouro).trim();
+  const num = upper(numero).trim();
+  if (!rua) return num;
+  if (!num) return rua;
+  return normalizarEnderecoBusca(rua).includes(normalizarEnderecoBusca(num)) ? rua : `${rua}, ${num}`;
+}
+
 function coordenadaValida(value: unknown) {
   if (value === null || value === undefined || value === "") return null;
   const numero = Number(value);
@@ -282,6 +290,7 @@ type ResultadoEnderecoGooglePlaces = {
   cidade: string;
   bairro: string;
   logradouro: string;
+  numero?: string;
   latitude: number;
   longitude: number;
 };
@@ -376,7 +385,7 @@ export function ClienteFormDialog({
   const assinaturaEndereco = (cep?: string, cidade?: string, bairro?: string, logradouro?: string, numero?: string) =>
     [onlyDigits(cep || ""), upper(cidade).trim(), upper(bairro).trim(), upper(logradouro).trim(), upper(numero).trim()].join("|");
   const enderecoPrincipalFoiAlterado = assinaturaEndereco(form.cep, form.cidade, form.bairro, form.logradouro, form.numero) !==
-    assinaturaEndereco(initialValue?.cep, initialValue?.cidade, initialValue?.bairro, initialValue?.logradouro, initialValue?.numero);
+    assinaturaEndereco(initialValue?.cep, initialValue?.cidade, initialValue?.bairro, logradouroComNumero(initialValue?.logradouro, initialValue?.numero), "");
   const enderecoSecundarioFoiAlterado = assinaturaEndereco(
     form.secundarioCep,
     form.secundarioCidade,
@@ -387,8 +396,8 @@ export function ClienteFormDialog({
     initialValue?.secundarioCep,
     initialValue?.secundarioCidade,
     initialValue?.secundarioBairro,
-    initialValue?.secundarioLogradouro,
-    initialValue?.secundarioNumero,
+    logradouroComNumero(initialValue?.secundarioLogradouro, initialValue?.secundarioNumero),
+    "",
   );
 
   const coordsSecundarioOk = useMemo(() => {
@@ -427,8 +436,8 @@ export function ClienteFormDialog({
       uf: upper(initialValue?.uf) || "PR",
       cidade: normalizarCidadePermitida(initialValue?.cidade),
       bairro: upper(initialValue?.bairro),
-      logradouro: upper(initialValue?.logradouro),
-      numero: upper(initialValue?.numero),
+      logradouro: logradouroComNumero(initialValue?.logradouro, initialValue?.numero),
+      numero: "",
       complemento: upper(initialValue?.complemento),
       latitude: coordenadaValida(initialValue?.latitude),
       longitude: coordenadaValida(initialValue?.longitude),
@@ -437,8 +446,8 @@ export function ClienteFormDialog({
       secundarioUf: initialValue?.secundarioUf ?? "",
       secundarioCidade: normalizarCidadePermitida(initialValue?.secundarioCidade),
       secundarioBairro: upper(initialValue?.secundarioBairro),
-      secundarioLogradouro: upper(initialValue?.secundarioLogradouro),
-      secundarioNumero: upper(initialValue?.secundarioNumero),
+      secundarioLogradouro: logradouroComNumero(initialValue?.secundarioLogradouro, initialValue?.secundarioNumero),
+      secundarioNumero: "",
       secundarioComplemento: upper(initialValue?.secundarioComplemento),
       secundarioLatitude: coordenadaValida(initialValue?.secundarioLatitude),
       secundarioLongitude: coordenadaValida(initialValue?.secundarioLongitude),
@@ -574,13 +583,13 @@ export function ClienteFormDialog({
   }, [open, coordsSecundarioOk, form.secundarioLatitude, form.secundarioLongitude]);
 
   const montarEnderecoCompletoParaGeocode = () => {
-    const ruaNum = [form.logradouro, form.numero].filter(Boolean).join(", ");
+    const ruaNum = form.logradouro;
     const cidadeUf = [form.cidade, form.uf].filter(Boolean).join(" - ");
     return [ruaNum, form.bairro, cidadeUf, form.cep, "Brasil"].filter(Boolean).join(", ");
   };
 
   const montarEnderecoSecundarioCompletoParaGeocode = () => {
-    const ruaNum = [form.secundarioLogradouro, form.secundarioNumero].filter(Boolean).join(", ");
+    const ruaNum = form.secundarioLogradouro;
     const cidadeUf = [form.secundarioCidade, form.secundarioUf].filter(Boolean).join(" - ");
     return [ruaNum, form.secundarioBairro, cidadeUf, form.secundarioCep, "Brasil"].filter(Boolean).join(", ");
   };
@@ -592,7 +601,8 @@ export function ClienteFormDialog({
       uf: resultado.uf || "PR",
       cidade: normalizarCidadePermitida(resultado.cidade) || p.cidade,
       bairro: upper(resultado.bairro || p.bairro),
-      logradouro: upper(resultado.logradouro || p.logradouro),
+      logradouro: logradouroComNumero(resultado.logradouro || p.logradouro, resultado.numero),
+      numero: "",
       latitude: resultado.latitude,
       longitude: resultado.longitude,
     }));
@@ -608,7 +618,8 @@ export function ClienteFormDialog({
       secundarioUf: resultado.uf || "PR",
       secundarioCidade: normalizarCidadePermitida(resultado.cidade) || p.secundarioCidade,
       secundarioBairro: upper(resultado.bairro || p.secundarioBairro),
-      secundarioLogradouro: upper(resultado.logradouro || p.secundarioLogradouro),
+      secundarioLogradouro: logradouroComNumero(resultado.logradouro || p.secundarioLogradouro, resultado.numero),
+      secundarioNumero: "",
       secundarioLatitude: resultado.latitude,
       secundarioLongitude: resultado.longitude,
     }));
@@ -789,7 +800,6 @@ export function ClienteFormDialog({
       !!form.secundarioCidade?.trim() ||
       !!form.secundarioBairro?.trim() ||
       !!form.secundarioLogradouro?.trim() ||
-      !!form.secundarioNumero?.trim() ||
       !!form.secundarioComplemento?.trim();
     if (temEnderecoSecundario && enderecoSecundarioFoiAlterado && !coordsSecundarioOk) {
       setErroLocalizacaoSecundario("Localize o endereço secundário antes de salvar.");
@@ -813,7 +823,7 @@ export function ClienteFormDialog({
           cidade: temEnderecoPrincipal ? form.cidade?.trim() || null : null,
           bairro: temEnderecoPrincipal ? upper(form.bairro).trim() || null : null,
           logradouro: temEnderecoPrincipal ? upper(form.logradouro).trim() || null : null,
-          numero: temEnderecoPrincipal ? upper(form.numero).trim() || null : null,
+          numero: null,
           complemento: temEnderecoPrincipal ? upper(form.complemento).trim() || null : null,
           latitude: temEnderecoPrincipal && typeof form.latitude === "number" ? form.latitude : null,
           longitude: temEnderecoPrincipal && typeof form.longitude === "number" ? form.longitude : null,
@@ -827,7 +837,7 @@ export function ClienteFormDialog({
               cidade: form.secundarioCidade?.trim() || null,
               bairro: upper(form.secundarioBairro).trim() || null,
               logradouro: upper(form.secundarioLogradouro).trim() || null,
-              numero: upper(form.secundarioNumero).trim() || null,
+              numero: null,
               complemento: upper(form.secundarioComplemento).trim() || null,
               latitude: typeof form.secundarioLatitude === "number" ? form.secundarioLatitude : null,
               longitude: typeof form.secundarioLongitude === "number" ? form.secundarioLongitude : null,
@@ -986,9 +996,8 @@ export function ClienteFormDialog({
               </div>
             </div>
 
-            <div className="grid grid-cols-3 gap-4">
-              <div className="space-y-2 col-span-2">
-                <Label htmlFor="logradouro">Rua</Label>
+            <div className="space-y-2">
+              <Label htmlFor="logradouro">Endereço</Label>
                 <Input
                   id="logradouro"
                   value={form.logradouro || ""}
@@ -1014,17 +1023,6 @@ export function ClienteFormDialog({
                     ))}
                   </div>
                 )}
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="numero">Número</Label>
-                <Input
-                  id="numero"
-                  value={form.numero || ""}
-                  onChange={(e) => setForm((p) => ({ ...p, numero: upper(e.target.value) }))}
-                  disabled={saving}
-                />
-              </div>
             </div>
 
             <div className="space-y-2">
@@ -1197,9 +1195,8 @@ export function ClienteFormDialog({
               </div>
             </div>
 
-            <div className="grid grid-cols-3 gap-4">
-              <div className="space-y-2 col-span-2">
-                <Label htmlFor="secundarioLogradouro">Rua</Label>
+            <div className="space-y-2">
+              <Label htmlFor="secundarioLogradouro">Endereço</Label>
                 <Input id="secundarioLogradouro" value={form.secundarioLogradouro || ""} onChange={(e) => setForm((p) => ({ ...p, secundarioLogradouro: upper(e.target.value), secundarioLatitude: null, secundarioLongitude: null }))} disabled={saving} />
                 {(buscandoSugestoesRuaSecundario || sugestoesRuaSecundario.length > 0) && (
                   <div className="space-y-1 rounded-md border border-blue-200 bg-white p-2 shadow-sm">
@@ -1220,11 +1217,6 @@ export function ClienteFormDialog({
                     ))}
                   </div>
                 )}
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="secundarioNumero">Número</Label>
-                <Input id="secundarioNumero" value={form.secundarioNumero || ""} onChange={(e) => setForm((p) => ({ ...p, secundarioNumero: upper(e.target.value), secundarioLatitude: null, secundarioLongitude: null }))} disabled={saving} />
-              </div>
             </div>
 
             {erroLocalizacaoSecundario && <div className="text-sm text-red-600">{erroLocalizacaoSecundario}</div>}
