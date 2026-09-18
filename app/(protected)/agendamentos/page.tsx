@@ -2770,7 +2770,14 @@ export default function Agendamentos() {
               cupomId: payload.cupomId,
               formaPagamentoTaxaVoucher: payload.formaPagamentoTaxaVoucher,
               formaPagamentoRestanteVoucher: payload.formaPagamentoRestanteVoucher,
-              voucherGruposPedido: payload.voucherGruposPedido,
+              voucherGruposPedido: Array.from(new Set([
+                ...(Array.isArray(payload.voucherGruposPedido) ? payload.voucherGruposPedido : []),
+                ...(Array.isArray(payload.itens)
+                  ? payload.itens
+                      .filter((it: any) => !!it.voucher)
+                      .map((it: any) => String(it.grupoPedido || "").trim())
+                  : []),
+              ].filter(Boolean))),
               pagamentoJaRealizado: payload.pagamentoJaRealizado,
               valorDescontoManual: payload.valorDescontoManual,
               motivoDescontoManual: payload.motivoDescontoManual,
@@ -2864,7 +2871,14 @@ export default function Agendamentos() {
               cupomId: payload.cupomId,
               formaPagamentoTaxaVoucher: payload.formaPagamentoTaxaVoucher,
               formaPagamentoRestanteVoucher: payload.formaPagamentoRestanteVoucher,
-              voucherGruposPedido: payload.voucherGruposPedido,
+              voucherGruposPedido: Array.from(new Set([
+                ...(Array.isArray(payload.voucherGruposPedido) ? payload.voucherGruposPedido : []),
+                ...(Array.isArray(payload.itens)
+                  ? payload.itens
+                      .filter((it: any) => !!it.voucher)
+                      .map((it: any) => String(it.grupoPedido || "").trim())
+                  : []),
+              ].filter(Boolean))),
               pagamentoJaRealizado: payload.pagamentoJaRealizado,
               valorDescontoManual: payload.valorDescontoManual,
               motivoDescontoManual: payload.motivoDescontoManual,

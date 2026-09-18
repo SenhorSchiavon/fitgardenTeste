@@ -582,7 +582,12 @@ export function useAgendamentos(options?: { baseUrl?: string }) {
           cupomId: payload.cupomId ? Number(payload.cupomId) : undefined,
           formaPagamentoTaxaVoucher: payload.formaPagamentoTaxaVoucher,
           formaPagamentoRestanteVoucher: payload.formaPagamentoRestanteVoucher,
-          voucherGruposPedido: (payload.voucherGruposPedido || []).map(String).map((item) => item.trim()).filter(Boolean),
+          voucherGruposPedido: Array.from(new Set([
+            ...(payload.voucherGruposPedido || []).map(String).map((item) => item.trim()),
+            ...(payload.itens || [])
+              .filter((item) => !!item.voucher)
+              .map((item) => String(item.grupoPedido || "").trim()),
+          ].filter(Boolean))),
           pagamentoJaRealizado: !!payload.pagamentoJaRealizado,
           valorDescontoManual: Number(payload.valorDescontoManual || 0),
           motivoDescontoManual: payload.motivoDescontoManual?.trim() || undefined,
@@ -721,6 +726,14 @@ export function useAgendamentos(options?: { baseUrl?: string }) {
             usarPlano: !!it.usarPlano,
             voucher: !!it.voucher,
           }));
+        }
+        if (Array.isArray(body.voucherGruposPedido) || Array.isArray(body.itens)) {
+          body.voucherGruposPedido = Array.from(new Set([
+            ...(body.voucherGruposPedido || []).map(String).map((item: string) => item.trim()),
+            ...(body.itens || [])
+              .filter((item: any) => !!item.voucher)
+              .map((item: any) => String(item.grupoPedido || "").trim()),
+          ].filter(Boolean)));
         }
 
         return await fetchJson<any>(`${baseUrl}/${id}`, {
