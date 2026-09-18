@@ -113,15 +113,28 @@ function getApiUrl() {
 async function http<T>(path: string, init?: RequestInit) {
   const base = getApiUrl();
   const url = `${base}${path}`;
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), 20000);
 
-  const res = await apiFetch(url, {
-    ...init,
-    headers: {
-      "Content-Type": "application/json",
-      ...(init?.headers || {}),
-    },
-    cache: "no-store",
-  });
+  let res: Response;
+  try {
+    res = await apiFetch(url, {
+      ...init,
+      signal: init?.signal || controller.signal,
+      headers: {
+        "Content-Type": "application/json",
+        ...(init?.headers || {}),
+      },
+      cache: "no-store",
+    });
+  } catch (e: any) {
+    if (e?.name === "AbortError") {
+      throw new Error("A API demorou para responder. Tente novamente em instantes.");
+    }
+    throw e;
+  } finally {
+    window.clearTimeout(timeout);
+  }
 
   if (!res.ok) {
     let msg = "Erro na requisição.";
