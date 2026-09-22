@@ -1359,7 +1359,7 @@ export default function Agendamentos() {
       .map((pagamento: any) => pagamento.planoCliente);
     const planosParaResumo = Array.from(
       new Map([...planosCliente, ...planosUsadosNoPedido].map((plano: any) => [Number(plano.id), plano])).values(),
-    );
+    ).filter((plano: any) => plano.ativo !== false && (plano.pago !== false || planosUsadosNoPedido.some((pu: any) => Number(pu.id) === Number(plano.id))));
     const consumoPlanoRegistradoIds = new Set(
       pagamentos
         .filter((pagamento: any) => pagamento.forma === "PLANO" && Number(pagamento.consumoUnidades || 0) > 0)
@@ -1406,11 +1406,12 @@ export default function Agendamentos() {
     const planosAtivos = Array.from(saldosPorTamanho.entries())
       .map(([tamanho, saldo]) => ({ tamanho, saldo }))
       .sort((a, b) => Number(a.tamanho.replace(/\D/g, "")) - Number(b.tamanho.replace(/\D/g, "")));
-    const saldoTaxasEntrega = planosCliente.reduce(
+    const planosClienteValidos = planosCliente.filter((plano: any) => plano.ativo !== false && plano.pago !== false);
+    const saldoTaxasEntrega = planosClienteValidos.reduce(
       (total: number, plano: any) => total + Math.max(0, Number(plano.saldoEntregas || 0)),
       0,
     );
-    const saldoAdicionaisPlano = planosCliente.reduce(
+    const saldoAdicionaisPlano = planosClienteValidos.reduce(
       (total: number, plano: any) => total + Math.max(0, Number(plano.saldoAdicionais || 0)),
       0,
     );
