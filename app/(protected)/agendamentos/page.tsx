@@ -103,6 +103,8 @@ type Agendamento = {
   formaPagamento: string;
   formaPagamentoTaxaVoucher?: string | null;
   formaPagamentoRestanteVoucher?: string | null;
+  agendamentoId?: number;
+  pagamentos?: any[];
   taxaVoucherPaga?: boolean;
   voucherCodigo?: string;
   entregador: string;
@@ -127,7 +129,7 @@ type Agendamento = {
   valorTotalFinal?: number;
   valorPlanosComprados?: number;
   valorPlanosCompradosPendente?: number;
-  planosComprados?: { id?: number; nome: string; valor: number; valorPlano: number; valorTaxas: number; pago: boolean }[];
+  planosComprados?: { id?: number; nome: string; valor: number; valorPlano: number; valorTaxas: number; pago: boolean; createdAt?: string | Date }[];
   taxaEntregaAbatidaPlano?: boolean;
   usouPlano?: boolean;
   saldoMarmitasAposPedido?: number | null;
@@ -266,7 +268,7 @@ function getFormaTaxaVoucher(agendamento?: any, forma?: string | null) {
   return pagamentoTaxa?.forma ? String(pagamentoTaxa.forma) : null;
 }
 
-function getLabelPagamento(forma: string, agendamento?: any) {
+function getLabelPagamento(forma: string, agendamento?: any): string {
   if (String(forma || "").includes(" + ")) {
     return String(forma)
       .split(" + ")
@@ -379,6 +381,7 @@ function montarDadosEdicaoAgendamento(agendamento: Agendamento) {
   return {
     ...raw,
     clienteId: pedido.clienteId ?? raw.clienteId,
+    planosCompradosExibidos: agendamento.planosComprados,
     pedido: {
       ...pedido,
       clienteId: pedido.clienteId ?? raw.clienteId,
@@ -1257,6 +1260,7 @@ export default function Agendamentos() {
       valorPlano: Number(p.planoCliente?.plano?.valor || p.valor || 0),
       valorTaxas: Math.max(0, Number(p.valor || 0) - Number(p.planoCliente?.plano?.valor || p.valor || 0)),
       pago: p.status === "CONFIRMADO" || p.planoCliente?.pago === true,
+      createdAt: p.planoCliente?.createdAt || p.createdAt,
     }));
 
     const planosClienteAtivos = row.pedido?.cliente?.planos ?? row.cliente?.planos ?? [];
@@ -2587,9 +2591,9 @@ export default function Agendamentos() {
                   <div className="text-xs font-bold text-slate-500">{tamanho}</div>
                   <div className="text-xl font-black text-slate-800">
                     {formatQuantidade(
-                      Number(relatorioMensal?.totais.voucher?.[tamanho as any] || 0)
-                      + Number(relatorioMensal?.totais.plano?.[tamanho as any] || 0)
-                      + Number(relatorioMensal?.totais.normal?.[tamanho as any] || 0),
+                      Number((relatorioMensal?.totais.voucher as any)?.[tamanho] || 0)
+                      + Number((relatorioMensal?.totais.plano as any)?.[tamanho] || 0)
+                      + Number((relatorioMensal?.totais.normal as any)?.[tamanho] || 0),
                     )}
                   </div>
                 </div>

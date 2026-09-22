@@ -664,6 +664,7 @@ export function NovoAgendamentoNovoLayout({
     valorTaxas: number;
     valorTotal: number;
     pago: boolean;
+    createdAt?: string | Date;
   }>>([]);
 
   const [formItem, setFormItem] = useState<NovoPedidoItem>({
@@ -897,49 +898,14 @@ export function NovoAgendamentoNovoLayout({
               valorTaxas: Number(plano.valorTaxas || 0),
               valorTotal: Number(plano.valor || 0),
               pago: plano.pago === true,
+              createdAt: plano.createdAt,
             }))
         : [];
-      // Versões anteriores da edição podiam remover o lançamento financeiro
-      // da compra e deixar apenas os pagamentos de consumo do plano. Nesse caso o
-      // plano continua não pago e vinculado a este pedido, portanto deve voltar para
-      // a lista de compras para que seu valor seja recriado ao salvar.
-      const idsComprasRegistradas = new Set(
-        comprasPlanoRegistradas.map((pagamento: any) => Number(pagamento.planoClienteId)),
-      );
-      const planosNaoPagosConsumidos = Array.from(
-        new Map(
-          pagamentosIniciais
-            .filter((pagamento: any) =>
-              pagamento.planoClienteId &&
-              (
-                Number(pagamento.consumoUnidades || 0) > 0 ||
-                Number(pagamento.consumoEntregas || 0) > 0 ||
-                Number(pagamento.consumoAdicionais || 0) > 0
-              ) &&
-              pagamento.planoCliente?.pago === false &&
-              !idsComprasRegistradas.has(Number(pagamento.planoClienteId)),
-            )
-            .map((pagamento: any) => [Number(pagamento.planoClienteId), pagamento.planoCliente]),
-        ).values(),
-      ).map((planoCliente: any) => {
-        const valorPlano = Number(planoCliente.plano?.valor || 0);
-        const valorTaxas = Number(planoCliente.valorTaxaEntrega || 0) * Number(planoCliente.taxasEntregaCompradas || 0);
-        const valorAdicionais = Number(planoCliente.adicionaisComprados || 0) * 2;
-        return {
-          id: Number(planoCliente.id),
-          nome: String(planoCliente.plano?.nome || `Plano #${planoCliente.id}`),
-          resumo: planoCliente.plano?.unidades ? `${planoCliente.plano.unidades} marmitas` : "Plano lançado neste pedido",
-          valorPlano: valorPlano + valorAdicionais,
-          valorTaxas,
-          valorTotal: valorPlano + valorAdicionais + valorTaxas,
-          pago: false,
-        };
-      });
+
       setPlanosComprados(
         planosCompradosExibidos.length > 0
           ? planosCompradosExibidos
-          : [...comprasPlanoRegistradas
-          .map((pagamento: any) => {
+          : comprasPlanoRegistradas.map((pagamento: any) => {
             const plano = pagamento.planoCliente?.plano;
             const valorTotal = Number(pagamento.valor || 0);
             const valorPlano = Number(plano?.valor || valorTotal);
@@ -951,8 +917,9 @@ export function NovoAgendamentoNovoLayout({
               valorTaxas: Math.max(0, valorTotal - valorPlano),
               valorTotal,
               pago: pagamento.status === "CONFIRMADO",
+              createdAt: pagamento.planoCliente?.createdAt || pagamento.createdAt,
             };
-          }), ...planosNaoPagosConsumidos],
+          }),
       );
       setAbaterTaxaEntregaPlano(
         pagamentosIniciais.some(
@@ -1865,7 +1832,7 @@ export function NovoAgendamentoNovoLayout({
     saldoAdicionaisPlano,
   );
   const valorAdicionaisCobertosResumo = quantidadeAdicionaisCobertosResumo * 2;
-  const itemCobertoPeloVoucherResumo = (item: ItemForm) =>
+  const itemCobertoPeloVoucherResumo = (item: NovoPedidoItem) =>
     voucherGruposPedido.length === 0 || voucherGruposPedido.includes(String(item.groupId || item.id));
   const valorAdicionaisVoucherSelecionadosResumo = itensComPrecoFinal
     .filter((item) => itemCobertoPeloVoucherResumo(item) && (item.tipoItem === "PADRAO" || item.tipoItem === "PERSONALIZADA"))
@@ -3770,12 +3737,20 @@ export function NovoAgendamentoNovoLayout({
                             )}
                             {planosVisiveisCliente.map((plano: any) => {
                               const statusPlano = plano.pago === true ? "PAGO" : "NÃO PAGO";
+                              const dataCriacao = plano.createdAt ? formatDateBR(plano.createdAt) : null;
                               if (plano.itens?.length) {
                                 return (
                                   <div key={plano.id} className="rounded border border-gray-100 px-2 py-1.5">
-                                    <div className="mb-1 flex items-center justify-between gap-2 text-[10px] font-bold">
-                                      <span>{plano.plano?.nome || `Plano #${plano.id}`}</span>
-                                      <Badge variant="outline" className={plano.pago === true ? "border-green-200 text-green-700" : "border-amber-300 text-amber-700"}>{statusPlano}</Badge>
+                                    <div className="mb-1 flex items-start justify-between gap-2">
+                                      <div className="flex flex-col min-w-0">
+                                        <span className="text-[10px] font-bold text-foreground truncate">{plano.plano?.nome || `Plano #${plano.id}`}</span>
+                                        {dataCriacao && (
+                                          <span className="text-[9px] font-medium text-slate-500">
+                                            Adquirido em {dataCriacao}
+                                          </span>
+                                        )}
+                                      </div>
+                                      <Badge variant="outline" className={plano.pago === true ? "border-green-200 text-green-700 shrink-0 text-[9px]" : "border-amber-300 text-amber-700 shrink-0 text-[9px]"}>{statusPlano}</Badge>
                                     </div>
                                     {plano.itens.map((saldo: any) => {
                                   const planoItem = saldo.planoItem || {};
@@ -3808,9 +3783,16 @@ export function NovoAgendamentoNovoLayout({
                               
                               return (
                                 <div key={plano.id} className={`rounded border px-2 py-1.5 text-xs font-medium ${isInUse ? "text-green-600 bg-green-50 border-green-100" : "text-muted-foreground border-gray-100"}`}>
-                                  <div className="mb-1 flex items-center justify-between gap-2 text-[10px] font-bold">
-                                    <span>{plano.plano?.nome || `Plano #${plano.id}`}</span>
-                                    <Badge variant="outline" className={plano.pago === true ? "border-green-200 text-green-700" : "border-amber-300 text-amber-700"}>{statusPlano}</Badge>
+                                  <div className="mb-1 flex items-start justify-between gap-2">
+                                    <div className="flex flex-col min-w-0">
+                                      <span className="text-[10px] font-bold text-foreground truncate">{plano.plano?.nome || `Plano #${plano.id}`}</span>
+                                      {dataCriacao && (
+                                        <span className="text-[9px] font-medium text-slate-500">
+                                          Adquirido em {dataCriacao}
+                                        </span>
+                                      )}
+                                    </div>
+                                    <Badge variant="outline" className={plano.pago === true ? "border-green-200 text-green-700 shrink-0 text-[9px]" : "border-amber-300 text-amber-700 shrink-0 text-[9px]"}>{statusPlano}</Badge>
                                   </div>
                                   <div>{plano.saldoUnidades} marmitas{peso ? ` - ${peso}g` : ""}</div>
                                 </div>
@@ -4100,32 +4082,39 @@ export function NovoAgendamentoNovoLayout({
                           </div>
                         );
                       })}
-                      {planosComprados.map((plano, index) => (
-                        <div key={`plano-${plano.id}`} className="bg-emerald-50/50">
-                          <div className="border-b border-emerald-100 px-4 py-3 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-                            <div className="min-w-0">
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <span className="text-[10px] font-black uppercase tracking-widest text-emerald-700">
-                                  Compra de plano #{index + 1}
-                                </span>
-                                <Badge className="h-4 border-none bg-emerald-600 text-[9px] font-bold hover:bg-emerald-600">
-                                  PLANO
-                                </Badge>
-                                <Badge
-                                  variant="outline"
-                                  className={cn(
-                                    "h-4 text-[9px] font-bold",
-                                    plano.pago
-                                      ? "border-emerald-200 bg-white text-emerald-700"
-                                      : "border-amber-300 bg-amber-50 text-amber-700",
+                      {planosComprados.map((plano, index) => {
+                        const dataPlano = plano.createdAt ? formatDateBR(plano.createdAt) : null;
+                        return (
+                          <div key={`plano-${plano.id}`} className="bg-emerald-50/50">
+                            <div className="border-b border-emerald-100 px-4 py-3 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className="text-[10px] font-black uppercase tracking-widest text-emerald-700">
+                                    Compra de plano #{index + 1}
+                                  </span>
+                                  <Badge className="h-4 border-none bg-emerald-600 text-[9px] font-bold hover:bg-emerald-600">
+                                    PLANO
+                                  </Badge>
+                                  <Badge
+                                    variant="outline"
+                                    className={cn(
+                                      "h-4 text-[9px] font-bold",
+                                      plano.pago
+                                        ? "border-emerald-200 bg-white text-emerald-700"
+                                        : "border-amber-300 bg-amber-50 text-amber-700",
+                                    )}
+                                  >
+                                    {plano.pago ? "PAGO" : "NÃO PAGO"}
+                                  </Badge>
+                                  {dataPlano && (
+                                    <span className="text-[10px] font-semibold text-emerald-800">
+                                      ({dataPlano})
+                                    </span>
                                   )}
-                                >
-                                  {plano.pago ? "PAGO" : "NÃO PAGO"}
-                                </Badge>
+                                </div>
+                                <div className="mt-1 text-sm font-bold text-foreground">{plano.nome}</div>
+                                <div className="text-[11px] text-muted-foreground">{plano.resumo}</div>
                               </div>
-                              <div className="mt-1 text-sm font-bold text-foreground">{plano.nome}</div>
-                              <div className="text-[11px] text-muted-foreground">{plano.resumo}</div>
-                            </div>
                             <div className="flex shrink-0 items-center gap-2 text-left sm:text-right">
                               <Button
                                 type="button"
@@ -4156,13 +4145,14 @@ export function NovoAgendamentoNovoLayout({
                                 <Trash className="h-4 w-4" />
                               </Button>
                               <div>
-                              <div className="text-[9px] font-black uppercase tracking-widest text-emerald-700">Valor</div>
-                              <div className="text-sm font-extrabold text-emerald-800">R$ {currency(plano.valorTotal)}</div>
+                                <div className="text-[9px] font-black uppercase tracking-widest text-emerald-700">Valor</div>
+                                <div className="text-sm font-extrabold text-emerald-800">R$ {currency(plano.valorTotal)}</div>
                               </div>
                             </div>
                           </div>
                         </div>
-                      ))}
+                      );
+                    })}
                     </div>
                   )}
 
@@ -4385,23 +4375,6 @@ export function NovoAgendamentoNovoLayout({
                           if (elegiveis.ids.length > 0) {
                             const ids = new Set(elegiveis.ids);
                             setItens((atuais) => atuais.map((item) => ids.has(item.id) ? { ...item, usarPlano: true } : item));
-
-                            const planoRecuperavel = planosVisiveisCliente.find((plano: any) =>
-                              plano.pago === false && itens.some((item) => ids.has(item.id) && planoClienteTemItemCompativel(plano, item)),
-                            );
-                            if (planoRecuperavel && !planosComprados.some((plano) => plano.id === Number(planoRecuperavel.id))) {
-                              const valorPlano = Number(planoRecuperavel.plano?.valor || 0);
-                              const valorTaxas = Number(planoRecuperavel.valorTaxaEntrega || 0) * Number(planoRecuperavel.taxasEntregaCompradas || 0);
-                              setPlanosComprados((atuais) => [...atuais, {
-                                id: Number(planoRecuperavel.id),
-                                nome: String(planoRecuperavel.plano?.nome || `Plano #${planoRecuperavel.id}`),
-                                resumo: planoRecuperavel.plano?.unidades ? `${planoRecuperavel.plano.unidades} marmitas` : "Plano lançado neste pedido",
-                                valorPlano,
-                                valorTaxas,
-                                valorTotal: valorPlano + valorTaxas,
-                                pago: false,
-                              }]);
-                            }
                             toast.success("Plano reaplicado ao agendamento", {
                               description: `${elegiveis.unidades} marmitas continuarão abatidas do plano.`,
                             });
@@ -4641,27 +4614,37 @@ export function NovoAgendamentoNovoLayout({
 
                       {planosComprados.length > 0 && (
                         <div className="space-y-2 pt-1">
-                          {planosComprados.map((plano) => (
-                            <div key={plano.id} className="rounded-lg border border-emerald-200 bg-emerald-50/70 px-3 py-2">
-                              <div className="flex items-start justify-between gap-3">
-                                <div className="min-w-0">
-                                  <div className="text-[10px] font-black uppercase tracking-widest text-emerald-700">
-                                    Compra de plano {plano.pago ? "paga" : "não paga"}
+                          {planosComprados.map((plano) => {
+                            const dataPlano = plano.createdAt ? formatDateBR(plano.createdAt) : null;
+                            return (
+                              <div key={plano.id} className="rounded-lg border border-emerald-200 bg-emerald-50/70 px-3 py-2">
+                                <div className="flex items-start justify-between gap-3">
+                                  <div className="min-w-0">
+                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                      <span className="text-[10px] font-black uppercase tracking-widest text-emerald-700">
+                                        Compra de plano {plano.pago ? "paga" : "não paga"}
+                                      </span>
+                                      {dataPlano && (
+                                        <span className="text-[10px] font-semibold text-emerald-800">
+                                          ({dataPlano})
+                                        </span>
+                                      )}
+                                    </div>
+                                    <div className="truncate text-xs font-semibold text-foreground">{plano.nome}</div>
+                                    <div className="text-[11px] text-muted-foreground">{plano.resumo}</div>
                                   </div>
-                                  <div className="truncate text-xs font-semibold text-foreground">{plano.nome}</div>
-                                  <div className="text-[11px] text-muted-foreground">{plano.resumo}</div>
+                                  <div className="shrink-0 text-right font-bold text-emerald-800">
+                                    R$ {currency(plano.valorTotal)}
+                                  </div>
                                 </div>
-                                <div className="shrink-0 text-right font-bold text-emerald-800">
-                                  R$ {currency(plano.valorTotal)}
-                                </div>
+                                {plano.valorTaxas > 0 && (
+                                  <div className="mt-2 border-t border-emerald-200 pt-2 text-xs text-emerald-800">
+                                    Inclui taxas de entrega: R$ {currency(plano.valorTaxas)}
+                                  </div>
+                                )}
                               </div>
-                              {plano.valorTaxas > 0 && (
-                                <div className="mt-2 border-t border-emerald-200 pt-2 text-xs text-emerald-800">
-                                  Inclui taxas de entrega: R$ {currency(plano.valorTaxas)}
-                                </div>
-                              )}
-                            </div>
-                          ))}
+                            );
+                          })}
                         </div>
                       )}
                     </div>
