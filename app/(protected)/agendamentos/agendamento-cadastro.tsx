@@ -3319,8 +3319,8 @@ export function NovoAgendamentoNovoLayout({
       senhaAutorizacao,
       voucherCodigo: isVoucherForma(formaPagamentoPayload) ? voucherCodigo.trim() : undefined,
       cupomId: cupomSelecionadoId ? Number(cupomSelecionadoId) : null,
-      formaPagamentoTaxaVoucher: formaPagamento === "VOUCHER" ? formaPagamentoTaxaVoucher : undefined,
-      formaPagamentoRestanteVoucher: formaPagamento === "VOUCHER" ? formaPagamentoRestanteVoucher : undefined,
+      formaPagamentoTaxaVoucher: isVoucherForma(formaPagamento) ? (formaPagamentoTaxaVoucher || "A_DEFINIR") : (formaPagamentoTaxaVoucher !== "A_DEFINIR" ? formaPagamentoTaxaVoucher : undefined),
+      formaPagamentoRestanteVoucher: isVoucherForma(formaPagamento) ? (formaPagamentoRestanteVoucher || "A_DEFINIR") : undefined,
       voucherGruposPedido: isVoucherForma(formaPagamentoPayload) ? voucherGruposPedido : [],
       pagamentoJaRealizado: (
         formaPagamento === "PIX" ||

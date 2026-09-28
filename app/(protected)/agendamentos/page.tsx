@@ -662,16 +662,10 @@ export default function Agendamentos() {
             item.carbo,
             item.proteina,
             item.legume,
-            item.adicionarFeijao ? item.feijao : null,
             item.complemento,
           ].filter(Boolean);
       const descricaoBase = detalhes.length ? detalhes.join(" + ") : item.nome;
-      const descricao = [
-        descricaoBase,
-        item.adicionarFeijao && item.tipoItem !== "PERSONALIZADA" ? "FEIJÃO ADICIONAL" : null,
-        item.adicionarPure && item.tipoItem !== "PERSONALIZADA" ? "PURÊ ADICIONAL" : null,
-        item.adicionarLegumes && item.tipoItem !== "PERSONALIZADA" ? "LEGUMES ADICIONAIS" : null,
-      ].filter(Boolean).join(" + ");
+      const descricao = descricaoBase;
       const descricaoComArroz = item.adicionarArroz && item.tipoItem !== "PERSONALIZADA"
         ? `${descricao} + ARROZ ADICIONAL`
         : descricao;
@@ -754,6 +748,24 @@ export default function Agendamentos() {
       .reduce((total, plano) => total + Number(plano.valorPlano || 0), 0);
     const valorTaxasPlanosComprados = (agendamento.planosComprados || [])
       .reduce((total, plano) => total + Number(plano.valorTaxas || 0), 0);
+    let feijaoPotinhosMensagem = 0;
+    let legumesPotinhosMensagem = 0;
+    let purePotinhosMensagem = 0;
+    agendamento.itens.forEach((it) => {
+      if (it.tipoItem !== "PERSONALIZADA") {
+        const qtd = Number(it.quantidade || 0);
+        if (it.adicionarFeijao) feijaoPotinhosMensagem += qtd;
+        if (it.adicionarPure) purePotinhosMensagem += qtd;
+        if (it.adicionarLegumes) legumesPotinhosMensagem += qtd;
+      }
+    });
+    const partesAdicionaisMensagem = [];
+    if (feijaoPotinhosMensagem > 0) partesAdicionaisMensagem.push(`${feijaoPotinhosMensagem}x Feijão`);
+    if (legumesPotinhosMensagem > 0) partesAdicionaisMensagem.push(`${legumesPotinhosMensagem}x Legumes`);
+    if (purePotinhosMensagem > 0) partesAdicionaisMensagem.push(`${purePotinhosMensagem}x Purê`);
+    const textoAdicionaisMensagem = partesAdicionaisMensagem.length > 0
+      ? `*Adicionais (potinhos separados):* ${partesAdicionaisMensagem.join(" | ")}`
+      : null;
     const valorTotalAdicionais = agendamento.itens
       .filter((item) => item.tipoItem === "PADRAO" || item.tipoItem === "PERSONALIZADA")
       .reduce((total, item) => {
@@ -794,6 +806,7 @@ export default function Agendamentos() {
       "",
       "*Itens:*",
       itens,
+      textoAdicionaisMensagem,
       "",
       agendamento.valorPlanosComprados && agendamento.valorPlanosComprados > 0
         ? `*Valor do plano adquirido:* ${moneyBr(valorBasePlanosComprados)}`
@@ -898,7 +911,6 @@ export default function Agendamentos() {
           item.carbo,
           item.proteina,
           item.legume,
-          item.adicionarFeijao ? item.feijao : null,
           item.complemento,
         ].filter(Boolean).join(" + ") || item.nome;
           return `<div class="item">${escaparHtml(`${item.quantidade}x ${descricao}`.toUpperCase())}</div>`;
@@ -909,6 +921,25 @@ export default function Agendamentos() {
       const observacao = [pedido.observacoes, observacoesItens].filter(Boolean).join(" / ");
       const tamanhos = Array.from(new Set(pedido.itens.map((item) => item.tamanho).filter(Boolean))).join(" / ");
       const temPlanoAdquirido = Number(pedido.valorPlanosComprados || 0) > 0;
+      let feijaoTotalCupom = 0;
+      let legumesTotalCupom = 0;
+      let pureTotalCupom = 0;
+      pedido.itens.forEach((it) => {
+        if (it.tipoItem !== "PERSONALIZADA") {
+          const qtd = Number(it.quantidade || 0);
+          if (it.adicionarFeijao) feijaoTotalCupom += qtd;
+          if (it.adicionarPure) pureTotalCupom += qtd;
+          if (it.adicionarLegumes) legumesTotalCupom += qtd;
+        }
+      });
+      const partesAdicionaisCupom = [];
+      if (feijaoTotalCupom > 0) partesAdicionaisCupom.push(`${feijaoTotalCupom}x Feijão`);
+      if (legumesTotalCupom > 0) partesAdicionaisCupom.push(`${legumesTotalCupom}x Legumes`);
+      if (pureTotalCupom > 0) partesAdicionaisCupom.push(`${pureTotalCupom}x Purê`);
+      const linhaAdicionaisCupom = partesAdicionaisCupom.length > 0
+        ? `<div class="adicionais-resumo" style="margin: 6px 0; padding: 4px; border: 1px dashed #000; font-weight: bold; background: #e6ffe6;">ADICIONAIS: ${escaparHtml(partesAdicionaisCupom.join(" | "))}</div>`
+        : "";
+
       const subtotalPedido = Math.max(Number(pedido.valorPedido || 0), Number(pedido.valorDescontoPlanoItens || 0));
       const valorBasePlanosComprados = (pedido.planosComprados || [])
         .reduce((total, plano) => total + Number(plano.valorPlano || 0), 0);
@@ -940,11 +971,12 @@ export default function Agendamentos() {
         <h1>CONFERÊNCIA DO PEDIDO ${escaparHtml(pedido.numeroPedido)}</h1>
         ${observacao ? `<p><b>OBSERVAÇÃO:</b> ${escaparHtml(observacao)}</p>` : ""}
         ${itens}
+        ${linhaAdicionaisCupom}
         <h1>DADOS DO CLIENTE</h1>
         <p><b>CLIENTE:</b> ${escaparHtml(pedido.cliente.toUpperCase())}</p>
         <p><b>HORÁRIO ESTIMADO:</b> ${escaparHtml(`${getLabelTipoEntrega(pedido.tipoEntrega)} ${pedido.faixaHorario}`.toUpperCase())}</p>
         <p><b>${pedido.endereco ? "ENDEREÇO / TELEFONE" : "TELEFONE"}:</b> ${escaparHtml(pedido.endereco ? `${pedido.endereco} / ${pedido.telefone}` : pedido.telefone)}</p>
-        <p><b>CONFERÊNCIA PAGAMENTO:</b> ${escaparHtml(getLabelPagamento(pedido.formaPagamento).toUpperCase())}</p>
+        <p><b>CONFERÊNCIA PAGAMENTO:</b> ${escaparHtml(getLabelPagamentoConfirmacao(pedido).toUpperCase())}</p>
         <div class="valores">${resumoFinanceiro}</div>
         <p><b>TAMANHO DAS MARMITAS (G):</b> ${escaparHtml(tamanhos)}</p>
       </section>`;
