@@ -1387,7 +1387,7 @@ export function NovoAgendamentoNovoLayout({
   const valorPlanoCliente = valorPlanoSelecionado + valorAdicionaisPlano;
   const quantidadeTaxasPlanoFinal =
     incluirTaxaPlano
-      ? Math.max(1, Math.floor(Number(quantidadeTaxasPlano || 1)))
+      ? Math.max(0, Math.floor(Number(quantidadeTaxasPlano || 0)))
       : 0;
   const valorTaxaPlanoUnitario = Number(valorTaxa || 0) > 0 ? Number(valorTaxa) : Number(valorTaxaPlano || 0);
   const valorTaxasPlanoTotal = quantidadeTaxasPlanoFinal * valorTaxaPlanoUnitario;
@@ -2255,8 +2255,8 @@ export function NovoAgendamentoNovoLayout({
     setPlanoJaConsumido(false);
     setQuantidadeConsumidaPlano(0);
     setQuantidadesConsumidasPorItem({});
-    setIncluirTaxaPlano(ehEntrega && valorTaxa > 0);
-    setQuantidadeTaxasPlano(1);
+    setIncluirTaxaPlano(false);
+    setQuantidadeTaxasPlano(0);
     setQuantidadeAdicionaisPlano(0);
 
     try {
@@ -2354,8 +2354,8 @@ export function NovoAgendamentoNovoLayout({
     setPlanoJaConsumido(false);
     setQuantidadeConsumidaPlano(0);
     setQuantidadesConsumidasPorItem({});
-    setIncluirTaxaPlano(true);
-    setQuantidadeTaxasPlano(1);
+    setIncluirTaxaPlano(false);
+    setQuantidadeTaxasPlano(0);
   }
 
   function getResumoEscolhas(item: NovoPedidoItem) {
@@ -5189,11 +5189,11 @@ export function NovoAgendamentoNovoLayout({
                       <Input
                         id="quantidadeTaxasPlano"
                         type="number"
-                        min={1}
+                        min={0}
                         step={1}
                         value={quantidadeTaxasPlano}
                         onChange={(e) =>
-                          setQuantidadeTaxasPlano(Math.max(1, Math.floor(Number(e.target.value || 1))))
+                          setQuantidadeTaxasPlano(Math.max(0, Math.floor(Number(e.target.value || 0))))
                         }
                         disabled={savingPlano}
                       />
