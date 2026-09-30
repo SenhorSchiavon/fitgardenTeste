@@ -135,6 +135,14 @@ function valorUnitarioPorQuantidade(tamanho: any, quantidade: number) {
   return Number(tamanho.valorUnitario || 0);
 }
 
+function precoFaixa(
+  faixas: Array<{ limite: number | string; preco: number | string }>,
+  valor: number,
+) {
+  if (!faixas.length) return 0;
+  return Number((faixas.find((r) => valor <= Number(r.limite)) || faixas[faixas.length - 1]).preco || 0);
+}
+
 export default function PlanosPage() {
   const { planos, tamanhos, loading, saving, createPlano, updatePlano, deletePlano } =
     usePlanos();
@@ -187,6 +195,9 @@ export default function PlanosPage() {
     const regrasPeso = regras
       .filter((r) => r.tipo === "PESO_TOTAL")
       .sort((a, b) => Number(a.limite) - Number(b.limite));
+    const regrasProteina = regras
+      .filter((r) => r.tipo === "PROTEINA")
+      .sort((a, b) => Number(a.limite) - Number(b.limite));
     const regrasQuantidadeIngredientes = regras.filter(
       (r) => r.tipo === "QUANTIDADE_INGREDIENTES",
     );
@@ -213,7 +224,7 @@ export default function PlanosPage() {
 
       const pesoComponentes = getPesoComponentes(item);
       const peso = pesoComponentes || Math.max(0, Math.floor(toNumber(item.pesoPersonalizadoGramas, 0)));
-      const regra = regrasPeso.find((r) => peso <= Number(r.limite)) || regrasPeso[regrasPeso.length - 1];
+      const proteina = Math.max(0, Math.floor(toNumber(item.proteinaGramas, 0)));
       const quantidadeIngredientes = [
         item.carboGramas,
         item.proteinaGramas,
@@ -225,8 +236,14 @@ export default function PlanosPage() {
         (r) => Number(r.limite) === quantidadeIngredientes,
       );
       const ajusteQuantidadeIngredientes = Number(regraQuantidadeIngredientes?.preco || 0);
-      const valorUnitarioBase = peso > 0 && regra
-        ? Number(regra.preco || 0) + ajusteQuantidadeIngredientes
+      const precoBase = Math.max(
+        precoFaixa(regrasProteina, proteina),
+        precoFaixa(regrasPeso, peso),
+      );
+      const precoProteina = precoFaixa(regrasProteina, proteina);
+      const precoPesoTotal = precoFaixa(regrasPeso, peso);
+      const valorUnitarioBase = peso > 0 && precoBase > 0
+        ? precoBase + ajusteQuantidadeIngredientes
         : 0;
       const valorUnitario = Math.max(0, valorUnitarioBase * (1 - descontoVolume));
       return {
@@ -235,6 +252,17 @@ export default function PlanosPage() {
         label: peso > 0 ? getComposicaoLabel({ ...item, pesoPersonalizadoGramas: peso }) : "Personalizada",
         valorTotal: valorUnitario * unidades,
         valorUnitario,
+        detalhePreco: {
+          proteina,
+          peso,
+          precoProteina,
+          precoPesoTotal,
+          criterioBase: precoProteina > precoPesoTotal ? "proteína" : "peso total",
+          ajusteQuantidadeIngredientes,
+          quantidadeIngredientes,
+          descontoVolume,
+          valorAntesDesconto: valorUnitarioBase,
+        },
         valido: peso > 0 && valorUnitario > 0,
       };
     });
@@ -808,6 +836,32 @@ export default function PlanosPage() {
                           {moneyBr(Number(calculado?.valorTotal || 0))}
                         </span>
                       </div>
+                      {item.tipo === "PERSONALIZADO" && calculado?.valido && calculado.detalhePreco ? (
+                        <div className="mt-2 rounded-sm border border-blue-100 bg-blue-50 px-3 py-2 text-xs text-blue-900">
+                          <div className="font-semibold">
+                            Preço escolhido pela faixa de {calculado.detalhePreco.criterioBase}
+                          </div>
+                          <div className="mt-1 grid gap-1 sm:grid-cols-2">
+                            <span>
+                              Proteína {calculado.detalhePreco.proteina}g: {moneyBr(calculado.detalhePreco.precoProteina)}
+                            </span>
+                            <span>
+                              Peso total {calculado.detalhePreco.peso}g: {moneyBr(calculado.detalhePreco.precoPesoTotal)}
+                            </span>
+                            <span>
+                              Ingredientes: {calculado.detalhePreco.quantidadeIngredientes}
+                              {calculado.detalhePreco.ajusteQuantidadeIngredientes
+                                ? ` (${moneyBr(calculado.detalhePreco.ajusteQuantidadeIngredientes)})`
+                                : " (sem ajuste)"}
+                            </span>
+                            <span>
+                              {calculado.detalhePreco.descontoVolume > 0
+                                ? `Desconto por volume: ${Math.round(calculado.detalhePreco.descontoVolume * 100)}%`
+                                : "Sem desconto por volume"}
+                            </span>
+                          </div>
+                        </div>
+                      ) : null}
                     </div>
                   );
                 })}

@@ -122,7 +122,7 @@ export default function PedidosAberto() {
   const [dataFiltro, setDataFiltro] = useState(() => toISODateOnly(new Date()));
   const [filtroPendentes, setFiltroPendentes] = useState<"todos" | "a-definir" | "definidos">("todos");
   const [filtroConciliacao, setFiltroConciliacao] = useState<"todos" | "a-conciliar" | "conciliados">("todos");
-  const [salvandoObservacao, setSalvandoObservacao] = useState<Record<number, boolean>>({});
+  const [salvandoObservacao, setSalvandoObservacao] = useState<Record<string, boolean>>({});
 
   const [pedidoSelecionado, setPedidoSelecionado] =
     useState<PedidoPendenteRow | null>(null);
@@ -255,8 +255,13 @@ export default function PedidosAberto() {
   };
 
   const handleSalvarObservacao = async (pedido: PedidoPendenteRow) => {
+    if (!pedido.agendamentoId) {
+      toast.error("Comentário disponível apenas para pedidos agendados");
+      return;
+    }
     const observacoes = String(pedido.observacoes || "").trim();
-    setSalvandoObservacao((atuais) => ({ ...atuais, [pedido.agendamentoId]: true }));
+    const key = String(pedido.agendamentoId);
+    setSalvandoObservacao((atuais) => ({ ...atuais, [key]: true }));
     try {
       const res = await apiFetch(`${API_URL}/agendamentos/${pedido.agendamentoId}/comentario`, {
         method: "PATCH",
@@ -274,7 +279,7 @@ export default function PedidosAberto() {
     } finally {
       setSalvandoObservacao((atuais) => {
         const proximos = { ...atuais };
-        delete proximos[pedido.agendamentoId];
+        delete proximos[key];
         return proximos;
       });
     }
@@ -326,6 +331,10 @@ export default function PedidosAberto() {
 
   const handleFinalizarPagamento = async () => {
     if (!pedidoSelecionado) return;
+    if (!pedidoSelecionado.agendamentoId) {
+      toast.error("Finalize pedidos sem agendamento pela tela de Sem Agendamento");
+      return;
+    }
     if ((formaPagamentoFinal === "TROCA" || formaPagamentoFinal === "BONIFICACAO") && !senhaAutorizacaoPagamento.trim()) {
       toast.error("Senha obrigatória", {
         description: "Troca e bonificação só podem ser finalizadas com autorização.",
@@ -562,7 +571,7 @@ export default function PedidosAberto() {
             <div className="space-y-4">
               {pedidosAbertoFiltrados.map((pedido) => (
                 <div
-                  key={pedido.agendamentoId}
+                  key={pedido.agendamentoId || pedido.pedidoId}
                   className={`flex flex-col border rounded-lg overflow-hidden cursor-pointer hover:border-primary transition-colors ${
                     pedido.formaPagamento === "A_DEFINIR" || pedido.tipoEntrega === "NAO_DEFINIR"
                       ? "border-red-300 bg-red-50/70"
@@ -618,7 +627,7 @@ export default function PedidosAberto() {
                           id={`observacao-pendente-${pedido.agendamentoId}`}
                           value={pedido.observacoes || ""}
                           placeholder="Observação rápida do pedido"
-                          disabled={!!salvandoObservacao[pedido.agendamentoId]}
+                          disabled={!!salvandoObservacao[String(pedido.agendamentoId)]}
                           className="h-9 bg-white/90 text-sm"
                           onChange={(event) => handleObservacaoChange(pedido, event.target.value)}
                           onBlur={() => handleSalvarObservacao(pedido)}
@@ -684,7 +693,7 @@ export default function PedidosAberto() {
                 <div className="space-y-4">
                   {pagamentosConciliarFiltrados.map((pedido) => (
                     <div
-                      key={pedido.pagamentoId || pedido.agendamentoId}
+                      key={pedido.pagamentoId || pedido.agendamentoId || pedido.pedidoId}
                       className="flex items-center gap-4 border rounded-lg p-4 bg-muted/20"
                     >
                       <div className="flex-1 min-w-0">

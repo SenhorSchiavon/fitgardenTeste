@@ -20,7 +20,7 @@ export type CongeladaMovimento = {
 export type Congelada = {
   id: number;
   nome: string;
-  tamanhoGramas: 200 | 300 | 400;
+  tamanhoGramas: 200 | 300 | 400 | 500;
   quantidade: number;
   ativo: boolean;
   movimentos?: CongeladaMovimento[];
@@ -28,7 +28,7 @@ export type Congelada = {
 
 export type NovaCongeladaInput = {
   nome: string;
-  tamanhoGramas: 200 | 300 | 400;
+  tamanhoGramas: 200 | 300 | 400 | 500;
   quantidade?: number;
   observacao?: string;
 };
@@ -44,7 +44,7 @@ function toInteger(value: any) {
 function normalizeCongelada(congelada: any): Congelada {
   return {
     ...congelada,
-    tamanhoGramas: Number(congelada.tamanhoGramas || 300) as 200 | 300 | 400,
+    tamanhoGramas: Number(congelada.tamanhoGramas || 300) as 200 | 300 | 400 | 500,
     quantidade: toInteger(congelada.quantidade),
     movimentos: (congelada.movimentos || []).map((m: any) => ({
       ...m,
@@ -124,7 +124,7 @@ export function useCongeladas() {
     }
   }
 
-  async function updateCongelada(id: number, input: { nome: string; tamanhoGramas: 200 | 300 | 400 }) {
+  async function updateCongelada(id: number, input: { nome: string; tamanhoGramas: 200 | 300 | 400 | 500 }) {
     setSaving(true);
     try {
       const res = await apiFetch(`${RESOURCE}/${id}`, {

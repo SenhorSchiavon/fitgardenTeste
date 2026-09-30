@@ -158,7 +158,7 @@ type SalgadoOption = {
 type CongeladaOption = {
   id: string;
   nome: string;
-  tamanhoGramas: 200 | 300 | 400;
+  tamanhoGramas: 200 | 300 | 400 | 500;
   quantidade: number;
 };
 

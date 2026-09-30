@@ -19,11 +19,11 @@ import { useOpcoes } from "@/hooks/useOpcoes";
 
 type FormState = {
   nome: string;
-  tamanhoGramas: "200" | "300" | "400";
+  tamanhoGramas: "200" | "300" | "400" | "500";
   quantidade: string;
 };
 
-const TAMANHOS_PADRAO_CONGELADAS = [200, 300, 400] as const;
+const TAMANHOS_PADRAO_CONGELADAS = [200, 300, 400, 500] as const;
 
 type MovimentoState = {
   item: Congelada | null;
@@ -69,7 +69,7 @@ export default function CongeladasPage() {
   } = useCongeladas();
   const { opcoes, loading: loadingOpcoes } = useOpcoes();
 
-  const [buscas, setBuscas] = useState<Record<number, string>>({ 200: "", 300: "", 400: "" });
+  const [buscas, setBuscas] = useState<Record<number, string>>({ 200: "", 300: "", 400: "", 500: "" });
   const [tamanhoFiltro, setTamanhoFiltro] = useState<number | "TODOS">("TODOS");
   const [opcaoBusca, setOpcaoBusca] = useState("");
   const [formOpen, setFormOpen] = useState(false);
@@ -329,7 +329,7 @@ export default function CongeladasPage() {
       return;
     }
 
-    const tamanhoGramas = Number(form.tamanhoGramas) as 200 | 300 | 400;
+    const tamanhoGramas = Number(form.tamanhoGramas) as 200 | 300 | 400 | 500;
     await createCongelada({ nome: form.nome, tamanhoGramas, quantidade });
 
     setFormOpen(false);
@@ -651,7 +651,7 @@ export default function CongeladasPage() {
           <div className="space-y-4 py-2">
             <div className="space-y-2">
               <Label className="text-gray-700">Tamanho da marmita</Label>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-4 gap-2">
                 {TAMANHOS_PADRAO_CONGELADAS.map((tamanho) => (
                   <Button
                     key={tamanho}

@@ -17,7 +17,7 @@ export type CongelarSubtipo = "ENTREGA" | "RETIRADA";
 
 export type PedidoStatus = "ABERTO" | "PAGO" | "CANCELADO";
 export type PedidoPendenteRow = {
-  agendamentoId: number;
+  agendamentoId: number | null;
   pedidoId: number;
 
   id: string;
