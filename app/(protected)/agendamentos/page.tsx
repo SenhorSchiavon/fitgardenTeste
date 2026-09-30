@@ -731,11 +731,28 @@ export default function Agendamentos() {
     const formaCobrancaParcial = getLabelPagamento(
       String(agendamento.formaPagamentoRestanteVoucher || pagamentoCobrancaParcial?.forma || agendamento.formaPagamentoTaxaVoucher || agendamento.formaPagamento || "A_DEFINIR"),
     );
-    const itens = Array.from(grupos.entries())
+    const gruposMensagem = Array.from(grupos.entries());
+    const totalTaxaMensagemCentavos = Math.round(Number(agendamento.valorTaxa || 0) * 100);
+    const taxaBaseMensagemCentavos = gruposMensagem.length > 0
+      ? Math.floor(totalTaxaMensagemCentavos / gruposMensagem.length)
+      : 0;
+    const taxaRestoMensagemCentavos = gruposMensagem.length > 0
+      ? totalTaxaMensagemCentavos % gruposMensagem.length
+      : 0;
+    const taxasMensagemPorGrupo = gruposMensagem.map((_, indice) =>
+      (taxaBaseMensagemCentavos + (indice < taxaRestoMensagemCentavos ? 1 : 0)) / 100,
+    );
+    const itens = gruposMensagem
       .flatMap(([, dados], indice) => [
         grupos.size > 1 ? `*PEDIDO ${indice + 1} - ${dados.titulo}*` : `*${dados.titulo}*`,
         dados.totalMarmitas > 0 ? `*Total de marmitas:* ${dados.totalMarmitas}` : null,
         `*Subtotal do pedido:* ${moneyBr(dados.subtotal)}`,
+        grupos.size > 1 && taxasMensagemPorGrupo[indice] > 0
+          ? `*Taxa de entrega do pedido:* ${moneyBr(taxasMensagemPorGrupo[indice])}`
+          : null,
+        grupos.size > 1 && taxasMensagemPorGrupo[indice] > 0
+          ? `*Total do pedido:* ${moneyBr(dados.subtotal + taxasMensagemPorGrupo[indice])}`
+          : null,
         temVoucherParcialPorPedido
           ? `*Forma de Pagamento do Pedido:* ${voucherPorGrupo.has(dados.grupoPedido) ? "VOUCHER" : formaCobrancaParcial}`
           : null,

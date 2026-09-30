@@ -39,6 +39,7 @@ import {
   MessageCircle,
 } from "lucide-react";
 import { Header } from "@/components/header";
+import { apiFetch } from "@/hooks/api";
 import {
   Select,
   SelectContent,
@@ -49,6 +50,8 @@ import {
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { usePlanosCliente } from "@/hooks/usePlanosCliente";
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3333";
 
 type PedidoAberto = {
   id: string;
@@ -119,6 +122,7 @@ export default function PedidosAberto() {
   const [dataFiltro, setDataFiltro] = useState(() => toISODateOnly(new Date()));
   const [filtroPendentes, setFiltroPendentes] = useState<"todos" | "a-definir" | "definidos">("todos");
   const [filtroConciliacao, setFiltroConciliacao] = useState<"todos" | "a-conciliar" | "conciliados">("todos");
+  const [salvandoObservacao, setSalvandoObservacao] = useState<Record<number, boolean>>({});
 
   const [pedidoSelecionado, setPedidoSelecionado] =
     useState<PedidoPendenteRow | null>(null);
@@ -232,6 +236,48 @@ export default function PedidosAberto() {
   const handleShowDetalhes = (pedido: PedidoPendenteRow) => {
     setPedidoSelecionado(pedido);
     setDetalhesDialogOpen(true);
+  };
+
+  const handleObservacaoChange = (pedido: PedidoPendenteRow, observacoes: string) => {
+    setPedidosAberto((atuais) =>
+      atuais.map((item) =>
+        item.agendamentoId === pedido.agendamentoId ? { ...item, observacoes } : item,
+      ),
+    );
+    setPagamentosConciliar((atuais) =>
+      atuais.map((item) =>
+        item.agendamentoId === pedido.agendamentoId ? { ...item, observacoes } : item,
+      ),
+    );
+    setPedidoSelecionado((atual) =>
+      atual?.agendamentoId === pedido.agendamentoId ? { ...atual, observacoes } : atual,
+    );
+  };
+
+  const handleSalvarObservacao = async (pedido: PedidoPendenteRow) => {
+    const observacoes = String(pedido.observacoes || "").trim();
+    setSalvandoObservacao((atuais) => ({ ...atuais, [pedido.agendamentoId]: true }));
+    try {
+      const res = await apiFetch(`${API_URL}/agendamentos/${pedido.agendamentoId}/comentario`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ observacoes }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        throw new Error(data?.message || "Erro ao salvar observação");
+      }
+      handleObservacaoChange(pedido, observacoes);
+    } catch (error: any) {
+      toast.error(error?.message || "Não foi possível salvar a observação");
+      await load(dataFiltro).catch(() => {});
+    } finally {
+      setSalvandoObservacao((atuais) => {
+        const proximos = { ...atuais };
+        delete proximos[pedido.agendamentoId];
+        return proximos;
+      });
+    }
   };
 
   const getFaixaHorarioColor = (faixa: string) => {
@@ -563,6 +609,25 @@ export default function PedidosAberto() {
                             </span>
                           </>
                         )}
+                      </div>
+                      <div className="mt-3 max-w-3xl" onClick={(event) => event.stopPropagation()}>
+                        <Label htmlFor={`observacao-pendente-${pedido.agendamentoId}`} className="sr-only">
+                          Observação do pedido
+                        </Label>
+                        <Input
+                          id={`observacao-pendente-${pedido.agendamentoId}`}
+                          value={pedido.observacoes || ""}
+                          placeholder="Observação rápida do pedido"
+                          disabled={!!salvandoObservacao[pedido.agendamentoId]}
+                          className="h-9 bg-white/90 text-sm"
+                          onChange={(event) => handleObservacaoChange(pedido, event.target.value)}
+                          onBlur={() => handleSalvarObservacao(pedido)}
+                          onKeyDown={(event) => {
+                            if (event.key === "Enter") {
+                              event.currentTarget.blur();
+                            }
+                          }}
+                        />
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
