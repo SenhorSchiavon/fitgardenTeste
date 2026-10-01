@@ -32,6 +32,20 @@ type HistoricoPedido = {
     nome: string
     tamanho: string
     quantidade: number
+    tipoItem?: string
+    destinatarioNome?: string
+    observacaoItem?: string
+    carboNome?: string
+    proteinaNome?: string
+    legumeNome?: string
+    feijaoNome?: string
+    complementoNome?: string
+    carboGramas?: number
+    proteinaGramas?: number
+    legumeGramas?: number
+    feijaoGramas?: number
+    complementoGramas?: number
+    trocas?: string
   }[]
   data: string
   status: "ENTREGUE" | "CANCELADO"
@@ -69,6 +83,28 @@ export default function HistoricoPedidos() {
       month: "2-digit",
       year: "numeric",
     })
+  }
+
+  const formatTamanho = (tamanho?: string) => {
+    if (!tamanho || tamanho === "-") return "-"
+    return /^\d+$/.test(String(tamanho)) ? `${tamanho}g` : tamanho
+  }
+
+  const getItemDetalhes = (item: HistoricoPedido["itens"][number]) => {
+    const composicao = [
+      item.carboNome && `${item.carboNome}${item.carboGramas ? ` (${item.carboGramas}g)` : ""}`,
+      item.proteinaNome && `${item.proteinaNome}${item.proteinaGramas ? ` (${item.proteinaGramas}g)` : ""}`,
+      item.legumeNome && `${item.legumeNome}${item.legumeGramas ? ` (${item.legumeGramas}g)` : ""}`,
+      item.feijaoNome && `${item.feijaoNome}${item.feijaoGramas ? ` (${item.feijaoGramas}g)` : ""}`,
+      item.complementoNome && `${item.complementoNome}${item.complementoGramas ? ` (${item.complementoGramas}g)` : ""}`,
+    ].filter(Boolean)
+
+    return [
+      item.destinatarioNome && !item.nome.includes(item.destinatarioNome) ? `Destinatário: ${item.destinatarioNome}` : null,
+      composicao.length ? composicao.join(" • ") : null,
+      item.trocas ? `Alterações: ${item.trocas}` : null,
+      item.observacaoItem ? `Obs.: ${item.observacaoItem}` : null,
+    ].filter(Boolean)
   }
 
   useEffect(() => {
@@ -213,10 +249,10 @@ export default function HistoricoPedidos() {
                   </div>
                 </div>
                 <div className="space-y-1">
-                  <div className="text-sm font-medium">Faixa de Horário</div>
+                  <div className="text-sm font-medium">Faixa de Horário / Horário</div>
                   <div className="flex items-center">
                     <CalendarIcon className="h-4 w-4 mr-2 text-muted-foreground" />
-                    {pedidoSelecionado?.faixaHorario}h
+                    {pedidoSelecionado?.faixaHorario || "-"}
                   </div>
                 </div>
               </div>
@@ -261,17 +297,37 @@ export default function HistoricoPedidos() {
                   <TableRow>
                     <TableHead>Item</TableHead>
                     <TableHead>Tamanho</TableHead>
-                    <TableHead>Quantidade</TableHead>
+                    <TableHead className="text-right">Quantidade</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {pedidoSelecionado?.itens.map((item, index) => (
-                    <TableRow key={index}>
-                      <TableCell>{item.nome}</TableCell>
-                      <TableCell>{item.tamanho}</TableCell>
-                      <TableCell>{item.quantidade}</TableCell>
+                  {pedidoSelecionado?.itens?.length ? (
+                    pedidoSelecionado.itens.map((item, index) => {
+                      const detalhes = getItemDetalhes(item)
+                      return (
+                        <TableRow key={index}>
+                          <TableCell>
+                            <div className="font-medium">{item.nome}</div>
+                            {detalhes.length > 0 && (
+                              <div className="mt-1 space-y-0.5 text-xs text-muted-foreground">
+                                {detalhes.map((detalhe, detalheIndex) => (
+                                  <div key={detalheIndex}>{detalhe}</div>
+                                ))}
+                              </div>
+                            )}
+                          </TableCell>
+                          <TableCell>{formatTamanho(item.tamanho)}</TableCell>
+                          <TableCell className="text-right">{item.quantidade}</TableCell>
+                        </TableRow>
+                      )
+                    })
+                  ) : (
+                    <TableRow>
+                      <TableCell colSpan={3} className="py-6 text-center text-muted-foreground">
+                        Nenhum item encontrado para este pedido.
+                      </TableCell>
                     </TableRow>
-                  ))}
+                  )}
                 </TableBody>
               </Table>
             </TabsContent>
