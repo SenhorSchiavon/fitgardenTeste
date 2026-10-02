@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -10,6 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Input } from "@/components/ui/input"
 import { CreditCard, MapPin, Phone, Search, TruckIcon, User, CalendarIcon } from "lucide-react"
 import { Header } from "@/components/header"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 import { useAgendamentos } from "@/hooks/useAgendamentos" // <<< ajusta caminho
 import { useTableSort } from "@/hooks/useTableSort"
@@ -57,9 +58,13 @@ export default function HistoricoPedidos() {
   const { getHistorico, loading } = useAgendamentos()
 
   const [historicoPedidos, setHistoricoPedidos] = useState<HistoricoPedido[]>([])
+  const [total, setTotal] = useState(0)
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(25)
   const [pedidoSelecionado, setPedidoSelecionado] = useState<HistoricoPedido | null>(null)
   const [detalhesDialogOpen, setDetalhesDialogOpen] = useState(false)
   const [searchTerm, setSearchTerm] = useState("")
+  const [dateFilter, setDateFilter] = useState("")
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -107,54 +112,82 @@ export default function HistoricoPedidos() {
     ].filter(Boolean)
   }
 
+  const totalPages = Math.max(1, Math.ceil(total / pageSize))
+  const rangeStart = total === 0 ? 0 : (page - 1) * pageSize + 1
+  const rangeEnd = Math.min(page * pageSize, total)
+
   useEffect(() => {
     let mounted = true
 
     const load = async () => {
-      // aqui pode mandar date se quiser filtrar por dia:
-      // const today = new Date(); const date = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,"0")}-${String(today.getDate()).padStart(2,"0")}`
       const res = await getHistorico<HistoricoPedido>({
-        // date,
-        page: 1,
-        pageSize: 200,
+        date: dateFilter || undefined,
+        q: searchTerm.trim() || undefined,
+        page,
+        pageSize,
       })
-      if (mounted) setHistoricoPedidos(res.rows || [])
+      if (mounted) {
+        setHistoricoPedidos(res.rows || [])
+        setTotal(Number(res.total || 0))
+      }
     }
 
     load().catch(() => {})
     return () => {
       mounted = false
     }
-  }, [getHistorico])
+  }, [dateFilter, getHistorico, page, pageSize, searchTerm])
 
-  const filteredPedidos = useMemo(() => {
-    const t = searchTerm.trim().toLowerCase()
-    if (!t) return historicoPedidos
+  useEffect(() => {
+    setPage(1)
+  }, [dateFilter, pageSize, searchTerm])
 
-    return historicoPedidos.filter((pedido) => {
-      const dataFmt = formatDate(pedido.data)
-      return (
-        pedido.numeroPedido.toLowerCase().includes(t) ||
-        pedido.cliente.toLowerCase().includes(t) ||
-        dataFmt.includes(searchTerm) // mantém igual teu filtro por data digitada
-      )
-    })
-  }, [historicoPedidos, searchTerm])
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages)
+  }, [page, totalPages])
 
-  const { sort, onSort, sortedRows } = useTableSort(filteredPedidos)
+  const { sort, onSort, sortedRows } = useTableSort(historicoPedidos)
 
   return (
     <div className="container mx-auto p-6">
       <Header title="Histórico de Pedidos" subtitle="Consulte o histórico de pedidos realizados" />
 
-      <div className="relative mb-6">
-        <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+      <div className="mb-6 grid gap-3 md:grid-cols-[minmax(0,1fr)_180px_150px_auto]">
+        <div className="relative">
+          <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Buscar por número do pedido, cliente ou telefone..."
+            className="pl-8"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+        </div>
         <Input
-          placeholder="Buscar por número do pedido, cliente ou data..."
-          className="pl-8"
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
+          type="date"
+          value={dateFilter}
+          onChange={(e) => setDateFilter(e.target.value)}
         />
+        <Select value={String(pageSize)} onValueChange={(value) => setPageSize(Number(value))}>
+          <SelectTrigger>
+            <SelectValue placeholder="Itens por página" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="10">10 por página</SelectItem>
+            <SelectItem value="25">25 por página</SelectItem>
+            <SelectItem value="50">50 por página</SelectItem>
+            <SelectItem value="100">100 por página</SelectItem>
+          </SelectContent>
+        </Select>
+        <Button
+          variant="outline"
+          onClick={() => {
+            setSearchTerm("")
+            setDateFilter("")
+          }}
+          disabled={!searchTerm && !dateFilter}
+        >
+          Limpar
+        </Button>
       </div>
 
       <Card>
@@ -196,7 +229,7 @@ export default function HistoricoPedidos() {
                 </TableRow>
               ))}
 
-              {filteredPedidos.length === 0 && (
+              {historicoPedidos.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={7} className="text-center py-4">
                     {loading ? "Carregando..." : "Nenhum pedido encontrado"}
@@ -205,6 +238,35 @@ export default function HistoricoPedidos() {
               )}
             </TableBody>
           </Table>
+
+          <div className="mt-4 flex flex-col gap-3 border-t pt-4 text-sm text-muted-foreground md:flex-row md:items-center md:justify-between">
+            <div>
+              {loading
+                ? "Carregando pedidos..."
+                : `Mostrando ${rangeStart}-${rangeEnd} de ${total} pedidos`}
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setPage((current) => Math.max(1, current - 1))}
+                disabled={loading || page <= 1}
+              >
+                Anterior
+              </Button>
+              <span className="min-w-24 text-center">
+                Página {page} de {totalPages}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
+                disabled={loading || page >= totalPages}
+              >
+                Próxima
+              </Button>
+            </div>
+          </div>
         </CardContent>
       </Card>
 
