@@ -647,7 +647,7 @@ export default function Agendamentos() {
     const horarioFormatado = faixaHorario.includes("-")
       ? faixaHorario.split("-").map((parte) => parte.trim()).filter(Boolean).join(" às ")
       : faixaHorario;
-    const grupos = new Map<string, { titulo: string; grupoPedido: string; linhas: string[]; totalMarmitas: number; subtotal: number }>();
+    const grupos = new Map<string, { titulo: string; grupoPedido: string; linhas: string[]; totalMarmitas: number; subtotal: number; basePersonalizadas: number }>();
     agendamento.itens.forEach((item) => {
       const personalizada = item.tipoItem === "PERSONALIZADA";
       const detalhes = personalizada
@@ -701,10 +701,13 @@ export default function Agendamentos() {
         .filter(Boolean)
         .join(" - ");
       const chaveGrupo = item.groupId || item.id || grupo;
-      const dadosGrupo = grupos.get(chaveGrupo) || { titulo: grupo, grupoPedido: String(chaveGrupo), linhas: [], totalMarmitas: 0, subtotal: 0 };
+      const dadosGrupo = grupos.get(chaveGrupo) || { titulo: grupo, grupoPedido: String(chaveGrupo), linhas: [], totalMarmitas: 0, subtotal: 0, basePersonalizadas: 0 };
       dadosGrupo.linhas.push(`    ${item.quantidade}x ${descricaoComArroz}`.toUpperCase());
       substituicoes.forEach((substituicao) => dadosGrupo.linhas.push(`      ↳ ${substituicao}`.toUpperCase()));
       dadosGrupo.subtotal += Number(item.valor || 0);
+      if (item.tipoItem === "PERSONALIZADA") {
+        dadosGrupo.basePersonalizadas += Math.max(0, Number(item.valor || 0) - (item.adicionarArroz ? 2 : 0) * Math.max(1, Number(item.quantidade || 1)));
+      }
       if (item.tipoItem !== "SALGADO") {
         dadosGrupo.totalMarmitas += Number(item.quantidade || 0);
       }
@@ -732,6 +735,25 @@ export default function Agendamentos() {
       String(agendamento.formaPagamentoRestanteVoucher || pagamentoCobrancaParcial?.forma || agendamento.formaPagamentoTaxaVoucher || agendamento.formaPagamento || "A_DEFINIR"),
     );
     const gruposMensagem = Array.from(grupos.entries());
+    const totalMarmitasMensagem = gruposMensagem.reduce((total, [, dados]) => total + Number(dados.totalMarmitas || 0), 0);
+    const totalBasePersonalizadasMensagem = gruposMensagem.reduce((total, [, dados]) => total + Number(dados.basePersonalizadas || 0), 0);
+    const regraVolumeMensagem = regras
+      .filter((regra) => regra.tipo === "VOLUME_TOTAL" && totalMarmitasMensagem >= Number(regra.limite))
+      .sort((a, b) => Number(b.limite) - Number(a.limite))[0];
+    const descontoVolumeMensagem = regraVolumeMensagem
+      ? totalBasePersonalizadasMensagem * (Number(regraVolumeMensagem.preco) / 100)
+      : 0;
+    const descontosVolumePorGrupo = new Map<string, number>();
+    let descontoVolumeAcumulado = 0;
+    gruposMensagem.forEach(([chave, dados], indice) => {
+      const descontoGrupo = totalBasePersonalizadasMensagem > 0
+        ? indice === gruposMensagem.length - 1
+          ? Math.max(0, descontoVolumeMensagem - descontoVolumeAcumulado)
+          : Math.round((descontoVolumeMensagem * Number(dados.basePersonalizadas || 0) / totalBasePersonalizadasMensagem + 1e-9) * 100) / 100
+        : 0;
+      descontoVolumeAcumulado += descontoGrupo;
+      descontosVolumePorGrupo.set(chave, descontoGrupo);
+    });
     const totalTaxaMensagemCentavos = Math.round(Number(agendamento.valorTaxa || 0) * 100);
     const taxaBaseMensagemCentavos = gruposMensagem.length > 0
       ? Math.floor(totalTaxaMensagemCentavos / gruposMensagem.length)
@@ -743,21 +765,24 @@ export default function Agendamentos() {
       (taxaBaseMensagemCentavos + (indice < taxaRestoMensagemCentavos ? 1 : 0)) / 100,
     );
     const itens = gruposMensagem
-      .flatMap(([, dados], indice) => [
+      .flatMap(([chave, dados], indice) => {
+        const subtotalComDesconto = Math.max(0, Number(dados.subtotal || 0) - Number(descontosVolumePorGrupo.get(chave) || 0));
+        return [
         grupos.size > 1 ? `*PEDIDO ${indice + 1} - ${dados.titulo}*` : `*${dados.titulo}*`,
         dados.totalMarmitas > 0 ? `*Total de marmitas:* ${dados.totalMarmitas}` : null,
-        `*Subtotal do pedido:* ${moneyBr(dados.subtotal)}`,
+        `*Subtotal do pedido:* ${moneyBr(subtotalComDesconto)}`,
         grupos.size > 1 && taxasMensagemPorGrupo[indice] > 0
           ? `*Taxa de entrega do pedido:* ${moneyBr(taxasMensagemPorGrupo[indice])}`
           : null,
         grupos.size > 1 && taxasMensagemPorGrupo[indice] > 0
-          ? `*Total do pedido:* ${moneyBr(dados.subtotal + taxasMensagemPorGrupo[indice])}`
+          ? `*Total do pedido:* ${moneyBr(subtotalComDesconto + taxasMensagemPorGrupo[indice])}`
           : null,
         temVoucherParcialPorPedido
           ? `*Forma de Pagamento do Pedido:* ${voucherPorGrupo.has(dados.grupoPedido) ? "VOUCHER" : formaCobrancaParcial}`
           : null,
         ...dados.linhas,
-      ].filter((linha): linha is string => !!linha))
+      ].filter((linha): linha is string => !!linha);
+      })
       .join("\n");
     const planos = agendamento.planosAtivos || [];
     const saldoTaxasEntrega = Number(agendamento.saldoTaxasEntrega || 0);

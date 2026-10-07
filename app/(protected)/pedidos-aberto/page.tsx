@@ -1,5 +1,6 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { type ComponentProps, useEffect, useMemo, useState } from "react";
+import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
 import {
   useAgendamentos,
@@ -7,6 +8,7 @@ import {
   FormaPagamento,
 } from "@/hooks/useAgendamentos";
 import { Button } from "@/components/ui/button";
+import { Calendar, CalendarDayButton } from "@/components/ui/calendar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Dialog,
@@ -49,6 +51,11 @@ import {
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { usePlanosCliente } from "@/hooks/usePlanosCliente";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3333";
@@ -101,6 +108,25 @@ function getWhatsappUrl(telefone: string, mensagem: string) {
   return `https://wa.me/${phone}?text=${encodeURIComponent(mensagem)}`;
 }
 
+function PendingCalendarDayButton(props: ComponentProps<typeof CalendarDayButton>) {
+  const hasPending = !!props.modifiers.pending;
+  const isSelected = !!props.modifiers.selected;
+
+  return (
+    <div className="relative h-full w-full">
+      <CalendarDayButton {...props} />
+      {hasPending && (
+        <span
+          aria-hidden="true"
+          className={`pointer-events-none absolute bottom-1 left-1/2 h-1.5 w-1.5 -translate-x-1/2 rounded-full ${
+            isSelected ? "bg-white" : "bg-red-500"
+          }`}
+        />
+      )}
+    </div>
+  );
+}
+
 export default function PedidosAberto() {
   const {
     loading,
@@ -117,9 +143,11 @@ export default function PedidosAberto() {
   } = usePlanosCliente();
 
   const [pedidosAberto, setPedidosAberto] = useState<PedidoPendenteRow[]>([]);
+  const [pedidosPendentesCalendario, setPedidosPendentesCalendario] = useState<PedidoPendenteRow[]>([]);
   const [pagamentosConciliar, setPagamentosConciliar] = useState<PedidoPendenteRow[]>([]);
   const [planosNaoPagos, setPlanosNaoPagos] = useState<any[]>([]);
   const [dataFiltro, setDataFiltro] = useState(() => toISODateOnly(new Date()));
+  const [calendarioOpen, setCalendarioOpen] = useState(false);
   const [filtroPendentes, setFiltroPendentes] = useState<"todos" | "a-definir" | "definidos">("todos");
   const [filtroConciliacao, setFiltroConciliacao] = useState<"todos" | "a-conciliar" | "conciliados">("todos");
   const [salvandoObservacao, setSalvandoObservacao] = useState<Record<string, boolean>>({});
@@ -218,15 +246,57 @@ export default function PedidosAberto() {
     valorPedidoSelecionado - valorPlanosPendentesPedidoSelecionado,
   );
 
+  const selectedDate = useMemo(() => {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dataFiltro)) return undefined;
+    const [year, month, day] = dataFiltro.split("-").map(Number);
+    return new Date(year, (month || 1) - 1, day || 1);
+  }, [dataFiltro]);
+
+  const datasComPendencias = useMemo(() => {
+    const datas = new Set<string>();
+    pedidosPendentesCalendario.forEach((pedido) => {
+      if (pedido.data) datas.add(toISODateOnly(new Date(pedido.data)));
+    });
+    planosNaoPagos.forEach((plano) => {
+      const pagamentoCompra = (plano.pagamentos || []).find((pagamento: any) =>
+        Number(pagamento.consumoUnidades || 0) === 0 &&
+        Number(pagamento.consumoEntregas || 0) === 0 &&
+        Number(pagamento.consumoAdicionais || 0) === 0 &&
+        Number(pagamento.valor || 0) > 0,
+      );
+      const dataReferencia = pagamentoCompra?.pedido?.agendamento?.data || plano.createdAt;
+      if (dataReferencia) datas.add(toISODateOnly(new Date(dataReferencia)));
+    });
+    return datas;
+  }, [pedidosPendentesCalendario, planosNaoPagos]);
+
   async function load(date = dataFiltro) {
-    const [resp, conciliacaoResp, planosResp] = await Promise.all([
+    const [resp, conciliacaoResp, planosResp, calendarioResp] = await Promise.all([
       getPedidosPendentes({ date, page: 1, pageSize: 50 }),
       getPagamentosParaConciliar({ date, page: 1, pageSize: 50 }),
       listPlanosNaoPagos(),
+      getPedidosPendentes({ page: 1, pageSize: 100 }),
     ]);
+
+    let pedidosCalendario = calendarioResp.rows || [];
+    const totalCalendario = Number(calendarioResp.total || pedidosCalendario.length);
+    if (totalCalendario > pedidosCalendario.length) {
+      const pageSize = 100;
+      const totalPages = Math.ceil(totalCalendario / pageSize);
+      const demaisPaginas = await Promise.all(
+        Array.from({ length: totalPages - 1 }, (_, index) =>
+          getPedidosPendentes({ page: index + 2, pageSize }),
+        ),
+      );
+      pedidosCalendario = pedidosCalendario.concat(
+        ...demaisPaginas.map((pagina) => pagina.rows || []),
+      );
+    }
+
     setPedidosAberto(resp.rows || []);
     setPagamentosConciliar(conciliacaoResp.rows || []);
     setPlanosNaoPagos(planosResp || []);
+    setPedidosPendentesCalendario(pedidosCalendario);
   }
 
   useEffect(() => {
@@ -434,6 +504,17 @@ export default function PedidosAberto() {
   };
 
   const getBadgesPagamento = (pedido: PedidoPendenteRow) => {
+    if (pedido.formaPagamento === "PLANO") {
+      return [
+        {
+          key: "plano",
+          label: "PLANO",
+          variant: "outline" as const,
+          className: "border-emerald-300 bg-emerald-50 text-emerald-800 font-bold",
+        },
+      ];
+    }
+
     const formaStr = String(pedido.formaPagamento || "");
     const isVoucherForma =
       formaStr === "VOUCHER" ||
@@ -522,13 +603,61 @@ export default function PedidosAberto() {
       <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
         <div className="space-y-2">
           <Label htmlFor="dataFiltro">Data da conciliação</Label>
-          <Input
-            id="dataFiltro"
-            type="date"
-            value={dataFiltro}
-            onChange={(event) => setDataFiltro(event.target.value)}
-            className="w-full sm:w-56"
-          />
+          <Popover open={calendarioOpen} onOpenChange={setCalendarioOpen}>
+            <PopoverTrigger asChild>
+              <Button
+                id="dataFiltro"
+                type="button"
+                variant="outline"
+                className="w-full justify-between font-normal sm:w-56"
+              >
+                <span>{selectedDate ? selectedDate.toLocaleDateString("pt-BR") : "Selecione a data"}</span>
+                <CalendarIcon className="h-4 w-4 text-muted-foreground" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent align="start" className="w-auto p-0">
+              <Calendar
+                mode="single"
+                selected={selectedDate}
+                onSelect={(date) => {
+                  if (!date) return;
+                  setDataFiltro(toISODateOnly(date));
+                  setCalendarioOpen(false);
+                }}
+                locale={ptBR}
+                className="rounded-md"
+                modifiers={{
+                  pending: (date) => datasComPendencias.has(toISODateOnly(date)),
+                }}
+                components={{
+                  DayButton: PendingCalendarDayButton,
+                }}
+              />
+              <div className="flex items-center justify-between border-t px-3 py-2 text-xs">
+                <button
+                  type="button"
+                  className="text-muted-foreground hover:text-foreground"
+                  onClick={() => setDataFiltro("")}
+                >
+                  Limpar
+                </button>
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <span className="h-2 w-2 rounded-full bg-red-500" aria-hidden="true" />
+                  <span>Pendente</span>
+                </div>
+                <button
+                  type="button"
+                  className="text-primary hover:underline"
+                  onClick={() => {
+                    setDataFiltro(toISODateOnly(new Date()));
+                    setCalendarioOpen(false);
+                  }}
+                >
+                  Hoje
+                </button>
+              </div>
+            </PopoverContent>
+          </Popover>
         </div>
         <Button
           type="button"
@@ -691,11 +820,14 @@ export default function PedidosAberto() {
             <CardContent>
               <ScrollArea className="h-[calc(100vh-300px)]">
                 <div className="space-y-4">
-                  {pagamentosConciliarFiltrados.map((pedido) => (
-                    <div
-                      key={pedido.pagamentoId || pedido.agendamentoId || pedido.pedidoId}
-                      className="flex items-center gap-4 border rounded-lg p-4 bg-muted/20"
-                    >
+                  {pagamentosConciliarFiltrados.map((pedido) => {
+                    const valorConciliacao = Number(pedido.valorTotalFinal ?? pedido.valorTotal ?? 0);
+
+                    return (
+                      <div
+                        key={pedido.pagamentoId || pedido.agendamentoId || pedido.pedidoId}
+                        className="flex items-center gap-4 border rounded-lg p-4 bg-muted/20"
+                      >
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
                           <span className="font-medium">{pedido.numeroPedido}</span>
@@ -731,14 +863,23 @@ export default function PedidosAberto() {
                       </div>
 
                       <div className="text-right">
-                        <div className="text-sm text-muted-foreground">Valor</div>
-                        <div className="text-lg font-bold">
-                          {moneyBr(Number(pedido.valorTotal ?? 0))}
-                        </div>
-                        {Number(pedido.valorTotalFinal ?? pedido.valorTotal ?? 0) !== Number(pedido.valorTotal ?? 0) && (
-                          <div className="text-xs font-semibold text-amber-700">
-                            Pendente: {moneyBr(Number(pedido.valorTotalFinal ?? 0))}
-                          </div>
+                        {pedido.formaPagamento === "PLANO" ? (
+                          <>
+                            <div className="text-sm text-muted-foreground">Pagamento</div>
+                            <div className="text-lg font-bold text-emerald-700">PLANO</div>
+                          </>
+                        ) : (
+                          <>
+                            <div className="text-sm text-muted-foreground">Valor</div>
+                            <div className="text-lg font-bold">
+                              {moneyBr(valorConciliacao)}
+                            </div>
+                            {Number(pedido.valorTotalFinal ?? pedido.valorTotal ?? 0) !== Number(pedido.valorTotal ?? 0) && (
+                              <div className="text-xs font-semibold text-amber-700">
+                                Pendente: {moneyBr(Number(pedido.valorTotalFinal ?? 0))}
+                              </div>
+                            )}
+                          </>
                         )}
                       </div>
 
@@ -772,7 +913,8 @@ export default function PedidosAberto() {
                         </Button>
                       </div>
                     </div>
-                  ))}
+                  );
+                  })}
 
                   {pagamentosConciliarFiltrados.length === 0 && (
                     <div className="text-center py-8 text-muted-foreground">

@@ -1268,8 +1268,13 @@ export function NovoAgendamentoNovoLayout({
   }, [open, clienteId, data, initialData, getAgendamentos]);
 
   const totalMarmitas = useMemo(
-    () => itens.filter((item) => item.tipoItem === "PADRAO" || item.tipoItem === "PERSONALIZADA" || item.tipoItem === "CONGELADA").reduce((acc, item) => acc + Number(item.quantidade || 0), 0),
-    [itens]
+    () => itens
+      .filter((item) =>
+        (item.tipoItem === "PADRAO" || item.tipoItem === "PERSONALIZADA" || item.tipoItem === "CONGELADA") &&
+        (!isVoucherForma(formaPagamento) || !voucherGruposPedido.includes(String(item.groupId || item.id))),
+      )
+      .reduce((acc, item) => acc + Number(item.quantidade || 0), 0),
+    [formaPagamento, itens, voucherGruposPedido]
   );
 
   const totalSalgados = useMemo(
