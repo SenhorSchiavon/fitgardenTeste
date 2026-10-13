@@ -27,11 +27,16 @@ export type PedidoStatus = "ABERTO" | "PAGO" | "CANCELADO";
 
 export type PedidoItemInput = {
   opcaoId?: number;
+  salgadoId?: number;
   congeladaId?: number;
-  tamanhoId: number;
+  tamanhoId?: number;
   quantidade: number;
   usarPlano?: boolean;
-  tipoItem?: "PADRAO" | "CONGELADA";
+  tipoItem?: "PADRAO" | "SALGADO" | "CONGELADA";
+  adicionarFeijao?: boolean;
+  adicionarPure?: boolean;
+  adicionarLegumes?: boolean;
+  adicionarArroz?: boolean;
 };
 
 export type CreatePedidoSemAgendamentoInput = {
@@ -135,11 +140,16 @@ export function usePedidosSemAgendamento() {
         voucherCodigo: payload.voucherCodigo?.trim() || undefined,
         itens: (payload.itens || []).map((it) => ({
           opcaoId: it.opcaoId != null ? Number(it.opcaoId) : undefined,
+          salgadoId: it.salgadoId != null ? Number(it.salgadoId) : undefined,
           congeladaId: it.congeladaId != null ? Number(it.congeladaId) : undefined,
-          tamanhoId: Number(it.tamanhoId),
+          tamanhoId: it.tamanhoId != null ? Number(it.tamanhoId) : undefined,
           quantidade: Number(it.quantidade),
           usarPlano: !!it.usarPlano,
           tipoItem: it.tipoItem,
+          adicionarFeijao: !!it.adicionarFeijao,
+          adicionarPure: !!it.adicionarPure,
+          adicionarLegumes: !!it.adicionarLegumes,
+          adicionarArroz: !!it.adicionarArroz,
         })),
       };
 
@@ -229,11 +239,16 @@ export function usePedidosSemAgendamento() {
       if (Array.isArray(body.itens)) {
         body.itens = body.itens.map((it: any) => ({
           opcaoId: it.opcaoId != null ? Number(it.opcaoId) : undefined,
+          salgadoId: it.salgadoId != null ? Number(it.salgadoId) : undefined,
           congeladaId: it.congeladaId != null ? Number(it.congeladaId) : undefined,
-          tamanhoId: Number(it.tamanhoId),
+          tamanhoId: it.tamanhoId != null ? Number(it.tamanhoId) : undefined,
           quantidade: Number(it.quantidade),
           usarPlano: !!it.usarPlano,
           tipoItem: it.tipoItem,
+          adicionarFeijao: !!it.adicionarFeijao,
+          adicionarPure: !!it.adicionarPure,
+          adicionarLegumes: !!it.adicionarLegumes,
+          adicionarArroz: !!it.adicionarArroz,
         }));
       }
 

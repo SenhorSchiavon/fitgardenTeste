@@ -62,14 +62,16 @@ import { useClientes } from "@/hooks/useClientes";
 import { useCardapios } from "@/hooks/useCardapios";
 import { useOpcoesDoCardapio } from "@/hooks/useOpcoesDoCardapio";
 import { useCongeladas } from "@/hooks/useCongeladas";
+import { useSalgados } from "@/hooks/useSalgados";
 import { useTamanhos } from "@/hooks/useTamanhos";
-import { FormaPagamento, usePedidosSemAgendamento } from "@/hooks/usePedidosSemAgendamento";
+import { FormaPagamento, PedidoItemInput, usePedidosSemAgendamento } from "@/hooks/usePedidosSemAgendamento";
 import { cn } from "@/lib/utils";
 
 type ItemCarrinho = {
   id: string;
-  origem: "CARDAPIO" | "CONGELADA";
+  origem: "CARDAPIO" | "CONGELADA" | "SALGADO";
   opcaoId?: number;
+  salgadoId?: number;
   congeladaId?: number;
   tamanhoId?: number;
   nome: string;
@@ -79,6 +81,10 @@ type ItemCarrinho = {
   precoUnit: number;
   estoqueMax?: number;
   usarPlano?: boolean;
+  adicionarFeijao?: boolean;
+  adicionarPure?: boolean;
+  adicionarLegumes?: boolean;
+  adicionarArroz?: boolean;
 };
 
 function getPrecoUnitPorQuantidade(tamanho: any, quantidade: number) {
@@ -98,12 +104,27 @@ function getTamanhoDoItem(tamanhos: any[], item: ItemCarrinho) {
   return tamanhos.find((t: any) => Number(t.pesagemGramas) === Number(gramas)) || null;
 }
 
+function getAdicionaisUnitariosCarrinho(item: ItemCarrinho) {
+  if (item.origem !== "CARDAPIO") return 0;
+  return (
+    (item.adicionarFeijao ? 2 : 0) +
+    (item.adicionarPure ? 2 : 0) +
+    (item.adicionarLegumes ? 2 : 0) +
+    (item.adicionarArroz ? 2 : 0)
+  );
+}
+
+function getPrecoBaseCarrinho(item: ItemCarrinho) {
+  return Number(item.precoUnit || 0);
+}
+
 export default function PedidoSemAgendamento() {
   const { clientes } = useClientes();
   const { cardapios } = useCardapios();
   const cardapioAtivo = cardapios.find((c) => c.ativo) ?? null;
   const { opcoes } = useOpcoesDoCardapio(cardapioAtivo?.id);
   const { congeladas } = useCongeladas();
+  const { salgados } = useSalgados();
   const { tamanhos } = useTamanhos();
 
   const {
@@ -120,7 +141,7 @@ export default function PedidoSemAgendamento() {
   const [carrinho, setCarrinho] = useState<ItemCarrinho[]>([]);
 
   // Filtros da vitrine de marmitas
-  const [origemFiltro, setOrigemFiltro] = useState<"TODAS" | "CARDAPIO" | "CONGELADA">("TODAS");
+  const [origemFiltro, setOrigemFiltro] = useState<"TODAS" | "CARDAPIO" | "CONGELADA" | "SALGADO">("TODAS");
   const [tamanhoFiltro, setTamanhoFiltro] = useState<string>("");
   const [busca, setBusca] = useState("");
   const [clienteComboboxOpen, setClienteComboboxOpen] = useState(false);
@@ -157,12 +178,23 @@ export default function PedidoSemAgendamento() {
     return Array.from(setTamanhos).sort((a, b) => a.localeCompare(b, "pt-BR", { numeric: true }));
   }, [congeladas, opcoes]);
 
+  const salgadosFiltrados = useMemo(() => {
+    const q = busca.trim().toLowerCase();
+    return (salgados || []).filter((s) => {
+      if (Number(s.quantidade || 0) <= 0) return false;
+      if (origemFiltro === "CARDAPIO" || origemFiltro === "CONGELADA") return false;
+      if (tamanhoFiltro) return false;
+      if (q && !s.nome.toLowerCase().includes(q)) return false;
+      return true;
+    });
+  }, [salgados, origemFiltro, tamanhoFiltro, busca]);
+
   // Item da congelada normalizado
   const congeladasFiltradas = useMemo(() => {
     const q = busca.trim().toLowerCase();
     return (congeladas || []).filter((c) => {
       if (Number(c.quantidade || 0) <= 0) return false;
-      if (origemFiltro === "CARDAPIO") return false;
+      if (origemFiltro === "CARDAPIO" || origemFiltro === "SALGADO") return false;
       if (tamanhoFiltro && `${c.tamanhoGramas}g` !== tamanhoFiltro && String(c.tamanhoGramas) !== tamanhoFiltro) return false;
       if (q && !c.nome.toLowerCase().includes(q)) return false;
       return true;
@@ -173,7 +205,7 @@ export default function PedidoSemAgendamento() {
   const opcoesCardapioFiltradas = useMemo(() => {
     const q = busca.trim().toLowerCase();
     return (opcoes || []).filter((o: any) => {
-      if (origemFiltro === "CONGELADA") return false;
+      if (origemFiltro === "CONGELADA" || origemFiltro === "SALGADO") return false;
       if (q && !o.nome.toLowerCase().includes(q)) return false;
       if (tamanhoFiltro) {
         const temTamanho = (o.tamanhos || []).some((t: any) =>
@@ -211,18 +243,20 @@ export default function PedidoSemAgendamento() {
     });
   };
 
-  const totalMarmitas = carrinho.reduce((acc, item) => acc + item.quantidade, 0);
+  const totalItens = carrinho.reduce((acc, item) => acc + item.quantidade, 0);
   const resumoValores = useMemo(() => {
-    const subtotal = carrinho.reduce((acc, item) => acc + item.precoUnit * item.quantidade, 0);
-    const quantidadeTotalTabela = carrinho.reduce((acc, item) => acc + Number(item.quantidade || 0), 0);
+    const subtotal = carrinho.reduce((acc, item) => acc + (getPrecoBaseCarrinho(item) + getAdicionaisUnitariosCarrinho(item)) * item.quantidade, 0);
+      const quantidadeTotalTabela = carrinho.filter((item) => item.origem !== "SALGADO").reduce((acc, item) => acc + Number(item.quantidade || 0), 0);
     const totalComDesconto = carrinho.reduce((acc, item) => {
+      if (item.origem === "SALGADO") return acc + item.precoUnit * item.quantidade;
       const tamanho = getTamanhoDoItem(tamanhos, item);
-      return acc + getPrecoUnitPorQuantidade(tamanho, quantidadeTotalTabela) * item.quantidade;
+      return acc + (getPrecoUnitPorQuantidade(tamanho, quantidadeTotalTabela) + getAdicionaisUnitariosCarrinho(item)) * item.quantidade;
     }, 0);
     const descontoTabela = Math.max(0, subtotal - totalComDesconto);
     const valorPlano = carrinho
       .filter((item) => item.usarPlano)
       .reduce((acc, item) => {
+        if (item.origem === "SALGADO") return acc;
         const tamanho = getTamanhoDoItem(tamanhos, item);
         return acc + getPrecoUnitPorQuantidade(tamanho, quantidadeTotalTabela) * item.quantidade;
       }, 0);
@@ -254,6 +288,7 @@ export default function PedidoSemAgendamento() {
       .reduce((total, item) => total + Number(item.quantidade || 0), 0);
 
   const podeUsarPlano = (item: ItemCarrinho) => {
+    if (item.origem === "SALGADO") return false;
     if (!clienteSelecionado || !item.tamanhoId) return false;
     const saldo = saldoPlanoPorTamanho.get(Number(item.tamanhoId)) || 0;
     return saldo >= quantidadePlanoMarcadaPorTamanho(item.tamanhoId, item.id) + item.quantidade;
@@ -271,7 +306,7 @@ export default function PedidoSemAgendamento() {
     setCarrinho((prev) => {
       const consumoPorTamanho = new Map<number, number>();
       return prev.map((item) => {
-        if (!item.tamanhoId) return { ...item, usarPlano: false };
+        if (!item.tamanhoId || item.origem === "SALGADO") return { ...item, usarPlano: false };
         const tamanhoId = Number(item.tamanhoId);
         const saldo = saldoPlanoPorTamanho.get(tamanhoId) || 0;
         const jaConsumido = consumoPorTamanho.get(tamanhoId) || 0;
@@ -297,15 +332,21 @@ export default function PedidoSemAgendamento() {
         return;
       }
 
-      const itensInput = carrinho.map((it) => {
+      const itensInput: PedidoItemInput[] = carrinho.map((it) => {
         const tamanhoId = it.tamanhoId || (tamanhos[0]?.id ? Number(tamanhos[0].id) : 1);
+        const tipoItem: PedidoItemInput["tipoItem"] = it.origem === "SALGADO" ? "SALGADO" : it.origem === "CONGELADA" ? "CONGELADA" : "PADRAO";
         return {
           opcaoId: it.origem === "CARDAPIO" ? Number(it.opcaoId) : undefined,
-          tamanhoId: Number(tamanhoId),
+          salgadoId: it.origem === "SALGADO" ? Number(it.salgadoId) : undefined,
+          tamanhoId: it.origem === "SALGADO" ? undefined : Number(tamanhoId),
           quantidade: it.quantidade,
           usarPlano: !!it.usarPlano,
-          tipoItem: it.origem === "CONGELADA" ? "CONGELADA" : "PADRAO",
+          tipoItem,
           congeladaId: it.origem === "CONGELADA" ? it.congeladaId : undefined,
+          adicionarFeijao: !!it.adicionarFeijao,
+          adicionarPure: !!it.adicionarPure,
+          adicionarLegumes: !!it.adicionarLegumes,
+          adicionarArroz: !!it.adicionarArroz,
         };
       });
 
@@ -351,7 +392,7 @@ export default function PedidoSemAgendamento() {
     <div className="container mx-auto p-3 sm:p-5 space-y-4">
       <Header
         title="Pedido sem Agendamento"
-        subtitle="Vendas rápidas de marmitas do cardápio da semana e congeladas em estoque"
+        subtitle="Vendas rápidas de marmitas, salgados e congeladas em estoque"
       />
 
       <div className="grid grid-cols-1 gap-4 xl:h-[calc(100vh-132px)] xl:grid-cols-[minmax(0,1fr)_340px] xl:overflow-hidden">
@@ -445,10 +486,10 @@ export default function PedidoSemAgendamento() {
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <CardTitle className="text-base font-bold flex items-center gap-2 text-primary">
                   <ShoppingBag className="h-4 w-4 text-secondary" />
-                  Catálogo de Marmitas
+                  Catálogo de Itens
                 </CardTitle>
 
-                {/* Filtro Origem: Todas / Cardápio / Congeladas */}
+                  {/* Filtro Origem: Todas / Cardápio / Salgados / Congeladas */}
                 <div className="flex items-center gap-1 bg-muted/60 p-1 rounded-xl">
                   <Button
                     type="button"
@@ -479,6 +520,16 @@ export default function PedidoSemAgendamento() {
                     <Snowflake className="h-3.5 w-3.5" />
                     Congeladas
                   </Button>
+                  <Button
+                    type="button"
+                    variant={origemFiltro === "SALGADO" ? "default" : "ghost"}
+                    size="sm"
+                    className="h-8 rounded-lg text-xs font-bold gap-1.5"
+                    onClick={() => setOrigemFiltro("SALGADO")}
+                  >
+                    <ShoppingBag className="h-3.5 w-3.5" />
+                    Salgados
+                  </Button>
                 </div>
               </div>
             </CardHeader>
@@ -488,7 +539,7 @@ export default function PedidoSemAgendamento() {
                 <div className="relative">
                   <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                   <Input
-                    placeholder="Pesquisar marmita por nome..."
+                    placeholder="Pesquisar item por nome..."
                     value={busca}
                     onChange={(e) => setBusca(e.target.value)}
                     className="pl-9 h-11 bg-background"
@@ -522,8 +573,82 @@ export default function PedidoSemAgendamento() {
                 </div>
               </div>
 
-              {/* LISTAGEM DOS ITENS (CARDÁPIO + CONGELADAS) */}
+              {/* LISTAGEM DOS ITENS (CARDÁPIO + CONGELADAS + SALGADOS) */}
               <div className="min-h-0 flex-1 space-y-4 overflow-y-auto pr-1 pt-2">
+                {/* SALGADOS */}
+                {salgadosFiltrados.length > 0 && (
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-amber-700">
+                      <ShoppingBag className="h-3.5 w-3.5" />
+                      Salgados em Estoque ({salgadosFiltrados.length})
+                    </div>
+                    <div className="grid grid-cols-1 2xl:grid-cols-2 gap-3">
+                      {salgadosFiltrados.map((s) => {
+                        const itemKey = `SALGADO_${s.id}`;
+                        const itemCarrinho = carrinho.find((i) => i.id === itemKey);
+                        const qtdNoCarrinho = itemCarrinho?.quantidade || 0;
+                        const precoUnit = Number(s.preco || 0);
+
+                        const itemBase: ItemCarrinho = {
+                          id: itemKey,
+                          origem: "SALGADO",
+                          salgadoId: Number(s.id),
+                          nome: s.nome,
+                          tamanhoLabel: "Salgado",
+                          quantidade: 1,
+                          precoUnit,
+                          estoqueMax: Number(s.quantidade),
+                        };
+
+                        return (
+                          <div
+                            key={s.id}
+                            className="flex items-center justify-between p-3.5 rounded-xl border border-amber-100 bg-amber-50/40 hover:bg-amber-50 transition-colors"
+                          >
+                            <div className="min-w-0 pr-2 space-y-0.5">
+                              <div className="flex items-start gap-1.5">
+                                <Badge variant="outline" className="text-[9px] h-4 border-amber-300 bg-amber-100 text-amber-800 font-bold shrink-0">
+                                  SALGADO
+                                </Badge>
+                                <span className="font-bold text-sm leading-snug break-words text-slate-800">{s.nome}</span>
+                              </div>
+                              <div className="text-xs text-muted-foreground flex items-center gap-2">
+                                <span className="font-medium text-amber-800">Estoque: {s.quantidade}</span>
+                                <span>•</span>
+                                <span className="font-bold text-emerald-700">R$ {precoUnit.toFixed(2)}</span>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-1.5 shrink-0 bg-background border rounded-lg p-1">
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 rounded-md"
+                                onClick={() => setQuantidadeCarrinho(itemKey, -1)}
+                                disabled={qtdNoCarrinho <= 0}
+                              >
+                                <Minus className="h-3 w-3" />
+                              </Button>
+                              <span className="w-6 text-center text-xs font-black">{qtdNoCarrinho}</span>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 rounded-md"
+                                onClick={() => setQuantidadeCarrinho(itemKey, 1, itemBase)}
+                                disabled={qtdNoCarrinho >= Number(s.quantidade)}
+                              >
+                                <Plus className="h-3 w-3" />
+                              </Button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
                 {/* MARMITAS CONGELADAS */}
                 {congeladasFiltradas.length > 0 && (
                   <div className="space-y-2">
@@ -651,6 +776,36 @@ export default function PedidoSemAgendamento() {
                                 <span className="font-bold text-sm text-emerald-900">R$ {precoUnit.toFixed(2)}</span>
                               </div>
                               <p className="font-bold text-sm text-slate-800">{o.nome}</p>
+                              {qtdNoCarrinho > 0 && (
+                                <div className="flex flex-wrap gap-1 pt-1">
+                                  {[
+                                    ["adicionarFeijao", "Feijão"],
+                                    ["adicionarPure", "Purê"],
+                                    ["adicionarLegumes", "Legumes"],
+                                    ["adicionarArroz", "Arroz"],
+                                  ].map(([key, label]) => {
+                                    const ativo = !!(itemCarrinho as any)?.[key];
+                                    return (
+                                      <Button
+                                        key={key}
+                                        type="button"
+                                        variant={ativo ? "default" : "outline"}
+                                        size="sm"
+                                        className="h-6 rounded-md px-2 text-[10px] font-bold"
+                                        onClick={() =>
+                                          setCarrinho((prev) =>
+                                            prev.map((item) =>
+                                              item.id === itemKey ? { ...item, [key]: !ativo } : item,
+                                            ),
+                                          )
+                                        }
+                                      >
+                                        + {label}
+                                      </Button>
+                                    );
+                                  })}
+                                </div>
+                              )}
                             </div>
 
                             <div className="flex items-center justify-between gap-2 pt-1 border-t border-emerald-100/60">
@@ -706,10 +861,10 @@ export default function PedidoSemAgendamento() {
                   </div>
                 )}
 
-                {congeladasFiltradas.length === 0 && opcoesCardapioFiltradas.length === 0 && (
+                {salgadosFiltrados.length === 0 && congeladasFiltradas.length === 0 && opcoesCardapioFiltradas.length === 0 && (
                   <div className="text-center py-12 border border-dashed rounded-2xl p-6 text-muted-foreground space-y-1">
-                    <p className="font-bold text-slate-700">Nenhuma marmita encontrada</p>
-                    <p className="text-xs">Tente ajustar o termo de pesquisa ou os filtros de tamanho acima.</p>
+                    <p className="font-bold text-slate-700">Nenhum item encontrado</p>
+                    <p className="text-xs">Tente ajustar o termo de pesquisa ou os filtros acima.</p>
                   </div>
                 )}
               </div>
@@ -724,7 +879,7 @@ export default function PedidoSemAgendamento() {
               <CardTitle className="text-base font-bold flex items-center justify-between text-primary">
                 <span>Resumo do Pedido</span>
                 <Badge variant="secondary" className="font-bold">
-                  {totalMarmitas} marmita(s)
+                  {totalItens} item(ns)
                 </Badge>
               </CardTitle>
             </CardHeader>
@@ -743,8 +898,17 @@ export default function PedidoSemAgendamento() {
               <div className="min-h-0 flex-1 divide-y overflow-y-auto pr-1">
                 {carrinho.map((item) => {
                   const tamanho = getTamanhoDoItem(tamanhos, item);
-                  const precoEfetivo = getPrecoUnitPorQuantidade(tamanho, totalMarmitas);
-                  const temPrecoEscalonado = Math.abs(precoEfetivo - item.precoUnit) > 0.001;
+                  const quantidadeTotalTabela = carrinho.filter((it) => it.origem !== "SALGADO").reduce((acc, it) => acc + Number(it.quantidade || 0), 0);
+                  const precoBaseEfetivo = item.origem === "SALGADO" ? item.precoUnit : getPrecoUnitPorQuantidade(tamanho, quantidadeTotalTabela);
+                  const adicionaisUnitarios = getAdicionaisUnitariosCarrinho(item);
+                  const precoEfetivo = precoBaseEfetivo + adicionaisUnitarios;
+                  const temPrecoEscalonado = item.origem !== "SALGADO" && Math.abs(precoBaseEfetivo - item.precoUnit) > 0.001;
+                  const adicionaisTexto = [
+                    item.adicionarFeijao ? "feijão" : null,
+                    item.adicionarPure ? "purê" : null,
+                    item.adicionarLegumes ? "legumes" : null,
+                    item.adicionarArroz ? "arroz" : null,
+                  ].filter(Boolean).join(", ");
 
                   return (
                     <div key={item.id} className="py-3 flex items-start justify-between gap-3">
@@ -759,17 +923,20 @@ export default function PedidoSemAgendamento() {
                           </Badge>
                           <span>R$ {precoEfetivo.toFixed(2)} un.</span>
                           {temPrecoEscalonado && <span className="text-emerald-700">tabela quantidade</span>}
+                          {adicionaisTexto && <span className="text-amber-700">+ {adicionaisTexto}</span>}
                         </div>
-                        <Button
-                          type="button"
-                          variant={item.usarPlano ? "default" : "outline"}
-                          size="sm"
-                          className="mt-1 h-7 text-[11px] font-bold"
-                          disabled={!item.usarPlano && !podeUsarPlano(item)}
-                          onClick={() => alternarPlanoCarrinho(item.id)}
-                        >
-                          {item.usarPlano ? "Plano aplicado" : "Usar plano"}
-                        </Button>
+                        {item.origem !== "SALGADO" && (
+                          <Button
+                            type="button"
+                            variant={item.usarPlano ? "default" : "outline"}
+                            size="sm"
+                            className="mt-1 h-7 text-[11px] font-bold"
+                            disabled={!item.usarPlano && !podeUsarPlano(item)}
+                            onClick={() => alternarPlanoCarrinho(item.id)}
+                          >
+                            {item.usarPlano ? "Plano aplicado" : "Usar plano"}
+                          </Button>
+                        )}
                       </div>
 
                       <div className="flex items-center gap-2 shrink-0">
@@ -794,7 +961,7 @@ export default function PedidoSemAgendamento() {
                   <div className="text-center py-10 text-muted-foreground space-y-2">
                     <ShoppingBag className="h-8 w-8 mx-auto opacity-30" />
                     <p className="text-sm font-medium">Seu carrinho está vazio</p>
-                    <p className="text-xs">Selecione as marmitas no catálogo ao lado.</p>
+                    <p className="text-xs">Selecione os itens no catálogo ao lado.</p>
                   </div>
                 )}
               </div>

@@ -643,6 +643,12 @@ export default function Agendamentos() {
   };
 
   const montarMensagemConfirmacao = (agendamento: Agendamento) => {
+    const primeiraFormaPagamentoDefinida = (...formas: Array<string | null | undefined>) =>
+      formas.find((forma) => {
+        const valor = String(forma || "").trim();
+        return valor && valor !== "A_DEFINIR" && valor !== "NAO_DEFINIDO";
+      });
+
     const faixaHorario = String(agendamento.faixaHorario || "").trim();
     const horarioFormatado = faixaHorario.includes("-")
       ? faixaHorario.split("-").map((parte) => parte.trim()).filter(Boolean).join(" às ")
@@ -732,7 +738,12 @@ export default function Agendamentos() {
       Number(pagamento.valor || 0) > 0,
     );
     const formaCobrancaParcial = getLabelPagamento(
-      String(agendamento.formaPagamentoRestanteVoucher || pagamentoCobrancaParcial?.forma || agendamento.formaPagamentoTaxaVoucher || agendamento.formaPagamento || "A_DEFINIR"),
+      String(primeiraFormaPagamentoDefinida(
+        agendamento.formaPagamentoRestanteVoucher,
+        pagamentoCobrancaParcial?.forma,
+        agendamento.formaPagamentoTaxaVoucher,
+        agendamento.formaPagamento,
+      ) || "A_DEFINIR"),
     );
     const gruposMensagem = Array.from(grupos.entries());
     const totalMarmitasMensagem = gruposMensagem.reduce((total, [, dados]) => total + Number(dados.totalMarmitas || 0), 0);
@@ -871,8 +882,8 @@ export default function Agendamentos() {
       agendamento.valorDescontoPlanoItens && agendamento.valorDescontoPlanoItens > 0
         ? `*Desconto do Plano:* - ${moneyBr(agendamento.valorDescontoPlanoItens)}`
         : null,
-      valorAdicionaisForaDoPlano > 0
-        ? `*Adicionais a pagar:* ${moneyBr(valorAdicionaisForaDoPlano)}`
+      valorAdicionaisForaDoPlano > 0 && Number(agendamento.valorPlanosComprados || 0) > 0
+        ? `*Adicionais fora do plano:* ${moneyBr(valorAdicionaisForaDoPlano)}`
         : null,
       Number(agendamento.adicionaisConsumidosPlano || 0) > 0
         ? `*Adicionais usados do plano:* ${agendamento.adicionaisConsumidosPlano}`
