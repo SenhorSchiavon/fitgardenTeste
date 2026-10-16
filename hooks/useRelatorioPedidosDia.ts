@@ -107,5 +107,49 @@ export function useRelatorioPedidosDia() {
     }
   }, []);
 
-  return { downloading, error, downloadDocx, downloadCozinhaDocx };
+  const downloadClientesMarmitasDocx = useCallback(async (params: {
+    data: string;
+    valoresExibidos?: Record<string, { valorTotalFinal: number; formaPagamento: string }>;
+  }) => {
+    const dataStr = String(params.data || "").trim();
+
+    if (!validarDataISO(dataStr)) {
+      setError("Data inválida. Use YYYY-MM-DD.");
+      return false;
+    }
+
+    setDownloading(true);
+    setError(null);
+
+    try {
+      const qs = new URLSearchParams({ data: dataStr });
+      if (params.valoresExibidos) {
+        qs.set("valoresExibidos", JSON.stringify(params.valoresExibidos));
+      }
+      const res = await apiFetch(`${RESOURCE}/clientes-marmitas/docx?${qs.toString()}`, { method: "GET" });
+
+      if (!res.ok) {
+        const json = await res.json().catch(() => null);
+        throw new Error(json?.message || "Erro ao gerar relatório de clientes");
+      }
+
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `clientes-marmitas-${dataStr}.docx`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+      return true;
+    } catch (e: any) {
+      setError(e?.message || "Erro ao gerar relatório de clientes");
+      return false;
+    } finally {
+      setDownloading(false);
+    }
+  }, []);
+
+  return { downloading, error, downloadDocx, downloadCozinhaDocx, downloadClientesMarmitasDocx };
 }

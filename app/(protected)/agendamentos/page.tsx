@@ -458,6 +458,7 @@ export default function Agendamentos() {
   const {
     downloadDocx: downloadPedidosDocx,
     downloadCozinhaDocx: downloadPedidosCozinhaDocx,
+    downloadClientesMarmitasDocx,
     downloading: downloadingPedidos,
     error: errorPedidosDocx,
   } = useRelatorioPedidosDia();
@@ -1802,6 +1803,10 @@ export default function Agendamentos() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56 rounded-xl p-2">
+              <DropdownMenuItem className="rounded-lg cursor-pointer gap-2 py-2.5" disabled={downloadingPedidos} onClick={() => { void downloadClientesMarmitasDocx({ data: utils.toISODateOnly(selectedDate) }); }}>
+                <FileText className="h-4 w-4 text-blue-500" />
+                <div className="flex flex-col"><span className="font-medium text-sm">Clientes e Marmitas do Dia</span><span className="text-[10px] text-slate-500">Nome, telefone, pesos e adicionais · DOCX</span></div>
+              </DropdownMenuItem>
               <DropdownMenuItem 
                 className="rounded-lg cursor-pointer gap-2 py-2.5"
                 onClick={() => {
