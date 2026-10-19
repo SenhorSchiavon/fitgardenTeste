@@ -78,6 +78,8 @@ import { useCongeladas } from "@/hooks/useCongeladas";
 import { usePlanosCliente } from "@/hooks/usePlanosCliente";
 import { useRegrasPersonalizadas } from "@/hooks/useRegrasPersonalizadas";
 import { cn } from "@/lib/utils";
+import { PixAgendamento } from "@/components/pix-agendamento";
+import { gerarPixAgendamento, mensagemPixAgendamento } from "@/lib/pix-agendamento";
 type Agendamento = {
   id: string;
   pedidoId?: number | string;
@@ -918,7 +920,15 @@ export default function Agendamentos() {
   };
 
   const copiarResumoPedido = async (agendamento: Agendamento) => {
-    const resumo = montarMensagemConfirmacao(agendamento);
+    let resumo = montarMensagemConfirmacao(agendamento);
+    try {
+      const id = Number(agendamento._raw?.agendamentoId ?? agendamento.agendamentoId ?? agendamento._raw?.id ?? agendamento.id);
+      const pix = await gerarPixAgendamento(id);
+      if (pix.length) resumo += `\n\n${mensagemPixAgendamento(pix)}`;
+    } catch (error) {
+      toast({ title: "Não foi possível preparar o Pix", description: error instanceof Error ? error.message : "Tente copiar a mensagem novamente.", variant: "destructive" });
+      return;
+    }
     try {
       await navigator.clipboard.writeText(resumo);
       toast({ title: "Resumo copiado", description: "O resumo do pedido está pronto para enviar ao cliente." });
@@ -2291,6 +2301,7 @@ export default function Agendamentos() {
                         R$ {calcularTotalExibidoAgendamento(agendamentoSelecionado || {}).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                       </span>
                     </div>
+                    {agendamentoSelecionado && <PixAgendamento key={agendamentoSelecionado.id} agendamentoId={Number(agendamentoSelecionado._raw?.agendamentoId ?? agendamentoSelecionado.agendamentoId ?? agendamentoSelecionado._raw?.id ?? agendamentoSelecionado.id)} />}
                     {agendamentoSelecionado?.formaPagamento === "DINHEIRO" && (
                       <div className="flex justify-between items-center border-t border-dashed border-slate-100 pt-3">
                         <span className="text-sm text-slate-600">Troco</span>
