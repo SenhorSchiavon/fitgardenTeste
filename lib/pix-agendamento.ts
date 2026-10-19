@@ -1,6 +1,6 @@
 import { apiFetch } from "../hooks/api";
 
-export type PixAgendamento = { pagamentoId: number; valor: number; codigo: string };
+export type PixAgendamento = { pagamentoId: number; valor: number; codigo: string; linkPagamento?: string };
 
 const baseUrl = () => {
   const base = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api").replace(/\/+$/, "");
@@ -24,14 +24,18 @@ export async function gerarPixAgendamento(agendamentoId: number): Promise<PixAge
     if (typeof cobranca.pixCopiaECola !== "string" || !cobranca.pixCopiaECola.trim()) {
       throw new Error("O Sicredi não retornou o Pix Copia e Cola. Confira a cobrança antes de enviar ao cliente.");
     }
-    pix.push({ pagamentoId: pagamento.id, valor: Number(cobranca.valor ?? pagamento.valor), codigo: cobranca.pixCopiaECola.trim() });
+    pix.push({ pagamentoId: pagamento.id, valor: Number(cobranca.valor ?? pagamento.valor), codigo: cobranca.pixCopiaECola.trim(),
+      ...(typeof cobranca.pixPagamentoUrl === "string" ? { linkPagamento: cobranca.pixPagamentoUrl } : {}),
+    });
   }
   return pix;
 }
 
 export function mensagemPixAgendamento(pix: PixAgendamento[]): string {
+  if (pix.some(item => !item.linkPagamento)) throw new Error("Atualize o backend para disponibilizar o link de pagamento Pix.");
   return pix.map(item => [
-    `*Pix Copia e Cola — ${item.valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}:*`,
-    item.codigo,
+    `*Pagar com Pix — ${item.valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}:*`,
+    item.linkPagamento,
+    "Abra o link e toque em Copiar Pix para pagar.",
   ].join("\n")).join("\n\n");
 }
