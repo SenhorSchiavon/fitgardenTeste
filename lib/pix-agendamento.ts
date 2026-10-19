@@ -33,9 +33,10 @@ export async function gerarPixAgendamento(agendamentoId: number): Promise<PixAge
 
 export function mensagemPixAgendamento(pix: PixAgendamento[]): string {
   if (pix.some(item => !item.linkPagamento)) throw new Error("Atualize o backend para disponibilizar o link de pagamento Pix.");
-  return pix.map(item => [
+  const pagamentos = pix.map(item => [
     `*Pagar com Pix — ${item.valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}:*`,
     item.linkPagamento,
     "Abra o link e toque em Copiar Pix para pagar.",
   ].join("\n")).join("\n\n");
+  return pagamentos ? `NOVIDADE: Pix copia e cola: realizar seu pagamento ficou muito mais prático!\n\n${pagamentos}` : "";
 }
