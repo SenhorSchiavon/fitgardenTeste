@@ -31,6 +31,7 @@ export const SCREEN_DEFINITIONS: ScreenDefinition[] = [
   { key: "planos", label: "Planos", path: "/planos" },
   { key: "clientes", label: "Clientes", path: "/clientes" },
   { key: "agendamentos", label: "Agendamentos", path: "/agendamentos" },
+  { key: "pix-sicredi", label: "Pix Sicredi", path: "/pix-sicredi" },
   { key: "pedidos-clientes", label: "Pedidos de Clientes", path: "/pedidos-clientes" },
   { key: "pedidos-aberto", label: "Pedidos em Aberto", path: "/pedidos-aberto" },
   { key: "historico-pedidos", label: "Histórico de Pedidos", path: "/historico-pedidos" },

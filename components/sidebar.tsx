@@ -69,6 +69,7 @@ const cadastroItems: NavItem[] = [
 ];
 
 const pedidosItems: NavItem[] = [
+  { href: "/pix-sicredi", label: "Pix Sicredi", icon: CreditCard, screen: "pix-sicredi" },
   { href: "/pedidos-clientes", label: "Pedidos de clientes", icon: ShoppingCart, screen: "pedidos-clientes" },
   { href: "/orcamento", label: "Orçamento", icon: ClipboardList, screen: "agendamentos" },
   { href: "/agendamentos", label: "Agendamentos", icon: Calendar, screen: "agendamentos" },
