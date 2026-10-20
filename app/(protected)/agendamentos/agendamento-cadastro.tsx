@@ -3327,11 +3327,7 @@ export function NovoAgendamentoNovoLayout({
       formaPagamentoTaxaVoucher: isVoucherForma(formaPagamento) ? (formaPagamentoTaxaVoucher || "A_DEFINIR") : (formaPagamentoTaxaVoucher !== "A_DEFINIR" ? formaPagamentoTaxaVoucher : undefined),
       formaPagamentoRestanteVoucher: isVoucherForma(formaPagamento) ? (formaPagamentoRestanteVoucher || "A_DEFINIR") : undefined,
       voucherGruposPedido: isVoucherForma(formaPagamentoPayload) ? voucherGruposPedido : [],
-      pagamentoJaRealizado: (
-        formaPagamento === "PIX" ||
-        formaPagamento === "LINK" ||
-        (formaPagamento === "VOUCHER" && (formaPagamentoTaxaVoucher === "PIX" || formaPagamentoRestanteVoucher === "PIX"))
-      )
+      pagamentoJaRealizado: formaPagamento === "LINK"
         ? pagamentoJaRealizado
         : false,
       valorDescontoManual: Math.max(0, Number(valorDescontoManual || 0)),
@@ -4424,7 +4420,7 @@ export function NovoAgendamentoNovoLayout({
                         {avisoPagamentoAutomatico}
                       </p>
                     )}
-                    {(formaPagamento === "PIX" || formaPagamento === "LINK") && (
+                    {formaPagamento === "LINK" && (
                       <label className="flex cursor-pointer items-center gap-2 rounded-lg border p-3 text-sm font-medium">
                         <Checkbox
                           checked={pagamentoJaRealizado}
@@ -4521,24 +4517,6 @@ export function NovoAgendamentoNovoLayout({
                             <SelectItem value="VALE_REFEICAO">Vale Refeição</SelectItem>
                           </SelectContent>
                         </Select>
-                        {formaPagamentoTaxaVoucher === "PIX" && (
-                          <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-emerald-200 bg-white p-3 text-sm font-medium">
-                            <Checkbox
-                              checked={pagamentoJaRealizado}
-                              onCheckedChange={(checked) => setPagamentoJaRealizado(checked === true)}
-                            />
-                            PIX da entrega já foi pago
-                          </label>
-                        )}
-                        {possuiPedidoSemVoucher && formaPagamentoRestanteVoucher === "PIX" && (
-                          <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-emerald-200 bg-white p-3 text-sm font-medium">
-                            <Checkbox
-                              checked={pagamentoJaRealizado}
-                              onCheckedChange={(checked) => setPagamentoJaRealizado(checked === true)}
-                            />
-                            PIX dos pedidos sem voucher já foi pago
-                          </label>
-                        )}
                       </div>
                     </div>
                   )}
