@@ -1,0 +1,48 @@
+name: Deploy
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      SSH_HOST: ${{ secrets.DEPLOY_HOST }}
+      SSH_USER: ${{ secrets.DEPLOY_USER }}
+      SSH_PORT: ${{ secrets.DEPLOY_PORT || '22' }}
+      SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+      SSH_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+      DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+    steps:
+      - name: Preparar SSH
+        shell: bash
+        run: |
+          set -euo pipefail
+          : "${SSH_HOST:?Configure DEPLOY_HOST}"
+          : "${SSH_USER:?Configure DEPLOY_USER}"
+          : "${SSH_KEY:?Configure DEPLOY_SSH_KEY}"
+          : "${SSH_KNOWN_HOSTS:?Configure DEPLOY_KNOWN_HOSTS}"
+          : "${DEPLOY_PATH:?Configure DEPLOY_PATH}"
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/deploy_key ~/.ssh/known_hosts
+      - name: Executar npm run deploy no servidor
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf -v path_quoted '%q' "$DEPLOY_PATH"
+          printf -v remote_command '%q' "cd $path_quoted && flock -w 900 /tmp/fitgarden-frontend-automation.lock npm run deploy"
+          ssh -i ~/.ssh/deploy_key -p "$SSH_PORT" -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=15 "$SSH_USER@$SSH_HOST" "bash -lc $remote_command"
+      - name: Remover chave
+        if: always()
+        shell: bash
+        run: rm -f ~/.ssh/deploy_key
+

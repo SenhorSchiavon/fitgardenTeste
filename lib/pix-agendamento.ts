@@ -7,18 +7,22 @@ const baseUrl = () => {
   return `${base.endsWith("/api") ? base : `${base}/api`}/agendamentos`;
 };
 
-export async function gerarPixAgendamento(agendamentoId: number): Promise<PixAgendamento[]> {
+export async function gerarPixAgendamento(agendamentoId: number, converterParaPix = false): Promise<PixAgendamento[]> {
   if (!Number.isSafeInteger(agendamentoId) || agendamentoId <= 0) throw new Error("Salve o agendamento antes de gerar o Pix");
   const response = await apiFetch(`${baseUrl()}/${agendamentoId}`);
   const agendamento = await response.json();
   if (!response.ok) throw new Error(agendamento.message || "Não foi possível consultar o agendamento");
   if (agendamento.pedido?.status === "CANCELADO") return [];
   const pagamentos: Array<{ id: number; forma: string; status: string; valor: string | number }> = agendamento.pedido?.pagamentos || [];
-  const pendentes = pagamentos.filter(p => p.forma === "PIX" && p.status === "PENDENTE" && Number(p.valor) > 0);
+  const formasConversiveis = ["A_DEFINIR", "DINHEIRO", "CREDITO", "DEBITO", "VALE_ALIMENTACAO", "VALE_REFEICAO", "LINK"];
+  const pendentes = pagamentos.filter(p => (p.forma === "PIX" || (converterParaPix && formasConversiveis.includes(p.forma))) && p.status === "PENDENTE" && Number(p.valor) > 0);
   const pix: PixAgendamento[] = [];
   for (const pagamento of pendentes) {
     // O servidor confere o status novamente e reutiliza a cobrança já gerada.
-    const res = await apiFetch(`${baseUrl()}/pagamentos/${pagamento.id}/pix-sicredi/gerar`, { method: "POST" });
+    const res = await apiFetch(`${baseUrl()}/pagamentos/${pagamento.id}/pix-sicredi/gerar`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ converterParaPix }),
+    });
     const cobranca = await res.json();
     if (!res.ok) throw new Error(cobranca.message || "Não foi possível gerar o Pix no Sicredi");
     if (typeof cobranca.pixCopiaECola !== "string" || !cobranca.pixCopiaECola.trim()) {
