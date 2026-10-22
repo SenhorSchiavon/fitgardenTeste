@@ -2103,11 +2103,6 @@ export default function Agendamentos() {
                                       {agendamento.formaPagamento === "PIX" && <PixAgendamento
                                         compacto
                                         agendamentoId={Number(agendamento._raw?.agendamentoId ?? agendamento.agendamentoId ?? agendamento._raw?.id ?? agendamento.id)}
-                                        onGerado={() => {
-                                          void getAgendamentos({ date: utils.toISODateOnly(selectedDate), page: 1, pageSize: 200 })
-                                            .then(res => setAgendamentos((res.rows || []).map(mapApiToUi)))
-                                            .catch(() => sonnerToast.error("Pix preparado. Recarregue a lista para atualizar os dados."));
-                                        }}
                                       />}
                                       <Button
                                         type="button"
