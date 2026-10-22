@@ -1,4 +1,5 @@
 name: Deploy
+# Teste de deploy após configurar DEPLOY_KNOWN_HOSTS e acesso Tailscale.
 on:
   push:
     branches: [main]
