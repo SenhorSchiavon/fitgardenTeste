@@ -1,5 +1,16 @@
 # Deploy pelo GitHub Actions
 
+## Acesso pela rede Tailscale
+
+Os workflows conectam o runner ao Tailscale antes do SSH usando
+tailscale/github-action@v4. Cadastre também TS_OAUTH_CLIENT_ID e TS_OAUTH_SECRET
+em cada repositório. O cliente OAuth deve ter as permissões de Auth Keys Write
+e Devices Core Write e estar associado a tag:fitgarden-ci.
+Defina essa tag na política do Tailscale e permita acesso dela ao IP do servidor
+na porta TCP do SSH, preservando as regras existentes. Use o IP Tailscale do
+servidor em DEPLOY_HOST. O acesso SSH continua autenticado pela chave de deploy.
+Essas alterações precisam ser publicadas para ativar a etapa Tailscale.
+
 A cada push na main, .github/workflows/deploy.yml acessa o servidor por SSH e
 executa npm run deploy no checkout do frontend.
 

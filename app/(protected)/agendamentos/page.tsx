@@ -2100,15 +2100,15 @@ export default function Agendamentos() {
 
                                   <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-100">
                                     <div className="flex items-center gap-1.5">
-                                      <PixAgendamento
+                                      {agendamento.formaPagamento === "PIX" && <PixAgendamento
                                         compacto
                                         agendamentoId={Number(agendamento._raw?.agendamentoId ?? agendamento.agendamentoId ?? agendamento._raw?.id ?? agendamento.id)}
                                         onGerado={() => {
                                           void getAgendamentos({ date: utils.toISODateOnly(selectedDate), page: 1, pageSize: 200 })
                                             .then(res => setAgendamentos((res.rows || []).map(mapApiToUi)))
-                                            .catch(() => sonnerToast.error("Pix gerado. Recarregue a lista para atualizar a forma de pagamento."));
+                                            .catch(() => sonnerToast.error("Pix preparado. Recarregue a lista para atualizar os dados."));
                                         }}
-                                      />
+                                      />}
                                       <Button
                                         type="button"
                                         variant="outline"
@@ -2310,7 +2310,7 @@ export default function Agendamentos() {
                         R$ {calcularTotalExibidoAgendamento(agendamentoSelecionado || {}).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                       </span>
                     </div>
-                    {agendamentoSelecionado && <PixAgendamento key={agendamentoSelecionado.id} agendamentoId={Number(agendamentoSelecionado._raw?.agendamentoId ?? agendamentoSelecionado.agendamentoId ?? agendamentoSelecionado._raw?.id ?? agendamentoSelecionado.id)} />}
+                    {agendamentoSelecionado?.formaPagamento === "PIX" && <PixAgendamento key={agendamentoSelecionado.id} agendamentoId={Number(agendamentoSelecionado._raw?.agendamentoId ?? agendamentoSelecionado.agendamentoId ?? agendamentoSelecionado._raw?.id ?? agendamentoSelecionado.id)} />}
                     {agendamentoSelecionado?.formaPagamento === "DINHEIRO" && (
                       <div className="flex justify-between items-center border-t border-dashed border-slate-100 pt-3">
                         <span className="text-sm text-slate-600">Troco</span>

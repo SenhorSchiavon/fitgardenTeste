@@ -1,9 +1,9 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
-import { QRCodeSVG } from "qrcode.react";
+import { PixCopiaECola } from "@/components/pix-copia-e-cola";
 import { toast } from "sonner";
-import { Copy, RefreshCw, Search, QrCode, Link2, CheckCircle2, Clock, Wallet } from "lucide-react";
+import { RefreshCw, Search, QrCode, Link2, CheckCircle2, Clock, Wallet } from "lucide-react";
 import { Header } from "@/components/header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -176,7 +176,7 @@ export default function PixSicrediPage() {
       </div>
     </CardContent></Card>
     <Dialog open={Boolean(copia)} onOpenChange={open => { if (!open) setCopia(null); }}><DialogContent className="max-w-md"><DialogHeader><DialogTitle>Pix do pedido #{copia?.pedido}</DialogTitle><DialogDescription>Confira o valor e o destinatário no aplicativo do banco antes de pagar.</DialogDescription></DialogHeader>
-      {copia && <><div className="mx-auto rounded-xl bg-white p-4"><QRCodeSVG value={copia.codigo} size={240} marginSize={4} /></div><textarea aria-label="Pix Copia e Cola" readOnly value={copia.codigo} className="h-24 w-full rounded-md border p-3 font-mono text-xs" /><Button onClick={async () => { try { await navigator.clipboard.writeText(copia.codigo); toast.success("Pix copiado"); } catch { toast.error("Não foi possível copiar. Selecione o código acima."); } }}><Copy className="mr-2 h-4 w-4" />Copiar Pix</Button></>}
+      {copia && <PixCopiaECola codigo={copia.codigo} />}
     </DialogContent></Dialog>
     <Dialog open={webhooks} onOpenChange={open => { if (!ocupado) setWebhooks(open); }}><DialogContent><DialogHeader><DialogTitle>Configurar webhooks</DialogTitle><DialogDescription>Cadastre a URL configurada no servidor para todas as chaves Pix. Esta ação atualiza o endereço de notificações no Sicredi.</DialogDescription></DialogHeader><Button disabled={Boolean(ocupado)} onClick={() => void cadastrarWebhooks()}>{ocupado ? "Cadastrando…" : "Cadastrar para todas as chaves"}</Button></DialogContent></Dialog>
     {recebido && <VincularDialog recebido={recebido} onClose={() => setRecebido(null)} onSuccess={() => { setRecebido(null); void carregar(); }} />}
