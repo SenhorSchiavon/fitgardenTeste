@@ -1,4 +1,5 @@
 name: Deploy
+# Novo teste após configurar as deploy keys de acesso ao GitHub no servidor.
 # Teste de deploy após configurar DEPLOY_KNOWN_HOSTS e acesso Tailscale.
 on:
   push:
