@@ -520,6 +520,10 @@ export function useAgendamentos(options?: { baseUrl?: string }) {
     },
     [baseUrl, showError],
   );
+  const integrarEntrega = useCallback(async (id: number) => {
+    return fetchJson<{ ok: boolean; skipped: boolean; entregaIdExterno?: string; reason?: string }>(`${baseUrl}/${id}/integrar-entrega`, { method: "POST" });
+  }, [baseUrl]);
+
   const integrarEntregasDoDia = useCallback(
     async (date?: string) => {
       const dateISO = date && date.trim() ? date : toISODateOnly(new Date());
@@ -634,7 +638,8 @@ export function useAgendamentos(options?: { baseUrl?: string }) {
           })),
         };
 
-        return await fetchJson<{ pedidoId: number; agendamentoId: number }>(
+        return await fetchJson<{ pedidoId: number; agendamentoId: number;
+          entregaIntegracao?: { status: "PAUSADA" | "NAO_CONFIGURADA" | "IGNORADA" | "SINCRONIZADA" | "PENDENTE"; message?: string } | null }>(
           baseUrl,
           { method: "POST", body: JSON.stringify(body) },
         );
@@ -863,6 +868,7 @@ export function useAgendamentos(options?: { baseUrl?: string }) {
     deleteAgendamento,
     estimarTaxaEntrega,
     integrarEntregasDoDia,
+    integrarEntrega,
     utils,
   };
 }

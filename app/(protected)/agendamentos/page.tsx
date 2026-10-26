@@ -487,6 +487,7 @@ export default function Agendamentos() {
     getAgendamentoById,
     deleteAgendamento,
     integrarEntregasDoDia,
+    integrarEntrega,
     baixarXlsxImportEntregasDoDia,
     loading,
     error,
@@ -3031,6 +3032,24 @@ export default function Agendamentos() {
             });
             pedidoCriadoId = Number(criado.pedidoId);
             agendamentoCriadoId = Number(criado.agendamentoId);
+            if (criado.entregaIntegracao?.status === "PENDENTE") {
+              sonnerToast.warning("Entrega pendente no LevaCerto", {
+                description: criado.entregaIntegracao.message, duration: Infinity,
+                action: { label: "Tentar novamente", onClick: async () => {
+                  try {
+                    const result = await integrarEntrega(Number(criado.agendamentoId));
+                    if (result.entregaIdExterno) sonnerToast.success("Entrega sincronizada com o LevaCerto");
+                    else sonnerToast.info(result.reason || "Esse agendamento não requer envio");
+                  } catch (error: any) {
+                    sonnerToast.error("Entrega ainda pendente", { description: error?.message || "Tente novamente mais tarde." });
+                  }
+                } },
+              });
+            }
+            if (criado.entregaIntegracao?.status === "NAO_CONFIGURADA" &&
+              (payload.tipo === "ENTREGA" || (payload.tipo === "CONGELAR" && payload.congelarSubtipo === "ENTREGA"))) {
+              sonnerToast.warning("Agendamento salvo", { description: "A integração com o LevaCerto ainda não está configurada.", duration: 12000 });
+            }
 
             const pedidosPublicosImportadosIds = Array.from(new Set([
               ...(Array.isArray(payload.pedidosPublicosIds) ? payload.pedidosPublicosIds : []),

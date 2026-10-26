@@ -183,6 +183,7 @@ export function Sidebar({ className, onClose, onNavigate }: SidebarProps) {
             {canShow("planos") && renderNavButton({ href: "/planos", label: "Planos", icon: Package, screen: "planos" })}
             {canShow("clientes") && renderNavButton({ href: "/clientes", label: "Clientes", icon: Users, screen: "clientes" })}
             {canShow("usuarios") && renderNavButton({ href: "/usuarios", label: "Usuários", icon: UserCog, screen: "usuarios" })}
+            {user?.isAdmin && renderNavButton({ href: "/integracoes/levacerto", label: "Integração LevaCerto", icon: Settings, screen: "integracao-levacerto" })}
             {canShow("auditoria") && renderNavButton({ href: "/auditoria", label: "Auditoria", icon: FileClock, screen: "auditoria" })}
           </div>
 

@@ -43,6 +43,7 @@ export const SCREEN_DEFINITIONS: ScreenDefinition[] = [
   { key: "vouchers", label: "Vouchers", path: "/vouchers" },
   { key: "vouchers", label: "Cupons", path: "/cupons" },
   { key: "usuarios", label: "Usuários", path: "/usuarios" },
+  { key: "integracao-levacerto", label: "Integração LevaCerto", path: "/integracoes/levacerto" },
   { key: "auditoria", label: "Auditoria", path: "/auditoria" },
 ];
 
