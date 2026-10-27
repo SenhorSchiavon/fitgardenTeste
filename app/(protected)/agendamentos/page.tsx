@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ptBR } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -53,6 +53,7 @@ import {
   Printer,
   Search,
   BarChart3,
+  RefreshCw,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -437,6 +438,12 @@ function escaparHtml(value: unknown) {
 
 export default function Agendamentos() {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  const [sincronizandoEntregas, setSincronizandoEntregas] = useState(false);
+  const sincronizacaoEmAndamento = useRef(false);
+  const [resultadoSincronizacao, setResultadoSincronizacao] = useState<{
+    date: string; totalEncontrados: number; ok: number; ignorados: number; fail: number;
+    errors: { agendamentoId: number; error: string }[];
+  } | null>(null);
   const [cadastroOpen, setCadastroOpen] = useState(false);
   const {
     clientes,
@@ -1777,6 +1784,23 @@ export default function Agendamentos() {
     }))
   );
 
+  async function sincronizarEntregasSelecionadas() {
+    if (sincronizacaoEmAndamento.current) return;
+    sincronizacaoEmAndamento.current = true;
+    setSincronizandoEntregas(true);
+    setResultadoSincronizacao(null);
+    const date = utils.toISODateOnly(selectedDate);
+    try {
+      const resultado = await integrarEntregasDoDia(date);
+      setResultadoSincronizacao(resultado);
+      const descricao = `${resultado.ok} enviada(s), ${resultado.ignorados} já vinculada(s) ou ignorada(s), ${resultado.fail} falha(s).`;
+      if (resultado.fail) sonnerToast.warning("Sincronização concluída com pendências", { description: descricao });
+      else sonnerToast.success(resultado.totalEncontrados ? "Entregas do dia sincronizadas" : "Nenhuma entrega pendente para esse dia", { description: descricao });
+    } catch (error: any) {
+      sonnerToast.error("Não foi possível concluir a sincronização", { description: error?.message || "Tente novamente. Os vínculos já confirmados serão preservados." });
+    } finally { sincronizacaoEmAndamento.current = false; setSincronizandoEntregas(false); }
+  }
+
   console.log("tamanhos:", tamanhos);
   console.log("opcoesPadrao:", opcoesPadrao);
   console.log("carboidratos:", carboidratos);
@@ -1804,6 +1828,12 @@ export default function Agendamentos() {
         </div>
 
         <div className="flex flex-wrap items-center gap-3 w-full md:w-auto justify-end">
+          <Button type="button" variant="outline" className="h-10 rounded-xl gap-2" disabled={sincronizandoEntregas}
+            title={`Enviar ao LevaCerto as entregas pendentes de ${formatDate(selectedDate)}`}
+            onClick={() => { void sincronizarEntregasSelecionadas(); }}>
+            <RefreshCw className={`h-4 w-4 ${sincronizandoEntregas ? "animate-spin" : ""}`} />
+            {sincronizandoEntregas ? "Sincronizando entregas…" : "Sincronizar entregas do dia"}
+          </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" className="h-10 rounded-xl border-slate-200 hover:bg-slate-50 gap-2">
@@ -1945,6 +1975,16 @@ export default function Agendamentos() {
           </Button>
         </div>
       </div>
+
+      {resultadoSincronizacao && <div role="status" className={`mb-6 rounded-xl border p-4 text-sm ${resultadoSincronizacao.fail ? "border-amber-200 bg-amber-50" : "border-emerald-200 bg-emerald-50"}`}>
+        <p className="font-semibold">Sincronização LevaCerto — {resultadoSincronizacao.date.split("-").reverse().join("/")}</p>
+        <p className="mt-1">{resultadoSincronizacao.ok} enviada(s) · {resultadoSincronizacao.ignorados} já vinculada(s) ou ignorada(s) · {resultadoSincronizacao.fail} falha(s)</p>
+        {resultadoSincronizacao.totalEncontrados === 0 && <p className="mt-1">Não há entregas sem vínculo no LevaCerto para essa data.</p>}
+        {resultadoSincronizacao.fail > 0 && <details className="mt-2"><summary className="cursor-pointer font-medium">Ver pedidos com falha</summary>
+          <ul className="mt-2 space-y-1">{resultadoSincronizacao.errors.map(item => <li key={item.agendamentoId}>Agendamento #{item.agendamentoId}: {item.error}</li>)}</ul>
+          <p className="mt-2">Corrija as pendências e sincronize o mesmo dia novamente. Os pedidos já vinculados não serão reenviados.</p>
+        </details>}
+      </div>}
 
       <div className="grid grid-cols-1 md:grid-cols-[auto_1fr] gap-6">
         <Card className="h-fit w-fit">

@@ -538,6 +538,7 @@ export function useAgendamentos(options?: { baseUrl?: string }) {
           date: string;
           totalEncontrados: number;
           ok: number;
+          ignorados: number;
           fail: number;
           errors: { agendamentoId: number; error: string }[];
         }>(`${baseUrl}/integrar-entregas-do-dia${qs}`, {
