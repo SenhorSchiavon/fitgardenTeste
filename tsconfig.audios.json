@@ -1,0 +1,12 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": { "incremental": false },
+  "include": [
+    "next-env.d.ts",
+    "app/(protected)/pix-sicredi/page.tsx",
+    "components/mapa-agendamentos.tsx",
+    "components/retirada-agendamento.tsx",
+    "components/historico-retiradas.tsx"
+  ],
+  "exclude": ["node_modules", ".next"]
+}

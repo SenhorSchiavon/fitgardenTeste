@@ -37,6 +37,12 @@ async function main() {
   reset(); dados.pedido.status = 'CANCELADO'; dados.pedido.pagamentos = [{ id: 10, forma: 'PIX', status: 'PENDENTE', valor: '12.50' }];
   assert.deepEqual(await gerarPixAgendamento(1), []); assert.equal(chamadas.length, 1);
   await assert.rejects(gerarPixAgendamento(0), /Salve o agendamento/);
+  reset(); dados.pedido.pagamentos = [
+    { id: 80, forma: 'VOUCHER', status: 'CONFIRMADO', valor: '120' },
+    { id: 81, forma: 'PIX', status: 'PENDENTE', valor: '7.50' },
+  ];
+  const taxa = await gerarPixAgendamento(1);
+  assert.equal(taxa.length, 1); assert.equal(taxa[0].valor, 7.5); assert.equal(taxa[0].pagamentoId, 81);
   console.log('OK: Pix pendentes, pagamentos mistos, valores individuais, mensagem, cancelados, falha bancária e código ausente.');
 }
 main().catch(error => { console.error(error); process.exitCode = 1; });

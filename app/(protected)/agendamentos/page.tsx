@@ -79,6 +79,10 @@ import { useCongeladas } from "@/hooks/useCongeladas";
 import { usePlanosCliente } from "@/hooks/usePlanosCliente";
 import { useRegrasPersonalizadas } from "@/hooks/useRegrasPersonalizadas";
 import { cn } from "@/lib/utils";
+import dynamic from "next/dynamic";
+import { RetiradaAgendamento } from "@/components/retirada-agendamento";
+import { HistoricoRetiradas } from "@/components/historico-retiradas";
+const MapaAgendamentos = dynamic(() => import("@/components/mapa-agendamentos"), { ssr: false, loading: () => <p>Preparando mapa…</p> });
 import { PixAgendamento } from "@/components/pix-agendamento";
 import { gerarPixAgendamento, mensagemPixAgendamento } from "@/lib/pix-agendamento";
 type Agendamento = {
@@ -175,6 +179,12 @@ type Agendamento = {
   }[];
   _raw?: any;
 };
+
+function temPixPendente(ag?: Agendamento | null) {
+  if (!ag) return false;
+  const pagamentos = ag._raw?.pedido?.pagamentos || ag.pagamentos || ag._raw?.pagamentos || [];
+  return pagamentos.some((p: any) => p.forma === "PIX" && p.status === "PENDENTE" && Number(p.valor) > 0);
+}
 
 const ROTAS_ENTREGA = [
   { id: 1, label: "ROTA 1", intervalo: "13:00-15:00", start: 13 * 60, end: 15 * 60, color: "#ef4444" },
@@ -2003,10 +2013,14 @@ export default function Agendamentos() {
         </Card>
 
         <Tabs defaultValue="agendamentos" className="min-w-0">
-          <TabsList className="hidden">
+          <TabsList className="mb-4 flex h-auto w-full flex-wrap justify-start gap-1">
             <TabsTrigger value="agendamentos">Agendamentos ({agendamentos.length})</TabsTrigger>
+            <TabsTrigger value="mapa">Mapa de entregas</TabsTrigger>
+            <TabsTrigger value="retiradas">Histórico de retiradas</TabsTrigger>
           </TabsList>
 
+          <TabsContent value="mapa" className="mt-0"><MapaAgendamentos date={utils.toISODateOnly(selectedDate)} /></TabsContent>
+          <TabsContent value="retiradas" className="mt-0"><HistoricoRetiradas date={utils.toISODateOnly(selectedDate)} /></TabsContent>
           <TabsContent value="agendamentos" className="mt-0">
             <Card className="shadow-sm border-slate-100 overflow-hidden">
               <CardHeader className="bg-slate-50/50 py-4 px-6 border-b border-slate-100 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -2107,6 +2121,7 @@ export default function Agendamentos() {
                                   className="absolute left-0 top-0 bottom-0 w-1.5"
                                   style={{ backgroundColor: grupo.color }}
                                 />
+                                {(agendamento.tipoEntrega === "RETIRADA" || (agendamento.tipoEntrega === "CONGELAR" && agendamento.congelarSubtipo === "RETIRADA")) && <div className="mb-3 pl-2"><RetiradaAgendamento id={Number(agendamento._raw?.agendamentoId ?? agendamento._raw?.id ?? agendamento.id)} retiradoEm={agendamento._raw?.retiradoEm} onSuccess={retiradoEm => setAgendamentos(atuais => atuais.map(a => a.id === agendamento.id ? { ...a, _raw: { ...a._raw, retiradoEm } } : a))} /></div>}
                                 <div className="pl-2 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                                   <div className="space-y-1">
                                     <div className="flex items-center gap-2">
@@ -2141,7 +2156,7 @@ export default function Agendamentos() {
 
                                   <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-100">
                                     <div className="flex items-center gap-1.5">
-                                      {agendamento.formaPagamento === "PIX" && <PixAgendamento
+                                      {temPixPendente(agendamento) && <PixAgendamento
                                         compacto
                                         agendamentoId={Number(agendamento._raw?.agendamentoId ?? agendamento.agendamentoId ?? agendamento._raw?.id ?? agendamento.id)}
                                       />}
@@ -2346,7 +2361,7 @@ export default function Agendamentos() {
                         R$ {calcularTotalExibidoAgendamento(agendamentoSelecionado || {}).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                       </span>
                     </div>
-                    {agendamentoSelecionado?.formaPagamento === "PIX" && <PixAgendamento key={agendamentoSelecionado.id} agendamentoId={Number(agendamentoSelecionado._raw?.agendamentoId ?? agendamentoSelecionado.agendamentoId ?? agendamentoSelecionado._raw?.id ?? agendamentoSelecionado.id)} />}
+                    {temPixPendente(agendamentoSelecionado) && agendamentoSelecionado && <PixAgendamento key={agendamentoSelecionado.id} agendamentoId={Number(agendamentoSelecionado._raw?.agendamentoId ?? agendamentoSelecionado.agendamentoId ?? agendamentoSelecionado._raw?.id ?? agendamentoSelecionado.id)} />}
                     {agendamentoSelecionado?.formaPagamento === "DINHEIRO" && (
                       <div className="flex justify-between items-center border-t border-dashed border-slate-100 pt-3">
                         <span className="text-sm text-slate-600">Troco</span>
@@ -2490,13 +2505,6 @@ export default function Agendamentos() {
                 }}
               >
                 <MessageCircle className="mr-2 h-4 w-4" /> Comentário interno
-              </Button>
-              <Button
-                variant="outline"
-                className="rounded-xl px-6 border-emerald-200 text-emerald-700 hover:bg-emerald-50"
-                onClick={() => agendamentoSelecionado && handleEnviarConfirmacao(agendamentoSelecionado)}
-              >
-                <Send className="mr-2 h-4 w-4" /> Enviar confirmação
               </Button>
               <Button variant="outline" className="rounded-xl px-6" onClick={() => setDetalhesDialogOpen(false)}>
                 Fechar

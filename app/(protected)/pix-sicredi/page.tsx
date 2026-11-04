@@ -130,15 +130,15 @@ export default function PixSicrediPage() {
       <form onSubmit={filtrar} className="flex flex-wrap items-end gap-3">
         <label className="space-y-1 text-sm">De<Input aria-label="Data inicial" type="date" value={inicio} onChange={e => setInicio(e.target.value)} required /></label>
         <label className="space-y-1 text-sm">Até<Input aria-label="Data final" type="date" value={fim} onChange={e => setFim(e.target.value)} required /></label>
+        <label className="min-w-48 flex-1 space-y-1 text-sm">{aba === "pagamentos" ? "Cliente ou pedido" : "Nome ou identificação do Pix"}<Input aria-label="Buscar por nome" placeholder={aba === "pagamentos" ? "Nome, pedido ou identificador Pix" : "Cliente vinculado ou informação do pagador"} value={busca} onChange={e => setBusca(e.target.value)} /></label>
         {aba === "pagamentos" && <>
-          <label className="min-w-48 flex-1 space-y-1 text-sm">Cliente ou pedido<Input placeholder="Nome, pedido ou identificador Pix" value={busca} onChange={e => setBusca(e.target.value)} /></label>
           <label className="space-y-1 text-sm">Status<select className="flex h-10 w-full rounded-md border bg-background px-3 text-sm" value={status} onChange={e => setStatus(e.target.value)}>
             <option value="">Todos</option><option value="PENDENTE">Pendentes</option><option value="CONFIRMADO">Confirmados</option><option value="CANCELADO">Cancelados</option><option value="ESTORNADO">Estornados</option>
           </select></label>
         </>}
         <Button type="submit" disabled={loading}><Search className="mr-2 h-4 w-4" />Filtrar</Button>
       </form>
-      <p className="mt-3 text-xs text-muted-foreground">Período de até 31 dias. {aba === "pagamentos" ? "Filtro pela criação do pagamento. A lista atualiza a cada 30 segundos." : "Filtro pela data de recebimento, consultado diretamente no banco. Inclui Pix avulsos disponibilizados pelo Sicredi para esta conta."}</p>
+      <p className="mt-3 text-xs text-muted-foreground">Período de até 31 dias. {aba === "pagamentos" ? "Filtro pela criação do pagamento. A lista atualiza a cada 30 segundos." : "Filtro pela data de recebimento, consultado diretamente no banco. Inclui Pix avulsos disponibilizados pelo Sicredi para esta conta. A busca por nome usa o cliente vinculado ou a informação do pagador retornada pelo banco; Pix sem identificação não podem ser encontrados por nome."}</p>
     </CardContent></Card>
     {aba === "pagamentos" && <div className="grid gap-3 sm:grid-cols-3">
       {[{ label: "Pagamentos no filtro", value: String(lista?.total || 0), icon: Wallet },
@@ -162,7 +162,7 @@ export default function PixSicrediPage() {
             </div></TableCell>
           </TableRow>)}
         </TableBody></Table> : <Table><TableHeader><TableRow><TableHead>Recebido em</TableHead><TableHead>Valor / chave</TableHead><TableHead>Identificação bancária</TableHead><TableHead>Vínculo</TableHead><TableHead className="text-right">Ação</TableHead></TableRow></TableHeader><TableBody>
-          {!extrato?.recebidos.length && <TableRow><TableCell colSpan={5} className="h-32 text-center text-muted-foreground">Nenhum Pix recebido no período consultado.</TableCell></TableRow>}
+          {!extrato?.recebidos.length && <TableRow><TableCell colSpan={5} className="h-32 text-center text-muted-foreground">Nenhum Pix recebido neste filtro. Ajuste o nome ou o período consultado.</TableCell></TableRow>}
           {extrato?.recebidos.map(r => <TableRow key={r.endToEndId}>
             <TableCell className="whitespace-nowrap">{dataHora(r.horario)}</TableCell><TableCell><div className="font-semibold">{brl(r.valor)}</div><div className="text-xs text-muted-foreground">{r.chave || "Chave não informada pelo banco"}</div></TableCell>
             <TableCell><div className="max-w-64 break-all font-mono text-xs">{r.endToEndId}</div><div className="text-xs text-muted-foreground">{r.txid && r.txid !== "***" ? `Txid: ${r.txid}` : "Pix avulso"}</div>{r.infoPagador && <div className="max-w-64 text-xs">{r.infoPagador}</div>}{Boolean(r.devolucoes?.length) && <Badge variant="secondary">Com devolução</Badge>}</TableCell>
