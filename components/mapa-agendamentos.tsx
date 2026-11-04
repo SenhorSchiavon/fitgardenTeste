@@ -10,10 +10,17 @@ type Entrega = { id: string; agendamentoId: number; pedidoId: number; clienteNom
   cliente: { latitude: number | null; longitude: number | null } | null;
   rotasVinculadas: { ordem: number; rota: { id: string; nome: string } }[];
   pagamentos: { forma: string; status: string; valor: string }[] };
-type Dados = { entregas: Entrega[]; entregadores: { id: string; nome: string }[]; origem?: { latitude: number | null; longitude: number | null } };
+type Entregador = { id: string; nome: string; lastLat?: number | null; lastLng?: number | null };
+type Dados = { entregas: Entrega[]; entregadores: Entregador[]; origem?: { latitude: number | null; longitude: number | null } };
 const cores = ["#059669", "#2563eb", "#ea580c", "#9333ea", "#db2777"];
 const icones = cores.map(cor => divIcon({ className: "", iconSize: [24, 24], iconAnchor: [12, 12], html: `<span style="display:block;width:24px;height:24px;border:3px solid white;border-radius:50%;background:${cor};box-shadow:0 1px 5px #0005"></span>` }));
 const coord = (e: Entrega): Ponto | null => e.cliente?.latitude != null && e.cliente.longitude != null ? [e.cliente.latitude, e.cliente.longitude] : null;
+const iconeEntregador = divIcon({
+  className: "",
+  iconSize: [32, 32],
+  iconAnchor: [16, 16],
+  html: '<span class="flex h-8 w-8 items-center justify-center rounded-lg border-2 border-white bg-slate-900 text-base shadow-md" aria-hidden="true">🛵</span>',
+});
 function Enquadrar({ pontos }: { pontos: Ponto[] }) {
   const map = useMap();
   useEffect(() => {
@@ -49,6 +56,16 @@ export default function MapaAgendamentos({ date }: { date: string }) {
   const visiveis = useMemo(() => (dados?.entregas || []).filter(e => (!rota || e.rotasVinculadas.some(v => v.rota.id === rota)) && (!entregador || e.entregadorId === entregador)), [dados, rota, entregador]);
   const entregaSelecionada = visiveis.find(e => e.id === selecionada?.id);
   const pontos = useMemo(() => visiveis.flatMap(e => { const p = coord(e); return p ? [p] : []; }), [visiveis]);
+  const posicoes = useMemo(() => {
+    const idsDaRota = new Set(visiveis.map(e => e.entregadorId));
+    return (dados?.entregadores ?? []).flatMap(e => {
+      if ((entregador && e.id !== entregador) || (rota && !idsDaRota.has(e.id))) return [];
+      const { lastLat: lat, lastLng: lng } = e;
+      if (typeof lat !== "number" || typeof lng !== "number" || !Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) return [];
+      return [{ id: e.id, nome: e.nome, ponto: [lat, lng] as Ponto }];
+    });
+  }, [dados, entregador, rota, visiveis]);
+  const pontosMapa = useMemo(() => [...pontos, ...posicoes.map(e => e.ponto)], [pontos, posicoes]);
   useEffect(() => {
     const controller = new AbortController(); setLinhas([]);
     const grupos = new Map<string, Entrega[]>();
@@ -69,7 +86,8 @@ export default function MapaAgendamentos({ date }: { date: string }) {
     <p className="text-xs text-muted-foreground">{visiveis.length} entregas · {visiveis.length - pontos.length} sem coordenadas. Toque em um ponto para consultar ou trocar o entregador. O mapa mostra entregas sincronizadas com o LevaCerto.</p>
     {erro ? <p role="alert" className="rounded bg-red-50 p-4 text-red-800">{erro}</p> : loading ? <p role="status" className="py-20 text-center">Carregando mapa…</p> : <>
       {!visiveis.length && <p className="rounded bg-slate-50 p-3 text-sm">Nenhuma entrega neste filtro. Confira a data e a sincronização com o LevaCerto.</p>}
-      <MapContainer center={[-23.31, -51.16]} zoom={12} className="z-0 h-[580px] w-full rounded-lg"><TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution='&copy; OpenStreetMap' /><Enquadrar pontos={pontos} />
+      <p className="text-xs text-muted-foreground">🛵 Entregadores no mapa: {posicoes.length}. A posição é a última enviada ao LevaCerto. Use Atualizar mapa para consultar novamente.</p>
+      <MapContainer center={[-23.31, -51.16]} zoom={12} className="z-0 h-[580px] w-full rounded-lg"><TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution='&copy; OpenStreetMap' /><Enquadrar pontos={pontosMapa} />
         {linhas.map(l => <Polyline key={l.id} interactive={false} positions={l.pontos} pathOptions={{ color: l.cor, weight: 4, ...(l.real ? {} : { dashArray: "7 8" }) }} />)}
         {visiveis.map(e => {
           const p = coord(e);
@@ -78,6 +96,12 @@ export default function MapaAgendamentos({ date }: { date: string }) {
           return <Marker key={e.id} position={p} autoPanOnFocus={false} title={`${e.clienteNome} · ${e.faixaHorario}`} alt={`Entrega de ${e.clienteNome}`} icon={icones[Math.max(0, i) % cores.length]}
             eventHandlers={{ click: () => setSelecionada(atual => ({ id: e.id, versao: (atual?.versao || 0) + 1 })), keypress: event => { if (event.originalEvent.key === "Enter") setSelecionada(atual => ({ id: e.id, versao: (atual?.versao || 0) + 1 })); } }} />;
         })}
+        {posicoes.map(e => (
+          <Marker key={`entregador:${e.id}`} position={e.ponto} icon={iconeEntregador}
+            title={`Entregador: ${e.nome}`} alt={`Entregador: ${e.nome}`} zIndexOffset={500}>
+            <Popup><strong>{e.nome}</strong><div>Última posição enviada pelo app</div></Popup>
+          </Marker>
+        ))}
         {entregaSelecionada && coord(entregaSelecionada) && <PopupResponsivo key={selecionada?.versao} ponto={coord(entregaSelecionada)!}>
 <div className="min-w-0 break-words"><strong>{entregaSelecionada.clienteNome} · #{entregaSelecionada.pedidoId}</strong><p>{entregaSelecionada.clienteEndereco} · {entregaSelecionada.clienteCidade}</p><div>{entregaSelecionada.rotasVinculadas.map(v => v.rota.nome).join(", ")} · {entregaSelecionada.faixaHorario}</div><div>Entregador: {dados?.entregadores.find(d => d.id === entregaSelecionada.entregadorId)?.nome || "Indisponível"}</div><div className="mt-2 text-xs">{entregaSelecionada.pagamentos.map((pg, j) => <div key={j}>{pg.forma} · {Number(pg.valor).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })} · {pg.status}</div>)}</div><Trocar key={entregaSelecionada.entregadorId} entrega={entregaSelecionada} entregadores={dados?.entregadores || []} onSuccess={() => setVersao(v => v + 1)} /></div>
         </PopupResponsivo>}
