@@ -164,6 +164,7 @@ export type CreateAgendamentoInput = {
   formaPagamentoRestanteVoucher?: FormaPagamento;
   voucherGruposPedido?: string[];
   pagamentoJaRealizado?: boolean;
+  usarCredito?: boolean;
   valorDescontoManual?: number;
   motivoDescontoManual?: string;
   cobrarTaxaEntrega?: boolean;
@@ -192,6 +193,7 @@ export type UpdateAgendamentoInput = Partial<{
   formaPagamentoRestanteVoucher: FormaPagamento;
   voucherGruposPedido: string[];
   pagamentoJaRealizado: boolean;
+  usarCredito: boolean;
   valorDescontoManual: number;
   motivoDescontoManual: string | null;
   cobrarTaxaEntrega: boolean;
@@ -594,6 +596,7 @@ export function useAgendamentos(options?: { baseUrl?: string }) {
               .map((item) => String(item.grupoPedido || "").trim()),
           ].filter(Boolean))),
           pagamentoJaRealizado: !!payload.pagamentoJaRealizado,
+          usarCredito: payload.usarCredito === true,
           valorDescontoManual: Number(payload.valorDescontoManual || 0),
           motivoDescontoManual: payload.motivoDescontoManual?.trim() || undefined,
           cobrarTaxaEntrega: payload.cobrarTaxaEntrega,

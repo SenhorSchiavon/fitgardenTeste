@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { agendaRequest } from "./retirada-agendamento";
 type Ponto = [number, number];
 type Entrega = { id: string; agendamentoId: number; pedidoId: number; clienteNome: string; clienteEndereco: string; clienteCidade: string; status: string; entregadorId: string; faixaHorario: string;
+  publicadaEm?: string | null; atencaoEm?: string | null; motivoRecusa?: string | null;
   cliente: { latitude: number | null; longitude: number | null } | null;
   rotasVinculadas: { ordem: number; rota: { id: string; nome: string } }[];
   pagamentos: { forma: string; status: string; valor: string }[] };
@@ -14,6 +15,7 @@ type Entregador = { id: string; nome: string; lastLat?: number | null; lastLng?:
 type Dados = { entregas: Entrega[]; entregadores: Entregador[]; origem?: { latitude: number | null; longitude: number | null } };
 const cores = ["#059669", "#2563eb", "#ea580c", "#9333ea", "#db2777"];
 const icones = cores.map(cor => divIcon({ className: "", iconSize: [24, 24], iconAnchor: [12, 12], html: `<span style="display:block;width:24px;height:24px;border:3px solid white;border-radius:50%;background:${cor};box-shadow:0 1px 5px #0005"></span>` }));
+const iconesAtencao = divIcon({ className: "", iconSize: [30, 30], iconAnchor: [15, 15], html: '<span style="display:block;width:30px;height:30px;border:3px solid white;border-radius:50%;background:#dc2626;color:white;text-align:center;font-weight:bold;line-height:24px;box-shadow:0 0 0 4px #fecaca">!</span>' });
 const coord = (e: Entrega): Ponto | null => e.cliente?.latitude != null && e.cliente.longitude != null ? [e.cliente.latitude, e.cliente.longitude] : null;
 const iconeEntregador = divIcon({
   className: "",
@@ -46,15 +48,48 @@ function Trocar({ entrega, entregadores, onSuccess }: { entrega: Entrega; entreg
   </div>;
 }
 export default function MapaAgendamentos({ date }: { date: string }) {
+  const [publicando, setPublicando] = useState(false);
+  const [publicacaoErro, setPublicacaoErro] = useState("");
   const [dados, setDados] = useState<Dados | null>(null), [rota, setRota] = useState(""), [entregador, setEntregador] = useState(""), [erro, setErro] = useState(""), [loading, setLoading] = useState(true), [versao, setVersao] = useState(0);
   const [selecionada, setSelecionada] = useState<{ id: string; versao: number } | null>(null);
   const [linhas, setLinhas] = useState<{ id: string; pontos: Ponto[]; real: boolean; cor: string }[]>([]);
-  useEffect(() => { const controller = new AbortController(); setLoading(true); setDados(null); setErro("");
-    agendaRequest(`/mapa?date=${date}`, { signal: controller.signal }).then(setDados).catch(e => { if (!controller.signal.aborted) setErro(e.message); }).finally(() => { if (!controller.signal.aborted) setLoading(false); }); return () => controller.abort();
+  useEffect(() => {
+    const controller = new AbortController();
+    setLoading(true); setDados(null); setErro("");
+    async function carregar(silencioso = false) {
+      try {
+        const novos: Dados = await agendaRequest(`/mapa?date=${date}`, { signal: controller.signal });
+        if (!controller.signal.aborted) {
+          setDados(atuais => atuais ? {
+            ...novos,
+            entregas: JSON.stringify(atuais.entregas) === JSON.stringify(novos.entregas) ? atuais.entregas : novos.entregas,
+            entregadores: JSON.stringify(atuais.entregadores) === JSON.stringify(novos.entregadores) ? atuais.entregadores : novos.entregadores,
+          } : novos);
+          setErro("");
+        }
+      } catch (error) {
+        if (!controller.signal.aborted && !silencioso) setErro(error instanceof Error ? error.message : "Falha ao carregar mapa.");
+      } finally { if (!controller.signal.aborted && !silencioso) setLoading(false); }
+    }
+    void carregar();
+    const timer = setInterval(() => { if (!document.hidden) void carregar(true); }, 30000);
+    return () => { controller.abort(); clearInterval(timer); };
   }, [date, versao]);
-  const rotas = useMemo(() => Array.from(new Map((dados?.entregas || []).flatMap(e => e.rotasVinculadas.map(v => [v.rota.id, v.rota] as const))).values()), [dados]);
+  const rotas = useMemo(() => Array.from(new Map((dados?.entregas || []).flatMap(e => e.rotasVinculadas.map(v => [v.rota.id, v.rota] as const))).values()), [dados?.entregas]);
   const visiveis = useMemo(() => (dados?.entregas || []).filter(e => (!rota || e.rotasVinculadas.some(v => v.rota.id === rota)) && (!entregador || e.entregadorId === entregador)), [dados, rota, entregador]);
   const entregaSelecionada = visiveis.find(e => e.id === selecionada?.id);
+  const naoPublicadas = visiveis.filter(e => !e.publicadaEm && !e.atencaoEm && e.status !== "ENTREGUE");
+  const recusadas = visiveis.filter(e => e.atencaoEm);
+
+  async function publicar() {
+    if (!window.confirm(`Publicar ${naoPublicadas.length} entregas deste filtro para os entregadores?`)) return;
+    setPublicando(true); setPublicacaoErro("");
+    try {
+      await agendaRequest("/mapa/publicar", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ agendamentoIds: naoPublicadas.map(e => e.agendamentoId) }) });
+      setVersao(v => v + 1);
+    } catch (error) { setPublicacaoErro(error instanceof Error ? error.message : "Falha ao publicar entregas."); }
+    finally { setPublicando(false); }
+  }
   const pontos = useMemo(() => visiveis.flatMap(e => { const p = coord(e); return p ? [p] : []; }), [visiveis]);
   const posicoes = useMemo(() => {
     const idsDaRota = new Set(visiveis.map(e => e.entregadorId));
@@ -81,8 +116,11 @@ export default function MapaAgendamentos({ date }: { date: string }) {
       catch { return { id, pontos: pts, real: false, cor }; }
     })).then(result => { if (!controller.signal.aborted) setLinhas(result); });
     return () => controller.abort();
-  }, [visiveis, dados, rotas]);
+  }, [visiveis, dados?.origem?.latitude, dados?.origem?.longitude, rotas]);
   return <div className="space-y-3 rounded-xl border bg-white p-4"><div className="flex flex-wrap items-end gap-3"><label className="text-sm">Rota<select className="mt-1 block rounded border p-2" value={rota} onChange={e => setRota(e.target.value)}><option value="">Todas as rotas</option>{rotas.map(r => <option key={r.id} value={r.id}>{r.nome}</option>)}</select></label><label className="text-sm">Entregador<select className="mt-1 block rounded border p-2" value={entregador} onChange={e => setEntregador(e.target.value)}><option value="">Todos os entregadores</option>{dados?.entregadores.map(e => <option key={e.id} value={e.id}>{e.nome}</option>)}</select></label><Button variant="outline" disabled={loading} onClick={() => setVersao(v => v + 1)}>Atualizar mapa</Button></div>
+    <div className="flex flex-wrap items-center gap-3"><Button disabled={publicando || loading || !naoPublicadas.length} onClick={() => void publicar()}>{publicando ? "Publicando…" : `Publicar rota para o entregador (${naoPublicadas.length})`}</Button><span className="text-xs text-muted-foreground">A publicação libera somente as entregas deste filtro.</span></div>
+    {publicacaoErro && <p role="alert" className="text-sm text-red-700">{publicacaoErro}</p>}
+    {recusadas.length > 0 && <div role="alert" className="rounded-lg border-2 border-red-400 bg-red-50 p-3 text-sm text-red-900"><strong>Entrega precisando de atenção ({recusadas.length})</strong>{recusadas.map(e => <button key={e.id} className="mt-2 block text-left underline" onClick={() => setSelecionada(atual => ({ id: e.id, versao: (atual?.versao || 0) + 1 }))}>{e.clienteNome} · {e.motivoRecusa}</button>)}</div>}
     <p className="text-xs text-muted-foreground">{visiveis.length} entregas · {visiveis.length - pontos.length} sem coordenadas. Toque em um ponto para consultar ou trocar o entregador. O mapa mostra entregas sincronizadas com o LevaCerto.</p>
     {erro ? <p role="alert" className="rounded bg-red-50 p-4 text-red-800">{erro}</p> : loading ? <p role="status" className="py-20 text-center">Carregando mapa…</p> : <>
       {!visiveis.length && <p className="rounded bg-slate-50 p-3 text-sm">Nenhuma entrega neste filtro. Confira a data e a sincronização com o LevaCerto.</p>}
@@ -93,7 +131,7 @@ export default function MapaAgendamentos({ date }: { date: string }) {
           const p = coord(e);
           if (!p) return null;
           const i = rotas.findIndex(r => r.id === e.rotasVinculadas[0]?.rota.id);
-          return <Marker key={e.id} position={p} autoPanOnFocus={false} title={`${e.clienteNome} · ${e.faixaHorario}`} alt={`Entrega de ${e.clienteNome}`} icon={icones[Math.max(0, i) % cores.length]}
+          return <Marker key={e.id} position={p} autoPanOnFocus={false} title={`${e.atencaoEm ? "Entrega precisando de atenção · " : ""}${e.clienteNome} · ${e.faixaHorario}`} alt={`Entrega de ${e.clienteNome}`} icon={e.atencaoEm ? iconesAtencao : icones[Math.max(0, i) % cores.length]}
             eventHandlers={{ click: () => setSelecionada(atual => ({ id: e.id, versao: (atual?.versao || 0) + 1 })), keypress: event => { if (event.originalEvent.key === "Enter") setSelecionada(atual => ({ id: e.id, versao: (atual?.versao || 0) + 1 })); } }} />;
         })}
         {posicoes.map(e => (
@@ -103,7 +141,7 @@ export default function MapaAgendamentos({ date }: { date: string }) {
           </Marker>
         ))}
         {entregaSelecionada && coord(entregaSelecionada) && <PopupResponsivo key={selecionada?.versao} ponto={coord(entregaSelecionada)!}>
-<div className="min-w-0 break-words"><strong>{entregaSelecionada.clienteNome} · #{entregaSelecionada.pedidoId}</strong><p>{entregaSelecionada.clienteEndereco} · {entregaSelecionada.clienteCidade}</p><div>{entregaSelecionada.rotasVinculadas.map(v => v.rota.nome).join(", ")} · {entregaSelecionada.faixaHorario}</div><div>Entregador: {dados?.entregadores.find(d => d.id === entregaSelecionada.entregadorId)?.nome || "Indisponível"}</div><div className="mt-2 text-xs">{entregaSelecionada.pagamentos.map((pg, j) => <div key={j}>{pg.forma} · {Number(pg.valor).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })} · {pg.status}</div>)}</div><Trocar key={entregaSelecionada.entregadorId} entrega={entregaSelecionada} entregadores={dados?.entregadores || []} onSuccess={() => setVersao(v => v + 1)} /></div>
+<div className="min-w-0 break-words">{entregaSelecionada.atencaoEm && <div className="mb-2 rounded bg-red-100 p-2 text-red-900"><strong>Entrega precisando de atenção</strong><div>{entregaSelecionada.motivoRecusa}</div></div>}<div className="mb-2 text-xs">{entregaSelecionada.publicadaEm ? `Rota publicada em ${new Date(entregaSelecionada.publicadaEm).toLocaleString("pt-BR")}` : "Aguardando publicação"}</div><strong>{entregaSelecionada.clienteNome} · #{entregaSelecionada.pedidoId}</strong><p>{entregaSelecionada.clienteEndereco} · {entregaSelecionada.clienteCidade}</p><div>{entregaSelecionada.rotasVinculadas.map(v => v.rota.nome).join(", ")} · {entregaSelecionada.faixaHorario}</div><div>Entregador: {dados?.entregadores.find(d => d.id === entregaSelecionada.entregadorId)?.nome || "Indisponível"}</div><div className="mt-2 text-xs">{entregaSelecionada.pagamentos.map((pg, j) => <div key={j}>{pg.forma} · {Number(pg.valor).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })} · {pg.status}</div>)}</div><Trocar key={entregaSelecionada.entregadorId} entrega={entregaSelecionada} entregadores={dados?.entregadores || []} onSuccess={() => setVersao(v => v + 1)} /></div>
         </PopupResponsivo>}
       </MapContainer>
       {linhas.some(l => !l.real && l.pontos.length > 1) && <p role="status" className="rounded bg-amber-50 p-3 text-xs text-amber-900">Trajeto por ruas indisponível para parte das entregas. Linhas tracejadas indicam apenas a sequência dos pontos.</p>}

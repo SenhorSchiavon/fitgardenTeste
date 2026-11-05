@@ -81,6 +81,7 @@ function formatEndereco(e?: any) {
   return parts.join(" • ");
 }
 export type Cliente = {
+  saldoCredito?: number | string;
   id: number;
   nome: string;
   telefone: string;

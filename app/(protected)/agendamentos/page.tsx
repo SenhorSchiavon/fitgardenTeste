@@ -127,6 +127,7 @@ type Agendamento = {
   valorDescontos?: number;
   valorDescontoPlanoItens?: number;
   valorDescontoVoucher?: number;
+  valorCreditoAplicado?: number;
   valorDescontoManual?: number;
   motivoDescontoManual?: string | null;
   cupomId?: number | null;
@@ -248,7 +249,8 @@ function calcularTotalExibidoAgendamento(agendamento: Partial<Agendamento>) {
         valorPlanosComprados -
         Number(agendamento.valorDescontoManual || 0) -
         Number(agendamento.valorDescontoCupom || 0) -
-        Number(agendamento.valorDescontoVoucher || 0),
+        Number(agendamento.valorDescontoVoucher || 0) -
+        Number(agendamento.valorCreditoAplicado || 0),
     );
   }
 
@@ -909,6 +911,9 @@ export default function Agendamentos() {
       Number(agendamento.adicionaisConsumidosPlano || 0) > 0
         ? `*Adicionais usados do plano:* ${agendamento.adicionaisConsumidosPlano}`
         : null,
+      Number(agendamento.valorCreditoAplicado || 0) > 0
+        ? `*Crédito utilizado:* - ${moneyBr(agendamento.valorCreditoAplicado || 0)}`
+        : null,
       `*Total:* ${moneyBr(calcularTotalExibidoAgendamento(agendamento))}`,
       "",
       ...(agendamento.planosComprados?.length
@@ -1362,11 +1367,11 @@ export default function Agendamentos() {
         Number(p.consumoUnidades || 0) === 0 &&
         Number(p.consumoEntregas || 0) === 0 &&
         Number(p.consumoAdicionais || 0) === 0 &&
-        Number(p.valor || 0) > 0,
+        Number(p.valor || 0) + Number(p.descontoCompraPlano || 0) + Number(p.creditoAplicado || 0) > 0,
     );
     const pagamentosCompraPlano = pagamentosCompraPlanoAtuais;
     const valorPlanosComprados = pagamentosCompraPlano
-      .reduce((acc: number, p: any) => acc + Number(p.valor || 0), 0);
+      .reduce((acc: number, p: any) => acc + Number(p.valor || 0) + Number(p.descontoCompraPlano || 0) + Number(p.creditoAplicado || 0), 0);
     const planosComprados = pagamentosCompraPlano.map((p: any) => ({
       id: Number(p.planoClienteId),
       nome: String(p.planoCliente?.plano?.nome || `Plano #${p.planoClienteId}`),
@@ -1405,6 +1410,7 @@ export default function Agendamentos() {
     const taxaVoucherPaga = !!formaTaxaVoucherAtual && pagamentos.some(
       (p: any) => p.forma === formaTaxaVoucherAtual && p.status === "CONFIRMADO" && !p.voucherId,
     );
+    const valorCreditoAplicado = Number(row.pedido?.valorCreditoAplicado ?? row.valorCreditoAplicado ?? 0);
     const valorDescontoManual = Number(row.pedido?.valorDescontoManual ?? row.valorDescontoManual ?? 0);
     const motivoDescontoManual = row.pedido?.motivoDescontoManual ?? row.motivoDescontoManual ?? null;
     const cupomId = row.pedido?.cupomId ?? row.cupomId ?? row.pedido?.cupom?.id ?? row.cupom?.id ?? null;
@@ -1441,7 +1447,7 @@ export default function Agendamentos() {
     const temCobrancaReal = temPagamentoPendente || !!pagamentoNaoPlanoRelevante;
     const valorTotalPelaCoberturaAtual = Math.max(
       0,
-      valorTotalOriginal - valorDescontos - valorDescontoVoucher - valorDescontoManual - valorDescontoCupom,
+      valorTotalOriginal - valorDescontos - valorDescontoVoucher - valorDescontoManual - valorDescontoCupom - valorCreditoAplicado,
     );
     const usouPlano =
       itens.some((it: any) => !!it.usarPlano) ||
@@ -1461,6 +1467,7 @@ export default function Agendamentos() {
       valorTotalFinal: valorTotalFinalCalculado,
       valorDescontoPlanoItens: valorItensCobertosPlano,
       valorDescontoVoucher,
+      valorCreditoAplicado,
       valorDescontoManual,
       valorDescontoCupom,
       valorPlanosComprados,
@@ -1597,6 +1604,7 @@ export default function Agendamentos() {
       valorDescontos,
       valorDescontoPlanoItens: valorItensCobertosPlano,
       valorDescontoVoucher,
+      valorCreditoAplicado,
       valorDescontoManual,
       motivoDescontoManual,
       cupomId,
@@ -2121,7 +2129,14 @@ export default function Agendamentos() {
                                   className="absolute left-0 top-0 bottom-0 w-1.5"
                                   style={{ backgroundColor: grupo.color }}
                                 />
-                                {(agendamento.tipoEntrega === "RETIRADA" || (agendamento.tipoEntrega === "CONGELAR" && agendamento.congelarSubtipo === "RETIRADA")) && <div className="mb-3 pl-2"><RetiradaAgendamento id={Number(agendamento._raw?.agendamentoId ?? agendamento._raw?.id ?? agendamento.id)} retiradoEm={agendamento._raw?.retiradoEm} onSuccess={retiradoEm => setAgendamentos(atuais => atuais.map(a => a.id === agendamento.id ? { ...a, _raw: { ...a._raw, retiradoEm } } : a))} /></div>}
+                                {(agendamento.tipoEntrega === "RETIRADA" || (agendamento.tipoEntrega === "CONGELAR" && agendamento.congelarSubtipo === "RETIRADA")) && <div className="mb-3 pl-2"><RetiradaAgendamento id={Number(agendamento._raw?.agendamentoId ?? agendamento._raw?.id ?? agendamento.id)} retiradoEm={agendamento._raw?.retiradoEm} onSuccess={retiradoEm => {
+                                  setAgendamentos(atuais => atuais.map(a => a.id === agendamento.id ? { ...a, _raw: { ...a._raw, retiradoEm } } : a));
+                                  const id = Number(agendamento._raw?.agendamentoId ?? agendamento._raw?.id ?? agendamento.id);
+                                  void getAgendamentoById(id).then(row => {
+                                    const atualizado = mapApiToUi(row);
+                                    setAgendamentos(atuais => atuais.map(a => a.id === agendamento.id ? atualizado : a));
+                                  }).catch(() => sonnerToast.error("Retirada registrada. Atualize a lista para conferir o pagamento."));
+                                }} /></div>}
                                 <div className="pl-2 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                                   <div className="space-y-1">
                                     <div className="flex items-center gap-2">
@@ -2938,6 +2953,7 @@ export default function Agendamentos() {
                   : []),
               ].filter(Boolean))),
               pagamentoJaRealizado: payload.pagamentoJaRealizado,
+              usarCredito: payload.usarCredito,
               valorDescontoManual: payload.valorDescontoManual,
               motivoDescontoManual: payload.motivoDescontoManual,
               senhaAutorizacao: payload.senhaAutorizacao,
@@ -3039,6 +3055,7 @@ export default function Agendamentos() {
                   : []),
               ].filter(Boolean))),
               pagamentoJaRealizado: payload.pagamentoJaRealizado,
+              usarCredito: payload.usarCredito,
               valorDescontoManual: payload.valorDescontoManual,
               motivoDescontoManual: payload.motivoDescontoManual,
               cobrarTaxaEntrega: payload.cobrarTaxaEntrega,

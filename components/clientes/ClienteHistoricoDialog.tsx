@@ -14,6 +14,7 @@ import {
     CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { useClienteHistorico } from "@/hooks/useClienteHistorico";
+import { ConverterPlanoCredito } from "./ConverterPlanoCredito";
 import { apiFetch } from "@/hooks/api";
 
 type Aba = "historico" | "planos";
@@ -126,6 +127,16 @@ export function ClienteHistoricoDialog({
         }
     };
 
+    const [saldoCredito, setSaldoCredito] = useState(0);
+    async function carregarCredito() {
+        if (!cliente?.id) return;
+        try {
+            const response = await apiFetch(`${API_URL}/clientes/${cliente.id}`);
+            if (response.ok) { const data = await response.json(); setSaldoCredito(Number(data.saldoCredito || 0)); }
+        } catch { setSaldoCredito(0); }
+    }
+    useEffect(() => { if (open) void carregarCredito(); }, [open, cliente?.id]);
+
     const excluirPlano = async (plano: (typeof planos)[number]) => {
         if (!cliente?.id || excluindoPlanoId) return;
         const senhaExclusao = window.prompt("Informe a senha para excluir este plano do cliente:") || "";
@@ -160,6 +171,7 @@ export function ClienteHistoricoDialog({
                         Histórico de Pedidos - {cliente?.nome || "(sem cliente)"}
                     </DialogTitle>
                 </DialogHeader>
+                <p className="rounded-md bg-emerald-50 p-3 text-sm font-semibold text-emerald-900">Crédito disponível {moneyBr(saldoCredito)}</p>
 
                 <div className="flex-1 overflow-y-auto pr-2">
                     <Tabs value={aba} onValueChange={(v) => setAba(v as Aba)}>
@@ -317,6 +329,7 @@ export function ClienteHistoricoDialog({
                                                                 <Trash2 className="h-4 w-4" />
                                                                 {excluindoPlanoId === plano.id ? "Excluindo..." : "Excluir"}
                                                             </Button>
+                                                        <ConverterPlanoCredito clienteId={cliente!.id} planoId={plano.id} onSuccess={async () => { await getHistorico({ clienteId: cliente!.id, page, pageSize }); await carregarCredito(); }} />
                                                         </div>
                                                     </div>
 

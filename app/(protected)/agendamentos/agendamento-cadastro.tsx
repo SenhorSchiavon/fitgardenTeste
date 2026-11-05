@@ -617,6 +617,8 @@ export function NovoAgendamentoNovoLayout({
   const [formaPagamentoRestanteVoucher, setFormaPagamentoRestanteVoucher] = useState<FormaPagamento>("A_DEFINIR");
   const [voucherCodigo, setVoucherCodigo] = useState("");
   const [pagamentoJaRealizado, setPagamentoJaRealizado] = useState(false);
+  const [usarCredito, setUsarCredito] = useState(false);
+  const [saldoCredito, setSaldoCredito] = useState(0);
   const [descontoManualOpen, setDescontoManualOpen] = useState(false);
   const [valorDescontoManual, setValorDescontoManual] = useState(0);
   const [motivoDescontoManual, setMotivoDescontoManual] = useState("");
@@ -1870,7 +1872,21 @@ export function NovoAgendamentoNovoLayout({
   const valorDescontoCupomResumo = cupomSelecionado
     ? Math.min(valorBaseCupomResumo, Math.floor(valorBaseCupomResumo * Math.max(0, Math.min(100, cupomSelecionado.percentual))) / 100)
     : 0;
-  const valorTotalFinalResumo = Math.max(0, valorBaseCupomResumo - valorDescontoCupomResumo);
+  useEffect(() => {
+    const mesmoCliente = String(initialData?.pedido?.clienteId ?? initialData?.clienteId ?? "") === String(clienteId);
+    const creditoAnterior = mesmoCliente ? Number(initialData?.pedido?.valorCreditoAplicado ?? initialData?.valorCreditoAplicado ?? 0) : 0;
+    setUsarCredito(creditoAnterior > 0);
+    setSaldoCredito(creditoAnterior);
+    if (!clienteId) return;
+    const controller = new AbortController();
+    void apiFetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3333/api"}/clientes/${clienteId}`, { signal: controller.signal })
+      .then(async response => { if (!response.ok) throw new Error("Falha ao consultar crédito"); return response.json(); })
+      .then(cliente => { if (!controller.signal.aborted) setSaldoCredito(Number(cliente.saldoCredito || 0) + creditoAnterior); })
+      .catch(() => { /* Saldo indisponível não pode ser aplicado. */ });
+    return () => controller.abort();
+  }, [clienteId]);
+  const creditoAplicado = usarCredito ? Math.min(saldoCredito, Math.max(0, valorBaseCupomResumo - valorDescontoCupomResumo)) : 0;
+  const valorTotalFinalResumo = Math.max(0, valorBaseCupomResumo - valorDescontoCupomResumo - creditoAplicado);
   const pedidoCobertoPeloVoucherResumo = (pedido: { id: string }) =>
     isVoucherForma(formaPagamento) && voucherGruposPedido.includes(String(pedido.id));
   const pedidosQuePagamTaxaResumo = resumoPedidos.filter((pedido) => !pedidoCobertoPeloVoucherResumo(pedido));
@@ -1897,6 +1913,7 @@ export function NovoAgendamentoNovoLayout({
     setPrecisaTroco(false);
     setTrocoPara(0);
     setPagamentoJaRealizado(false);
+    setUsarCredito(false);
     setDescontoManualOpen(false);
     setValorDescontoManual(0);
     setMotivoDescontoManual("");
@@ -3327,9 +3344,8 @@ export function NovoAgendamentoNovoLayout({
       formaPagamentoTaxaVoucher: isVoucherForma(formaPagamento) ? (formaPagamentoTaxaVoucher || "A_DEFINIR") : (formaPagamentoTaxaVoucher !== "A_DEFINIR" ? formaPagamentoTaxaVoucher : undefined),
       formaPagamentoRestanteVoucher: isVoucherForma(formaPagamento) ? (formaPagamentoRestanteVoucher || "A_DEFINIR") : undefined,
       voucherGruposPedido: isVoucherForma(formaPagamentoPayload) ? voucherGruposPedido : [],
-      pagamentoJaRealizado: formaPagamento === "LINK"
-        ? pagamentoJaRealizado
-        : false,
+      pagamentoJaRealizado: !usarCredito && formaPagamento === "LINK" ? pagamentoJaRealizado : false,
+      usarCredito,
       valorDescontoManual: Math.max(0, Number(valorDescontoManual || 0)),
       motivoDescontoManual: motivoDescontoManual.trim(),
       cobrarTaxaEntrega: ehEntrega && incluirTaxaEntrega,
@@ -4740,6 +4756,7 @@ export function NovoAgendamentoNovoLayout({
                       )}
                     </div>
 
+                    {saldoCredito > 0 && <label className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm"><input type="checkbox" checked={usarCredito} onChange={e => setUsarCredito(e.target.checked)} />Abater saldo disponível (R$ {currency(saldoCredito)})</label>}
                     {!descontoManualOpen ? (
                       <Button type="button" variant="outline" className="w-full border-amber-300 text-amber-800 hover:bg-amber-50" onClick={() => setDescontoManualOpen(true)}>
                         Inserir desconto ou brinde
