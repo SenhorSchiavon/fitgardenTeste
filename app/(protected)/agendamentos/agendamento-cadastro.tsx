@@ -1086,11 +1086,11 @@ export function NovoAgendamentoNovoLayout({
   );
   const manterAbatimentoEntrega = ehEntrega && incluirTaxaEntrega && abaterTaxaEntregaPlano;
   const entregasDevolvidas = manterAbatimentoEntrega ? [] : entregasDoPedidoEmEdicao;
-  const planosDoPedidoEmEdicao = pagamentosDoPedidoEmEdicao
-    .map((pagamento: any) => pagamento.planoCliente)
-    .filter(Boolean);
+  const planosDoPedidoEmEdicao = pagamentosDoPedidoEmEdicao.map((pagamento: any) => pagamento.planoCliente);
+  // A lista atual do cliente prevalece sobre os vínculos históricos do agendamento.
   const planosVisiveisCliente = Array.from(new Map(
-    [...(clienteSelecionado?.planos || []), ...planosDoPedidoEmEdicao]
+    (clienteSelecionado?.planos ?? planosDoPedidoEmEdicao)
+      .filter((plano: any) => plano && plano.ativo !== false)
       .map((plano: any) => [Number(plano.id), plano]),
   ).values()) as any[];
 
@@ -1098,7 +1098,10 @@ export function NovoAgendamentoNovoLayout({
     (total: number, plano: any) => total + Math.max(0, Number(plano.saldoEntregas || 0)),
     0,
   ) + planosComprados.reduce((total, plano) => total + plano.quantidadeTaxas - plano.quantidadeTaxasOriginal, 0)
-    + entregasDevolvidas.reduce((total: number, pagamento: any) => total + Number(pagamento.consumoEntregas), 0);
+    + entregasDevolvidas.reduce((total: number, pagamento: any) =>
+      planosVisiveisCliente.some((plano) => Number(plano.id) === Number(pagamento.planoClienteId))
+        ? total + Number(pagamento.consumoEntregas)
+        : total, 0);
   const saldoAdicionaisPlano = planosVisiveisCliente.reduce(
     (total: number, plano: any) => total + Math.max(0, Number(plano.saldoAdicionais || 0)),
     0,

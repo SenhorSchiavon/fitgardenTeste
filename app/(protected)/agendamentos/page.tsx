@@ -462,9 +462,13 @@ export default function Agendamentos() {
     filteredClientes,
     loading: loadingClientes,
     saving: savingClientes,
+    refresh: refreshClientes,
     createCliente,
     updateCliente,
   } = useClientes();
+  useEffect(() => {
+    if (cadastroOpen) void refreshClientes();
+  }, [cadastroOpen, refreshClientes]);
   const { cardapios, loading: loadingCardapios } = useCardapios();
   const cardapioAtivo = cardapios.find((c) => c.ativo) ?? null;
   const {
