@@ -140,10 +140,13 @@ export type AgendamentoItemInput = {
   voucher?: boolean;
 };
 
+type AjusteTaxasPlano = { planoClienteId: number; quantidadeAnterior: number; quantidade: number; valorUnitario: number };
+
 export type CreateAgendamentoInput = {
   clienteId: number;
   pedidosPublicosIds?: number[];
   planosCompradosIds?: number[];
+  ajustesTaxasPlano?: AjusteTaxasPlano[];
   tipo: PedidoTipo;
   data: Date | string;
   dataEntregaCongelada?: Date | string | null;
@@ -174,6 +177,7 @@ export type CreateAgendamentoInput = {
 
 export type UpdateAgendamentoInput = Partial<{
   planosCompradosIds: number[];
+  ajustesTaxasPlano: AjusteTaxasPlano[];
   tipo: PedidoTipo;
   data: Date | string;
   dataEntregaCongelada: Date | string | null;
@@ -567,6 +571,7 @@ export function useAgendamentos(options?: { baseUrl?: string }) {
           clienteId: Number(payload.clienteId),
           pedidosPublicosIds: (payload.pedidosPublicosIds || []).map(Number).filter((id) => Number.isFinite(id) && id > 0),
           planosCompradosIds: (payload.planosCompradosIds || []).map(Number).filter((id) => Number.isFinite(id) && id > 0),
+          ajustesTaxasPlano: payload.ajustesTaxasPlano,
           tipo: payload.tipo,
           data:
             payload.data instanceof Date

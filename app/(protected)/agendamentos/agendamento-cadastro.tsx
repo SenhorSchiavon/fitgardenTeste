@@ -428,6 +428,17 @@ function getTipoAutomaticoUltimoPedido(ultimo: any): PedidoTipo | null {
   return tipoUltimo === "ENTREGA" || tipoUltimo === "RETIRADA" ? tipoUltimo : null;
 }
 
+function dadosTaxasCompraPlano(vinculo: any, pixEmitido = false) {
+  const quantidadeTaxas = Number(vinculo?.taxasEntregaCompradas || 0);
+  return {
+    quantidadeTaxasOriginal: quantidadeTaxas,
+    quantidadeTaxas,
+    valorTaxaUnitario: Number(vinculo?.valorTaxaEntrega || 0),
+    saldoEntregas: Number(vinculo?.saldoEntregas || 0),
+    pixEmitido,
+  };
+}
+
 function getVoucherCodigoSalvo(pagamentos: any[] = []) {
   return String(
     pagamentos.find((pagamento: any) =>
@@ -667,7 +678,7 @@ export function NovoAgendamentoNovoLayout({
     valorTotal: number;
     pago: boolean;
     createdAt?: string | Date;
-  }>>([]);
+  } & ReturnType<typeof dadosTaxasCompraPlano>>>([]);
 
   const [formItem, setFormItem] = useState<NovoPedidoItem>({
     id: "",
@@ -884,24 +895,30 @@ export function NovoAgendamentoNovoLayout({
       setPagamentoJaRealizado(!!initialData.pagamentoJaRealizado);
       const comprasPlanoRegistradas = pagamentosIniciais.filter((pagamento: any) =>
         pagamento.planoClienteId &&
+        pagamento.status !== "CANCELADO" &&
+        pagamento.planoCliente?.ativo !== false &&
         Number(pagamento.consumoUnidades || 0) === 0 &&
         Number(pagamento.consumoEntregas || 0) === 0 &&
-        Number(pagamento.consumoAdicionais || 0) === 0 &&
-        Number(pagamento.valor || 0) > 0,
+        Number(pagamento.consumoAdicionais || 0) === 0,
       );
       const planosCompradosExibidos = Array.isArray(initialData.planosCompradosExibidos)
         ? initialData.planosCompradosExibidos
             .filter((plano: any) => Number(plano.id) > 0)
-            .map((plano: any) => ({
-              id: Number(plano.id),
-              nome: String(plano.nome || `Plano #${plano.id}`),
-              resumo: "Plano lançado neste pedido",
-              valorPlano: Number(plano.valorPlano || plano.valor || 0),
-              valorTaxas: Number(plano.valorTaxas || 0),
-              valorTotal: Number(plano.valor || 0),
-              pago: plano.pago === true,
-              createdAt: plano.createdAt,
-            }))
+            .map((plano: any) => {
+              const compra = comprasPlanoRegistradas.find((pagamento: any) => Number(pagamento.planoClienteId) === Number(plano.id));
+              const taxas = dadosTaxasCompraPlano(compra?.planoCliente, !!compra?.pixTxid);
+              return {
+                id: Number(plano.id),
+                nome: String(plano.nome || `Plano #${plano.id}`),
+                resumo: "Plano lançado neste pedido",
+                valorPlano: Number(plano.valorPlano || plano.valor || 0),
+                valorTaxas: taxas.quantidadeTaxas * taxas.valorTaxaUnitario,
+                valorTotal: Number(plano.valor || 0),
+                pago: plano.pago === true,
+                createdAt: plano.createdAt,
+                ...taxas,
+              };
+            })
         : [];
 
       setPlanosComprados(
@@ -911,15 +928,17 @@ export function NovoAgendamentoNovoLayout({
             const plano = pagamento.planoCliente?.plano;
             const valorTotal = Number(pagamento.valor || 0);
             const valorPlano = Number(plano?.valor || valorTotal);
+            const taxas = dadosTaxasCompraPlano(pagamento.planoCliente, !!pagamento.pixTxid);
             return {
               id: Number(pagamento.planoClienteId),
               nome: plano?.nome || `Plano #${pagamento.planoClienteId}`,
               resumo: plano?.unidades ? `${plano.unidades} marmitas` : "Plano lançado neste pedido",
               valorPlano,
-              valorTaxas: Math.max(0, valorTotal - valorPlano),
+              valorTaxas: taxas.quantidadeTaxas * taxas.valorTaxaUnitario,
               valorTotal,
               pago: pagamento.status === "CONFIRMADO",
               createdAt: pagamento.planoCliente?.createdAt || pagamento.createdAt,
+              ...taxas,
             };
           }),
       );
@@ -1061,7 +1080,13 @@ export function NovoAgendamentoNovoLayout({
     };
   }, [open]);
 
-  const planosDoPedidoEmEdicao = (initialData?.pagamentos || initialData?.pedido?.pagamentos || [])
+  const pagamentosDoPedidoEmEdicao = initialData?.pagamentos || initialData?.pedido?.pagamentos || [];
+  const entregasDoPedidoEmEdicao = pagamentosDoPedidoEmEdicao.filter(
+    (pagamento: any) => pagamento.forma === "PLANO" && pagamento.status !== "CANCELADO" && Number(pagamento.consumoEntregas || 0) > 0,
+  );
+  const manterAbatimentoEntrega = ehEntrega && incluirTaxaEntrega && abaterTaxaEntregaPlano;
+  const entregasDevolvidas = manterAbatimentoEntrega ? [] : entregasDoPedidoEmEdicao;
+  const planosDoPedidoEmEdicao = pagamentosDoPedidoEmEdicao
     .map((pagamento: any) => pagamento.planoCliente)
     .filter(Boolean);
   const planosVisiveisCliente = Array.from(new Map(
@@ -1072,7 +1097,8 @@ export function NovoAgendamentoNovoLayout({
   const saldoEntregasPlano = planosVisiveisCliente.reduce(
     (total: number, plano: any) => total + Math.max(0, Number(plano.saldoEntregas || 0)),
     0,
-  );
+  ) + planosComprados.reduce((total, plano) => total + plano.quantidadeTaxas - plano.quantidadeTaxasOriginal, 0)
+    + entregasDevolvidas.reduce((total: number, pagamento: any) => total + Number(pagamento.consumoEntregas), 0);
   const saldoAdicionaisPlano = planosVisiveisCliente.reduce(
     (total: number, plano: any) => total + Math.max(0, Number(plano.saldoAdicionais || 0)),
     0,
@@ -1403,6 +1429,29 @@ export function NovoAgendamentoNovoLayout({
     .filter((plano) => !plano.pago)
     .reduce((acc, plano) => acc + plano.valorTotal, 0);
   const temCompraPlanoNoAgendamento = planosComprados.length > 0;
+
+  function minimoTaxasCompraPlano(plano: (typeof planosComprados)[number]) {
+    const devolvidas = entregasDevolvidas.reduce((total: number, pagamento: any) =>
+      Number(pagamento.planoClienteId) === plano.id ? total + Number(pagamento.consumoEntregas) : total, 0);
+    return Math.max(0, plano.quantidadeTaxasOriginal - plano.saldoEntregas - devolvidas);
+  }
+
+  function alterarQuantidadeTaxasPlano(plano: (typeof planosComprados)[number], quantidade: number) {
+    const minimo = minimoTaxasCompraPlano(plano);
+    if (!Number.isSafeInteger(quantidade) || quantidade < minimo || quantidade > 2147483647) return;
+    const valorUnitario = plano.quantidadeTaxasOriginal > 0 ? plano.valorTaxaUnitario : plano.valorTaxaUnitario || valorTaxaPlanoUnitario;
+    const diferenca = quantidade - plano.quantidadeTaxas;
+    setPlanosComprados((atuais) => atuais.map((atual) => atual.id === plano.id ? {
+      ...atual,
+      quantidadeTaxas: quantidade,
+      valorTaxaUnitario: valorUnitario,
+      valorTaxas: quantidade * valorUnitario,
+      valorTotal: atual.valorTotal + diferenca * valorUnitario,
+    } : atual));
+    if (saldoEntregasPlano + diferenca <= 0 && entregasDoPedidoEmEdicao.length === 0) {
+      setAbaterTaxaEntregaPlano(false);
+    }
+  }
 
   useEffect(() => {
     if (temCompraPlanoNoAgendamento && formaPagamento === "PLANO") {
@@ -2355,6 +2404,7 @@ export function NovoAgendamentoNovoLayout({
         valorTotal: valorTotalPlanoCliente,
         // Usa a resposta persistida pelo backend como fonte de verdade.
         pago: vinculo.pago === true,
+        ...dadosTaxasCompraPlano(vinculo),
       },
     ]);
 
@@ -3323,6 +3373,14 @@ export function NovoAgendamentoNovoLayout({
       },
       pedidosPublicosIds,
       planosCompradosIds: planosComprados.map((plano) => plano.id),
+      ajustesTaxasPlano: planosComprados
+        .filter((plano) => plano.quantidadeTaxas !== plano.quantidadeTaxasOriginal)
+        .map((plano) => ({
+          planoClienteId: plano.id,
+          quantidadeAnterior: plano.quantidadeTaxasOriginal,
+          quantidade: plano.quantidadeTaxas,
+          valorUnitario: plano.valorTaxaUnitario,
+        })),
       clienteId,
       tipo,
       data: data instanceof Date ? data.toISOString() : data,
@@ -4101,6 +4159,7 @@ export function NovoAgendamentoNovoLayout({
                       })}
                       {planosComprados.map((plano, index) => {
                         const dataPlano = plano.createdAt ? formatDateBR(plano.createdAt) : null;
+                        const minimoTaxas = minimoTaxasCompraPlano(plano);
                         return (
                           <div key={`plano-${plano.id}`} className="bg-emerald-50/50">
                             <div className="border-b border-emerald-100 px-4 py-3 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
@@ -4131,6 +4190,24 @@ export function NovoAgendamentoNovoLayout({
                                 </div>
                                 <div className="mt-1 text-sm font-bold text-foreground">{plano.nome}</div>
                                 <div className="text-[11px] text-muted-foreground">{plano.resumo}</div>
+                                <div className="mt-2 flex flex-wrap items-center gap-2">
+                                  <Label htmlFor={`taxas-compra-${plano.id}`} className="text-xs">Taxas de entrega</Label>
+                                  <Input
+                                    id={`taxas-compra-${plano.id}`}
+                                    type="number"
+                                    className="h-8 w-20"
+                                    min={minimoTaxas}
+                                    value={plano.quantidadeTaxas}
+                                    disabled={plano.pago || plano.pixEmitido || modoOrcamento}
+                                    onChange={(event) => alterarQuantidadeTaxasPlano(plano, Number(event.target.value))}
+                                  />
+                                  {(plano.pago || plano.pixEmitido) && (
+                                    <span className="text-xs text-muted-foreground">{plano.pago ? "Compra paga" : "Pix já emitido"}</span>
+                                  )}
+                                  {!plano.pago && !plano.pixEmitido && minimoTaxas > 0 && (
+                                    <span className="text-xs text-muted-foreground">Mínimo de {minimoTaxas} por entregas já utilizadas</span>
+                                  )}
+                                </div>
                               </div>
                             <div className="flex shrink-0 items-center gap-2 text-left sm:text-right">
                               <Button
@@ -4661,7 +4738,7 @@ export function NovoAgendamentoNovoLayout({
                             <span className="block text-[11px] text-muted-foreground font-normal">Calculado pelo endereço: R$ {currency(valorTaxa)}</span>
                           </Label>
                         </div>
-                        {(saldoEntregasPlano > 0 || abaterTaxaEntregaPlano) && incluirTaxaEntrega && (
+                        {(saldoEntregasPlano > 0 || abaterTaxaEntregaPlano || entregasDoPedidoEmEdicao.length > 0) && incluirTaxaEntrega && (
                           <div className="flex items-center gap-3 border-t border-border/60 pt-2">
                             <Checkbox
                               id="abaterTaxaEntregaPlano"

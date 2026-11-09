@@ -916,13 +916,6 @@ export default function Agendamentos() {
         : null,
       `*Total:* ${moneyBr(calcularTotalExibidoAgendamento(agendamento))}`,
       "",
-      ...(agendamento.planosComprados?.length
-        ? ["*Plano adquirido:*", ...agendamento.planosComprados.map((plano) =>
-            plano.valorTaxas > 0
-              ? `${plano.nome} - ${moneyBr(plano.valorPlano)} + ${moneyBr(plano.valorTaxas)} de entrega = ${moneyBr(plano.valor)}`
-              : `${plano.nome} - ${moneyBr(plano.valor)}`,
-          ), ""]
-        : []),
       temVoucherParcialPorPedido ? null : `*Forma de Pagamento:* ${getLabelPagamentoConfirmacao(agendamento)}`,
       agendamento.formaPagamento === "DINHEIRO"
         ? agendamento.precisaTroco && Number(agendamento.trocoPara || 0) > 0
@@ -1342,6 +1335,8 @@ export default function Agendamentos() {
       !p.voucherId &&
       Number(p.valor || 0) > 0;
     const isPagamentoNaoPlanoExibivel = (p: any) =>
+      p.status !== "CANCELADO" &&
+      p.planoCliente?.ativo !== false &&
       p.forma !== "PLANO" &&
       p.forma !== "VOUCHER" &&
       !p.voucherId &&
@@ -1364,10 +1359,11 @@ export default function Agendamentos() {
     const pagamentosCompraPlanoAtuais = pagamentos.filter(
       (p: any) =>
         p.planoClienteId &&
+        p.status !== "CANCELADO" &&
+        p.planoCliente?.ativo !== false &&
         Number(p.consumoUnidades || 0) === 0 &&
         Number(p.consumoEntregas || 0) === 0 &&
-        Number(p.consumoAdicionais || 0) === 0 &&
-        Number(p.valor || 0) + Number(p.descontoCompraPlano || 0) + Number(p.creditoAplicado || 0) > 0,
+        Number(p.consumoAdicionais || 0) === 0,
     );
     const pagamentosCompraPlano = pagamentosCompraPlanoAtuais;
     const valorPlanosComprados = pagamentosCompraPlano
@@ -2928,6 +2924,7 @@ export default function Agendamentos() {
           if (modoEdicao && agendamentoEditandoId) {
             agendamentoAtualizadoApi = await updateAgendamento(agendamentoEditandoId, {
               planosCompradosIds: payload.planosCompradosIds,
+              ajustesTaxasPlano: payload.ajustesTaxasPlano,
               tipo: payload.tipo,
               data: payload.data,
               dataEntregaCongelada: payload.dataEntregaCongelada,
@@ -3029,6 +3026,7 @@ export default function Agendamentos() {
                 ...(dadosEdicao?.pedidoPublicoId ? [dadosEdicao.pedidoPublicoId] : []),
               ].map(Number).filter(Boolean))),
               planosCompradosIds: payload.planosCompradosIds,
+              ajustesTaxasPlano: payload.ajustesTaxasPlano,
               tipo: payload.tipo,
               data: payload.data,
               dataEntregaCongelada: payload.dataEntregaCongelada,

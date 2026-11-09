@@ -141,7 +141,7 @@ export function ClienteHistoricoDialog({
         if (!cliente?.id || excluindoPlanoId) return;
         const senhaExclusao = window.prompt("Informe a senha para excluir este plano do cliente:") || "";
         if (!senhaExclusao.trim()) return;
-        const confirmou = window.confirm("Excluir este plano do cliente? Ele não aparecerá mais no histórico, agendamento e cálculos.");
+        const confirmou = window.confirm("Excluir este plano do cliente? O saldo deixará de aparecer e de ser usado em novos pedidos. Os usos já registrados serão mantidos.");
         if (!confirmou) return;
 
         setExcluindoPlanoId(plano.id);
