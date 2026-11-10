@@ -44,6 +44,7 @@ export type PedidoPendenteRow = {
   pagoEm?: string | null;
   conciliado?: boolean;
   conciliadoEm?: string | null;
+  retiradoEm?: string | null;
 
   entregador?: string | null;
   observacoes?: string | null;

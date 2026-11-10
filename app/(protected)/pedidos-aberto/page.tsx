@@ -57,6 +57,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { usePlanosCliente } from "@/hooks/usePlanosCliente";
+import { formatarRetirada, RetiradaPedidoLoja } from "@/components/retirada-agendamento";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3333";
 
@@ -822,6 +823,8 @@ export default function PedidosAberto() {
                 <div className="space-y-4">
                   {pagamentosConciliarFiltrados.map((pedido) => {
                     const valorConciliacao = Number(pedido.valorTotalFinal ?? pedido.valorTotal ?? 0);
+                    const retirada = pedido.tipoEntrega === "RETIRADA" ||
+                      (pedido.tipoEntrega === "CONGELAR" && pedido.congelarSubtipo === "RETIRADA");
 
                     return (
                       <div
@@ -853,6 +856,16 @@ export default function PedidosAberto() {
                           <span>{formatDate(pedido.data)}</span>
                           <span>•</span>
                           <span>{formatTipoEntrega(pedido.tipoEntrega)}</span>
+                          {retirada && (
+                            <>
+                              <span>•</span>
+                              {pedido.agendamentoId == null ? (
+                                <RetiradaPedidoLoja pedidoId={pedido.pedidoId} retiradoEm={pedido.retiradoEm} />
+                              ) : (
+                                <span>{pedido.retiradoEm ? `Retirado em ${formatarRetirada(pedido.retiradoEm)}` : "Retirada sem registro"}</span>
+                              )}
+                            </>
+                          )}
                           {pedido.pagoEm && (
                             <>
                               <span>•</span>

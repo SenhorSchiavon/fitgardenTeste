@@ -4,16 +4,49 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { apiFetch } from "@/hooks/api";
+import { toast } from "sonner";
 
-export const agendaApi = () => {
+const apiBase = () => {
   const base = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api").replace(/\/+$/, "");
-  return `${base.endsWith("/api") ? base : `${base}/api`}/agendamentos`;
+  return base.endsWith("/api") ? base : `${base}/api`;
 };
+export const agendaApi = () => `${apiBase()}/agendamentos`;
 export async function agendaRequest(path: string, options?: RequestInit) {
   const res = await apiFetch(`${agendaApi()}${path}`, options);
   const data = await res.json();
   if (!res.ok) throw new Error(data.message || "Não foi possível concluir a operação.");
   return data;
+}
+
+export function formatarRetirada(retiradoEm: string) {
+  return new Date(retiradoEm).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" });
+}
+
+export function RetiradaPedidoLoja({ pedidoId, retiradoEm }: { pedidoId: number; retiradoEm?: string | null }) {
+  const [registradoEm, setRegistradoEm] = useState<string | null>(null);
+  const [salvando, setSalvando] = useState(false);
+  const dataRetirada = retiradoEm || registradoEm;
+
+  async function confirmar() {
+    if (!window.confirm("Confirme somente se estiver entregando o pedido agora. O sistema vai registrar a data e o horário atuais.")) return;
+    setSalvando(true);
+    try {
+      const response = await apiFetch(`${apiBase()}/pedidos-sem-agendamento/${pedidoId}/retirada`, { method: "POST" });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || "Não foi possível registrar a retirada.");
+      setRegistradoEm(data.retiradoEm);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Não foi possível registrar a retirada.");
+    } finally {
+      setSalvando(false);
+    }
+  }
+
+  return dataRetirada
+    ? <span className="text-sm font-medium text-emerald-800">Retirado em {formatarRetirada(dataRetirada)}</span>
+    : <Button type="button" size="sm" variant="outline" disabled={salvando} onClick={() => void confirmar()}>
+        {salvando ? "Registrando…" : "Confirmar retirada"}
+      </Button>;
 }
 const formas = [
   ["DINHEIRO", "Dinheiro"], ["CREDITO", "Cartão de crédito"], ["DEBITO", "Cartão de débito"],
@@ -85,7 +118,7 @@ export function RetiradaAgendamento({ id, retiradoEm, onSuccess }: { id: number;
   }
 
   return <span onClick={e => e.stopPropagation()}>
-    {retiradoEm ? <span className="rounded-md bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-800">Retirado · {new Date(retiradoEm).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}</span>
+    {retiradoEm ? <span className="rounded-md bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-800">Retirado · {formatarRetirada(retiradoEm)}</span>
       : <Button size="sm" variant="outline" className="h-auto whitespace-normal border-amber-400 bg-amber-100 text-amber-950 hover:bg-amber-200" onClick={() => void abrir()}>Confirmar Retirada</Button>}
     <Dialog open={open} onOpenChange={v => { if (!busy) setOpen(v); }}><DialogContent className="max-w-md"><DialogHeader><DialogTitle>Confirmar Retirada</DialogTitle><DialogDescription>Marque somente após entregar o pedido ao cliente. A data, o horário exato e o operador serão registrados no histórico.</DialogDescription></DialogHeader>
       {pedido?.status === "PAGO" && <p className="text-sm text-emerald-800">Pagamento confirmado.</p>}
