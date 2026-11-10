@@ -137,7 +137,7 @@ type Agendamento = {
   valorTotalFinal?: number;
   valorPlanosComprados?: number;
   valorPlanosCompradosPendente?: number;
-  planosComprados?: { id?: number; nome: string; valor: number; valorPlano: number; valorTaxas: number; pago: boolean; createdAt?: string | Date }[];
+  planosComprados?: { id?: number; nome: string; valor: number; valorPlano: number; valorTaxas: number; taxasEntregaCompradas: number; pago: boolean; createdAt?: string | Date }[];
   taxaEntregaAbatidaPlano?: boolean;
   usouPlano?: boolean;
   saldoMarmitasAposPedido?: number | null;
@@ -828,6 +828,8 @@ export default function Agendamentos() {
       .reduce((total, plano) => total + Number(plano.valorPlano || 0), 0);
     const valorTaxasPlanosComprados = (agendamento.planosComprados || [])
       .reduce((total, plano) => total + Number(plano.valorTaxas || 0), 0);
+    const taxasEntregaCompradas = (agendamento.planosComprados || [])
+      .reduce((total, plano) => total + plano.taxasEntregaCompradas, 0);
     let feijaoPotinhosMensagem = 0;
     let legumesPotinhosMensagem = 0;
     let purePotinhosMensagem = 0;
@@ -891,11 +893,11 @@ export default function Agendamentos() {
       agendamento.valorPlanosComprados && agendamento.valorPlanosComprados > 0
         ? `*Valor do plano adquirido:* ${moneyBr(valorBasePlanosComprados)}`
         : `*Subtotal:* ${moneyBr(Math.max(Number(agendamento.valorPedido || 0), Number(agendamento.valorDescontoPlanoItens || 0)))}`,
-      agendamento.valorPlanosComprados && agendamento.valorPlanosComprados > 0
-        ? valorTaxasPlanosComprados > 0
-          ? `*Entrega incluída no plano:* ${moneyBr(valorTaxasPlanosComprados)}`
-          : null
-        : `*Taxa de Entrega:* ${moneyBr(agendamento.valorTaxa || 0)}`,
+      taxasEntregaCompradas > 0
+        ? `*Taxas de entrega compradas:* ${taxasEntregaCompradas} · ${moneyBr(valorTaxasPlanosComprados)}`
+        : agendamento.valorPlanosComprados && agendamento.valorPlanosComprados > 0
+          ? valorTaxasPlanosComprados > 0 ? `*Entrega incluída no plano:* ${moneyBr(valorTaxasPlanosComprados)}` : null
+          : `*Taxa de Entrega:* ${moneyBr(agendamento.valorTaxa || 0)}`,
       agendamento.valorDescontoVoucher && agendamento.valorDescontoVoucher > 0
         ? `*Desconto Voucher:* - ${moneyBr(agendamento.valorDescontoVoucher)}`
         : null,
@@ -926,12 +928,12 @@ export default function Agendamentos() {
           ? `*Troco para:* ${moneyBr(Number(agendamento.trocoPara))}`
           : "*Troco:* Não precisa"
         : null,
-      ...(planos.length || saldoTaxasEntrega > 0
+      ...(planos.length || saldoTaxasEntrega > 0 || taxasEntregaCompradas > 0
         ? [
             "",
             "*Planos ativos — saldo restante:*",
             ...planos.map((plano) => `${plano.saldo} unidades - ${plano.tamanho}`),
-            `${saldoTaxasEntrega} taxa${saldoTaxasEntrega === 1 ? "" : "s"} de entrega`,
+            `${saldoTaxasEntrega} taxa${saldoTaxasEntrega === 1 ? " de entrega restante" : "s de entrega restantes"}`,
           ]
         : []),
     ];
@@ -1377,7 +1379,10 @@ export default function Agendamentos() {
       nome: String(p.planoCliente?.plano?.nome || `Plano #${p.planoClienteId}`),
       valor: Number(p.valor || 0),
       valorPlano: Number(p.planoCliente?.plano?.valor || p.valor || 0),
-      valorTaxas: Math.max(0, Number(p.valor || 0) - Number(p.planoCliente?.plano?.valor || p.valor || 0)),
+      taxasEntregaCompradas: Number(p.planoCliente?.taxasEntregaCompradas || 0),
+      valorTaxas: p.planoCliente?.taxasEntregaCompradas != null
+        ? Number(p.planoCliente.taxasEntregaCompradas) * Number(p.planoCliente.valorTaxaEntrega || 0)
+        : Math.max(0, Number(p.valor || 0) - Number(p.planoCliente?.plano?.valor || p.valor || 0)),
       pago: p.status === "CONFIRMADO" || p.planoCliente?.pago === true,
       createdAt: p.planoCliente?.createdAt || p.createdAt,
     }));
@@ -1528,7 +1533,10 @@ export default function Agendamentos() {
       .map(([tamanho, saldo]) => ({ tamanho, saldo }))
       .sort((a, b) => Number(a.tamanho.replace(/\D/g, "")) - Number(b.tamanho.replace(/\D/g, "")));
     const planosClienteValidos = planosCliente.filter((plano: any) => plano.ativo !== false && plano.pago !== false);
-    const saldoTaxasEntrega = planosClienteValidos.reduce(
+    const idsPlanosComprados = new Set(planosCompradosNoPedido.map((plano: any) => Number(plano.id)));
+    const saldoTaxasEntrega = planosCliente.filter((plano: any) =>
+      plano.ativo !== false && (plano.pago !== false || idsPlanosComprados.has(Number(plano.id))),
+    ).reduce(
       (total: number, plano: any) => total + Math.max(0, Number(plano.saldoEntregas || 0)),
       0,
     );
