@@ -65,7 +65,6 @@ import { useCongeladas } from "@/hooks/useCongeladas";
 import { useSalgados } from "@/hooks/useSalgados";
 import { useTamanhos } from "@/hooks/useTamanhos";
 import { FormaPagamento, PedidoItemInput, usePedidosSemAgendamento } from "@/hooks/usePedidosSemAgendamento";
-import { RetiradaPedidoLoja } from "@/components/retirada-agendamento";
 import { cn } from "@/lib/utils";
 
 type ItemCarrinho = {
@@ -1117,7 +1116,6 @@ export default function PedidoSemAgendamento() {
           </div>
 
           <DialogFooter>
-            {pedidoCriadoId != null && <RetiradaPedidoLoja key={pedidoCriadoId} pedidoId={pedidoCriadoId} />}
             <Button onClick={handleLimparPedido} className="w-full font-bold">
               Concluir e Novo Pedido
             </Button>

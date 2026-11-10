@@ -4,13 +4,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { apiFetch } from "@/hooks/api";
-import { toast } from "sonner";
 
-const apiBase = () => {
+export const agendaApi = () => {
   const base = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api").replace(/\/+$/, "");
-  return base.endsWith("/api") ? base : `${base}/api`;
+  return `${base.endsWith("/api") ? base : `${base}/api`}/agendamentos`;
 };
-export const agendaApi = () => `${apiBase()}/agendamentos`;
 export async function agendaRequest(path: string, options?: RequestInit) {
   const res = await apiFetch(`${agendaApi()}${path}`, options);
   const data = await res.json();
@@ -22,32 +20,6 @@ export function formatarRetirada(retiradoEm: string) {
   return new Date(retiradoEm).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" });
 }
 
-export function RetiradaPedidoLoja({ pedidoId, retiradoEm }: { pedidoId: number; retiradoEm?: string | null }) {
-  const [registradoEm, setRegistradoEm] = useState<string | null>(null);
-  const [salvando, setSalvando] = useState(false);
-  const dataRetirada = retiradoEm || registradoEm;
-
-  async function confirmar() {
-    if (!window.confirm("Confirme somente se estiver entregando o pedido agora. O sistema vai registrar a data e o horário atuais.")) return;
-    setSalvando(true);
-    try {
-      const response = await apiFetch(`${apiBase()}/pedidos-sem-agendamento/${pedidoId}/retirada`, { method: "POST" });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.message || "Não foi possível registrar a retirada.");
-      setRegistradoEm(data.retiradoEm);
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Não foi possível registrar a retirada.");
-    } finally {
-      setSalvando(false);
-    }
-  }
-
-  return dataRetirada
-    ? <span className="text-sm font-medium text-emerald-800">Retirado em {formatarRetirada(dataRetirada)}</span>
-    : <Button type="button" size="sm" variant="outline" disabled={salvando} onClick={() => void confirmar()}>
-        {salvando ? "Registrando…" : "Confirmar retirada"}
-      </Button>;
-}
 const formas = [
   ["DINHEIRO", "Dinheiro"], ["CREDITO", "Cartão de crédito"], ["DEBITO", "Cartão de débito"],
   ["VALE_ALIMENTACAO", "Vale alimentação"], ["VALE_REFEICAO", "Vale refeição"],

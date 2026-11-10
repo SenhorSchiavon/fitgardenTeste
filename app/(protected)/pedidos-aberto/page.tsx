@@ -57,7 +57,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { usePlanosCliente } from "@/hooks/usePlanosCliente";
-import { formatarRetirada, RetiradaPedidoLoja } from "@/components/retirada-agendamento";
+import { formatarRetirada } from "@/components/retirada-agendamento";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3333";
 
@@ -825,6 +825,7 @@ export default function PedidosAberto() {
                     const valorConciliacao = Number(pedido.valorTotalFinal ?? pedido.valorTotal ?? 0);
                     const retirada = pedido.tipoEntrega === "RETIRADA" ||
                       (pedido.tipoEntrega === "CONGELAR" && pedido.congelarSubtipo === "RETIRADA");
+                    const clienteLoja = pedido.agendamentoId == null;
 
                     return (
                       <div
@@ -855,12 +856,12 @@ export default function PedidosAberto() {
                         <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground mt-1">
                           <span>{formatDate(pedido.data)}</span>
                           <span>•</span>
-                          <span>{formatTipoEntrega(pedido.tipoEntrega)}</span>
-                          {retirada && (
+                          <span>{clienteLoja ? "Cliente Loja" : formatTipoEntrega(pedido.tipoEntrega)}</span>
+                          {(clienteLoja || retirada) && (
                             <>
                               <span>•</span>
-                              {pedido.agendamentoId == null ? (
-                                <RetiradaPedidoLoja pedidoId={pedido.pedidoId} retiradoEm={pedido.retiradoEm} />
+                              {clienteLoja ? (
+                                <span>Entrada na loja em {formatarRetirada(pedido.data)}</span>
                               ) : (
                                 <span>{pedido.retiradoEm ? `Retirado em ${formatarRetirada(pedido.retiradoEm)}` : "Retirada sem registro"}</span>
                               )}
