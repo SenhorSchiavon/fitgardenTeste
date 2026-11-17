@@ -266,12 +266,8 @@ function gerarHorarios30({ start, end }: { start: string; end: string }) {
   return arr;
 }
 
-function getJanelaEntregaPorDistancia(distanciaKm: number | null) {
-  if (distanciaKm == null) return { start: "13:00", end: "20:30" };
-  return distanciaKm <= 3.5
-    ? { start: "13:00", end: "20:30" }
-    : { start: "15:00", end: "20:30" };
-}
+const JANELA_SABADO = { start: "09:30", end: "12:30" };
+const JANELA_ENTREGA_PRODUCAO = { start: "15:30", end: "20:30" };
 
 function isSabado(date?: Date | null) {
   return !!date && date.getDay() === 6;
@@ -423,11 +419,6 @@ function getDefaultAgendamentoDate(feriados: FeriadoOperacional[] = []) {
     proximaData.setDate(proximaData.getDate() + 1);
   }
   return proximaData;
-}
-
-function getTipoAutomaticoUltimoPedido(ultimo: any): PedidoTipo | null {
-  const tipoUltimo = String(ultimo?.pedido?.tipo || ultimo?.tipoEntrega || ultimo?.tipo || "");
-  return tipoUltimo === "ENTREGA" || tipoUltimo === "RETIRADA" ? tipoUltimo : null;
 }
 
 function dadosTaxasCompraPlano(vinculo: any, pixEmitido = false) {
@@ -595,7 +586,12 @@ export function NovoAgendamentoNovoLayout({
   const [taxaFixaCidade, setTaxaFixaCidade] = useState(false);
   const [valorTaxaPlano, setValorTaxaPlano] = useState(0);
   const [distanciaEntregaKm, setDistanciaEntregaKm] = useState<number | null>(null);
-  const [avisoHorarioAutomatico, setAvisoHorarioAutomatico] = useState("");
+  const [horarioAnterior, setHorarioAnterior] = useState<{
+    clienteId: string;
+    tipo: string;
+    congelarSubtipo?: string;
+    faixa: string;
+  } | null>(null);
   const [avisoPagamentoAutomatico, setAvisoPagamentoAutomatico] = useState("");
   const [clienteDialogOpen, setClienteDialogOpen] = useState(false);
   const [importarPedidoOpen, setImportarPedidoOpen] = useState(false);
@@ -808,16 +804,22 @@ export function NovoAgendamentoNovoLayout({
   const horarios = useMemo(
     () => {
       if (tipo === "CONGELAR") return gerarHorarios30({ start: "00:00", end: "23:30" });
-      if (isSabado(data)) return gerarHorarios30({ start: "09:30", end: "12:30" });
+      if (isSabado(data)) return gerarHorarios30(JANELA_SABADO);
+      if (tipo === "ENTREGA") return gerarHorarios30(JANELA_ENTREGA_PRODUCAO);
       return gerarHorarios30(
         tipo === "RETIRADA"
           ? { start: "12:30", end: "18:00" }
-          : getJanelaEntregaPorDistancia(tipo === "ENTREGA" ? distanciaEntregaKm : null),
+          : { start: "13:00", end: "20:30" },
       );
     },
-    [tipo, distanciaEntregaKm, data]
+    [tipo, data]
   );
 
+  const horariosInicio = useMemo(() => tipo === "ENTREGA"
+    ? horarios.filter((h) => h === HORARIO_ROTA_19.inicio || (
+      toMin(h) < toMin(HORARIO_ROTA_19.inicio) && toMin(h) + 60 <= toMin(horarios[horarios.length - 1])
+    ))
+    : horarios, [tipo, horarios]);
   const rota19 = tipo === "ENTREGA" && horario.inicio === HORARIO_ROTA_19.inicio && horarios.includes(horario.inicio);
 
   const horariosFimDisponiveis = useMemo(() => {
@@ -826,6 +828,15 @@ export function NovoAgendamentoNovoLayout({
     const ini = toMin(horario.inicio);
     return horarios.filter((h) => toMin(h) >= ini + 60);
   }, [horario.inicio, horarios, tipo, rota19]);
+
+  function alterarModalidade(novoTipo: PedidoTipo) {
+    if (novoTipo === tipo) return;
+    setTipo(novoTipo);
+    const janelaEntrega = isSabado(data) ? JANELA_SABADO : JANELA_ENTREGA_PRODUCAO;
+    setHorario(novoTipo === "ENTREGA"
+      ? { inicio: janelaEntrega.start, fim: fromMin(toMin(janelaEntrega.start) + 60) }
+      : { inicio: "13:00", fim: "14:00" });
+  }
 
   useEffect(() => {
     if (!horarios.length) return;
@@ -1218,28 +1229,13 @@ export function NovoAgendamentoNovoLayout({
   useEffect(() => {
     let ativo = true;
 
-    async function preencherUltimoAgendamento() {
-      setAvisoHorarioAutomatico("");
+    async function carregarUltimoAgendamento() {
       setAvisoPagamentoAutomatico("");
       if (!open || !clienteId || initialData) return;
 
       try {
         const ultimo = await getUltimoAgendamentoCliente(Number(clienteId));
         if (!ativo || !ultimo) return;
-
-        const tipoAutomatico = getTipoAutomaticoUltimoPedido(ultimo);
-        const tipoParaJanela = tipoAutomatico || tipo;
-        if (tipoAutomatico) setTipo(tipoAutomatico);
-
-        if (ultimo.faixaHorario && ultimo.faixaHorario.includes("-")) {
-          const [inicio, fim] = ultimo.faixaHorario.split("-");
-          const ajustado = ajustarHorarioNaJanela(
-            { inicio: inicio || "13:00", fim: fim || "14:00" },
-            isSabado(data) ? { start: "09:30", end: "12:30" } : getJanelaEntregaPorDistancia(tipoParaJanela === "ENTREGA" ? distanciaEntregaKm : null),
-          );
-          setHorario(ajustado);
-          setAvisoHorarioAutomatico(`Horário puxado automaticamente do último pedido: ${ajustado.inicio}-${ajustado.fim}.`);
-        }
 
         const pagamentoAutomatico = getPagamentoAutomaticoUltimoPedido(ultimo);
         if (pagamentoAutomatico) {
@@ -1260,17 +1256,61 @@ export function NovoAgendamentoNovoLayout({
 
       } catch {
         if (ativo) {
-          setAvisoHorarioAutomatico("");
           setAvisoPagamentoAutomatico("");
         }
       }
     }
 
-    preencherUltimoAgendamento();
+    carregarUltimoAgendamento();
     return () => {
       ativo = false;
     };
-  }, [open, clienteId, initialData, getUltimoAgendamentoCliente, feriados]);
+  }, [open, clienteId, initialData, getUltimoAgendamentoCliente]);
+
+  const subtipoHorario = tipo === "CONGELAR" ? congelarSubtipo : undefined;
+
+  useEffect(() => {
+    setHorarioAnterior(null);
+    if (!open || initialData || !clienteId || tipo === "NAO_DEFINIR") return;
+
+    let ativo = true;
+    getUltimoAgendamentoCliente(Number(clienteId), { tipo, congelarSubtipo: subtipoHorario })
+      .then((ultimo) => {
+        if (ativo && typeof ultimo?.faixaHorario === "string") {
+          setHorarioAnterior({
+            clienteId,
+            tipo: String(ultimo.pedido?.tipo || ultimo.tipoEntrega || ultimo.tipo || ""),
+            congelarSubtipo: ultimo.congelarSubtipo,
+            faixa: ultimo.faixaHorario,
+          });
+        }
+      })
+      .catch(() => {
+        if (ativo) setHorarioAnterior(null);
+      });
+
+    return () => { ativo = false; };
+  }, [open, initialData, clienteId, tipo, subtipoHorario, getUltimoAgendamentoCliente]);
+
+  useEffect(() => {
+    if (!open || initialData || tipo === "NAO_DEFINIR" ||
+        horarioAnterior?.clienteId !== clienteId || horarioAnterior.tipo !== tipo) return;
+    if (tipo === "CONGELAR" && horarioAnterior.congelarSubtipo !== congelarSubtipo) return;
+
+    const [inicio, fim] = horarioAnterior.faixa.split("-").map((hora) => hora.trim());
+    if (!horariosInicio.includes(inicio)) return;
+    if (tipo === "RETIRADA") {
+      setHorario({ inicio, fim: inicio });
+      return;
+    }
+    if (tipo === "ENTREGA" && inicio === HORARIO_ROTA_19.inicio) {
+      if (fim === HORARIO_ROTA_19.fim) setHorario(HORARIO_ROTA_19);
+      return;
+    }
+    if (horarios.includes(fim) && toMin(fim) >= toMin(inicio) + 60) {
+      setHorario({ inicio, fim });
+    }
+  }, [open, initialData, clienteId, tipo, congelarSubtipo, horarioAnterior, horariosInicio, horarios]);
 
   useEffect(() => {
     let ativo = true;
@@ -1993,7 +2033,6 @@ export function NovoAgendamentoNovoLayout({
     setGruposPlanoRemovidoManualmente([]);
     setDistanciaEntregaKm(null);
     setEnderecoSelecionadoId("");
-    setAvisoHorarioAutomatico("");
     setAvisoPagamentoAutomatico("");
     setItens([]);
     setPedidosPublicosIds([]);
@@ -3294,14 +3333,11 @@ export function NovoAgendamentoNovoLayout({
       return;
     }
 
-    const janelaEntrega = isSabado(data) ? { start: "09:30", end: "12:30" } : getJanelaEntregaPorDistancia(tipo === "ENTREGA" ? distanciaEntregaKm : null);
-    if (tipo === "ENTREGA" && !rota19 && (
-      toMin(horario.inicio) < toMin(janelaEntrega.start) ||
-      toMin(horario.fim) > toMin(janelaEntrega.end) ||
-      toMin(horario.fim) - toMin(horario.inicio) < 60
+    if (tipo === "ENTREGA" && (
+      !horariosInicio.includes(horario.inicio) || !horariosFimDisponiveis.includes(horario.fim)
     )) {
       toast.error("Horário inválido", {
-        description: `Selecione uma janela de pelo menos 1 hora entre ${janelaEntrega.start} e ${janelaEntrega.end}.`,
+        description: `Selecione uma janela de pelo menos 1 hora entre ${horarios[0]} e ${horarios[horarios.length - 1]}.`,
       });
       return;
     }
@@ -3725,9 +3761,9 @@ export function NovoAgendamentoNovoLayout({
                                           !!clienteEscolhido?.enderecoPrincipal?.trim() ||
                                           !!clienteEscolhido?.enderecos?.length;
                                         if (tipo === "NAO_DEFINIR" && possuiEndereco) {
-                                          setTipo("ENTREGA");
+                                          alterarModalidade("ENTREGA");
                                         } else if ((tipo === "NAO_DEFINIR" || tipo === "ENTREGA") && !possuiEndereco) {
-                                          setTipo("RETIRADA");
+                                          alterarModalidade("RETIRADA");
                                           setEndereco("");
                                         }
                                       }
@@ -4329,7 +4365,7 @@ export function NovoAgendamentoNovoLayout({
 
                   <div className="space-y-2">
                     <Label>Tipo</Label>
-                    <Select value={tipo} onValueChange={(v: PedidoTipo) => setTipo(v)}>
+                    <Select value={tipo} onValueChange={alterarModalidade}>
                       <SelectTrigger className={cn(tipo === "NAO_DEFINIR" && "border-red-300 bg-red-50 text-red-700")}>
                         <SelectValue />
                       </SelectTrigger>
@@ -4369,10 +4405,12 @@ export function NovoAgendamentoNovoLayout({
                         }
                       >
                         <SelectTrigger>
-                          <SelectValue />
+                          <SelectValue>
+                            {!horariosInicio.includes(horario.inicio) ? horario.inicio : undefined}
+                          </SelectValue>
                         </SelectTrigger>
                         <SelectContent>
-                          {horarios.map((h) => (
+                          {horariosInicio.map((h) => (
                             <SelectItem key={h} value={h}>
                               {h}
                             </SelectItem>
@@ -4414,12 +4452,6 @@ export function NovoAgendamentoNovoLayout({
                       ? `Distância estimada: ${distanciaEntregaKm.toFixed(2).replace(".", ",")} km. Janela disponível: ${horarios[0]}-${horarios[horarios.length - 1]}.`
                       : `Janela disponível: ${horarios[0]}-${horarios[horarios.length - 1]}.`}
                   </p>
-                  {avisoHorarioAutomatico && (
-                    <p className="text-xs font-medium text-emerald-700">
-                      {avisoHorarioAutomatico}
-                    </p>
-                  )}
-
                   {ehEntrega ? (
                     <div className="space-y-2">
                       <Label>Endereço</Label>

@@ -350,11 +350,15 @@ export function useAgendamentos(options?: { baseUrl?: string }) {
   );
 
   const getUltimoAgendamentoCliente = useCallback(
-    async <T = any>(clienteId: number) => {
+    async <T = any>(clienteId: number, modalidade?: { tipo: string; congelarSubtipo?: string }) => {
       setLoading(true);
       setError("");
       try {
-        return await fetchJson<T | null>(`${baseUrl}/clientes/${clienteId}/ultimo`, {
+        const params = new URLSearchParams();
+        if (modalidade) params.set("tipo", modalidade.tipo);
+        if (modalidade?.congelarSubtipo) params.set("congelarSubtipo", modalidade.congelarSubtipo);
+        const query = modalidade ? `?${params}` : "";
+        return await fetchJson<T | null>(`${baseUrl}/clientes/${clienteId}/ultimo${query}`, {
           method: "GET",
         });
       } catch (e: any) {
