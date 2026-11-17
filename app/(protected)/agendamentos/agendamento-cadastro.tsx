@@ -277,6 +277,8 @@ function isSabado(date?: Date | null) {
   return !!date && date.getDay() === 6;
 }
 
+const HORARIO_ROTA_19 = { inicio: "19:00", fim: "19:30" };
+
 function ajustarHorarioNaJanela(
   atual: HorarioIntervalo,
   janela: { start: string; end: string },
@@ -590,6 +592,7 @@ export function NovoAgendamentoNovoLayout({
   const { estimarTaxaEntrega, getAgendamentos, getUltimoAgendamentoCliente } = useAgendamentos();
   const { listPlanos, vincularPlano, saving: savingPlano } = usePlanosCliente();
   const [valorTaxa, setValorTaxa] = useState(0);
+  const [taxaFixaCidade, setTaxaFixaCidade] = useState(false);
   const [valorTaxaPlano, setValorTaxaPlano] = useState(0);
   const [distanciaEntregaKm, setDistanciaEntregaKm] = useState<number | null>(null);
   const [avisoHorarioAutomatico, setAvisoHorarioAutomatico] = useState("");
@@ -606,7 +609,8 @@ export function NovoAgendamentoNovoLayout({
   const [checandoDuplicidade, setChecandoDuplicidade] = useState(false);
   const [finalizandoAgendamento, setFinalizandoAgendamento] = useState(false);
   const finalizandoAgendamentoRef = useRef(false);
-  const [incluirTaxaEntrega, setIncluirTaxaEntrega] = useState(true);
+  const [incluirTaxaEntregaManual, setIncluirTaxaEntrega] = useState(true);
+  const incluirTaxaEntrega = taxaFixaCidade || incluirTaxaEntregaManual;
   const [abaterTaxaEntregaPlano, setAbaterTaxaEntregaPlano] = useState(false);
   const [clienteId, setClienteId] = useState("");
   const [comboboxOpen, setComboboxOpen] = useState(false);
@@ -814,11 +818,14 @@ export function NovoAgendamentoNovoLayout({
     [tipo, distanciaEntregaKm, data]
   );
 
+  const rota19 = tipo === "ENTREGA" && horario.inicio === HORARIO_ROTA_19.inicio && horarios.includes(horario.inicio);
+
   const horariosFimDisponiveis = useMemo(() => {
     if (tipo === "RETIRADA") return [];
+    if (rota19) return [HORARIO_ROTA_19.fim];
     const ini = toMin(horario.inicio);
     return horarios.filter((h) => toMin(h) >= ini + 60);
-  }, [horario.inicio, horarios, tipo]);
+  }, [horario.inicio, horarios, tipo, rota19]);
 
   useEffect(() => {
     if (!horarios.length) return;
@@ -830,6 +837,11 @@ export function NovoAgendamentoNovoLayout({
       }
       return;
     }
+    if (rota19) {
+      if (horario.fim !== HORARIO_ROTA_19.fim) setHorario(HORARIO_ROTA_19);
+      return;
+    }
+
     const ini = toMin(horario.inicio);
     const fim = toMin(horario.fim);
     const primeiro = horarios[0];
@@ -844,7 +856,7 @@ export function NovoAgendamentoNovoLayout({
 
     const prox = horarios.find((h) => toMin(h) >= ini + 60) || ultimo;
     setHorario((prev) => ({ ...prev, fim: prox }));
-  }, [horario.inicio, horario.fim, horarios, tipo]);
+  }, [horario.inicio, horario.fim, horarios, tipo, rota19]);
 
   useEffect(() => {
     if (!open || initialData || !feriados.length) return;
@@ -1144,6 +1156,7 @@ export function NovoAgendamentoNovoLayout({
     async function updateTaxa() {
       if (!ehEntrega || !clienteId || !endereco.trim()) {
         setValorTaxa(0);
+        setTaxaFixaCidade(false);
         setDistanciaEntregaKm(null);
         return;
       }
@@ -1157,12 +1170,14 @@ export function NovoAgendamentoNovoLayout({
         if (!ativo) return;
         if (res && typeof res.valorTaxa === "number") {
           setValorTaxa(res.valorTaxa);
+          setTaxaFixaCidade(res.taxaFixaCidade === true);
           setDistanciaEntregaKm(typeof res.distanciaKm === "number" ? res.distanciaKm : null);
         }
       } catch (e: any) {
         if (!ativo) return;
         console.error("Erro ao estimar taxa:", e);
         setValorTaxa(0);
+        setTaxaFixaCidade(false);
         setDistanciaEntregaKm(null);
       }
     }
@@ -1425,7 +1440,7 @@ export function NovoAgendamentoNovoLayout({
     incluirTaxaPlano
       ? Math.max(0, Math.floor(Number(quantidadeTaxasPlano || 0)))
       : 0;
-  const valorTaxaPlanoUnitario = Number(valorTaxa || 0) > 0 ? Number(valorTaxa) : Number(valorTaxaPlano || 0);
+  const valorTaxaPlanoUnitario = valorTaxa > 0 ? valorTaxa : Number(valorTaxaPlano || 0);
   const valorTaxasPlanoTotal = quantidadeTaxasPlanoFinal * valorTaxaPlanoUnitario;
   const valorTotalPlanoCliente = valorPlanoCliente + valorTaxasPlanoTotal;
   const valorPlanosNaoPagosResumo = planosComprados
@@ -1982,6 +1997,7 @@ export function NovoAgendamentoNovoLayout({
     setAvisoPagamentoAutomatico("");
     setItens([]);
     setPedidosPublicosIds([]);
+    setTaxaFixaCidade(false);
     setDadosClientePedidoImportado(null);
     setPlanosComprados([]);
     setConfirmacaoAplicarPlano(null);
@@ -3279,7 +3295,7 @@ export function NovoAgendamentoNovoLayout({
     }
 
     const janelaEntrega = isSabado(data) ? { start: "09:30", end: "12:30" } : getJanelaEntregaPorDistancia(tipo === "ENTREGA" ? distanciaEntregaKm : null);
-    if (tipo === "ENTREGA" && (
+    if (tipo === "ENTREGA" && !rota19 && (
       toMin(horario.inicio) < toMin(janelaEntrega.start) ||
       toMin(horario.fim) > toMin(janelaEntrega.end) ||
       toMin(horario.fim) - toMin(horario.inicio) < 60
@@ -3391,7 +3407,7 @@ export function NovoAgendamentoNovoLayout({
         ? (dataEntregaCongelada instanceof Date ? dataEntregaCongelada.toISOString() : dataEntregaCongelada)
         : null,
       congelarSubtipo: tipo === "CONGELAR" ? congelarSubtipo : null,
-      faixaHorario: tipo === "RETIRADA" ? horario.inicio : `${horario.inicio}-${horario.fim}`,
+      faixaHorario: tipo === "RETIRADA" ? horario.inicio : `${horario.inicio}-${rota19 ? HORARIO_ROTA_19.fim : horario.fim}`,
       endereco: ehEntrega ? endereco : "",
       entregaLatitude: ehEntrega && enderecoSelecionado?.latitude != null ? Number(enderecoSelecionado.latitude) : undefined,
       entregaLongitude: ehEntrega && enderecoSelecionado?.longitude != null ? Number(enderecoSelecionado.longitude) : undefined,
@@ -4347,7 +4363,9 @@ export function NovoAgendamentoNovoLayout({
                       <Select
                         value={horario.inicio}
                         onValueChange={(v) =>
-                          setHorario((prev) => ({ ...prev, inicio: v, fim: tipo === "RETIRADA" ? v : prev.fim }))
+                          tipo === "ENTREGA" && v === HORARIO_ROTA_19.inicio
+                            ? setHorario(HORARIO_ROTA_19)
+                            : setHorario((prev) => ({ inicio: v, fim: tipo === "RETIRADA" ? v : prev.fim }))
                         }
                       >
                         <SelectTrigger>
@@ -4367,7 +4385,8 @@ export function NovoAgendamentoNovoLayout({
                       <div className="space-y-2">
                         <Label>Fim</Label>
                         <Select
-                          value={horario.fim}
+                          value={rota19 ? HORARIO_ROTA_19.fim : horario.fim}
+                          disabled={rota19}
                           onValueChange={(v) =>
                             setHorario((prev) => ({ ...prev, fim: v }))
                           }
@@ -4734,11 +4753,12 @@ export function NovoAgendamentoNovoLayout({
                           <Checkbox
                             id="incluirTaxaEntrega"
                             checked={incluirTaxaEntrega}
+                            disabled={taxaFixaCidade}
                             onCheckedChange={(v) => setIncluirTaxaEntrega(!!v)}
                           />
                           <Label htmlFor="incluirTaxaEntrega" className="text-sm font-medium cursor-pointer leading-tight">
                             Cobrar taxa de entrega
-                            <span className="block text-[11px] text-muted-foreground font-normal">Calculado pelo endereço: R$ {currency(valorTaxa)}</span>
+                            <span className="block text-[11px] text-muted-foreground font-normal">{taxaFixaCidade ? "Taxa fixa por cidade" : "Calculado pelo endereço"}: R$ {currency(valorTaxa)}</span>
                           </Label>
                         </div>
                         {(saldoEntregasPlano > 0 || abaterTaxaEntregaPlano || entregasDoPedidoEmEdicao.length > 0) && incluirTaxaEntrega && (

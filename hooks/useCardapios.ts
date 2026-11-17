@@ -64,6 +64,7 @@ export type CardapioConfiguracaoOperacional = {
   publicadoId: number | null;
   producaoId: number | null;
   publicoPausado: boolean;
+  blackFridayAtiva: boolean;
   semanaProducao: string;
 };
 
@@ -121,7 +122,7 @@ export function useCardapios() {
     });
   }, [fetchConfiguracaoOperacional]);
 
-  async function saveConfiguracaoOperacional(input: Partial<Pick<CardapioConfiguracaoOperacional, "publicadoId" | "producaoId" | "publicoPausado">>) {
+  async function saveConfiguracaoOperacional(input: Partial<Pick<CardapioConfiguracaoOperacional, "publicadoId" | "producaoId" | "publicoPausado" | "blackFridayAtiva">>) {
     try {
       setSaving(true);
       const res = await apiFetch(`${RESOURCE}/configuracao-operacional`, {

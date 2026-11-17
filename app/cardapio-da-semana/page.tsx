@@ -23,6 +23,7 @@ type CardapioPublico = {
   id: number;
   nome: string;
   codigo: string;
+  blackFridaySalgados?: { id: string; nome: string; pacote: string; descricao: string }[];
   whatsappNumber?: string | null;
   destinoWhatsApp?: "principal" | "alternativo";
   opcoes: OpcaoPublica[];
@@ -128,6 +129,9 @@ export default function CardapioDaSemanaPage() {
     feijaoGramas: "",
     legumeGramas: "",
   });
+
+  const [blackFriday, setBlackFriday] = useState<Record<string, number>>({});
+  const totalPacotes = Object.values(blackFriday).reduce((soma, quantidade) => soma + quantidade, 0);
 
   const whatsappNumber = cleanPhone(
     cardapio?.whatsappNumber ||
@@ -288,6 +292,7 @@ export default function CardapioDaSemanaPage() {
           telefone,
           tamanhoLabel: tamanhoSelecionado,
           personalizada: personalizadaSanitizada,
+          blackFriday,
           itens: opcoes
             .map((opcao) => ({
               opcaoId: Number(opcao.id),
@@ -434,7 +439,43 @@ export default function CardapioDaSemanaPage() {
               </div>
             </section>
 
-            <section className="mt-6 grid gap-4 lg:grid-cols-2">
+            <section className={cn("mt-6 grid gap-4 lg:grid-cols-2", cardapio?.blackFridaySalgados?.length && "xl:grid-cols-3")}>
+              {!!cardapio?.blackFridaySalgados?.length && (
+                <Card className="overflow-hidden border-[#003b2d] bg-white lg:col-span-2 xl:col-span-1">
+                  <div className="flex items-center gap-4 bg-[#003b2d] px-4 py-4 text-white">
+                    <ShoppingBasket aria-hidden="true" className="h-9 w-9 shrink-0 text-[#ff952e]" />
+                    <div>
+                      <h2 className="text-xl font-black uppercase leading-tight">Black da Fit Garden</h2>
+                      <p className="mt-1 inline-block rounded-full bg-[#b94305] px-3 py-1 text-sm font-bold">Descontos nos pacotes</p>
+                    </div>
+                  </div>
+                  <div className="divide-y px-3 sm:px-4">
+                    {cardapio.blackFridaySalgados.map((item, index) => {
+                      const quantidade = blackFriday[item.id] ?? 0;
+                      return (
+                        <div key={item.id} className="flex flex-wrap items-center gap-2 py-3">
+                          <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-orange-100 font-black text-orange-900">{index + 1}</span>
+                          <div className="min-w-[9rem] flex-1 text-[#14332f]">
+                            <p className="text-sm font-black uppercase">{item.nome}</p>
+                            <p className="text-xs font-bold">({item.pacote})</p>
+                            {item.descricao && <p className="mt-1 text-xs">{item.descricao}</p>}
+                          </div>
+                          <div className="ml-auto flex items-center overflow-hidden rounded-xl border bg-white text-[#14332f]">
+                            <output className="min-w-8 text-center text-sm font-black" aria-label={`Pacotes de ${item.nome}`}>{quantidade}</output>
+                            <button type="button" aria-label={`Remover pacote de ${item.nome}`} disabled={!quantidade} className="grid h-11 w-11 place-items-center border-l hover:bg-orange-50 disabled:opacity-40" onClick={() => setBlackFriday((atual) => ({ ...atual, [item.id]: Math.max(0, (atual[item.id] ?? 0) - 1) }))}><Minus className="h-4 w-4" /></button>
+                            <button type="button" aria-label={`Adicionar pacote de ${item.nome}`} disabled={quantidade >= 999} className="grid h-11 w-11 place-items-center border-l hover:bg-orange-50 disabled:opacity-40" onClick={() => setBlackFriday((atual) => ({ ...atual, [item.id]: Math.min(999, (atual[item.id] ?? 0) + 1) }))}><Plus className="h-4 w-4" /></button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className="m-3 space-y-2 rounded-xl bg-[#fff0d9] p-3 text-sm text-[#14332f]">
+                    <p><strong>8 salgados</strong> · de <del>R$ 64,00</del> por <strong className="text-red-800">R$ 48,00</strong></p>
+                    <p><strong>16 salgados</strong> · de <del>R$ 120,00</del> por <strong className="text-red-800">R$ 90,00</strong></p>
+                    <p className="text-xs">Cada pacote vem com 4 salgados. Combine os sabores como preferir.</p>
+                  </div>
+                </Card>
+              )}
               {grupos.map((grupo) => {
                 const style = categoryStyle(grupo.categoria);
                 const Icon = style.icon;
@@ -507,7 +548,7 @@ export default function CardapioDaSemanaPage() {
                   <ShoppingBasket className="h-6 w-6 shrink-0" />
                   <div className="flex items-baseline gap-2 leading-tight sm:block">
                     <p className="text-xs font-bold uppercase tracking-wide text-[#60746f]">Seu pedido</p>
-                    <p className="whitespace-nowrap font-black"><span className="text-2xl text-[#b85b36]">{total}</span> marmita(s)</p>
+                    <p className="font-black"><span className="text-2xl text-[#b85b36]">{total}</span> marmita(s){totalPacotes > 0 && ` + ${totalPacotes} pacote(s) de salgados`}</p>
                   </div>
                 </div>
                 <Button
@@ -562,6 +603,9 @@ export default function CardapioDaSemanaPage() {
                   />
                 </div>
               </div>
+              {cardapio?.destinoWhatsApp === "alternativo" && (
+                <p className="mt-4 text-sm font-semibold">Taxa de entrega para Arapongas e Rolândia: R$ 15,00</p>
+              )}
               {!whatsappNumber && (
                 <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm font-semibold text-amber-800">
                   Configure o número em NEXT_PUBLIC_WHATSAPP_PEDIDOS_NUMERO para ativar o envio pelo WhatsApp.

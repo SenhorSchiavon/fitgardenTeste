@@ -77,7 +77,8 @@ export type PedidosPendentesQuery = {
 };
 export type EstimarTaxaResponse = {
   success: boolean;
-  distanciaKm: number;
+  distanciaKm: number | null;
+  taxaFixaCidade?: boolean;
   valorTaxa: number;
 };
 export type FinalizarPagamentoInput = {

@@ -192,6 +192,7 @@ const ROTAS_ENTREGA = [
   { id: 2, label: "ROTA 2", intervalo: "15:00-17:00", start: 15 * 60, end: 17 * 60, color: "#f97316" },
   { id: 3, label: "ROTA 3", intervalo: "17:00-18:00", start: 17 * 60, end: 18 * 60, color: "#22c55e" },
   { id: 4, label: "ROTA 4", intervalo: "18:00-20:30", start: 18 * 60, end: 20 * 60 + 30, color: "#3b82f6" },
+  { id: 5, label: "ROTA 5", intervalo: "19:00-19:30", start: 19 * 60, end: 19 * 60 + 30, color: "#8b5cf6" },
 ];
 
 function horarioInicioEmMinutos(faixaHorario: string) {
@@ -209,8 +210,11 @@ function horarioFimEmMinutos(faixaHorario: string) {
 }
 
 function getRotaAgendamento(agendamento: Agendamento) {
+  if (agendamento.tipoEntrega === "ENTREGA" && agendamento.faixaHorario?.trim() === "19:00-19:30") {
+    return ROTAS_ENTREGA[4];
+  }
   if (agendamento.tipoEntrega === "CONGELAR") {
-    return ROTAS_ENTREGA[ROTAS_ENTREGA.length - 1];
+    return ROTAS_ENTREGA[3];
   }
   const inicio = horarioInicioEmMinutos(agendamento.faixaHorario);
   if (inicio == null) return null;
@@ -218,7 +222,7 @@ function getRotaAgendamento(agendamento: Agendamento) {
   if (rota) return rota;
   if (agendamento.tipoEntrega === "RETIRADA") {
     if (inicio < ROTAS_ENTREGA[0].start) return ROTAS_ENTREGA[0];
-    return ROTAS_ENTREGA[ROTAS_ENTREGA.length - 1];
+    return ROTAS_ENTREGA[3];
   }
   return null;
 }

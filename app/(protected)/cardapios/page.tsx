@@ -376,6 +376,20 @@ export default function CardapiosPage() {
               <><PauseCircle className="mr-2 h-4 w-4" /> Pausar site</>
             )}
           </Button>
+          <label className="flex items-center gap-3 rounded-lg border p-3 md:col-span-3">
+            <input
+              type="checkbox"
+              className="size-5 accent-emerald-700"
+              checked={configuracaoOperacional?.blackFridayAtiva ?? false}
+              disabled={saving || !configuracaoOperacional}
+              onChange={(event) => void saveConfiguracaoOperacional({ blackFridayAtiva: event.currentTarget.checked })}
+            />
+            <span>
+              <span className="block text-sm font-semibold">Campanha Black Friday</span>
+              <span className="block text-xs text-muted-foreground">Exibir a promoção de salgados nos cardápios principal e alternativo.</span>
+            </span>
+          </label>
+
         </CardContent>
       </Card>
 
