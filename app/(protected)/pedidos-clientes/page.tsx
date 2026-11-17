@@ -13,6 +13,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { apiFetch } from "@/hooks/api";
 import { ClienteFormDialog } from "@/components/clientes/ClienteFormDialog";
+import { useSalgados } from "@/hooks/useSalgados";
 import { useClientes } from "@/hooks/useClientes";
 
 type Escolha = { opcaoId: number; nome: string; quantidade: number; adicionarFeijao?: boolean; adicionarPure?: boolean; adicionarLegumes?: boolean };
@@ -41,6 +42,7 @@ type PedidoPublico = {
     personalizada?: Record<string, string> | null;
     congeladas?: EscolhaCongelada[];
     salgados?: EscolhaSalgado[];
+    blackFriday?: { pacotes: { id: string; quantidade: number }[]; total: number };
     estoqueReservado?: boolean;
   };
   cliente?: { id: number; nome: string; telefone: string } | null;
@@ -52,6 +54,7 @@ const apiBase = () => String(process.env.NEXT_PUBLIC_API_URL || "http://localhos
 
 export default function PedidosClientesPage() {
   const router = useRouter();
+  const { salgados, loading: carregandoSalgados } = useSalgados();
   const [pedidos, setPedidos] = useState<PedidoPublico[]>([]);
   const [selecionado, setSelecionado] = useState<PedidoPublico | null>(null);
   const [status, setStatus] = useState("PENDENTE");
@@ -149,6 +152,35 @@ export default function PedidosClientesPage() {
           legumeGramas: Number(personalizada.legumeGramas || 0),
         }));
 
+    const pacotes = pedido.itens.blackFriday?.pacotes || [];
+    const quantidadePacotes = (id: string) => pacotes
+      .filter((pacote) => pacote.id === id)
+      .reduce((total, pacote) => total + pacote.quantidade, 0);
+    const quantidadeMix = quantidadePacotes("mix");
+    const unidadesBlackFriday = [
+      { nome: "Coxinha de frango", nomes: ["coxinha de frango", "coxinha"], quantidade: 4 * quantidadePacotes("coxinha") + 2 * quantidadeMix },
+      { nome: "Bolinha de queijo", nomes: ["bolinha de queijo"], quantidade: 4 * quantidadePacotes("bolinha") + 2 * quantidadeMix },
+    ].filter((item) => item.quantidade > 0);
+
+    const salgadosBlackFriday = [];
+    for (const item of unidadesBlackFriday) {
+      const candidatos = salgados.filter((salgado) => salgado.ativo && item.nomes.includes(salgado.nome.trim().toLowerCase()));
+      if (candidatos.length !== 1) {
+        setErro(`Confira se existe um único salgado ativo no cadastro para ${item.nome}.`);
+        return;
+      }
+      const [salgado] = candidatos;
+      salgadosBlackFriday.push({
+        grupoPedido: `pedido-publico:${pedido.id}:salgado:${salgado.id}`,
+        tipoItem: "SALGADO",
+        salgadoId: salgado.id,
+        nome: salgado.nome,
+        quantidade: item.quantidade,
+        valor: salgado.preco * item.quantidade,
+        destinatarioNome: pedido.nome,
+      });
+    }
+
     const payload = {
       pedidoPublicoId: pedido.id,
       clienteId: pedido.cliente?.id || "",
@@ -157,7 +189,7 @@ export default function PedidosClientesPage() {
       ].filter(Boolean).join("\n"),
       formaPagamento: "A_DEFINIR",
       tipo: "NAO_DEFINIR",
-      itens: itensAgendamento,
+      itens: [...itensAgendamento, ...salgadosBlackFriday],
     };
     sessionStorage.setItem("fitgarden:pedido-publico-agendamento", JSON.stringify(payload));
     router.push(`/agendamentos?pedidoPublico=${pedido.id}`);
@@ -293,9 +325,10 @@ export default function PedidosClientesPage() {
                     </div>
                   ))}
             </div>
+            {erro && <p role="alert" className="text-sm text-red-700">{erro}</p>}
             {selecionado.observacoes ? <div><p className="text-xs text-muted-foreground">Observações</p><p className="whitespace-pre-wrap">{selecionado.observacoes}</p></div> : null}
             {selecionado.motivoDescarte ? <div className="rounded-md border border-red-200 bg-red-50 p-3"><p className="text-xs font-bold uppercase text-red-700">Motivo do descarte</p><p className="mt-1 text-red-900">{selecionado.motivoDescarte}</p></div> : null}
-            <Button className="w-full bg-emerald-600 hover:bg-emerald-700" onClick={() => iniciarAgendamento(selecionado)} disabled={selecionado.status !== "PENDENTE"}><CalendarPlus className="mr-2 h-4 w-4" />Levar para o agendamento</Button>
+            <Button className="w-full bg-emerald-600 hover:bg-emerald-700" onClick={() => iniciarAgendamento(selecionado)} disabled={selecionado.status !== "PENDENTE" || (!!selecionado.itens.blackFriday && carregandoSalgados)}><CalendarPlus className="mr-2 h-4 w-4" />Levar para o agendamento</Button>
             {selecionado.status === "PENDENTE" ? <Button variant="destructive" className="w-full" onClick={() => { setDescartando(selecionado); setSelecionado(null); }}><Trash2 className="mr-2 h-4 w-4" />Descartar pedido</Button> : null}
           </div> : null}
         </DialogContent>
