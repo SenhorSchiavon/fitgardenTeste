@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { isMobileWhatsAppDevice, openWhatsApp } from "@/lib/open-whatsapp";
 import { cn } from "@/lib/utils";
+import { InformacoesCardapio, ReferenciaPersonalizado } from "./informacoes-cardapio";
 
 type OpcaoPublica = {
   id: string;
@@ -353,6 +354,7 @@ export default function CardapioDaSemanaPage() {
             <p className="mt-2 text-sm font-medium text-[#47625d] sm:text-base">
               Monte seu pedido escolhendo o tamanho e a quantidade de cada marmita.
             </p>
+            <InformacoesCardapio />
           </div>
 
         </header>
@@ -428,6 +430,7 @@ export default function CardapioDaSemanaPage() {
                 {tamanhoSelecionado === "PERSONALIZADO" && (
                   <div className="rounded-2xl border border-[#e9d8c8] bg-[#fff7f2] p-4">
                     <h2 className="text-sm font-black uppercase tracking-wide text-[#b85b36]">Personalizado</h2>
+                    <ReferenciaPersonalizado />
                     <div className="mt-3 grid gap-4 md:grid-cols-4">
                       {renderGramasInput("Carbo", "carboGramas")}
                       {renderGramasInput("Proteína", "proteinaGramas")}
