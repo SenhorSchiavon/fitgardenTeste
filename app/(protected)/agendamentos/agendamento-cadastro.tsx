@@ -1,5 +1,6 @@
 "use client";
 
+import { grupoSalgadoBlackFriday, ratearTotalBlackFriday, resolverSalgadosBlackFriday } from "@/lib/black-friday-salgados";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ptBR } from "date-fns/locale";
 import Link from "next/link";
@@ -1004,7 +1005,7 @@ export function NovoAgendamentoNovoLayout({
         opcaoId: String(it.opcaoId || ""),
         opcaoNome: it.opcao?.nome || it.nome || "",
         salgadoId: String(it.salgadoId || ""),
-        salgadoNome: it.salgado?.nome || "",
+        salgadoNome: it.salgado?.nome || (it.salgadoId ? it.nome : "") || "",
         congeladaId: String(it.congeladaId || ""),
         congeladaNome: it.congelada?.nome || it.congeladaNome || "",
         carboId: String(it.carboId || (personalizada ? carboOpcao?.preparoId : "") || ""),
@@ -1710,8 +1711,10 @@ export function NovoAgendamentoNovoLayout({
   ]);
 
   const itensComPrecoBruto = useMemo(() => {
+    const unidadesSalgadosComuns = itens.filter(item => item.tipoItem === "SALGADO" && !item.groupId?.includes(":black-friday:"))
+      .reduce((total, item) => total + Number(item.quantidade), 0);
     const regraSalgado = regras
-      .filter((r) => r.tipo === "VOLUME_SALGADOS" && totalSalgados >= Number(r.limite))
+      .filter((r) => r.tipo === "VOLUME_SALGADOS" && unidadesSalgadosComuns >= Number(r.limite))
       .sort((a, b) => Number(b.limite) - Number(a.limite))[0];
     const precoSalgadoVolume = regraSalgado ? Number(regraSalgado.preco) : null;
 
@@ -1719,7 +1722,7 @@ export function NovoAgendamentoNovoLayout({
       if (item.tipoItem === "SALGADO") {
         return {
           ...item,
-          precoUnit: precoSalgadoVolume != null ? precoSalgadoVolume : Number(item.precoUnit || 0),
+          precoUnit: !item.groupId?.includes(":black-friday:") && precoSalgadoVolume != null ? precoSalgadoVolume : Number(item.precoUnit || 0),
         };
       }
 
@@ -3612,7 +3615,32 @@ export function NovoAgendamentoNovoLayout({
         usarPlano: false,
       };
         });
-    const importados = [...importadosCongeladas, ...importadosMarmitas];
+    let importadosSalgados: NovoPedidoItem[];
+    try {
+      importadosSalgados = ratearTotalBlackFriday(resolverSalgadosBlackFriday(pedido.itens?.blackFriday?.pacotes || [], salgados), Number(pedido.itens?.blackFriday?.total ?? 0))
+        .map(({ salgado, quantidade, valor }) => ({
+          ...formItem,
+          id: uid(),
+          groupId: grupoSalgadoBlackFriday(pedido.id, salgado.id),
+          tipoItem: "SALGADO",
+          destinatarioNome: nomeImportado,
+          salgadoId: salgado.id,
+          salgadoNome: salgado.nome,
+          quantidade,
+          opcaoId: "",
+          opcaoNome: "",
+          congeladaId: "",
+          congeladaNome: "",
+          tamanhoId: "",
+          tamanhoLabel: "Salgado",
+          precoUnit: valor / quantidade,
+          usarPlano: false,
+        }));
+    } catch (erro) {
+      toast.error("Não foi possível importar os salgados", { description: (erro as Error).message });
+      return;
+    }
+    const importados = [...importadosCongeladas, ...importadosMarmitas, ...importadosSalgados];
     setItens((prev) => [...prev, ...importados]);
     setItensImportadosAguardandoPlano(importados.map((item) => item.id));
     const itemSemCarboidratoComAdicao = importados.find((itemImportado) => {

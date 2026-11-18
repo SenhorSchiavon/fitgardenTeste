@@ -264,8 +264,10 @@ export default function CardapioDaSemanaPage() {
     }
   }
 
+  const podeContinuar = total > 0 ? !!tamanhoSelecionado : totalPacotes > 0;
+
   function enviarPedido() {
-    if (!tamanhoSelecionado || !total) return;
+    if (!podeContinuar) return;
     if (!whatsappNumber) return;
 
     const personalizadaSanitizada = {
@@ -291,7 +293,7 @@ export default function CardapioDaSemanaPage() {
           origem: cardapio?.destinoWhatsApp || "principal",
           nome,
           telefone,
-          tamanhoLabel: tamanhoSelecionado,
+          tamanhoLabel: total > 0 ? tamanhoSelecionado : undefined,
           personalizada: personalizadaSanitizada,
           blackFriday,
           itens: opcoes
@@ -363,7 +365,7 @@ export default function CardapioDaSemanaPage() {
           <div className="mb-2 text-xs font-black uppercase tracking-widest text-[#14332f]">É muito fácil pedir:</div>
           <div className="grid gap-3 sm:grid-cols-3">
             {[
-              { icon: CheckCircle2, text: "Escolha um tamanho para o pedido todo." },
+              { icon: CheckCircle2, text: "Escolha um tamanho para as marmitas." },
               { icon: ClipboardList, text: "Informe as quantidades de cada marmita." },
               { icon: Send, text: "Digite nome, telefone e envie." },
             ].map((step, index) => {
@@ -551,17 +553,17 @@ export default function CardapioDaSemanaPage() {
                   <ShoppingBasket className="h-6 w-6 shrink-0" />
                   <div className="flex items-baseline gap-2 leading-tight sm:block">
                     <p className="text-xs font-bold uppercase tracking-wide text-[#60746f]">Seu pedido</p>
-                    <p className="font-black"><span className="text-2xl text-[#b85b36]">{total}</span> marmita(s){totalPacotes > 0 && ` + ${totalPacotes} pacote(s) de salgados`}</p>
+                    <p className="font-black">{total > 0 || totalPacotes === 0 ? <><span className="text-2xl text-[#b85b36]">{total}</span> marmita(s)</> : null}{totalPacotes > 0 && `${total > 0 ? " + " : ""}${totalPacotes} pacote(s) de salgados`}</p>
                   </div>
                 </div>
                 <Button
                   type="button"
                   onClick={continuarParaEnvio}
-                  disabled={!tamanhoSelecionado || !total}
+                  disabled={!podeContinuar}
                   className="h-12 w-full rounded-xl bg-[#c24f2f] px-3 text-sm font-black uppercase text-white shadow-lg shadow-[#c24f2f]/25 hover:bg-[#a94329] sm:justify-self-end sm:px-7 sm:text-base"
                 >
-                  <span className="truncate">{!tamanhoSelecionado ? "Selecione o tamanho" : total ? "Continuar para enviar" : "Escolha as marmitas"}</span>
-                  {total ? <ChevronDown className="ml-2 h-5 w-5" /> : null}
+                  <span className="truncate">{podeContinuar ? "Continuar para enviar" : "Escolha os itens"}</span>
+                  {podeContinuar ? <ChevronDown className="ml-2 h-5 w-5" /> : null}
                 </Button>
               </div>
               {totalFeijaoOpcional ? (
@@ -574,7 +576,7 @@ export default function CardapioDaSemanaPage() {
                   Legumes adicionais: {totalLegumesOpcional} unidade(s) (+R$2 cada)
                 </p>
               ) : null}
-              {total > 0 ? (
+              {total + totalPacotes > 0 ? (
                 <p className="mt-2 text-center text-xs font-black uppercase tracking-wide text-[#b85b36]">
                   Atenção: seu pedido ainda não foi enviado
                 </p>
@@ -621,7 +623,7 @@ export default function CardapioDaSemanaPage() {
                   size="lg"
                   className="h-14 w-full max-w-xl rounded-xl bg-[#c24f2f] text-base font-black uppercase tracking-wide text-white shadow-lg shadow-[#c24f2f]/25 hover:bg-[#a94329] sm:text-xl"
                   onClick={enviarPedido}
-                  disabled={enviando || !tamanhoSelecionado || !total || !nome.trim() || !telefone.trim() || !whatsappNumber}
+                  disabled={enviando || !podeContinuar || !nome.trim() || !telefone.trim() || !whatsappNumber}
                 >
                   <Send className="mr-3 h-5 w-5" />
                   {enviando ? "Registrando pedido..." : "Abrir WhatsApp e enviar pedido"}

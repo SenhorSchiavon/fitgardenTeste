@@ -178,6 +178,7 @@ export type CreateAgendamentoInput = {
 };
 
 export type UpdateAgendamentoInput = Partial<{
+  pedidosPublicosIds?: number[];
   planosCompradosIds: number[];
   ajustesTaxasPlano: AjusteTaxasPlano[];
   tipo: PedidoTipo;

@@ -2939,6 +2939,7 @@ export default function Agendamentos() {
           let agendamentoAtualizadoApi: any = null;
           if (modoEdicao && agendamentoEditandoId) {
             agendamentoAtualizadoApi = await updateAgendamento(agendamentoEditandoId, {
+              pedidosPublicosIds: payload.pedidosPublicosIds,
               planosCompradosIds: payload.planosCompradosIds,
               ajustesTaxasPlano: payload.ajustesTaxasPlano,
               tipo: payload.tipo,

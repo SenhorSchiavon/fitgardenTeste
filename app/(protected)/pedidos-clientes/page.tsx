@@ -1,5 +1,6 @@
 "use client";
 
+import { grupoSalgadoBlackFriday, ratearTotalBlackFriday, resolverSalgadosBlackFriday } from "@/lib/black-friday-salgados";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CalendarPlus, Eye, Phone, RefreshCw, Search, ShoppingBasket, Trash2, UserPlus } from "lucide-react";
@@ -152,33 +153,21 @@ export default function PedidosClientesPage() {
           legumeGramas: Number(personalizada.legumeGramas || 0),
         }));
 
-    const pacotes = pedido.itens.blackFriday?.pacotes || [];
-    const quantidadePacotes = (id: string) => pacotes
-      .filter((pacote) => pacote.id === id)
-      .reduce((total, pacote) => total + pacote.quantidade, 0);
-    const quantidadeMix = quantidadePacotes("mix");
-    const unidadesBlackFriday = [
-      { nome: "Coxinha de frango", nomes: ["coxinha de frango", "coxinha"], quantidade: 4 * quantidadePacotes("coxinha") + 2 * quantidadeMix },
-      { nome: "Bolinha de queijo", nomes: ["bolinha de queijo"], quantidade: 4 * quantidadePacotes("bolinha") + 2 * quantidadeMix },
-    ].filter((item) => item.quantidade > 0);
-
-    const salgadosBlackFriday = [];
-    for (const item of unidadesBlackFriday) {
-      const candidatos = salgados.filter((salgado) => salgado.ativo && item.nomes.includes(salgado.nome.trim().toLowerCase()));
-      if (candidatos.length !== 1) {
-        setErro(`Confira se existe um único salgado ativo no cadastro para ${item.nome}.`);
-        return;
-      }
-      const [salgado] = candidatos;
-      salgadosBlackFriday.push({
-        grupoPedido: `pedido-publico:${pedido.id}:salgado:${salgado.id}`,
-        tipoItem: "SALGADO",
-        salgadoId: salgado.id,
-        nome: salgado.nome,
-        quantidade: item.quantidade,
-        valor: salgado.preco * item.quantidade,
-        destinatarioNome: pedido.nome,
-      });
+    let salgadosBlackFriday;
+    try {
+      salgadosBlackFriday = ratearTotalBlackFriday(resolverSalgadosBlackFriday(pedido.itens.blackFriday?.pacotes || [], salgados), Number(pedido.itens.blackFriday?.total ?? 0))
+        .map(({ salgado, quantidade, valor }) => ({
+          grupoPedido: grupoSalgadoBlackFriday(pedido.id, salgado.id),
+          tipoItem: "SALGADO",
+          salgadoId: salgado.id,
+          nome: salgado.nome,
+          quantidade,
+          valor,
+          destinatarioNome: pedido.nome,
+        }));
+    } catch (erro) {
+      setErro((erro as Error).message);
+      return;
     }
 
     const payload = {
