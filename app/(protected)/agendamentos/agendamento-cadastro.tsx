@@ -266,8 +266,12 @@ function gerarHorarios30({ start, end }: { start: string; end: string }) {
   return arr;
 }
 
-const JANELA_SABADO = { start: "09:30", end: "12:30" };
-const JANELA_ENTREGA_PRODUCAO = { start: "15:30", end: "20:30" };
+function getJanelaEntregaPorDistancia(distanciaKm: number | null) {
+  if (distanciaKm == null) return { start: "13:00", end: "20:30" };
+  return distanciaKm <= 3.5
+    ? { start: "13:00", end: "20:30" }
+    : { start: "15:00", end: "20:30" };
+}
 
 function isSabado(date?: Date | null) {
   return !!date && date.getDay() === 6;
@@ -804,22 +808,16 @@ export function NovoAgendamentoNovoLayout({
   const horarios = useMemo(
     () => {
       if (tipo === "CONGELAR") return gerarHorarios30({ start: "00:00", end: "23:30" });
-      if (isSabado(data)) return gerarHorarios30(JANELA_SABADO);
-      if (tipo === "ENTREGA") return gerarHorarios30(JANELA_ENTREGA_PRODUCAO);
+      if (isSabado(data)) return gerarHorarios30({ start: "09:30", end: "12:30" });
       return gerarHorarios30(
         tipo === "RETIRADA"
           ? { start: "12:30", end: "18:00" }
-          : { start: "13:00", end: "20:30" },
+          : getJanelaEntregaPorDistancia(tipo === "ENTREGA" ? distanciaEntregaKm : null),
       );
     },
-    [tipo, data]
+    [tipo, distanciaEntregaKm, data]
   );
 
-  const horariosInicio = useMemo(() => tipo === "ENTREGA"
-    ? horarios.filter((h) => h === HORARIO_ROTA_19.inicio || (
-      toMin(h) < toMin(HORARIO_ROTA_19.inicio) && toMin(h) + 60 <= toMin(horarios[horarios.length - 1])
-    ))
-    : horarios, [tipo, horarios]);
   const rota19 = tipo === "ENTREGA" && horario.inicio === HORARIO_ROTA_19.inicio && horarios.includes(horario.inicio);
 
   const horariosFimDisponiveis = useMemo(() => {
@@ -832,7 +830,7 @@ export function NovoAgendamentoNovoLayout({
   function alterarModalidade(novoTipo: PedidoTipo) {
     if (novoTipo === tipo) return;
     setTipo(novoTipo);
-    const janelaEntrega = isSabado(data) ? JANELA_SABADO : JANELA_ENTREGA_PRODUCAO;
+    const janelaEntrega = isSabado(data) ? { start: "09:30", end: "12:30" } : getJanelaEntregaPorDistancia(distanciaEntregaKm);
     setHorario(novoTipo === "ENTREGA"
       ? { inicio: janelaEntrega.start, fim: fromMin(toMin(janelaEntrega.start) + 60) }
       : { inicio: "13:00", fim: "14:00" });
@@ -1298,7 +1296,7 @@ export function NovoAgendamentoNovoLayout({
     if (tipo === "CONGELAR" && horarioAnterior.congelarSubtipo !== congelarSubtipo) return;
 
     const [inicio, fim] = horarioAnterior.faixa.split("-").map((hora) => hora.trim());
-    if (!horariosInicio.includes(inicio)) return;
+    if (!horarios.includes(inicio)) return;
     if (tipo === "RETIRADA") {
       setHorario({ inicio, fim: inicio });
       return;
@@ -1310,7 +1308,7 @@ export function NovoAgendamentoNovoLayout({
     if (horarios.includes(fim) && toMin(fim) >= toMin(inicio) + 60) {
       setHorario({ inicio, fim });
     }
-  }, [open, initialData, clienteId, tipo, congelarSubtipo, horarioAnterior, horariosInicio, horarios]);
+  }, [open, initialData, clienteId, tipo, congelarSubtipo, horarioAnterior, horarios]);
 
   useEffect(() => {
     let ativo = true;
@@ -3333,11 +3331,14 @@ export function NovoAgendamentoNovoLayout({
       return;
     }
 
-    if (tipo === "ENTREGA" && (
-      !horariosInicio.includes(horario.inicio) || !horariosFimDisponiveis.includes(horario.fim)
+    const janelaEntrega = isSabado(data) ? { start: "09:30", end: "12:30" } : getJanelaEntregaPorDistancia(tipo === "ENTREGA" ? distanciaEntregaKm : null);
+    if (tipo === "ENTREGA" && !rota19 && (
+      toMin(horario.inicio) < toMin(janelaEntrega.start) ||
+      toMin(horario.fim) > toMin(janelaEntrega.end) ||
+      toMin(horario.fim) - toMin(horario.inicio) < 60
     )) {
       toast.error("Horário inválido", {
-        description: `Selecione uma janela de pelo menos 1 hora entre ${horarios[0]} e ${horarios[horarios.length - 1]}.`,
+        description: `Selecione uma janela de pelo menos 1 hora entre ${janelaEntrega.start} e ${janelaEntrega.end}.`,
       });
       return;
     }
@@ -4405,12 +4406,10 @@ export function NovoAgendamentoNovoLayout({
                         }
                       >
                         <SelectTrigger>
-                          <SelectValue>
-                            {!horariosInicio.includes(horario.inicio) ? horario.inicio : undefined}
-                          </SelectValue>
+                          <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          {horariosInicio.map((h) => (
+                          {horarios.map((h) => (
                             <SelectItem key={h} value={h}>
                               {h}
                             </SelectItem>
