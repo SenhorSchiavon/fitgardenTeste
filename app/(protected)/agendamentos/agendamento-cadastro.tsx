@@ -415,12 +415,16 @@ function isFeriadoOperacional(date: Date | undefined | null, feriados: FeriadoOp
   return !!date && dataEhFeriadoOperacional(toLocalDateKey(date), feriados);
 }
 
+function isFimDeSemana(date: Date | undefined | null) {
+  return !!date && (date.getDay() === 0 || date.getDay() === 6);
+}
+
 function getDefaultAgendamentoDate(feriados: FeriadoOperacional[] = []) {
   const proximaData = new Date();
   const diaSemana = proximaData.getDay();
   const diasAAdicionar = diaSemana === 5 ? 3 : diaSemana === 6 ? 2 : 1;
   proximaData.setDate(proximaData.getDate() + diasAAdicionar);
-  while (isFeriadoOperacional(proximaData, feriados)) {
+  while (isFimDeSemana(proximaData) || isFeriadoOperacional(proximaData, feriados)) {
     proximaData.setDate(proximaData.getDate() + 1);
   }
   return proximaData;
@@ -870,8 +874,8 @@ export function NovoAgendamentoNovoLayout({
 
   useEffect(() => {
     if (!open || initialData || !feriados.length) return;
-    setData((atual) => isFeriadoOperacional(atual, feriados) ? getDefaultAgendamentoDate(feriados) : atual);
-    setDataEntregaCongelada((atual) => isFeriadoOperacional(atual, feriados) ? getDefaultAgendamentoDate(feriados) : atual);
+    setData((atual) => (isFimDeSemana(atual) || isFeriadoOperacional(atual, feriados)) ? getDefaultAgendamentoDate(feriados) : atual);
+    setDataEntregaCongelada((atual) => (isFimDeSemana(atual) || isFeriadoOperacional(atual, feriados)) ? getDefaultAgendamentoDate(feriados) : atual);
   }, [open, initialData, feriados]);
 
   useEffect(() => {
@@ -3283,6 +3287,12 @@ export function NovoAgendamentoNovoLayout({
       });
       return;
     }
+    if (isFimDeSemana(data) || (tipo === "CONGELAR" && isFimDeSemana(dataEntregaCongelada))) {
+      toast.error("Data indisponível", {
+        description: "Não há agendamentos nem entregas aos sábados e domingos. Escolha um dia útil.",
+      });
+      return;
+    }
     if (isFeriadoOperacional(data, feriados)) {
       toast.error("Data indisponível", {
         description: "Essa data está marcada como feriado operacional.",
@@ -4361,7 +4371,7 @@ export function NovoAgendamentoNovoLayout({
                         mode="single"
                         selected={data}
                         onSelect={setData}
-                        disabled={(day) => isPastLocalDay(day) || isFeriadoOperacional(day, feriados)}
+                        disabled={(day) => isPastLocalDay(day) || isFimDeSemana(day) || isFeriadoOperacional(day, feriados)}
                         locale={ptBR}
                       />
                     </div>
@@ -4380,7 +4390,7 @@ export function NovoAgendamentoNovoLayout({
                           mode="single"
                           selected={dataEntregaCongelada}
                           onSelect={setDataEntregaCongelada}
-                          disabled={(day) => isPastLocalDay(day) || isFeriadoOperacional(day, feriados)}
+                          disabled={(day) => isPastLocalDay(day) || isFimDeSemana(day) || isFeriadoOperacional(day, feriados)}
                           locale={ptBR}
                         />
                       </div>
