@@ -19,7 +19,7 @@ function normalizarFeriado(item: any): FeriadoOperacional | null {
   return {
     data,
     descricao: descricao || undefined,
-    recorrenteAnual: item?.recorrenteAnual !== false,
+    recorrenteAnual: false,
   };
 }
 
@@ -29,11 +29,7 @@ function ordenarFeriados(a: FeriadoOperacional, b: FeriadoOperacional) {
 
 export function dataEhFeriadoOperacional(dataISO: string, feriados: FeriadoOperacional[]) {
   if (!dataISO) return false;
-  return feriados.some((feriado) => (
-    feriado.recorrenteAnual === false
-      ? feriado.data === dataISO
-      : feriado.data.slice(5) === dataISO.slice(5)
-  ));
+  return feriados.some((feriado) => feriado.data === dataISO);
 }
 
 export function useFeriadosOperacionais() {

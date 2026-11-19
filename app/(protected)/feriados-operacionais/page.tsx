@@ -6,7 +6,6 @@ import { Header } from "@/components/header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
@@ -30,7 +29,6 @@ export default function FeriadosOperacionaisPage() {
   const { feriados, loading, saving, salvarFeriados } = useFeriadosOperacionais();
   const [data, setData] = useState("");
   const [descricao, setDescricao] = useState("");
-  const [recorrenteAnual, setRecorrenteAnual] = useState(true);
   const [listaLocal, setListaLocal] = useState<FeriadoOperacional[] | null>(null);
 
   const lista = listaLocal ?? feriados;
@@ -43,19 +41,16 @@ export default function FeriadosOperacionaisPage() {
     const novo: FeriadoOperacional = {
       data,
       descricao: descricao.trim() || undefined,
-      recorrenteAnual,
+      recorrenteAnual: false,
     };
-    const chaveNova = recorrenteAnual ? data.slice(5) : data;
-    const semDuplicado = lista.filter((item) => (item.recorrenteAnual === false ? item.data : item.data.slice(5)) !== chaveNova);
+    const semDuplicado = lista.filter((item) => item.data !== data);
     setListaLocal([...semDuplicado, novo].sort(ordenarFeriados));
     setData("");
     setDescricao("");
-    setRecorrenteAnual(true);
   };
 
   const remover = (feriado: FeriadoOperacional) => {
-    const chave = feriado.recorrenteAnual === false ? feriado.data : feriado.data.slice(5);
-    setListaLocal(lista.filter((item) => (item.recorrenteAnual === false ? item.data : item.data.slice(5)) !== chave));
+    setListaLocal(lista.filter((item) => item.data !== feriado.data));
   };
 
   const salvar = async () => {
@@ -96,10 +91,7 @@ export default function FeriadosOperacionaisPage() {
                 disabled={loading || saving}
               />
             </div>
-            <label className="flex cursor-pointer items-center gap-3 rounded-md border bg-gray-50 p-3 text-sm font-medium text-gray-700">
-              <Checkbox checked={recorrenteAnual} onCheckedChange={(checked) => setRecorrenteAnual(Boolean(checked))} />
-              Repetir todo ano
-            </label>
+            <p className="text-sm text-gray-500">O feriado vale apenas na data e no ano informados. Cadastre os feriados de cada ano separadamente.</p>
             <Button onClick={adicionar} disabled={loading || saving} className="w-full">
               <Plus className="mr-2 h-4 w-4" />
               Adicionar à lista
@@ -127,7 +119,7 @@ export default function FeriadosOperacionaisPage() {
                     <div>
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="font-bold text-gray-900">{formatarData(feriado.data)}</span>
-                        {feriado.recorrenteAnual !== false ? <Badge variant="secondary">Todo ano</Badge> : <Badge variant="outline">Só essa data</Badge>}
+                        <Badge variant="outline">Só essa data</Badge>
                       </div>
                       <p className="mt-1 text-sm text-gray-500">{feriado.descricao || "Feriado operacional"}</p>
                     </div>
