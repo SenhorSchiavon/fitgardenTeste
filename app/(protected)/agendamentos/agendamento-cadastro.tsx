@@ -875,7 +875,7 @@ export function NovoAgendamentoNovoLayout({
   useEffect(() => {
     if (!open || initialData || !feriados.length) return;
     setData((atual) => (isFimDeSemana(atual) || isFeriadoOperacional(atual, feriados)) ? getDefaultAgendamentoDate(feriados) : atual);
-    setDataEntregaCongelada((atual) => (isFimDeSemana(atual) || isFeriadoOperacional(atual, feriados)) ? getDefaultAgendamentoDate(feriados) : atual);
+    setDataEntregaCongelada((atual) => isFeriadoOperacional(atual, feriados) ? getDefaultAgendamentoDate(feriados) : atual);
   }, [open, initialData, feriados]);
 
   useEffect(() => {
@@ -3287,9 +3287,9 @@ export function NovoAgendamentoNovoLayout({
       });
       return;
     }
-    if (isFimDeSemana(data) || (tipo === "CONGELAR" && isFimDeSemana(dataEntregaCongelada))) {
+    if (isFimDeSemana(data)) {
       toast.error("Data indisponível", {
-        description: "Não há agendamentos nem entregas aos sábados e domingos. Escolha um dia útil.",
+        description: "Não há agendamentos de produção aos sábados e domingos. Escolha um dia útil.",
       });
       return;
     }
@@ -4390,7 +4390,7 @@ export function NovoAgendamentoNovoLayout({
                           mode="single"
                           selected={dataEntregaCongelada}
                           onSelect={setDataEntregaCongelada}
-                          disabled={(day) => isPastLocalDay(day) || isFimDeSemana(day) || isFeriadoOperacional(day, feriados)}
+                          disabled={(day) => isPastLocalDay(day) || isFeriadoOperacional(day, feriados)}
                           locale={ptBR}
                         />
                       </div>
