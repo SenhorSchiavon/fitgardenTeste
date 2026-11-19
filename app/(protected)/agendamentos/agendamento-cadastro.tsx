@@ -874,7 +874,7 @@ export function NovoAgendamentoNovoLayout({
 
   useEffect(() => {
     if (!open || initialData || !feriados.length) return;
-    setData((atual) => (isFimDeSemana(atual) || isFeriadoOperacional(atual, feriados)) ? getDefaultAgendamentoDate(feriados) : atual);
+    setData((atual) => isFeriadoOperacional(atual, feriados) ? getDefaultAgendamentoDate(feriados) : atual);
     setDataEntregaCongelada((atual) => isFeriadoOperacional(atual, feriados) ? getDefaultAgendamentoDate(feriados) : atual);
   }, [open, initialData, feriados]);
 
@@ -3287,12 +3287,6 @@ export function NovoAgendamentoNovoLayout({
       });
       return;
     }
-    if (isFimDeSemana(data)) {
-      toast.error("Data indisponível", {
-        description: "Não há agendamentos de produção aos sábados e domingos. Escolha um dia útil.",
-      });
-      return;
-    }
     if (isFeriadoOperacional(data, feriados)) {
       toast.error("Data indisponível", {
         description: "Essa data está marcada como feriado operacional.",
@@ -4371,7 +4365,7 @@ export function NovoAgendamentoNovoLayout({
                         mode="single"
                         selected={data}
                         onSelect={setData}
-                        disabled={(day) => isPastLocalDay(day) || isFimDeSemana(day) || isFeriadoOperacional(day, feriados)}
+                        disabled={(day) => isPastLocalDay(day) || isFeriadoOperacional(day, feriados)}
                         locale={ptBR}
                       />
                     </div>
