@@ -192,6 +192,7 @@ function VincularDialog({ recebido, onClose, onSuccess }: { recebido: Recebido; 
   const [selecionado, setSelecionado] = useState<Pagamento | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [confirmarSubstituicao, setConfirmarSubstituicao] = useState(false);
   const [erro, setErro] = useState("");
   useEffect(() => {
     const controller = new AbortController(); setLoading(true); setErro(""); setSelecionado(null); setCandidatos([]);
@@ -202,10 +203,13 @@ function VincularDialog({ recebido, onClose, onSuccess }: { recebido: Recebido; 
       .finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
   }, [recebido.valor, filtro, pagina]);
-  async function vincular() {
+  async function vincular(substituir = false) {
     if (!selecionado) return;
+    if (!substituir && selecionado.pixTxid && selecionado.pixTxid !== (recebido.txid && recebido.txid !== "***" ? recebido.txid : null)) {
+      setConfirmarSubstituicao(true); return;
+    }
     setSaving(true); setErro("");
-    try { await request(`/recebidos/${encodeURIComponent(recebido.endToEndId)}/vincular`, { pagamentoId: selecionado.id }); toast.success("Pix vinculado e pagamento confirmado"); onSuccess(); }
+    try { await request(`/recebidos/${encodeURIComponent(recebido.endToEndId)}/vincular`, { pagamentoId: selecionado.id, ...(substituir ? { substituirCobranca: true, txidOriginal: selecionado.pixTxid } : {}) }); toast.success("Pix vinculado e pagamento confirmado"); onSuccess(); }
     catch (error) { setErro(message(error)); }
     finally { setSaving(false); }
   }
@@ -220,5 +224,6 @@ function VincularDialog({ recebido, onClose, onSuccess }: { recebido: Recebido; 
     <div className="flex items-center justify-between"><Button variant="outline" disabled={loading || saving || pagina <= 1} onClick={() => setPagina(p => p - 1)}>Anterior</Button><span className="text-xs">{pagina} / {Math.max(1, paginas)}</span><Button variant="outline" disabled={loading || saving || pagina >= paginas} onClick={() => setPagina(p => p + 1)}>Próxima</Button></div>
     {selecionado && <p className="rounded-md bg-amber-50 p-3 text-sm text-amber-900">Ao confirmar, o Pix será vinculado ao pedido #{selecionado.pedidoId} de {selecionado.pedido.cliente.nome} e o pagamento #{selecionado.id} receberá baixa.</p>}
     <Button disabled={!selecionado || loading || saving} onClick={() => void vincular()}>{saving ? "Conferindo no banco…" : "Confirmar vínculo e dar baixa"}</Button>
+    {confirmarSubstituicao && <Dialog open onOpenChange={open => { if (!saving) setConfirmarSubstituicao(open); }}><DialogContent><DialogHeader><DialogTitle>Deseja mesmo substituir a cobrança Pix original?</DialogTitle><DialogDescription>O pedido #{selecionado?.pedidoId} de {selecionado?.pedido.cliente.nome} já possui uma cobrança Pix. Este recebimento de {brl(recebido.valor)} será vinculado no lugar dela e o pagamento receberá baixa. A substituição será registrada no log com seu usuário. A cobrança original não será cancelada no banco.</DialogDescription></DialogHeader>{erro && <p role="alert" className="text-sm text-red-700">{erro}</p>}<Button variant="outline" disabled={saving} onClick={() => setConfirmarSubstituicao(false)}>Voltar</Button><Button disabled={saving} onClick={() => void vincular(true)}>{saving ? "Conferindo no banco…" : "Substituir cobrança e dar baixa"}</Button></DialogContent></Dialog>}
   </DialogContent></Dialog>;
 }
