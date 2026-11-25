@@ -38,7 +38,6 @@ export const SCREEN_DEFINITIONS: ScreenDefinition[] = [
   { key: "pedido-sem-agendamento", label: "Sem Agendamento", path: "/pedido-sem-agendamento" },
   { key: "congeladas", label: "Congeladas", path: "/congeladas" },
   { key: "mensagens", label: "Mensagens", path: "/mensagens" },
-  { key: "whatsapp", label: "WhatsApp", path: "/whatsapp" },
   { key: "mais-vendidos", label: "Relatórios", path: "/mais-vendidos" },
   { key: "vouchers", label: "Vouchers", path: "/vouchers" },
   { key: "vouchers", label: "Cupons", path: "/cupons" },

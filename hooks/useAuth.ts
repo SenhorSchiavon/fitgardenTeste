@@ -31,13 +31,6 @@ async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
       data?.message ||
       data?.error ||
       `Erro HTTP ${res.status} (${res.statusText})`;
-    console.log("fetchJson error details:", {
-      url,
-      init,
-      status: res.status,
-      responseText: text,
-      parsedData: data,
-    });
     throw new Error(msg);
   }
 
