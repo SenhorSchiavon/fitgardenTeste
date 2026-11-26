@@ -1240,6 +1240,14 @@ export function NovoAgendamentoNovoLayout({
         const ultimo = await getUltimoAgendamentoCliente(Number(clienteId));
         if (!ativo || !ultimo) return;
 
+        const tipoAnterior = ultimo.pedido?.tipo || ultimo.tipoEntrega || ultimo.tipo;
+        if (tipoAnterior === "ENTREGA" || tipoAnterior === "RETIRADA" || tipoAnterior === "CONGELAR") {
+          setTipo(tipoAnterior);
+          if (tipoAnterior === "CONGELAR") {
+            setCongelarSubtipo(ultimo.congelarSubtipo === "ENTREGA" ? "ENTREGA" : "RETIRADA");
+          }
+        }
+
         const pagamentoAutomatico = getPagamentoAutomaticoUltimoPedido(ultimo);
         if (pagamentoAutomatico) {
           setFormaPagamento(pagamentoAutomatico.forma);
